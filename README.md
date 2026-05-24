@@ -40,11 +40,12 @@ http://localhost:3000
 ## Rutas iniciales
 
 - `/`: portada publica de la liga, juego activo y top 3 semanal.
-- `/week`: pagina del juego activo, reglas y leaderboard semanal.
-- `/leaderboard`: tabla completa del leaderboard semanal.
-- `/season`: clasificacion general de temporada.
-- `/submit`: formulario provisional de subida de puntuacion.
-- `/admin`: panel admin mock para gestion semanal.
+- `/game`: página del juego activo, reglas y leaderboard semanal.
+- `/weeks`: tabla completa del leaderboard semanal.
+- `/seasons`: clasificación general de temporada.
+- `/submit`: formulario provisional de subida de puntuación.
+- `/profile`: perfil mock y administración provisional.
+- `/week`, `/leaderboard`, `/season` y `/admin`: rutas temporales de compatibilidad.
 
 ## Estado del MVP
 

@@ -11,8 +11,8 @@ export function PlayerPill({ player }: PlayerPillProps) {
         {player.initials}
       </span>
       <div className="min-w-0">
-        <p className="truncate font-medium text-ink">{player.name}</p>
-        <p className="truncate text-xs text-slate-500">@{player.handle}</p>
+        <p className="truncate font-semibold text-ink">{player.initials}</p>
+        <p className="truncate text-xs text-slate-500">@{player.username}</p>
       </div>
     </div>
   );

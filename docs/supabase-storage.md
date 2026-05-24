@@ -49,7 +49,7 @@ Antes de subir una captura, el frontend debera:
 - Redimensionar imagenes grandes.
 - Convertir a WebP si el navegador lo soporta.
 - Usar JPEG o PNG como fallback.
-- Mantener legibles la puntuacion y las siglas.
+- Mantener legibles la puntuación y las siglas.
 - Evitar archivos de gran tamano.
 - Aplicar un tamano maximo recomendado de 1 MB o 2 MB.
 - Guardar el MIME final y el tamano optimizado en `submissions`.

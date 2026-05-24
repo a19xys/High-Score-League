@@ -5,17 +5,19 @@ create extension if not exists pgcrypto with schema extensions;
 
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  display_name text not null,
+  username text not null,
   initials text not null,
+  avatar_url text,
   is_admin boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint profiles_display_name_not_blank check (length(trim(display_name)) > 0),
+  constraint profiles_username_not_blank check (length(trim(username)) > 0),
   constraint profiles_initials_not_blank check (length(trim(initials)) > 0),
-  constraint profiles_initials_reasonable_length check (char_length(initials) <= 6)
+  constraint profiles_initials_exact_length check (char_length(trim(initials)) = 3)
 );
 
-create unique index profiles_initials_lower_unique_idx on public.profiles (lower(initials));
+create unique index profiles_username_lower_unique_idx on public.profiles (lower(trim(username)));
+create unique index profiles_initials_lower_unique_idx on public.profiles (lower(trim(initials)));
 
 create table public.seasons (
   id uuid primary key default extensions.gen_random_uuid(),

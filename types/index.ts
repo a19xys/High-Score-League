@@ -1,10 +1,11 @@
-export type WeekStatus = "active" | "frozen" | "closed" | "published";
+export type WeekStatus = "draft" | "active" | "frozen" | "closed" | "published";
 
 export type Player = {
   id: string;
-  name: string;
+  username: string;
   initials: string;
-  handle: string;
+  avatarUrl?: string;
+  isAdmin: boolean;
 };
 
 export type Game = {
@@ -13,6 +14,7 @@ export type Game = {
   slug: string;
   genre: string;
   imageAlt: string;
+  imageUrl?: string;
 };
 
 export type Season = {
@@ -30,6 +32,8 @@ export type Week = {
   number: number;
   startsAt: string;
   endsAt: string;
+  revealAt?: string;
+  manualUrl?: string;
   status: WeekStatus;
   rules: string[];
 };
@@ -51,7 +55,10 @@ export type LeaderboardEntry = {
   bestScore: number;
   uploads: number;
   lastSubmissionAt: string;
-  gapToFirst: number;
+  podiumGaps: Array<{
+    rank: 1 | 2 | 3;
+    gap: number;
+  }>;
 };
 
 export type SeasonStanding = {

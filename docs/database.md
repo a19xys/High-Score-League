@@ -8,10 +8,17 @@ todavia no esta conectada a Supabase; el SQL vive en
 
 ### profiles
 
-Representa a los jugadores. Cada fila esta asociada a `auth.users(id)` y guarda
-datos publicos de liga: nombre visible, siglas e indicador `is_admin`.
+Representa a los jugadores. Cada fila está asociada a `auth.users(id)` y guarda
+datos públicos de liga: `username`, siglas, `avatar_url` opcional e indicador
+`is_admin`.
 
-La bandera `is_admin` se usa para politicas RLS de gestion. El primer admin debe
+La identidad visible principal son las siglas de 3 caracteres. Debajo se muestra
+el username con `@`, por ejemplo `LVC` y `@lauravc`.
+
+`username` e `initials` tienen índices únicos ignorando mayúsculas/minúsculas
+para evitar duplicados como `lvc` y `LVC`.
+
+La bandera `is_admin` se usa para políticas RLS de gestión. El primer admin debe
 crearse manualmente desde SQL Dashboard o con service role, porque un usuario
 normal no puede promocionarse a si mismo mediante las politicas iniciales.
 
@@ -31,22 +38,24 @@ Representa una semana competitiva dentro de una temporada. Relaciona
 `season_id` con `game_id`, define `week_number`, fechas de apertura/cierre y
 estado `draft`, `active`, `frozen`, `closed` o `published`.
 
-La restriccion `unique(season_id, week_number)` evita dos semanas con el mismo
-numero dentro de una misma temporada.
+La restricción `unique(season_id, week_number)` evita dos semanas con el mismo
+número dentro de una misma temporada.
 
 ### submissions
 
-Representa cada puntuacion subida por un jugador. Guarda la semana, jugador,
-puntuacion, ruta de captura en Storage, metadatos basicos de la captura,
+Representa cada puntuación subida por un jugador. Guarda la semana, jugador,
+puntuación, ruta de captura en Storage, metadatos básicos de la captura,
 comentario opcional y flags de control:
 
 - `is_hidden`: permite ocultar puntuaciones hasta publicar resultados.
-- `is_valid`: permite invalidar una puntuacion desde administracion.
+- `is_valid`: permite invalidar una puntuación desde administración.
 - `screenshot_mime_type`: tipo MIME informado para la captura optimizada.
-- `screenshot_size_bytes`: tamano final de la captura en bytes, si se conoce.
+- `screenshot_size_bytes`: tamaño final de la captura en bytes, si se conoce.
 
-La mejor puntuacion semanal de cada jugador se podra calcular desde esta tabla,
-pero el resultado final publicado queda separado en `weekly_results`.
+La app permite subir puntuaciones aunque no superen el récord personal. La mejor
+puntuación semanal de cada jugador se podrá calcular desde esta tabla, mientras
+el número de subidas cuenta todas las submissions válidas de la semana. El
+resultado final publicado queda separado en `weekly_results`.
 
 ### weekly_results
 
@@ -71,7 +80,7 @@ generar o revisar estas filas antes de publicar una semana.
 
 1. Un admin crea una temporada, juegos y semanas.
 2. Una semana pasa a `active`.
-3. Los jugadores autenticados insertan filas en `submissions` con su puntuacion,
+3. Los jugadores autenticados insertan filas en `submissions` con su puntuación,
    ruta de captura y metadatos de archivo.
 4. En estado `active`, una submission puede insertarse visible u oculta.
 5. En estado `frozen`, una submission solo puede insertarse con
@@ -82,7 +91,7 @@ generar o revisar estas filas antes de publicar una semana.
 8. Al cerrar la semana, el admin revisa submissions y puede marcar errores con
    `is_valid = false`.
 9. Al publicar, el admin crea filas en `weekly_results`.
-10. La clasificacion general de temporada se lee agregando `weekly_results`.
+10. La clasificación general de temporada se lee agregando `weekly_results`.
 
 ## Uso en el MVP
 
@@ -91,7 +100,7 @@ Para el MVP inicial se necesitan:
 - `profiles` para jugadores y admins.
 - `seasons`, `games`, `weeks` para calendario competitivo.
 - `submissions` para el historial de subidas.
-- `weekly_results` para resultados publicados y clasificacion estable.
+- `weekly_results` para resultados publicados y clasificación estable.
 
 ## RLS inicial
 
@@ -99,19 +108,20 @@ Todas las tablas principales tienen Row Level Security activado.
 
 - `profiles`: usuarios autenticados pueden leer perfiles; cada usuario puede
   insertar o actualizar su propio perfil sin poder activar `is_admin`; admins
-  pueden gestionar perfiles.
+  pueden gestionar perfiles. El perfil usa `username`, `initials`,
+  `avatar_url` opcional e `is_admin`.
 - `seasons`, `games`, `weeks`: usuarios autenticados pueden leer; solo admins
   pueden insertar, actualizar o borrar.
 - `submissions`: usuarios autenticados pueden leer submissions visibles y
-  validas; cada jugador puede leer sus propias submissions aunque esten ocultas;
+  válidas; cada jugador puede leer sus propias submissions aunque estén ocultas;
   cada jugador puede insertar submissions propias solo si la semana esta
   `active` o `frozen`; en `frozen`, la fila debe entrar como oculta; admins
   pueden gestionar todo.
 - `weekly_results`: usuarios autenticados pueden leer; solo admins pueden
   insertar, actualizar o borrar.
 
-Nota: si la home publica debe leer datos directamente desde Supabase sin sesion,
-habra que decidir mas adelante si se anaden politicas `anon` de solo lectura o
+Nota: si la home pública debe leer datos directamente desde Supabase sin sesión,
+habrá que decidir más adelante si se añaden políticas `anon` de solo lectura o
 si esas lecturas se resuelven desde servidor.
 
 ## Queda para mas adelante
@@ -120,8 +130,8 @@ si esas lecturas se resuelven desde servidor.
 - Consultas reales desde Next.js.
 - Subida real a Supabase Storage.
 - Publicacion automatizada de resultados.
-- Vistas SQL para leaderboard semanal y clasificacion de temporada.
-- Auditoria de cambios administrativos.
+- Vistas SQL para leaderboard semanal y clasificación de temporada.
+- Auditoría de cambios administrativos.
 - Metadatos adicionales de capturas como `original_file_name`, si se necesitan
   para moderacion u optimizacion.
 
@@ -139,7 +149,7 @@ Antes de subir capturas a Supabase Storage, el cliente debera comprimirlas:
 - Redimensionar imagenes grandes en el navegador.
 - Convertir preferentemente a WebP si esta disponible.
 - Usar JPEG o PNG como fallback.
-- Mantener legibles puntuacion y siglas.
+- Mantener legibles puntuación y siglas.
 - Evitar archivos innecesariamente grandes.
 - Recomendar un maximo inicial de 1 MB o 2 MB por captura.
 

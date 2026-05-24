@@ -7,14 +7,14 @@ export default function SubmitPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <Card>
-        <CardHeader eyebrow={`Semana ${currentWeek.number}`} title={`Subir puntuacion · ${game.title}`}>
-          Formulario provisional. La subida real se conectara a Supabase Auth,
+        <CardHeader eyebrow={`Semana ${currentWeek.number}`} title={`Subir puntuación · ${game.title}`}>
+          Formulario provisional. La subida real se conectará a Supabase Auth,
           Database y Storage en una fase posterior.
         </CardHeader>
 
         <form className="space-y-5">
           <label className="block">
-            <span className="text-sm font-semibold text-ink">Puntuacion</span>
+            <span className="text-sm font-semibold text-ink">Puntuación</span>
             <input
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-ink outline-none ring-circuit/20 focus:border-circuit focus:ring-4"
               min="0"
@@ -44,7 +44,7 @@ export default function SubmitPage() {
             disabled
             type="button"
           >
-            Envio mock desactivado
+            Envío mock desactivado
           </button>
         </form>
       </Card>

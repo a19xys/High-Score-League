@@ -9,11 +9,11 @@ import type {
 } from "@/types";
 
 export const players: Player[] = [
-  { id: "p1", name: "Laura Vega", initials: "LV", handle: "laurav" },
-  { id: "p2", name: "Mario Santos", initials: "MS", handle: "marios" },
-  { id: "p3", name: "Nico Ramos", initials: "NR", handle: "nicor" },
-  { id: "p4", name: "Clara Diaz", initials: "CD", handle: "clarad" },
-  { id: "p5", name: "Hugo Molina", initials: "HM", handle: "hugom" },
+  { id: "p1", username: "lauravc", initials: "LVC", isAdmin: true },
+  { id: "p2", username: "mariosn", initials: "MSN", isAdmin: false },
+  { id: "p3", username: "nicorms", initials: "NRM", isAdmin: false },
+  { id: "p4", username: "claradz", initials: "CDZ", isAdmin: false },
+  { id: "p5", username: "hugomln", initials: "HML", isAdmin: false },
 ];
 
 export const games: Game[] = [
@@ -91,12 +91,15 @@ export const weeks: Week[] = [
     number: 1,
     startsAt: "2026-05-18T00:00:00.000Z",
     endsAt: "2026-05-24T23:59:59.000Z",
+    revealAt: "2026-05-25T20:00:00.000Z",
+    manualUrl: "/manuals/galaga-week-1.pdf",
     status: "active",
     rules: [
       "Una sola partida por subida.",
-      "La captura debe mostrar puntuacion final y nombre del jugador.",
+      "La captura debe mostrar puntuación final y siglas del jugador.",
       "Se permite jugar en hardware original, MiSTer o emulador con defaults.",
-      "Empates resueltos por primera subida valida.",
+      "Puedes subir varias puntuaciones válidas durante la semana.",
+      "Empates resueltos por primera subida válida.",
     ],
   },
   {
@@ -107,6 +110,7 @@ export const weeks: Week[] = [
     startsAt: "2026-05-25T00:00:00.000Z",
     endsAt: "2026-05-31T23:59:59.000Z",
     status: "closed",
+    revealAt: "2026-06-01T20:00:00.000Z",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -117,6 +121,7 @@ export const weeks: Week[] = [
     startsAt: "2026-06-01T00:00:00.000Z",
     endsAt: "2026-06-07T23:59:59.000Z",
     status: "closed",
+    revealAt: "2026-06-08T20:00:00.000Z",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -127,6 +132,7 @@ export const weeks: Week[] = [
     startsAt: "2026-06-08T00:00:00.000Z",
     endsAt: "2026-06-14T23:59:59.000Z",
     status: "closed",
+    revealAt: "2026-06-15T20:00:00.000Z",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -137,6 +143,7 @@ export const weeks: Week[] = [
     startsAt: "2026-06-15T00:00:00.000Z",
     endsAt: "2026-06-21T23:59:59.000Z",
     status: "closed",
+    revealAt: "2026-06-22T20:00:00.000Z",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -147,6 +154,7 @@ export const weeks: Week[] = [
     startsAt: "2026-06-22T00:00:00.000Z",
     endsAt: "2026-06-28T23:59:59.000Z",
     status: "closed",
+    revealAt: "2026-06-29T20:00:00.000Z",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -157,6 +165,7 @@ export const weeks: Week[] = [
     startsAt: "2026-06-29T00:00:00.000Z",
     endsAt: "2026-07-05T23:59:59.000Z",
     status: "closed",
+    revealAt: "2026-07-06T20:00:00.000Z",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -167,6 +176,7 @@ export const weeks: Week[] = [
     startsAt: "2026-07-06T00:00:00.000Z",
     endsAt: "2026-07-12T23:59:59.000Z",
     status: "closed",
+    revealAt: "2026-07-13T20:00:00.000Z",
     rules: ["Pendiente de publicar."],
   },
 ];
@@ -308,7 +318,7 @@ export function getWeeklyLeaderboard(weekId = currentWeek.id): LeaderboardEntry[
         lastSubmissionAt,
       };
     })
-    .filter((entry): entry is Omit<LeaderboardEntry, "rank" | "gapToFirst"> =>
+    .filter((entry): entry is Omit<LeaderboardEntry, "rank" | "podiumGaps"> =>
       Boolean(entry),
     )
     .sort((a, b) => {
@@ -319,12 +329,16 @@ export function getWeeklyLeaderboard(weekId = currentWeek.id): LeaderboardEntry[
       return a.lastSubmissionAt.localeCompare(b.lastSubmissionAt);
     });
 
-  const firstScore = entries[0]?.bestScore ?? 0;
-
   return entries.map((entry, index) => ({
     ...entry,
     rank: index + 1,
-    gapToFirst: firstScore - entry.bestScore,
+    podiumGaps: entries
+      .slice(0, Math.min(3, index))
+      .map((podiumEntry, podiumIndex) => ({
+        rank: (podiumIndex + 1) as 1 | 2 | 3,
+        gap: podiumEntry.bestScore - entry.bestScore,
+      }))
+      .filter((gap) => gap.gap > 0),
   }));
 }
 

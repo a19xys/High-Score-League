@@ -1,6 +1,7 @@
 import type { WeekStatus } from "@/types";
 
 const statusStyles: Record<WeekStatus, string> = {
+  draft: "border-slate-300 bg-white text-slate-600",
   active: "border-circuit/30 bg-circuit/10 text-teal-800",
   frozen: "border-cabinet/30 bg-cabinet/10 text-amber-800",
   closed: "border-slate-300 bg-slate-100 text-slate-700",
@@ -8,6 +9,7 @@ const statusStyles: Record<WeekStatus, string> = {
 };
 
 const statusLabels: Record<WeekStatus, string> = {
+  draft: "Borrador",
   active: "Activa",
   frozen: "Congelada",
   closed: "Cerrada",

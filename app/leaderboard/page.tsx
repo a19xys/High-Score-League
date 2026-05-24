@@ -15,8 +15,8 @@ export default function LeaderboardPage() {
           title={`Leaderboard semanal · ${game.title}`}
           action={<StatusBadge status={currentWeek.status} />}
         >
-          Mejor puntuacion valida por jugador, numero de subidas y diferencia
-          frente al primer puesto.
+          Mejor puntuación válida por jugador, número de subidas y distancias
+          hacia los puestos de podio.
         </CardHeader>
         <LeaderboardTable entries={leaderboard} />
       </Card>

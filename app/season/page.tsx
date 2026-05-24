@@ -7,7 +7,7 @@ export default function SeasonPage() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader eyebrow="Clasificacion general" title={currentSeason.name}>
+        <CardHeader eyebrow="Clasificación general" title={currentSeason.name}>
           {formatDate(currentSeason.startsAt)} - {formatDate(currentSeason.endsAt)} ·{" "}
           {currentSeason.weekCount} semanas
         </CardHeader>

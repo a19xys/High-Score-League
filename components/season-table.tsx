@@ -1,6 +1,7 @@
 import { formatScore } from "@/lib/format";
 import type { SeasonStanding } from "@/types";
 import { PlayerPill } from "./player-pill";
+import { getRankRowClass, RankBadge } from "./rank-badge";
 import { DataTable, TableHead } from "./ui/table";
 
 type SeasonTableProps = {
@@ -12,7 +13,7 @@ export function SeasonTable({ standings }: SeasonTableProps) {
     <DataTable>
       <TableHead
         labels={[
-          "Posicion",
+          "Posición",
           "Jugador",
           "Puntos",
           "Primeros",
@@ -22,9 +23,9 @@ export function SeasonTable({ standings }: SeasonTableProps) {
       />
       <tbody className="divide-y divide-slate-100 bg-white">
         {standings.map((standing) => (
-          <tr className="hover:bg-slate-50" key={standing.player.id}>
+          <tr className={getRankRowClass(standing.rank)} key={standing.player.id}>
             <td className="whitespace-nowrap px-4 py-4 font-semibold text-ink">
-              #{standing.rank}
+              <RankBadge rank={standing.rank} />
             </td>
             <td className="min-w-56 px-4 py-4">
               <PlayerPill player={standing.player} />

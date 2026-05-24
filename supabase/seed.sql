@@ -79,7 +79,7 @@ values (
   '2026-05-23 23:59:59+00',
   '2026-05-24 23:59:59+00',
   '2026-05-25 20:00:00+00',
-  'Una sola partida por subida. La captura debe mostrar puntuacion final y siglas.'
+  'Una sola partida por subida. La captura debe mostrar puntuación final y siglas.'
 )
 on conflict (season_id, week_number) do update
 set
@@ -93,11 +93,11 @@ set
 
 -- Example profile/submission rows require matching auth.users ids:
 --
--- insert into public.profiles (id, display_name, initials)
+-- insert into public.profiles (id, username, initials)
 -- values
---   ('<auth-user-id-1>', 'Laura Vega', 'LV'),
---   ('<auth-user-id-2>', 'Mario Santos', 'MS'),
---   ('<auth-user-id-3>', 'Nico Ramos', 'NR');
+--   ('<auth-user-id-1>', 'lauravc', 'LVC'),
+--   ('<auth-user-id-2>', 'mariosn', 'MSN'),
+--   ('<auth-user-id-3>', 'nicorms', 'NRM');
 --
 -- insert into public.submissions (
 --   week_id,

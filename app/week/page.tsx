@@ -1,8 +1,9 @@
+import { GameHero } from "@/components/game-hero";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LinkButton } from "@/components/link-button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatDate } from "@/lib/format";
+import { formatDateTime, formatLongDate, formatWeekRange } from "@/lib/format";
 import { currentWeek, getCurrentGame, getWeeklyLeaderboard } from "@/lib/mock-data";
 
 export default function WeekPage() {
@@ -12,19 +13,7 @@ export default function WeekPage() {
   return (
     <div className="space-y-6">
       <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div
-          aria-label={game.imageAlt}
-          className="flex min-h-80 items-end rounded-lg border border-slate-200 bg-[linear-gradient(135deg,#111827_0%,#0f766e_52%,#ef4444_100%)] p-6 text-white shadow-panel"
-          role="img"
-        >
-          <div>
-            <p className="text-sm font-semibold uppercase text-slate-200">
-              Placeholder arcade
-            </p>
-            <h1 className="mt-2 text-4xl font-bold">{game.title}</h1>
-            <p className="mt-2 text-slate-200">{game.genre}</p>
-          </div>
-        </div>
+        <GameHero game={game} />
 
         <Card>
           <CardHeader
@@ -32,9 +21,30 @@ export default function WeekPage() {
             title={game.title}
             action={<StatusBadge status={currentWeek.status} />}
           >
-            {formatDate(currentWeek.startsAt)} - {formatDate(currentWeek.endsAt)}
+            {formatWeekRange(currentWeek.startsAt, currentWeek.endsAt)}
           </CardHeader>
-          <div className="space-y-4">
+          <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase text-slate-500">
+                  Cierre
+                </p>
+                <p className="mt-1 text-sm text-ink">
+                  {formatDateTime(currentWeek.endsAt)}
+                </p>
+              </div>
+              {currentWeek.revealAt ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-slate-500">
+                    Revelación
+                  </p>
+                  <p className="mt-1 text-sm text-ink">
+                    {formatLongDate(currentWeek.revealAt)}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
             <div>
               <h2 className="text-sm font-semibold uppercase text-slate-500">
                 Reglas
@@ -48,9 +58,15 @@ export default function WeekPage() {
                 ))}
               </ul>
             </div>
-            <LinkButton href="/submit" variant="primary">
-              Subir puntuacion
-            </LinkButton>
+
+            <div className="flex flex-wrap gap-3">
+              <LinkButton href="/submit" variant="primary">
+                Subir puntuación
+              </LinkButton>
+              {currentWeek.manualUrl ? (
+                <LinkButton href={currentWeek.manualUrl}>Manual semanal</LinkButton>
+              ) : null}
+            </div>
           </div>
         </Card>
       </section>

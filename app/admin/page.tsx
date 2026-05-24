@@ -13,11 +13,12 @@ export default function AdminPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader
-          eyebrow="Admin provisional"
+          eyebrow="Administración provisional"
           title={`Semana ${currentWeek.number} · ${game.title}`}
           action={<StatusBadge status={currentWeek.status} />}
         >
-          Controles visuales mock para preparar el flujo de gestion semanal.
+          Esta ruta se mantiene temporalmente sin enlazar. La administración
+          vivirá dentro de Perfil cuando exista autenticación real.
         </CardHeader>
 
         <div className="grid gap-3 sm:grid-cols-4">
@@ -34,7 +35,7 @@ export default function AdminPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Ultimas puntuaciones" eyebrow="Moderacion mock" />
+        <CardHeader title="Últimas puntuaciones" eyebrow="Moderación mock" />
         <div className="divide-y divide-slate-100">
           {recentSubmissions.map((submission) => (
             <div
@@ -43,13 +44,15 @@ export default function AdminPage() {
             >
               <div>
                 <p className="font-semibold text-ink">
-                  {submission.player?.name ?? "Jugador desconocido"}
+                  {submission.player?.initials ?? "???"}
                 </p>
                 <p className="text-sm text-slate-500">
-                  {formatDateTime(submission.createdAt)} · {submission.valid ? "Valida" : "Pendiente"}
+                  @{submission.player?.username ?? "desconocido"} ·{" "}
+                  {formatDateTime(submission.createdAt)} ·{" "}
+                  {submission.valid ? "Válida" : "Pendiente"}
                 </p>
               </div>
-              <p className="text-lg font-bold text-arcade">
+              <p className="text-lg font-bold text-ink">
                 {formatScore(submission.score)}
               </p>
             </div>
