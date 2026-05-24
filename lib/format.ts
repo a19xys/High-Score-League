@@ -4,9 +4,9 @@ const dateFormatter = new Intl.DateTimeFormat("es-ES", {
   year: "numeric",
 });
 
-const monthYearFormatter = new Intl.DateTimeFormat("es-ES", {
+const monthFormatter = new Intl.DateTimeFormat("es-ES", {
   month: "long",
-  year: "numeric",
+  timeZone: "UTC",
 });
 
 const weekdayDateTimeFormatter = new Intl.DateTimeFormat("es-ES", {
@@ -40,18 +40,21 @@ export function formatLongDate(value: string) {
 export function formatWeekRange(startsAt: string, endsAt: string) {
   const start = new Date(startsAt);
   const end = new Date(endsAt);
-  const sameMonth = start.getMonth() === end.getMonth();
-  const sameYear = start.getFullYear() === end.getFullYear();
+  const startDay = start.getUTCDate();
+  const endDay = end.getUTCDate();
+  const startMonth = start.getUTCMonth();
+  const endMonth = end.getUTCMonth();
+  const startYear = start.getUTCFullYear();
+  const endYear = end.getUTCFullYear();
+  const sameMonth = startMonth === endMonth;
+  const sameYear = startYear === endYear;
 
   if (sameMonth && sameYear) {
-    return `${start.getDate()}–${end.getDate()} ${monthYearFormatter.format(end)}`;
+    return `${startDay}–${endDay} de ${monthFormatter.format(end)} de ${endYear}`;
   }
 
   if (sameYear) {
-    const startMonth = new Intl.DateTimeFormat("es-ES", {
-      month: "long",
-    }).format(start);
-    return `${start.getDate()} ${startMonth} – ${end.getDate()} ${monthYearFormatter.format(end)}`;
+    return `${startDay} de ${monthFormatter.format(start)} – ${endDay} de ${monthFormatter.format(end)} de ${endYear}`;
   }
 
   return `${formatDate(start.toISOString())} – ${formatDate(end.toISOString())}`;
@@ -83,6 +86,10 @@ export function formatRelativeTime(value: string, now = new Date()) {
   return `hace ${diffDays} ${diffDays === 1 ? "día" : "días"}`;
 }
 
-export function formatPodiumGap(rank: 1 | 2 | 3, gap: number) {
-  return `${rank}.º: -${formatScore(gap)}`;
+export function formatGap(value: number) {
+  if (value === 0) {
+    return "";
+  }
+
+  return `-${formatScore(value)}`;
 }

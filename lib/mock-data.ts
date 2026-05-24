@@ -246,40 +246,50 @@ export const seasonStandings: SeasonStanding[] = [
     rank: 1,
     player: players[0],
     totalPoints: 10,
+    positionChange: 2,
     firstPlaces: 1,
     secondPlaces: 0,
+    thirdPlaces: 0,
     weeksPlayed: 1,
   },
   {
     rank: 2,
     player: players[1],
     totalPoints: 8,
+    positionChange: -1,
     firstPlaces: 0,
     secondPlaces: 1,
+    thirdPlaces: 0,
     weeksPlayed: 1,
   },
   {
     rank: 3,
     player: players[2],
     totalPoints: 6,
+    positionChange: 0,
     firstPlaces: 0,
     secondPlaces: 0,
+    thirdPlaces: 1,
     weeksPlayed: 1,
   },
   {
     rank: 4,
     player: players[3],
     totalPoints: 4,
+    positionChange: 1,
     firstPlaces: 0,
     secondPlaces: 0,
+    thirdPlaces: 0,
     weeksPlayed: 1,
   },
   {
     rank: 5,
     player: players[4],
     totalPoints: 2,
+    positionChange: -2,
     firstPlaces: 0,
     secondPlaces: 0,
+    thirdPlaces: 0,
     weeksPlayed: 1,
   },
 ];
@@ -318,7 +328,7 @@ export function getWeeklyLeaderboard(weekId = currentWeek.id): LeaderboardEntry[
         lastSubmissionAt,
       };
     })
-    .filter((entry): entry is Omit<LeaderboardEntry, "rank" | "podiumGaps"> =>
+    .filter((entry): entry is Omit<LeaderboardEntry, "rank" | "gapToFirst"> =>
       Boolean(entry),
     )
     .sort((a, b) => {
@@ -329,16 +339,12 @@ export function getWeeklyLeaderboard(weekId = currentWeek.id): LeaderboardEntry[
       return a.lastSubmissionAt.localeCompare(b.lastSubmissionAt);
     });
 
+  const firstScore = entries[0]?.bestScore ?? 0;
+
   return entries.map((entry, index) => ({
     ...entry,
     rank: index + 1,
-    podiumGaps: entries
-      .slice(0, Math.min(3, index))
-      .map((podiumEntry, podiumIndex) => ({
-        rank: (podiumIndex + 1) as 1 | 2 | 3,
-        gap: podiumEntry.bestScore - entry.bestScore,
-      }))
-      .filter((gap) => gap.gap > 0),
+    gapToFirst: firstScore - entry.bestScore,
   }));
 }
 

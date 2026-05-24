@@ -55,17 +55,16 @@ export type LeaderboardEntry = {
   bestScore: number;
   uploads: number;
   lastSubmissionAt: string;
-  podiumGaps: Array<{
-    rank: 1 | 2 | 3;
-    gap: number;
-  }>;
+  gapToFirst: number;
 };
 
 export type SeasonStanding = {
   rank: number;
   player: Player;
   totalPoints: number;
+  positionChange: number;
   firstPlaces: number;
   secondPlaces: number;
+  thirdPlaces: number;
   weeksPlayed: number;
 };

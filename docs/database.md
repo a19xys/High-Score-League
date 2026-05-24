@@ -60,8 +60,11 @@ resultado final publicado queda separado en `weekly_results`.
 ### weekly_results
 
 Representa resultados finales publicados por semana. Guarda una fila estable por
-jugador y semana con `final_score`, `rank`, `league_points` y flags para primer
-o segundo puesto.
+jugador y semana con `final_score`, `rank`, `league_points` y flags para primer,
+segundo o tercer puesto.
+
+La clasificación de temporada podrá agregarse desde esta tabla sumando puntos y
+contando primeros, segundos y terceros puestos.
 
 No se calcula automaticamente en esta fase. Mas adelante el panel admin podra
 generar o revisar estas filas antes de publicar una semana.
@@ -102,6 +105,10 @@ Para el MVP inicial se necesitan:
 - `submissions` para el historial de subidas.
 - `weekly_results` para resultados publicados y clasificación estable.
 
+En la interfaz mock, `positionChange` simula el movimiento de cada jugador
+respecto a la semana anterior. Más adelante se calculará comparando resultados
+publicados en `weekly_results`.
+
 ## RLS inicial
 
 Todas las tablas principales tienen Row Level Security activado.
@@ -130,7 +137,8 @@ si esas lecturas se resuelven desde servidor.
 - Consultas reales desde Next.js.
 - Subida real a Supabase Storage.
 - Publicacion automatizada de resultados.
-- Vistas SQL para leaderboard semanal y clasificación de temporada.
+- Vistas SQL para leaderboard semanal y clasificación de temporada, incluyendo
+  movimiento de posición respecto a la semana anterior.
 - Auditoría de cambios administrativos.
 - Metadatos adicionales de capturas como `original_file_name`, si se necesitan
   para moderacion u optimizacion.

@@ -1,4 +1,4 @@
-import { formatPodiumGap, formatRelativeTime, formatScore } from "@/lib/format";
+import { formatGap, formatRelativeTime, formatScore } from "@/lib/format";
 import type { LeaderboardEntry } from "@/types";
 import { PlayerPill } from "./player-pill";
 import { getRankRowClass, RankBadge } from "./rank-badge";
@@ -15,10 +15,10 @@ export function LeaderboardTable({ entries }: LeaderboardTableProps) {
         labels={[
           "Puesto",
           "Jugador",
-          "Mejor puntuación",
+          "Puntuación",
           "Subidas",
           "Última",
-          "Distancia al podio",
+          "Diferencia",
         ]}
       />
       <tbody className="divide-y divide-slate-100 bg-white">
@@ -39,18 +39,8 @@ export function LeaderboardTable({ entries }: LeaderboardTableProps) {
             <td className="whitespace-nowrap px-4 py-4 text-slate-700">
               {formatRelativeTime(entry.lastSubmissionAt)}
             </td>
-            <td className="min-w-36 px-4 py-4 text-slate-700">
-              {entry.podiumGaps.length > 0 ? (
-                <div className="space-y-1">
-                  {entry.podiumGaps.map((gap) => (
-                    <p className="whitespace-nowrap" key={gap.rank}>
-                      {formatPodiumGap(gap.rank, gap.gap)}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-slate-400">-</span>
-              )}
+            <td className="whitespace-nowrap px-4 py-4 text-slate-700">
+              {formatGap(entry.gapToFirst)}
             </td>
           </tr>
         ))}

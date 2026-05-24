@@ -132,6 +132,7 @@ create table public.weekly_results (
   league_points numeric(4, 1) not null default 0,
   is_first_place boolean not null default false,
   is_second_place boolean not null default false,
+  is_third_place boolean not null default false,
   created_at timestamptz not null default now(),
   constraint weekly_results_unique_week_player unique (week_id, player_id),
   constraint weekly_results_final_score_non_negative check (final_score >= 0),
