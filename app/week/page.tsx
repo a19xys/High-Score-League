@@ -2,13 +2,26 @@ import { GameHero } from "@/components/game-hero";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LinkButton } from "@/components/link-button";
 import { Card, CardHeader } from "@/components/ui/card";
+import { EmptyState, PlaceholderSection } from "@/components/ui/state";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatWeekRange } from "@/lib/format";
-import { currentWeek, getCurrentGame, getWeeklyLeaderboard } from "@/lib/mock-data";
+import {
+  formatExactDateTime,
+  formatRelativeTime,
+  formatScore,
+  formatWeekRange,
+} from "@/lib/format";
+import {
+  currentWeek,
+  getCurrentGame,
+  getPlayerWeekSummary,
+  getWeeklyLeaderboard,
+  mockUser,
+} from "@/lib/mock-data";
 
 export default function WeekPage() {
   const game = getCurrentGame();
   const leaderboard = getWeeklyLeaderboard(currentWeek.id);
+  const playerSummary = getPlayerWeekSummary(mockUser.id, currentWeek.id);
 
   return (
     <div className="space-y-6">
@@ -42,12 +55,66 @@ export default function WeekPage() {
               <LinkButton href="/submit" variant="primary">
                 Subir puntuación
               </LinkButton>
-              {currentWeek.manualUrl ? (
-                <LinkButton href={currentWeek.manualUrl}>Manual semanal</LinkButton>
-              ) : null}
+              <LinkButton href={currentWeek.manualUrl ?? "#"}>
+                Descargar manual semanal
+              </LinkButton>
             </div>
           </div>
         </Card>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <Card>
+          <CardHeader eyebrow="Tu estado" title={`${mockUser.initials} · Semana ${currentWeek.number}`}>
+            Estado mock del jugador actual. Más adelante saldrá de Supabase Auth
+            y submissions reales.
+          </CardHeader>
+          {playerSummary ? (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+                <p className="text-xs font-semibold uppercase theme-text-muted">
+                  Mejor puntuación
+                </p>
+                <p className="mt-2 text-2xl font-bold theme-text">
+                  {formatScore(playerSummary.bestScore)}
+                </p>
+              </div>
+              <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+                <p className="text-xs font-semibold uppercase theme-text-muted">
+                  Subidas
+                </p>
+                <p className="mt-2 text-2xl font-bold theme-text">
+                  {playerSummary.uploads}
+                </p>
+              </div>
+              <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+                <p className="text-xs font-semibold uppercase theme-text-muted">
+                  Última
+                </p>
+                <p
+                  className="mt-2 text-sm font-semibold theme-text"
+                  title={formatExactDateTime(playerSummary.lastSubmission.createdAt)}
+                >
+                  {formatRelativeTime(playerSummary.lastSubmission.createdAt)}
+                </p>
+                <p className="mt-1 text-sm theme-text-muted">
+                  {formatScore(playerSummary.lastSubmission.score)}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <EmptyState
+              title="Todavía no has subido puntuaciones esta semana."
+              description="Cuando envíes una puntuación válida, aquí aparecerán tu mejor marca, número de subidas y última submission."
+              action={<LinkButton href="/submit">Subir puntuación</LinkButton>}
+            />
+          )}
+        </Card>
+
+        <PlaceholderSection
+          title="Validación de captura"
+          description="Esta sección se activará cuando conectemos Supabase Storage. Mostrará estado de archivo, requisitos y vista previa validada."
+        />
       </section>
 
       <Card>

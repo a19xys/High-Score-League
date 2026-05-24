@@ -1,52 +1,51 @@
+import { SubmitMockForm } from "@/components/submit-mock-form";
+import { SubmissionsTable } from "@/components/submissions-table";
 import { Card, CardHeader } from "@/components/ui/card";
-import { currentWeek, getCurrentGame } from "@/lib/mock-data";
+import { PlaceholderSection } from "@/components/ui/state";
+import {
+  currentWeek,
+  getCurrentGame,
+  getPlayerSubmissions,
+  mockUser,
+} from "@/lib/mock-data";
 
 export default function SubmitPage() {
   const game = getCurrentGame();
+  const recentSubmissions = getPlayerSubmissions(mockUser.id, 5);
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <Card>
-        <CardHeader eyebrow={`Semana ${currentWeek.number}`} title={`Subir puntuación · ${game.title}`}>
-          Formulario provisional. La subida real se conectará a Supabase Auth,
-          Database y Storage en una fase posterior.
-        </CardHeader>
-
-        <form className="space-y-5">
-          <label className="block">
-            <span className="text-sm font-semibold theme-text">Puntuación</span>
-            <input
-              className="mt-2 w-full rounded-md border px-3 py-2 outline-none ring-circuit/20 focus:border-circuit focus:ring-4 theme-input"
-              min="0"
-              placeholder="184320"
-              type="number"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-semibold theme-text">Captura</span>
-            <input
-              className="mt-2 w-full rounded-md border border-dashed px-3 py-3 text-sm theme-input"
-              type="file"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-semibold theme-text">Comentario opcional</span>
-            <textarea
-              className="mt-2 min-h-28 w-full rounded-md border px-3 py-2 outline-none ring-circuit/20 focus:border-circuit focus:ring-4 theme-input"
-              placeholder="Detalles de la partida, plataforma o contexto."
-            />
-          </label>
-
-          <button
-            className="w-full cursor-not-allowed rounded-md bg-slate-300 px-4 py-3 text-sm font-semibold text-slate-600"
-            disabled
-            type="button"
+    <div className="space-y-6">
+      <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
+        <Card>
+          <CardHeader
+            eyebrow={`Semana ${currentWeek.number}`}
+            title={`Subir puntuación · ${game.title}`}
           >
-            Envío mock desactivado
-          </button>
-        </form>
+            Formulario provisional. La subida real se conectará a Supabase Auth,
+            Database y Storage en una fase posterior.
+          </CardHeader>
+          <SubmitMockForm />
+        </Card>
+
+        <div className="space-y-6">
+          <PlaceholderSection
+            title="Requisitos de captura"
+            description="La captura debe mostrar puntuación final y siglas del jugador. Más adelante se comprimirá antes de subirla a Supabase Storage."
+          />
+          <PlaceholderSection
+            title="Historial permitido"
+            description="La clasificación usará tu mejor puntuación válida de la semana. Puedes subir puntuaciones inferiores a tu récord personal si quieres conservar el historial."
+          />
+        </div>
+      </section>
+
+      <Card>
+        <CardHeader title="Tus últimos envíos" eyebrow="Historial mock" />
+        <SubmissionsTable
+          submissions={recentSubmissions}
+          showPlayer={false}
+          showWeek
+        />
       </Card>
     </div>
   );

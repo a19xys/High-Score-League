@@ -1,12 +1,15 @@
+export const competitionTimeZone = "Europe/Madrid";
+
 const dateFormatter = new Intl.DateTimeFormat("es-ES", {
   day: "2-digit",
   month: "short",
   year: "numeric",
+  timeZone: competitionTimeZone,
 });
 
 const monthFormatter = new Intl.DateTimeFormat("es-ES", {
   month: "long",
-  timeZone: "UTC",
+  timeZone: competitionTimeZone,
 });
 
 const weekdayDateTimeFormatter = new Intl.DateTimeFormat("es-ES", {
@@ -16,6 +19,7 @@ const weekdayDateTimeFormatter = new Intl.DateTimeFormat("es-ES", {
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  timeZone: competitionTimeZone,
 });
 
 const weekdayDateFormatter = new Intl.DateTimeFormat("es-ES", {
@@ -23,6 +27,16 @@ const weekdayDateFormatter = new Intl.DateTimeFormat("es-ES", {
   day: "numeric",
   month: "long",
   year: "numeric",
+  timeZone: competitionTimeZone,
+});
+
+const exactDateTimeFormatter = new Intl.DateTimeFormat("es-ES", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: competitionTimeZone,
 });
 
 export function formatDate(value: string) {
@@ -37,27 +51,41 @@ export function formatLongDate(value: string) {
   return weekdayDateFormatter.format(new Date(value));
 }
 
+function getMadridDateParts(value: string) {
+  const parts = new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+    timeZone: competitionTimeZone,
+  }).formatToParts(new Date(value));
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+
+  return {
+    day: getPart("day"),
+    month: getPart("month"),
+    year: getPart("year"),
+  };
+}
+
 export function formatWeekRange(startsAt: string, endsAt: string) {
-  const start = new Date(startsAt);
-  const end = new Date(endsAt);
-  const startDay = start.getUTCDate();
-  const endDay = end.getUTCDate();
-  const startMonth = start.getUTCMonth();
-  const endMonth = end.getUTCMonth();
-  const startYear = start.getUTCFullYear();
-  const endYear = end.getUTCFullYear();
-  const sameMonth = startMonth === endMonth;
-  const sameYear = startYear === endYear;
+  const start = getMadridDateParts(startsAt);
+  const end = getMadridDateParts(endsAt);
+  const startDate = new Date(startsAt);
+  const endDate = new Date(endsAt);
+  const sameMonth = start.month === end.month;
+  const sameYear = start.year === end.year;
 
   if (sameMonth && sameYear) {
-    return `${startDay}–${endDay} de ${monthFormatter.format(end)} de ${endYear}`;
+    return `${start.day}–${end.day} de ${monthFormatter.format(endDate)} de ${end.year}`;
   }
 
   if (sameYear) {
-    return `${startDay} de ${monthFormatter.format(start)} – ${endDay} de ${monthFormatter.format(end)} de ${endYear}`;
+    return `${start.day} de ${monthFormatter.format(startDate)} – ${end.day} de ${monthFormatter.format(endDate)} de ${end.year}`;
   }
 
-  return `${formatDate(start.toISOString())} – ${formatDate(end.toISOString())}`;
+  return `${formatDate(startsAt)} – ${formatDate(endsAt)}`;
 }
 
 export function formatScore(value: number) {
@@ -84,6 +112,10 @@ export function formatRelativeTime(value: string, now = new Date()) {
 
   const diffDays = Math.floor(diffHours / 24);
   return `hace ${diffDays} ${diffDays === 1 ? "día" : "días"}`;
+}
+
+export function formatExactDateTime(value: string) {
+  return exactDateTimeFormatter.format(new Date(value));
 }
 
 export function formatGap(value: number) {

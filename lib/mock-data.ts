@@ -4,8 +4,10 @@ import type {
   Player,
   Season,
   SeasonStanding,
+  SeasonSummary,
   Submission,
   Week,
+  WeekSummary,
 } from "@/types";
 
 export const players: Player[] = [
@@ -75,13 +77,42 @@ export const games: Game[] = [
   },
 ];
 
-export const currentSeason: Season = {
-  id: "s1",
-  name: "Temporada I",
-  startsAt: "2026-05-18T00:00:00.000Z",
-  endsAt: "2026-07-12T23:59:59.000Z",
-  weekCount: 8,
-};
+export const seasons: Season[] = [
+  {
+    id: "s1",
+    name: "Temporada I",
+    slug: "temporada-i",
+    version: "MVP",
+    status: "active",
+    startsAt: "2026-05-18T00:00:00+02:00",
+    endsAt: "2026-07-12T23:59:00+02:00",
+    weekCount: 8,
+    leaderId: "p1",
+  },
+  {
+    id: "s0",
+    name: "Pretemporada",
+    slug: "pretemporada",
+    version: "Piloto",
+    status: "completed",
+    startsAt: "2026-04-06T00:00:00+02:00",
+    endsAt: "2026-04-27T23:59:00+02:00",
+    weekCount: 3,
+    championId: "p2",
+  },
+  {
+    id: "s2",
+    name: "Temporada II",
+    slug: "temporada-ii",
+    version: "Planificada",
+    status: "draft",
+    startsAt: "2026-09-07T00:00:00+02:00",
+    endsAt: "2026-11-01T23:59:00+01:00",
+    weekCount: 8,
+  },
+];
+
+export const currentSeason = seasons[0];
 
 export const weeks: Week[] = [
   {
@@ -89,9 +120,9 @@ export const weeks: Week[] = [
     seasonId: "s1",
     gameId: "g1",
     number: 1,
-    startsAt: "2026-05-18T00:00:00.000Z",
-    endsAt: "2026-05-24T23:59:59.000Z",
-    revealAt: "2026-05-25T20:00:00.000Z",
+    startsAt: "2026-05-18T00:00:00+02:00",
+    endsAt: "2026-05-24T23:59:00+02:00",
+    revealAt: "2026-05-25T00:00:00+02:00",
     manualUrl: "/manuals/galaga-week-1.pdf",
     status: "active",
     rules: [
@@ -107,10 +138,10 @@ export const weeks: Week[] = [
     seasonId: "s1",
     gameId: "g2",
     number: 2,
-    startsAt: "2026-05-25T00:00:00.000Z",
-    endsAt: "2026-05-31T23:59:59.000Z",
+    startsAt: "2026-05-25T00:00:00+02:00",
+    endsAt: "2026-05-31T23:59:00+02:00",
     status: "closed",
-    revealAt: "2026-06-01T20:00:00.000Z",
+    revealAt: "2026-06-01T00:00:00+02:00",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -118,10 +149,10 @@ export const weeks: Week[] = [
     seasonId: "s1",
     gameId: "g3",
     number: 3,
-    startsAt: "2026-06-01T00:00:00.000Z",
-    endsAt: "2026-06-07T23:59:59.000Z",
+    startsAt: "2026-06-01T00:00:00+02:00",
+    endsAt: "2026-06-07T23:59:00+02:00",
     status: "closed",
-    revealAt: "2026-06-08T20:00:00.000Z",
+    revealAt: "2026-06-08T00:00:00+02:00",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -129,10 +160,10 @@ export const weeks: Week[] = [
     seasonId: "s1",
     gameId: "g4",
     number: 4,
-    startsAt: "2026-06-08T00:00:00.000Z",
-    endsAt: "2026-06-14T23:59:59.000Z",
+    startsAt: "2026-06-08T00:00:00+02:00",
+    endsAt: "2026-06-14T23:59:00+02:00",
     status: "closed",
-    revealAt: "2026-06-15T20:00:00.000Z",
+    revealAt: "2026-06-15T00:00:00+02:00",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -140,10 +171,10 @@ export const weeks: Week[] = [
     seasonId: "s1",
     gameId: "g5",
     number: 5,
-    startsAt: "2026-06-15T00:00:00.000Z",
-    endsAt: "2026-06-21T23:59:59.000Z",
+    startsAt: "2026-06-15T00:00:00+02:00",
+    endsAt: "2026-06-21T23:59:00+02:00",
     status: "closed",
-    revealAt: "2026-06-22T20:00:00.000Z",
+    revealAt: "2026-06-22T00:00:00+02:00",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -151,10 +182,10 @@ export const weeks: Week[] = [
     seasonId: "s1",
     gameId: "g6",
     number: 6,
-    startsAt: "2026-06-22T00:00:00.000Z",
-    endsAt: "2026-06-28T23:59:59.000Z",
+    startsAt: "2026-06-22T00:00:00+02:00",
+    endsAt: "2026-06-28T23:59:00+02:00",
     status: "closed",
-    revealAt: "2026-06-29T20:00:00.000Z",
+    revealAt: "2026-06-29T00:00:00+02:00",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -162,10 +193,10 @@ export const weeks: Week[] = [
     seasonId: "s1",
     gameId: "g7",
     number: 7,
-    startsAt: "2026-06-29T00:00:00.000Z",
-    endsAt: "2026-07-05T23:59:59.000Z",
+    startsAt: "2026-06-29T00:00:00+02:00",
+    endsAt: "2026-07-05T23:59:00+02:00",
     status: "closed",
-    revealAt: "2026-07-06T20:00:00.000Z",
+    revealAt: "2026-07-06T00:00:00+02:00",
     rules: ["Pendiente de publicar."],
   },
   {
@@ -173,10 +204,10 @@ export const weeks: Week[] = [
     seasonId: "s1",
     gameId: "g8",
     number: 8,
-    startsAt: "2026-07-06T00:00:00.000Z",
-    endsAt: "2026-07-12T23:59:59.000Z",
+    startsAt: "2026-07-06T00:00:00+02:00",
+    endsAt: "2026-07-12T23:59:00+02:00",
     status: "closed",
-    revealAt: "2026-07-13T20:00:00.000Z",
+    revealAt: "2026-07-13T00:00:00+02:00",
     rules: ["Pendiente de publicar."],
   },
 ];
@@ -191,7 +222,7 @@ export const submissions: Submission[] = [
     score: 184320,
     screenshotUrl: "/mock/laura-galaga.png",
     comment: "Primer intento serio de la semana.",
-    createdAt: "2026-05-19T20:12:00.000Z",
+    createdAt: "2026-05-19T20:12:00+02:00",
     valid: true,
   },
   {
@@ -200,7 +231,7 @@ export const submissions: Submission[] = [
     playerId: "p2",
     score: 172040,
     screenshotUrl: "/mock/mario-galaga.png",
-    createdAt: "2026-05-20T18:45:00.000Z",
+    createdAt: "2026-05-20T18:45:00+02:00",
     valid: true,
   },
   {
@@ -209,7 +240,7 @@ export const submissions: Submission[] = [
     playerId: "p3",
     score: 171700,
     screenshotUrl: "/mock/nico-galaga.png",
-    createdAt: "2026-05-21T22:08:00.000Z",
+    createdAt: "2026-05-21T22:08:00+02:00",
     valid: true,
   },
   {
@@ -218,7 +249,7 @@ export const submissions: Submission[] = [
     playerId: "p1",
     score: 160200,
     screenshotUrl: "/mock/laura-galaga-early.png",
-    createdAt: "2026-05-18T21:18:00.000Z",
+    createdAt: "2026-05-18T21:18:00+02:00",
     valid: true,
   },
   {
@@ -227,7 +258,7 @@ export const submissions: Submission[] = [
     playerId: "p4",
     score: 149880,
     screenshotUrl: "/mock/clara-galaga.png",
-    createdAt: "2026-05-22T19:27:00.000Z",
+    createdAt: "2026-05-22T19:27:00+02:00",
     valid: true,
   },
   {
@@ -236,10 +267,12 @@ export const submissions: Submission[] = [
     playerId: "p5",
     score: 132410,
     screenshotUrl: "/mock/hugo-galaga.png",
-    createdAt: "2026-05-21T16:51:00.000Z",
+    createdAt: "2026-05-21T16:51:00+02:00",
     valid: true,
   },
 ];
+
+export const mockUser = players[0];
 
 type SeasonStandingInput = Omit<SeasonStanding, "rank" | "positionChange"> & {
   previousRank: number;
@@ -342,6 +375,18 @@ export const seasonStandings: SeasonStanding[] =
     return standings;
   }, []);
 
+export function getGameById(gameId: string) {
+  return games.find((game) => game.id === gameId);
+}
+
+export function getWeekById(weekId: string) {
+  return weeks.find((week) => week.id === weekId);
+}
+
+export function getSeasonById(seasonId: string) {
+  return seasons.find((season) => season.id === seasonId);
+}
+
 export function getCurrentGame() {
   return games.find((game) => game.id === currentWeek.gameId) ?? games[0];
 }
@@ -403,5 +448,111 @@ export function getRecentSubmissions(limit = 5) {
     .map((submission) => ({
       ...submission,
       player: players.find((player) => player.id === submission.playerId),
+      week: weeks.find((week) => week.id === submission.weekId),
     }));
+}
+
+export function getSubmissionsForWeek(weekId: string) {
+  return submissions
+    .filter((submission) => submission.weekId === weekId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((submission) => ({
+      ...submission,
+      player: players.find((player) => player.id === submission.playerId),
+    }));
+}
+
+export function getPlayerSubmissions(playerId: string, limit?: number) {
+  const rows = submissions
+    .filter((submission) => submission.playerId === playerId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((submission) => ({
+      ...submission,
+      week: weeks.find((week) => week.id === submission.weekId),
+      game: games.find(
+        (game) => game.id === weeks.find((week) => week.id === submission.weekId)?.gameId,
+      ),
+    }));
+
+  return typeof limit === "number" ? rows.slice(0, limit) : rows;
+}
+
+export function getPlayerWeekSummary(playerId: string, weekId = currentWeek.id) {
+  const playerSubmissions = submissions.filter(
+    (submission) =>
+      submission.playerId === playerId &&
+      submission.weekId === weekId &&
+      submission.valid,
+  );
+
+  if (playerSubmissions.length === 0) {
+    return null;
+  }
+
+  const sortedSubmissions = [...playerSubmissions].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  );
+
+  return {
+    bestScore: Math.max(...playerSubmissions.map((submission) => submission.score)),
+    uploads: playerSubmissions.length,
+    lastSubmission: sortedSubmissions[0],
+  };
+}
+
+export function getBestScoresByWeek(playerId: string) {
+  return weeks
+    .map((week) => {
+      const playerSubmissions = submissions.filter(
+        (submission) =>
+          submission.playerId === playerId &&
+          submission.weekId === week.id &&
+          submission.valid,
+      );
+
+      if (playerSubmissions.length === 0) {
+        return null;
+      }
+
+      const game = getGameById(week.gameId);
+
+      return {
+        week,
+        game,
+        bestScore: Math.max(...playerSubmissions.map((submission) => submission.score)),
+        uploads: playerSubmissions.length,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+}
+
+export function getWeekSummaries(): WeekSummary[] {
+  return [...weeks]
+    .sort((a, b) => b.startsAt.localeCompare(a.startsAt))
+    .map((week) => {
+      const leaderboard = getWeeklyLeaderboard(week.id);
+      return {
+        week,
+        season: getSeasonById(week.seasonId) ?? currentSeason,
+        game: getGameById(week.gameId) ?? games[0],
+        winner: leaderboard[0]?.player,
+        leaderboard,
+      };
+    });
+}
+
+export function getSeasonSummaries(): SeasonSummary[] {
+  return [...seasons]
+    .sort((a, b) => b.startsAt.localeCompare(a.startsAt))
+    .map((season) => ({
+      season,
+      champion: players.find((player) => player.id === season.championId),
+      leader: players.find((player) => player.id === season.leaderId),
+    }));
+}
+
+export function getSeasonWeeks(seasonId: string) {
+  return getWeekSummaries()
+    .filter((summary) => summary.week.seasonId === seasonId)
+    .sort((a, b) => a.week.number - b.week.number);
 }

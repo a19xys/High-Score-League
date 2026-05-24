@@ -12,12 +12,13 @@ create table public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint profiles_username_not_blank check (length(trim(username)) > 0),
+  constraint profiles_username_format check (username ~ '^[a-z][a-z0-9_]{2,19}$'),
   constraint profiles_initials_not_blank check (length(trim(initials)) > 0),
-  constraint profiles_initials_exact_length check (char_length(trim(initials)) = 3)
+  constraint profiles_initials_format check (initials ~ '^[A-Z0-9]{3}$')
 );
 
 create unique index profiles_username_lower_unique_idx on public.profiles (lower(trim(username)));
-create unique index profiles_initials_lower_unique_idx on public.profiles (lower(trim(initials)));
+create unique index profiles_initials_upper_unique_idx on public.profiles (upper(trim(initials)));
 
 create table public.seasons (
   id uuid primary key default extensions.gen_random_uuid(),

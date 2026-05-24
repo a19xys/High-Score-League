@@ -15,8 +15,17 @@ datos públicos de liga: `username`, siglas, `avatar_url` opcional e indicador
 La identidad visible principal son las siglas de 3 caracteres. Debajo se muestra
 el username con `@`, por ejemplo `LVC` y `@lauravc`.
 
-`username` e `initials` tienen índices únicos ignorando mayúsculas/minúsculas
-para evitar duplicados como `lvc` y `LVC`.
+`username` debe cumplir `^[a-z][a-z0-9_]{2,19}$`: solo minúsculas, números y
+guion bajo; debe empezar por letra; longitud de 3 a 20 caracteres. Ejemplos
+válidos: `lauravc`, `alex_87`, `mario123`.
+
+`initials` debe cumplir `^[A-Z0-9]{3}$`: exactamente 3 caracteres, letras A-Z o
+números. El frontend debe transformar las siglas a mayúsculas antes de guardar.
+Ejemplos válidos: `LVC`, `AAA`, `P1X`.
+
+`username` e `initials` tienen índices únicos normalizados para evitar
+duplicados por mayúsculas/minúsculas. `username` usa `lower(trim(username))` y
+`initials` usa `upper(trim(initials))`.
 
 La bandera `is_admin` se usa para políticas RLS de gestión. El primer admin debe
 crearse manualmente desde SQL Dashboard o con service role, porque un usuario
@@ -120,6 +129,23 @@ Las fechas de cierre y revelación existen como datos de la semana. En la UI moc
 principal solo se muestra el rango competitivo, por ejemplo
 `18–24 de mayo de 2026`; cierre y revelación no se muestran como tarjetas
 independientes por ahora.
+
+## Zona horaria de competición
+
+La liga usa una zona horaria explícita de competición. En esta fase, la
+referencia es `Europe/Madrid`.
+
+Las fechas guardadas en Supabase son `timestamptz`. Al crear semanas reales, los
+timestamps deben incluir zona horaria explícita y no ser fechas ambiguas. Ejemplos:
+
+- `2026-05-18T00:00:00+02:00`
+- `2026-05-22T23:59:00+02:00`
+- `2026-05-24T23:59:00+02:00`
+- `2026-05-25T00:00:00+02:00`
+
+La interfaz formatea rangos y horas en `Europe/Madrid`. Los tiempos relativos,
+como `hace 4 días`, incluyen la fecha/hora exacta en el atributo HTML `title`
+para poder verla al pasar el ratón.
 
 ## Uso en el MVP
 

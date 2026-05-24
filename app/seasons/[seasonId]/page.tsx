@@ -1,0 +1,62 @@
+import { notFound } from "next/navigation";
+import { SeasonTable } from "@/components/season-table";
+import { WeeksTable } from "@/components/weeks-table";
+import { Card, CardHeader } from "@/components/ui/card";
+import { EmptyState, PlaceholderSection } from "@/components/ui/state";
+import { formatWeekRange } from "@/lib/format";
+import {
+  getSeasonById,
+  getSeasonWeeks,
+  seasonStandings,
+  seasons,
+} from "@/lib/mock-data";
+
+export function generateStaticParams() {
+  return seasons.map((season) => ({ seasonId: season.id }));
+}
+
+type SeasonDetailPageProps = {
+  params: Promise<{
+    seasonId: string;
+  }>;
+};
+
+export default async function SeasonDetailPage({ params }: SeasonDetailPageProps) {
+  const { seasonId } = await params;
+  const season = getSeasonById(seasonId);
+
+  if (!season) {
+    notFound();
+  }
+
+  const seasonWeeks = getSeasonWeeks(season.id);
+  const hasStandings = season.id === "s1";
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader eyebrow="Detalle de temporada" title={season.name}>
+          {season.version ?? "Sin versión"} · {formatWeekRange(season.startsAt, season.endsAt)}
+        </CardHeader>
+        {hasStandings ? (
+          <SeasonTable standings={seasonStandings} />
+        ) : (
+          <EmptyState
+            title="No hay clasificación publicada."
+            description="Esta temporada todavía no tiene resultados mock asociados."
+          />
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader title="Semanas incluidas" eyebrow="Calendario" />
+        <WeeksTable weeks={seasonWeeks} />
+      </Card>
+
+      <PlaceholderSection
+        title="Resumen de podios"
+        description="Cuando conectemos Supabase, aquí se mostrarán primeros, segundos y terceros agregados por jugador."
+      />
+    </div>
+  );
+}

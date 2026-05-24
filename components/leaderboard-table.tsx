@@ -1,4 +1,9 @@
-import { formatGap, formatRelativeTime, formatScore } from "@/lib/format";
+import {
+  formatExactDateTime,
+  formatGap,
+  formatRelativeTime,
+  formatScore,
+} from "@/lib/format";
 import type { LeaderboardEntry } from "@/types";
 import { PlayerPill } from "./player-pill";
 import { getRankRowClass, RankBadge } from "./rank-badge";
@@ -36,7 +41,10 @@ export function LeaderboardTable({ entries }: LeaderboardTableProps) {
             <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
               {entry.uploads}
             </td>
-            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+            <td
+              className="whitespace-nowrap px-4 py-4 theme-text-muted"
+              title={formatExactDateTime(entry.lastSubmissionAt)}
+            >
               {formatRelativeTime(entry.lastSubmissionAt)}
             </td>
             <td className="whitespace-nowrap px-4 py-4 theme-text-muted">

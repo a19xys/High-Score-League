@@ -1,9 +1,16 @@
 export type WeekStatus = "draft" | "active" | "frozen" | "closed" | "published";
+export type SeasonStatus = "draft" | "active" | "completed";
+
+// Profile values are validated by the app and Supabase checks:
+// username: ^[a-z][a-z0-9_]{2,19}$
+// initials: ^[A-Z0-9]{3}$
+export type Username = string;
+export type PlayerInitials = string;
 
 export type Player = {
   id: string;
-  username: string;
-  initials: string;
+  username: Username;
+  initials: PlayerInitials;
   avatarUrl?: string;
   isAdmin: boolean;
 };
@@ -20,9 +27,14 @@ export type Game = {
 export type Season = {
   id: string;
   name: string;
+  slug: string;
+  version?: string;
+  status: SeasonStatus;
   startsAt: string;
   endsAt: string;
   weekCount: number;
+  championId?: string;
+  leaderId?: string;
 };
 
 export type Week = {
@@ -47,6 +59,7 @@ export type Submission = {
   comment?: string;
   createdAt: string;
   valid: boolean;
+  hidden?: boolean;
 };
 
 export type LeaderboardEntry = {
@@ -67,4 +80,18 @@ export type SeasonStanding = {
   secondPlaces: number;
   thirdPlaces: number;
   weeksPlayed: number;
+};
+
+export type WeekSummary = {
+  week: Week;
+  season: Season;
+  game: Game;
+  winner?: Player;
+  leaderboard: LeaderboardEntry[];
+};
+
+export type SeasonSummary = {
+  season: Season;
+  leader?: Player;
+  champion?: Player;
 };
