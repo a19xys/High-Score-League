@@ -6,8 +6,8 @@ type DataTableProps = {
 
 export function DataTable({ children }: DataTableProps) {
   return (
-    <div className="overflow-hidden rounded-lg border theme-border theme-surface">
-      <div className="overflow-x-auto">
+    <div className="rounded-lg border theme-border theme-surface">
+      <div className="overflow-x-auto overflow-y-visible">
         <table className="min-w-full divide-y text-left text-sm theme-border">
           {children}
         </table>

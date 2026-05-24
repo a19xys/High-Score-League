@@ -1,5 +1,7 @@
 import type {
   Game,
+  ChatMessage,
+  ChatMessageWithPlayer,
   LeaderboardEntry,
   Player,
   Season,
@@ -270,6 +272,50 @@ export const submissions: Submission[] = [
     createdAt: "2026-05-21T16:51:00+02:00",
     valid: true,
   },
+  {
+    id: "sub7",
+    weekId: "w1",
+    playerId: "p2",
+    score: 191240,
+    screenshotUrl: "/mock/mario-galaga-hidden.png",
+    comment: "Guardada para la ventana oculta del fin de semana.",
+    createdAt: "2026-05-23T23:12:00+02:00",
+    valid: true,
+    hidden: true,
+  },
+];
+
+export const chatMessages: ChatMessage[] = [
+  {
+    id: "chat1",
+    playerId: "p4",
+    body: "Semana 1 muy seria. Galaga no perdona.",
+    createdAt: "2026-05-24T18:05:00+02:00",
+  },
+  {
+    id: "chat2",
+    playerId: "p1",
+    body: "He dejado una puntuación decente, pero todavía hay margen.",
+    createdAt: "2026-05-24T18:18:00+02:00",
+  },
+  {
+    id: "chat3",
+    playerId: "p2",
+    body: "El lunes quiero ver ese leaderboard publicado.",
+    createdAt: "2026-05-24T18:42:00+02:00",
+  },
+  {
+    id: "chat4",
+    playerId: "p3",
+    body: "Me falta consistencia en la tercera fase.",
+    createdAt: "2026-05-24T19:01:00+02:00",
+  },
+  {
+    id: "chat5",
+    playerId: "p5",
+    body: "Confirmo que el mando cuenta más que el café.",
+    createdAt: "2026-05-24T19:09:00+02:00",
+  },
 ];
 
 export const mockUser = players[0];
@@ -392,8 +438,12 @@ export function getCurrentGame() {
 }
 
 export function getWeeklyLeaderboard(weekId = currentWeek.id): LeaderboardEntry[] {
+  const week = getWeekById(weekId);
   const validSubmissions = submissions.filter(
-    (submission) => submission.weekId === weekId && submission.valid,
+    (submission) =>
+      submission.weekId === weekId &&
+      submission.valid &&
+      (!submission.hidden || week?.status === "published"),
   );
 
   const entries = players
@@ -453,12 +503,15 @@ export function getRecentSubmissions(limit = 5) {
 }
 
 export function getSubmissionsForWeek(weekId: string) {
+  const week = getWeekById(weekId);
   return submissions
     .filter((submission) => submission.weekId === weekId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map((submission) => ({
       ...submission,
       player: players.find((player) => player.id === submission.playerId),
+      week,
+      game: week ? getGameById(week.gameId) : undefined,
     }));
 }
 
@@ -555,4 +608,16 @@ export function getSeasonWeeks(seasonId: string) {
   return getWeekSummaries()
     .filter((summary) => summary.week.seasonId === seasonId)
     .sort((a, b) => a.week.number - b.week.number);
+}
+
+export function getChatMessages(limit = 50): ChatMessageWithPlayer[] {
+  return chatMessages
+    .filter((message) => !message.isDeleted)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .slice(-limit)
+    .map((message) => ({
+      ...message,
+      player:
+        players.find((player) => player.id === message.playerId) ?? players[0],
+    }));
 }

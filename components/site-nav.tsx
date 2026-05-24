@@ -1,11 +1,11 @@
 import Link from "next/link";
+import { mockUser } from "@/lib/mock-data";
 
 const links = [
-  { href: "/game", label: "Juego" },
-  { href: "/weeks", label: "Semanas" },
-  { href: "/seasons", label: "Temporadas" },
-  { href: "/submit", label: "Subir" },
-  { href: "/profile", label: "Perfil" },
+  { href: "/game", label: "JUEGO" },
+  { href: "/weeks", label: "SEMANAS" },
+  { href: "/seasons", label: "TEMPORADAS" },
+  { href: "/submit", label: "SUBIR" },
 ];
 
 export function SiteNav() {
@@ -16,9 +16,11 @@ export function SiteNav() {
           <span className="flex h-10 w-10 items-center justify-center rounded-md text-sm font-bold theme-surface-strong">
             HSL
           </span>
-          <span className="text-lg font-bold theme-text">High Score League</span>
+          <span className="text-lg font-bold uppercase theme-text">
+            High Score League
+          </span>
         </Link>
-        <div className="flex flex-wrap gap-2 text-sm font-medium theme-text-muted">
+        <div className="flex flex-wrap items-center gap-2 text-sm font-medium theme-text-muted">
           {links.map((link) => (
             <Link
               className="rounded-md px-3 py-2 theme-hover"
@@ -28,6 +30,14 @@ export function SiteNav() {
               {link.label}
             </Link>
           ))}
+          <Link
+            aria-label="Perfil"
+            className="ml-1 flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold theme-surface-strong"
+            href="/profile"
+            title={`@${mockUser.username}`}
+          >
+            {mockUser.initials}
+          </Link>
         </div>
       </nav>
     </header>

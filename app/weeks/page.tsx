@@ -1,7 +1,6 @@
 import { WeeksTable } from "@/components/weeks-table";
 import { Card, CardHeader } from "@/components/ui/card";
-import { PlaceholderSection } from "@/components/ui/state";
-import { getWeekSummaries } from "@/lib/mock-data";
+import { currentWeek, getWeekSummaries } from "@/lib/mock-data";
 
 export default function WeeksPage() {
   const weekSummaries = getWeekSummaries();
@@ -13,13 +12,12 @@ export default function WeeksPage() {
           Leaderboards semanales ordenados de más nueva a más antigua. Los
           detalles siguen usando datos mock.
         </CardHeader>
-        <WeeksTable weeks={weekSummaries} />
+        <WeeksTable
+          weeks={weekSummaries}
+          enableControls
+          currentWeekNumber={currentWeek.number}
+        />
       </Card>
-
-      <PlaceholderSection
-        title="Filtros de temporada"
-        description="Esta sección se activará cuando conectemos Supabase para filtrar por temporada, juego y estado."
-      />
     </div>
   );
 }

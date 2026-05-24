@@ -1,4 +1,5 @@
 import { LeaderboardTable } from "@/components/leaderboard-table";
+import { LeagueChat } from "@/components/league-chat";
 import { LinkButton } from "@/components/link-button";
 import { getRankCardClass, RankBadge } from "@/components/rank-badge";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { formatScore, formatWeekRange } from "@/lib/format";
 import {
   currentSeason,
   currentWeek,
+  getChatMessages,
   getCurrentGame,
   getWeeklyLeaderboard,
 } from "@/lib/mock-data";
@@ -15,14 +17,12 @@ export default function HomePage() {
   const game = getCurrentGame();
   const leaderboard = getWeeklyLeaderboard();
   const topThree = leaderboard.slice(0, 3);
+  const chatMessages = getChatMessages();
 
   return (
     <div className="space-y-6">
       <section className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
         <div className="rounded-lg p-7 shadow-panel theme-surface-strong">
-          <p className="mb-3 text-sm font-semibold uppercase text-circuit">
-            {currentSeason.name}
-          </p>
           <h1 className="max-w-2xl text-4xl font-bold leading-tight sm:text-5xl">
             High Score League
           </h1>
@@ -31,11 +31,11 @@ export default function HomePage() {
             capturas validadas y clasificación acumulada de temporada.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <LinkButton href="/weeks" variant="primary">
-              Ver leaderboard
+            <LinkButton href={`/weeks/${currentWeek.id}`} variant="primary">
+              Leaderboard
             </LinkButton>
-            <LinkButton href="/submit">Subir puntuación</LinkButton>
-            <LinkButton href="/seasons">Clasificación</LinkButton>
+            <LinkButton href={`/seasons/${currentSeason.id}`}>Clasificación</LinkButton>
+            <LinkButton href="/submit">Subir</LinkButton>
           </div>
         </div>
 
@@ -85,6 +85,14 @@ export default function HomePage() {
       <Card>
         <CardHeader title="Leaderboard semanal" eyebrow="Vista rápida" />
         <LeaderboardTable entries={leaderboard} />
+      </Card>
+
+      <Card>
+        <CardHeader title="Chat de la liga" eyebrow="Comentarios">
+          Comentarios públicos mock. Supabase tendrá una tabla dedicada para
+          persistirlos más adelante.
+        </CardHeader>
+        <LeagueChat messages={chatMessages} />
       </Card>
     </div>
   );

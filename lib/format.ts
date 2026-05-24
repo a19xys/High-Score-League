@@ -39,6 +39,13 @@ const exactDateTimeFormatter = new Intl.DateTimeFormat("es-ES", {
   timeZone: competitionTimeZone,
 });
 
+const compactDateFormatter = new Intl.DateTimeFormat("es-ES", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: competitionTimeZone,
+});
+
 export function formatDate(value: string) {
   return dateFormatter.format(new Date(value));
 }
@@ -86,6 +93,10 @@ export function formatWeekRange(startsAt: string, endsAt: string) {
   }
 
   return `${formatDate(startsAt)} – ${formatDate(endsAt)}`;
+}
+
+export function formatCompactDateRange(startsAt: string, endsAt: string) {
+  return `${compactDateFormatter.format(new Date(startsAt))} – ${compactDateFormatter.format(new Date(endsAt))}`;
 }
 
 export function formatScore(value: number) {

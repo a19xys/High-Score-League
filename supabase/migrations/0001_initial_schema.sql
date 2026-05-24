@@ -141,12 +141,24 @@ create table public.weekly_results (
   constraint weekly_results_league_points_non_negative check (league_points >= 0)
 );
 
+create table public.chat_messages (
+  id uuid primary key default extensions.gen_random_uuid(),
+  player_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null,
+  is_deleted boolean not null default false,
+  created_at timestamptz not null default now(),
+  constraint chat_messages_body_not_blank check (length(trim(body)) > 0),
+  constraint chat_messages_body_max_length check (char_length(body) <= 500)
+);
+
 create index submissions_week_id_idx on public.submissions (week_id);
 create index submissions_player_id_idx on public.submissions (player_id);
 create index submissions_week_player_idx on public.submissions (week_id, player_id);
 create index submissions_week_valid_idx on public.submissions (week_id, is_valid);
 create index weekly_results_week_id_idx on public.weekly_results (week_id);
 create index weekly_results_player_id_idx on public.weekly_results (player_id);
+create index chat_messages_created_at_idx on public.chat_messages (created_at);
+create index chat_messages_player_id_idx on public.chat_messages (player_id);
 create index weeks_season_id_idx on public.weeks (season_id);
 create index weeks_status_idx on public.weeks (status);
 
@@ -214,6 +226,7 @@ alter table public.games enable row level security;
 alter table public.weeks enable row level security;
 alter table public.submissions enable row level security;
 alter table public.weekly_results enable row level security;
+alter table public.chat_messages enable row level security;
 
 create policy profiles_select_authenticated
 on public.profiles
@@ -325,6 +338,30 @@ using (true);
 
 create policy weekly_results_admin_all
 on public.weekly_results
+for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+create policy chat_messages_select_visible
+on public.chat_messages
+for select
+to authenticated
+using (is_deleted = false);
+
+create policy chat_messages_insert_own
+on public.chat_messages
+for insert
+to authenticated
+with check (
+  player_id = auth.uid()
+  and is_deleted = false
+  and length(trim(body)) > 0
+  and char_length(body) <= 500
+);
+
+create policy chat_messages_admin_all
+on public.chat_messages
 for all
 to authenticated
 using (public.is_admin())

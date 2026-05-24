@@ -95,3 +95,15 @@ export type SeasonSummary = {
   leader?: Player;
   champion?: Player;
 };
+
+export type ChatMessage = {
+  id: string;
+  playerId: string;
+  body: string;
+  createdAt: string;
+  isDeleted?: boolean;
+};
+
+export type ChatMessageWithPlayer = ChatMessage & {
+  player: Player;
+};

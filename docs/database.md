@@ -75,6 +75,18 @@ segundo o tercer puesto.
 La clasificación de temporada podrá agregarse desde esta tabla sumando puntos y
 contando primeros, segundos y terceros puestos.
 
+### chat_messages
+
+Prepara el chat público de la liga que aparece en la portada. En esta fase sigue
+siendo mock, pero la migración ya reserva la tabla para conectarlo más adelante.
+
+Cada mensaje pertenece a un `profile`, guarda el texto en `body`, un flag
+`is_deleted` para moderación y `created_at`. El texto no puede estar vacío y
+tiene un límite inicial de 500 caracteres.
+
+El chat se mostrará en orden cronológico, con los mensajes nuevos abajo y un
+máximo visual razonable de 50 mensajes en la portada.
+
 ## Empates de temporada
 
 La clasificación de temporada usa estos criterios competitivos, en este orden:
@@ -107,6 +119,7 @@ generar o revisar estas filas antes de publicar una semana.
 - `submissions.player_id` referencia `profiles.id`.
 - `weekly_results.week_id` referencia `weeks.id`.
 - `weekly_results.player_id` referencia `profiles.id`.
+- `chat_messages.player_id` referencia `profiles.id`.
 
 ## Flujo semanal de datos
 
@@ -124,6 +137,8 @@ generar o revisar estas filas antes de publicar una semana.
    `is_valid = false`.
 9. Al publicar, el admin crea filas en `weekly_results`.
 10. La clasificación general de temporada se lee agregando `weekly_results`.
+11. Los comentarios del chat se leerán desde `chat_messages` cuando se conecte
+    Supabase; por ahora son datos mock.
 
 Las fechas de cierre y revelación existen como datos de la semana. En la UI mock
 principal solo se muestra el rango competitivo, por ejemplo
@@ -155,6 +170,8 @@ Para el MVP inicial se necesitan:
 - `seasons`, `games`, `weeks` para calendario competitivo.
 - `submissions` para el historial de subidas.
 - `weekly_results` para resultados publicados y clasificación estable.
+- `chat_messages` para comentarios públicos de la liga, cuando se conecte el
+  chat mock a Supabase.
 
 En la interfaz mock, `positionChange` simula el movimiento de cada jugador
 respecto a la semana anterior. Más adelante se calculará comparando resultados
@@ -177,6 +194,9 @@ Todas las tablas principales tienen Row Level Security activado.
   pueden gestionar todo.
 - `weekly_results`: usuarios autenticados pueden leer; solo admins pueden
   insertar, actualizar o borrar.
+- `chat_messages`: usuarios autenticados pueden leer mensajes no borrados e
+  insertar mensajes propios; admins pueden gestionar todos. El borrado propio se
+  deja como decisión futura para no abrir permisos antes de definir moderación.
 
 Nota: si la home pública debe leer datos directamente desde Supabase sin sesión,
 habrá que decidir más adelante si se añaden políticas `anon` de solo lectura o
@@ -193,6 +213,8 @@ si esas lecturas se resuelven desde servidor.
 - Auditoría de cambios administrativos.
 - Metadatos adicionales de capturas como `original_file_name`, si se necesitan
   para moderacion u optimizacion.
+- Conexión real del chat de portada a Supabase Realtime o polling, según se
+  decida en la fase de producto.
 
 ## Tema claro/oscuro
 

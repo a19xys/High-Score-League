@@ -39,12 +39,13 @@ http://localhost:3000
 
 ## Rutas iniciales
 
-- `/`: portada pública de la liga, juego activo y top 3 semanal.
-- `/game`: juego activo, reglas, estado del jugador mock y leaderboard semanal.
+- `/`: portada pública de la liga, juego activo, top 3 semanal y chat mock.
+- `/game`: semana activa, reglas, descargas mock, leaderboard semanal e historial.
 - `/weeks`: archivo de semanas y leaderboards semanales.
 - `/weeks/[weekId]`: detalle mock de una semana, ranking y submissions.
 - `/seasons`: archivo de temporadas.
 - `/seasons/[seasonId]`: detalle mock de temporada, clasificación y semanas.
+- `/players/[username]`: perfil público provisional de jugador.
 - `/submit`: formulario provisional de subida con vista previa local.
 - `/profile`: cuenta, configuración, historial y administración mock.
 - `/week`, `/leaderboard`, `/season` y `/admin`: rutas temporales de compatibilidad.
@@ -59,6 +60,9 @@ de datos, autenticacion, subida real de capturas ni panel admin persistente.
 - Estados reutilizables: empty, loading, error y placeholder.
 - Tablas: leaderboard semanal, clasificación de temporada, semanas, temporadas
   e historial de submissions.
+- Chat de portada preparado visualmente para conectarse a Supabase más adelante.
+- Archivo de semanas y temporadas con filtros, ordenación mock y enlaces
+  desactivados para contenido futuro.
 - Perfil mock con tema claro/oscuro/sistema guardado en navegador.
 - Formularios visuales preparados para conectar Supabase Auth, Database y
   Storage en fases posteriores.
@@ -77,6 +81,7 @@ Los tipos principales viven en `types/index.ts`:
 - `Submission`
 - `LeaderboardEntry`
 - `SeasonStanding`
+- `ChatMessage`
 
 Los datos mock y calculos temporales estan en `lib/mock-data.ts`.
 

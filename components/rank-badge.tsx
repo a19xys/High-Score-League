@@ -5,9 +5,9 @@ const medalStyles: Record<number, string> = {
 };
 
 const rowStyles: Record<number, string> = {
-  1: "bg-[var(--gold-row)]",
-  2: "bg-[var(--silver-row)]",
-  3: "bg-[var(--bronze-row)]",
+  1: "bg-[var(--gold-row)] hover:bg-[var(--gold-row-hover)]",
+  2: "bg-[var(--silver-row)] hover:bg-[var(--silver-row-hover)]",
+  3: "bg-[var(--bronze-row)] hover:bg-[var(--bronze-row-hover)]",
 };
 
 const cardStyles: Record<number, string> = {

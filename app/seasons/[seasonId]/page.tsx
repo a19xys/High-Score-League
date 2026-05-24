@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import { SeasonTable } from "@/components/season-table";
 import { WeeksTable } from "@/components/weeks-table";
+import { PodiumPlaceholder } from "@/components/podium-placeholder";
 import { Card, CardHeader } from "@/components/ui/card";
-import { EmptyState, PlaceholderSection } from "@/components/ui/state";
+import { EmptyState } from "@/components/ui/state";
 import { formatWeekRange } from "@/lib/format";
 import {
   getSeasonById,
   getSeasonWeeks,
+  currentWeek,
   seasonStandings,
   seasons,
 } from "@/lib/mock-data";
@@ -50,13 +52,10 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
 
       <Card>
         <CardHeader title="Semanas incluidas" eyebrow="Calendario" />
-        <WeeksTable weeks={seasonWeeks} />
+        <WeeksTable weeks={seasonWeeks} currentWeekNumber={currentWeek.number} />
       </Card>
 
-      <PlaceholderSection
-        title="Resumen de podios"
-        description="Cuando conectemos Supabase, aquí se mostrarán primeros, segundos y terceros agregados por jugador."
-      />
+      <PodiumPlaceholder />
     </div>
   );
 }

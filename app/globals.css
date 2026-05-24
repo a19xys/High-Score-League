@@ -14,9 +14,12 @@
   --text-inverse: #ffffff;
   --table-head: #f8fafc;
   --hover: #f1f5f9;
-  --gold-row: #fffbeb;
-  --silver-row: #f8fafc;
-  --bronze-row: #fff7ed;
+  --gold-row: #fff7d6;
+  --gold-row-hover: #fde68a;
+  --silver-row: #eef2f7;
+  --silver-row-hover: #dbe3ee;
+  --bronze-row: #ffead5;
+  --bronze-row-hover: #fed7aa;
 }
 
 html[data-theme="dark"] {
@@ -31,9 +34,12 @@ html[data-theme="dark"] {
   --text-inverse: #ffffff;
   --table-head: #111827;
   --hover: #263244;
-  --gold-row: #3a2d12;
-  --silver-row: #243142;
-  --bronze-row: #3a2318;
+  --gold-row: #4a3a16;
+  --gold-row-hover: #66511f;
+  --silver-row: #334155;
+  --silver-row-hover: #475569;
+  --bronze-row: #4a2d1e;
+  --bronze-row-hover: #633b27;
 }
 
 * {

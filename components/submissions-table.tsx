@@ -42,40 +42,49 @@ export function SubmissionsTable({
     <DataTable>
       <TableHead labels={labels} />
       <tbody className="divide-y theme-border theme-surface">
-        {submissions.map((submission) => (
-          <tr className="theme-hover" key={submission.id}>
-            {showPlayer ? (
+        {submissions.map((submission) => {
+          const hideScore =
+            Boolean(submission.hidden) && submission.week?.status !== "published";
+
+          return (
+            <tr className="theme-hover" key={submission.id}>
+              {showPlayer ? (
+                <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
+                  {submission.player?.initials ?? "???"}
+                  <span className="ml-2 text-xs font-normal theme-text-muted">
+                    @{submission.player?.username ?? "desconocido"}
+                  </span>
+                </td>
+              ) : null}
+              {showWeek ? (
+                <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+                  {submission.week
+                    ? `Semana ${submission.week.number}${submission.game ? ` · ${submission.game.title}` : ""}`
+                    : "Semana desconocida"}
+                </td>
+              ) : null}
               <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
-                {submission.player?.initials ?? "???"}
-                <span className="ml-2 text-xs font-normal theme-text-muted">
-                  @{submission.player?.username ?? "desconocido"}
-                </span>
+                {hideScore ? "Oculta" : formatScore(submission.score)}
               </td>
-            ) : null}
-            {showWeek ? (
               <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
-                {submission.week
-                  ? `Semana ${submission.week.number}${submission.game ? ` · ${submission.game.title}` : ""}`
-                  : "Semana desconocida"}
+                {submission.hidden
+                  ? "Oculta"
+                  : submission.valid
+                    ? "Válida"
+                    : "Pendiente"}
               </td>
-            ) : null}
-            <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
-              {formatScore(submission.score)}
-            </td>
-            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
-              {submission.valid ? "Válida" : "Pendiente"}
-            </td>
-            <td
-              className="whitespace-nowrap px-4 py-4 theme-text-muted"
-              title={formatExactDateTime(submission.createdAt)}
-            >
-              {formatRelativeTime(submission.createdAt)}
-            </td>
-            <td className="min-w-56 px-4 py-4 theme-text-muted">
-              {submission.comment ?? "-"}
-            </td>
-          </tr>
-        ))}
+              <td
+                className="whitespace-nowrap px-4 py-4 theme-text-muted"
+                title={formatExactDateTime(submission.createdAt)}
+              >
+                {formatRelativeTime(submission.createdAt)}
+              </td>
+              <td className="min-w-56 px-4 py-4 theme-text-muted">
+                {submission.comment ?? "-"}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </DataTable>
   );
