@@ -5,23 +5,23 @@ const medalStyles: Record<number, string> = {
 };
 
 const rowStyles: Record<number, string> = {
-  1: "bg-amber-50/70 hover:bg-amber-50",
-  2: "bg-slate-50/90 hover:bg-slate-100",
-  3: "bg-orange-50/70 hover:bg-orange-50",
+  1: "bg-[var(--gold-row)]",
+  2: "bg-[var(--silver-row)]",
+  3: "bg-[var(--bronze-row)]",
 };
 
 const cardStyles: Record<number, string> = {
-  1: "border-amber-300 bg-amber-50",
-  2: "border-slate-300 bg-slate-50",
-  3: "border-orange-300 bg-orange-50",
+  1: "border-amber-300 bg-[var(--gold-row)]",
+  2: "border-slate-300 bg-[var(--silver-row)]",
+  3: "border-orange-300 bg-[var(--bronze-row)]",
 };
 
 export function getRankRowClass(rank: number) {
-  return rowStyles[rank] ?? "hover:bg-slate-50";
+  return rowStyles[rank] ?? "theme-hover";
 }
 
 export function getRankCardClass(rank: number) {
-  return cardStyles[rank] ?? "border-slate-200 bg-slate-50";
+  return cardStyles[rank] ?? "theme-border theme-surface-muted";
 }
 
 type RankBadgeProps = {
@@ -40,5 +40,5 @@ export function RankBadge({ rank }: RankBadgeProps) {
     );
   }
 
-  return <span className="font-semibold text-ink">#{rank}</span>;
+  return <span className="font-semibold theme-text">#{rank}</span>;
 }

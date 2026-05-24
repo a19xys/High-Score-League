@@ -21,25 +21,25 @@ export function LeaderboardTable({ entries }: LeaderboardTableProps) {
           "Diferencia",
         ]}
       />
-      <tbody className="divide-y divide-slate-100 bg-white">
+      <tbody className="divide-y theme-border theme-surface">
         {entries.map((entry) => (
           <tr className={getRankRowClass(entry.rank)} key={entry.player.id}>
-            <td className="whitespace-nowrap px-4 py-4 font-semibold text-ink">
+            <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
               <RankBadge rank={entry.rank} />
             </td>
             <td className="min-w-56 px-4 py-4">
               <PlayerPill player={entry.player} />
             </td>
-            <td className="whitespace-nowrap px-4 py-4 font-semibold text-ink">
+            <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
               {formatScore(entry.bestScore)}
             </td>
-            <td className="whitespace-nowrap px-4 py-4 text-slate-700">
+            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
               {entry.uploads}
             </td>
-            <td className="whitespace-nowrap px-4 py-4 text-slate-700">
+            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
               {formatRelativeTime(entry.lastSubmissionAt)}
             </td>
-            <td className="whitespace-nowrap px-4 py-4 text-slate-700">
+            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
               {formatGap(entry.gapToFirst)}
             </td>
           </tr>

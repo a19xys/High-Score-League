@@ -6,9 +6,9 @@ type DataTableProps = {
 
 export function DataTable({ children }: DataTableProps) {
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-lg border theme-border theme-surface">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+        <table className="min-w-full divide-y text-left text-sm theme-border">
           {children}
         </table>
       </div>
@@ -22,7 +22,7 @@ type TableHeadProps = {
 
 export function TableHead({ labels }: TableHeadProps) {
   return (
-    <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+    <thead className="text-xs font-semibold uppercase theme-table-head">
       <tr>
         {labels.map((label) => (
           <th className="whitespace-nowrap px-4 py-3" key={label} scope="col">

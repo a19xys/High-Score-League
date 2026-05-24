@@ -241,58 +241,106 @@ export const submissions: Submission[] = [
   },
 ];
 
-export const seasonStandings: SeasonStanding[] = [
+type SeasonStandingInput = Omit<SeasonStanding, "rank" | "positionChange"> & {
+  previousRank: number;
+};
+
+const seasonStandingInputs: SeasonStandingInput[] = [
   {
-    rank: 1,
     player: players[0],
-    totalPoints: 10,
-    positionChange: 2,
+    totalPoints: 12,
+    previousRank: 4,
     firstPlaces: 1,
     secondPlaces: 0,
-    thirdPlaces: 0,
-    weeksPlayed: 1,
+    thirdPlaces: 1,
+    weeksPlayed: 2,
   },
   {
-    rank: 2,
     player: players[1],
-    totalPoints: 8,
-    positionChange: -1,
+    totalPoints: 10,
+    previousRank: 2,
     firstPlaces: 0,
     secondPlaces: 1,
-    thirdPlaces: 0,
-    weeksPlayed: 1,
-  },
-  {
-    rank: 3,
-    player: players[2],
-    totalPoints: 6,
-    positionChange: 0,
-    firstPlaces: 0,
-    secondPlaces: 0,
     thirdPlaces: 1,
-    weeksPlayed: 1,
+    weeksPlayed: 2,
   },
   {
-    rank: 4,
+    player: players[2],
+    totalPoints: 10,
+    previousRank: 3,
+    firstPlaces: 0,
+    secondPlaces: 1,
+    thirdPlaces: 1,
+    weeksPlayed: 2,
+  },
+  {
     player: players[3],
-    totalPoints: 4,
-    positionChange: 1,
+    totalPoints: 6,
+    previousRank: 1,
     firstPlaces: 0,
     secondPlaces: 0,
     thirdPlaces: 0,
-    weeksPlayed: 1,
+    weeksPlayed: 2,
   },
   {
-    rank: 5,
     player: players[4],
-    totalPoints: 2,
-    positionChange: -2,
+    totalPoints: 3,
+    previousRank: 5,
     firstPlaces: 0,
     secondPlaces: 0,
     thirdPlaces: 0,
-    weeksPlayed: 1,
+    weeksPlayed: 2,
   },
 ];
+
+function compareSeasonCriteria(
+  a: SeasonStandingInput,
+  b: SeasonStandingInput,
+) {
+  return (
+    b.totalPoints - a.totalPoints ||
+    b.firstPlaces - a.firstPlaces ||
+    b.secondPlaces - a.secondPlaces ||
+    b.thirdPlaces - a.thirdPlaces
+  );
+}
+
+function hasSameSeasonCriteria(
+  a: SeasonStandingInput,
+  b: SeasonStandingInput,
+) {
+  return compareSeasonCriteria(a, b) === 0;
+}
+
+const sortedSeasonStandingInputs = [...seasonStandingInputs].sort((a, b) => {
+    const competitiveOrder = compareSeasonCriteria(a, b);
+
+    if (competitiveOrder !== 0) {
+      return competitiveOrder;
+    }
+
+    return a.player.username.localeCompare(b.player.username);
+  });
+
+export const seasonStandings: SeasonStanding[] =
+  sortedSeasonStandingInputs.reduce<SeasonStanding[]>((standings, standing, index) => {
+    const previousInput = sortedSeasonStandingInputs[index - 1];
+    const previousStanding = standings[index - 1];
+    const rank =
+      previousInput && previousStanding && hasSameSeasonCriteria(standing, previousInput)
+        ? previousStanding.rank
+        : index + 1;
+
+    const { previousRank, ...seasonStanding } = standing;
+
+    standings.push({
+      ...seasonStanding,
+      rank,
+      positionChange: previousRank - rank,
+    });
+
+    return standings;
+  }, []);
 
 export function getCurrentGame() {
   return games.find((game) => game.id === currentWeek.gameId) ?? games[0];

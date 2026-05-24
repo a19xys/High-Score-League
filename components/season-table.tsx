@@ -25,7 +25,7 @@ function PositionChange({ value }: { value: number }) {
     );
   }
 
-  return <span className="font-semibold text-slate-400">—</span>;
+  return <span className="font-semibold theme-text-muted">—</span>;
 }
 
 export function SeasonTable({ standings }: SeasonTableProps) {
@@ -42,10 +42,10 @@ export function SeasonTable({ standings }: SeasonTableProps) {
           "Terceros",
         ]}
       />
-      <tbody className="divide-y divide-slate-100 bg-white">
+      <tbody className="divide-y theme-border theme-surface">
         {standings.map((standing) => (
           <tr className={getRankRowClass(standing.rank)} key={standing.player.id}>
-            <td className="whitespace-nowrap px-4 py-4 font-semibold text-ink">
+            <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
               <RankBadge rank={standing.rank} />
             </td>
             <td className="whitespace-nowrap px-4 py-4">
@@ -54,16 +54,16 @@ export function SeasonTable({ standings }: SeasonTableProps) {
             <td className="min-w-56 px-4 py-4">
               <PlayerPill player={standing.player} />
             </td>
-            <td className="whitespace-nowrap px-4 py-4 font-semibold text-ink">
+            <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
               {formatScore(standing.totalPoints)}
             </td>
-            <td className="whitespace-nowrap px-4 py-4 text-slate-700">
+            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
               {standing.firstPlaces}
             </td>
-            <td className="whitespace-nowrap px-4 py-4 text-slate-700">
+            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
               {standing.secondPlaces}
             </td>
-            <td className="whitespace-nowrap px-4 py-4 text-slate-700">
+            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
               {standing.thirdPlaces}
             </td>
           </tr>

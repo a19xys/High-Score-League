@@ -14,9 +14,9 @@ export default function SubmitPage() {
 
         <form className="space-y-5">
           <label className="block">
-            <span className="text-sm font-semibold text-ink">Puntuación</span>
+            <span className="text-sm font-semibold theme-text">Puntuación</span>
             <input
-              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-ink outline-none ring-circuit/20 focus:border-circuit focus:ring-4"
+              className="mt-2 w-full rounded-md border px-3 py-2 outline-none ring-circuit/20 focus:border-circuit focus:ring-4 theme-input"
               min="0"
               placeholder="184320"
               type="number"
@@ -24,17 +24,17 @@ export default function SubmitPage() {
           </label>
 
           <label className="block">
-            <span className="text-sm font-semibold text-ink">Captura</span>
+            <span className="text-sm font-semibold theme-text">Captura</span>
             <input
-              className="mt-2 w-full rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-700"
+              className="mt-2 w-full rounded-md border border-dashed px-3 py-3 text-sm theme-input"
               type="file"
             />
           </label>
 
           <label className="block">
-            <span className="text-sm font-semibold text-ink">Comentario opcional</span>
+            <span className="text-sm font-semibold theme-text">Comentario opcional</span>
             <textarea
-              className="mt-2 min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-ink outline-none ring-circuit/20 focus:border-circuit focus:ring-4"
+              className="mt-2 min-h-28 w-full rounded-md border px-3 py-2 outline-none ring-circuit/20 focus:border-circuit focus:ring-4 theme-input"
               placeholder="Detalles de la partida, plataforma o contexto."
             />
           </label>

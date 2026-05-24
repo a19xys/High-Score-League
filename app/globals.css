@@ -4,6 +4,36 @@
 
 :root {
   color-scheme: light;
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --surface-strong: #111827;
+  --border: #e2e8f0;
+  --text: #111827;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
+  --table-head: #f8fafc;
+  --hover: #f1f5f9;
+  --gold-row: #fffbeb;
+  --silver-row: #f8fafc;
+  --bronze-row: #fff7ed;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0f172a;
+  --surface: #172033;
+  --surface-muted: #1e293b;
+  --surface-strong: #020617;
+  --border: #334155;
+  --text: #e5e7eb;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
+  --table-head: #111827;
+  --hover: #263244;
+  --gold-row: #3a2d12;
+  --silver-row: #243142;
+  --bronze-row: #3a2318;
 }
 
 * {
@@ -12,12 +42,60 @@
 
 body {
   margin: 0;
-  background: #f8fafc;
-  color: #111827;
+  background: var(--background);
+  color: var(--text);
 }
 
 button,
 input,
 textarea {
   font: inherit;
+}
+
+@layer components {
+  .theme-surface {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .theme-surface-muted {
+    background: var(--surface-muted);
+    color: var(--text);
+  }
+
+  .theme-surface-strong {
+    background: var(--surface-strong);
+    color: var(--text-inverse);
+  }
+
+  .theme-border {
+    border-color: var(--border);
+  }
+
+  .theme-text {
+    color: var(--text);
+  }
+
+  .theme-text-muted {
+    color: var(--text-muted);
+  }
+
+  .theme-table-head {
+    background: var(--table-head);
+    color: var(--text-muted);
+  }
+
+  .theme-hover:hover {
+    background: var(--hover);
+  }
+
+  .theme-input {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+  }
+
+  .theme-input::placeholder {
+    color: var(--text-muted);
+  }
 }

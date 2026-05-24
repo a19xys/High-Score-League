@@ -14,8 +14,8 @@ export function LinkButton({
 }: LinkButtonProps) {
   const classes =
     variant === "primary"
-      ? "bg-ink text-white hover:bg-slate-700"
-      : "border border-slate-300 bg-white text-ink hover:bg-slate-50";
+      ? "theme-surface-strong"
+      : "border theme-border theme-surface theme-text theme-hover";
 
   return (
     <Link

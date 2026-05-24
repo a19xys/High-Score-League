@@ -16,8 +16,8 @@ export function GameHero({ game }: GameHeroProps) {
       aria-label={game.imageAlt}
       className={
         game.imageUrl
-          ? "relative flex min-h-80 items-end overflow-hidden rounded-lg border border-slate-200 bg-cover bg-center p-6 text-white shadow-panel"
-          : "relative flex min-h-80 items-end overflow-hidden rounded-lg border border-slate-200 bg-[linear-gradient(135deg,#111827_0%,#0f766e_52%,#ef4444_100%)] p-6 text-white shadow-panel"
+          ? "relative flex min-h-80 items-end overflow-hidden rounded-lg border bg-cover bg-center p-6 text-white shadow-panel theme-border"
+          : "relative flex min-h-80 items-end overflow-hidden rounded-lg border bg-[linear-gradient(135deg,#111827_0%,#0f766e_52%,#ef4444_100%)] p-6 text-white shadow-panel theme-border"
       }
       role="img"
       style={backgroundStyle}

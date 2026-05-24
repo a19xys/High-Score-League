@@ -24,7 +24,7 @@ export default function AdminPage() {
         <div className="grid gap-3 sm:grid-cols-4">
           {stateActions.map((action) => (
             <button
-              className="rounded-md border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-slate-50"
+              className="rounded-md border px-4 py-3 text-sm font-semibold theme-border theme-surface theme-hover"
               key={action}
               type="button"
             >
@@ -36,23 +36,23 @@ export default function AdminPage() {
 
       <Card>
         <CardHeader title="Últimas puntuaciones" eyebrow="Moderación mock" />
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y theme-border">
           {recentSubmissions.map((submission) => (
             <div
               className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between"
               key={submission.id}
             >
               <div>
-                <p className="font-semibold text-ink">
+                <p className="font-semibold theme-text">
                   {submission.player?.initials ?? "???"}
                 </p>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm theme-text-muted">
                   @{submission.player?.username ?? "desconocido"} ·{" "}
                   {formatDateTime(submission.createdAt)} ·{" "}
                   {submission.valid ? "Válida" : "Pendiente"}
                 </p>
               </div>
-              <p className="text-lg font-bold text-ink">
+              <p className="text-lg font-bold theme-text">
                 {formatScore(submission.score)}
               </p>
             </div>

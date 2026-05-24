@@ -66,6 +66,26 @@ segundo o tercer puesto.
 La clasificación de temporada podrá agregarse desde esta tabla sumando puntos y
 contando primeros, segundos y terceros puestos.
 
+## Empates de temporada
+
+La clasificación de temporada usa estos criterios competitivos, en este orden:
+
+1. Puntos totales.
+2. Primeros puestos.
+3. Segundos puestos.
+4. Terceros puestos.
+
+Si dos o más jugadores empatan en todos esos criterios, comparten posición. El
+ranking es de competición, por ejemplo `1, 2, 2, 4`, no ranking denso. No se
+usa `username`, `initials` ni otro campo de identidad como desempate
+competitivo oculto.
+
+Para que la tabla sea estable visualmente, los jugadores empatados pueden
+ordenarse por `username` o `initials`, pero ese orden no rompe el empate.
+
+El movimiento de posición compara la posición competitiva compartida actual
+contra la posición competitiva compartida de la semana anterior.
+
 No se calcula automaticamente en esta fase. Mas adelante el panel admin podra
 generar o revisar estas filas antes de publicar una semana.
 
@@ -95,6 +115,11 @@ generar o revisar estas filas antes de publicar una semana.
    `is_valid = false`.
 9. Al publicar, el admin crea filas en `weekly_results`.
 10. La clasificación general de temporada se lee agregando `weekly_results`.
+
+Las fechas de cierre y revelación existen como datos de la semana. En la UI mock
+principal solo se muestra el rango competitivo, por ejemplo
+`18–24 de mayo de 2026`; cierre y revelación no se muestran como tarjetas
+independientes por ahora.
 
 ## Uso en el MVP
 
@@ -145,10 +170,10 @@ si esas lecturas se resuelven desde servidor.
 
 ## Tema claro/oscuro
 
-La app debera soportar tema claro, tema oscuro y preferencia del sistema en una
-fase posterior. La preferencia visual se guardara inicialmente en el navegador,
-por ejemplo con `localStorage` o una solucion equivalente. No se anaden campos a
-Supabase para esto en el esquema inicial.
+La app soporta en fase mock tema claro, tema oscuro y preferencia del sistema.
+La preferencia visual se guarda inicialmente en el navegador con `localStorage`.
+No se añaden campos a Supabase para esto en el esquema inicial. El selector vive
+en `/profile`.
 
 ## Optimizacion de capturas
 

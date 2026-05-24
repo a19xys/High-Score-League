@@ -1,4 +1,5 @@
 import { Card, CardHeader } from "@/components/ui/card";
+import { ThemeSelect } from "@/components/theme-select";
 import { players } from "@/lib/mock-data";
 
 const currentMockUser = players[0];
@@ -27,12 +28,12 @@ export default function ProfilePage() {
           Esta página prepara el espacio de perfil sin autenticación real.
         </CardHeader>
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-ink text-lg font-bold text-white">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold theme-surface-strong">
             {currentMockUser.initials}
           </div>
           <div>
-            <p className="text-2xl font-bold text-ink">{currentMockUser.initials}</p>
-            <p className="text-sm text-slate-500">@{currentMockUser.username}</p>
+            <p className="text-2xl font-bold theme-text">{currentMockUser.initials}</p>
+            <p className="text-sm theme-text-muted">@{currentMockUser.username}</p>
           </div>
         </div>
       </Card>
@@ -42,8 +43,12 @@ export default function ProfilePage() {
           Espacio reservado para tema claro/oscuro, preferencias visuales y datos
           de cuenta cuando exista Auth.
         </CardHeader>
-        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
-          Preferencias mock sin persistencia.
+        <div className="space-y-3 rounded-lg border border-dashed p-4 text-sm theme-border theme-surface-muted">
+          <p className="font-semibold theme-text">Tema visual</p>
+          <ThemeSelect />
+          <p className="theme-text-muted">
+            La preferencia se guarda en este navegador y no usa Supabase.
+          </p>
         </div>
       </Card>
 
@@ -55,11 +60,11 @@ export default function ProfilePage() {
         <div className="grid gap-3 md:grid-cols-3">
           {adminAreas.map((area) => (
             <div
-              className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+              className="rounded-lg border p-4 theme-border theme-surface-muted"
               key={area.title}
             >
-              <h2 className="font-semibold text-ink">{area.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
+              <h2 className="font-semibold theme-text">{area.title}</h2>
+              <p className="mt-2 text-sm leading-6 theme-text-muted">
                 {area.description}
               </p>
             </div>

@@ -19,7 +19,7 @@ export default function HomePage() {
   return (
     <div className="space-y-6">
       <section className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
-        <div className="rounded-lg bg-ink p-7 text-white shadow-panel">
+        <div className="rounded-lg p-7 shadow-panel theme-surface-strong">
           <p className="mb-3 text-sm font-semibold uppercase text-circuit">
             {currentSeason.name}
           </p>
@@ -48,12 +48,12 @@ export default function HomePage() {
             Semana {currentWeek.number} ·{" "}
             {formatWeekRange(currentWeek.startsAt, currentWeek.endsAt)}
           </CardHeader>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-medium text-slate-500">Estado de la semana</p>
-            <p className="mt-2 text-2xl font-semibold text-ink">
+          <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+            <p className="text-sm font-medium theme-text-muted">Estado de la semana</p>
+            <p className="mt-2 text-2xl font-semibold theme-text">
               Competición abierta
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 text-sm leading-6 theme-text-muted">
               Puedes subir varias puntuaciones válidas. El leaderboard muestra
               la mejor puntuación semanal de cada jugador.
             </p>
@@ -70,11 +70,11 @@ export default function HomePage() {
               key={entry.player.id}
             >
               <RankBadge rank={entry.rank} />
-              <p className="mt-3 text-xl font-bold text-ink">
+              <p className="mt-3 text-xl font-bold theme-text">
                 {entry.player.initials}
               </p>
-              <p className="mt-1 text-sm text-slate-500">@{entry.player.username}</p>
-              <p className="mt-3 text-2xl font-bold text-ink">
+              <p className="mt-1 text-sm theme-text-muted">@{entry.player.username}</p>
+              <p className="mt-3 text-2xl font-bold theme-text">
                 {formatScore(entry.bestScore)}
               </p>
             </div>

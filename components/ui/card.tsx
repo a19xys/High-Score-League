@@ -8,7 +8,7 @@ type CardProps = {
 export function Card({ children, className = "" }: CardProps) {
   return (
     <section
-      className={`rounded-lg border border-slate-200 bg-white p-5 shadow-panel ${className}`}
+      className={`rounded-lg border p-5 shadow-panel theme-border theme-surface ${className}`}
     >
       {children}
     </section>
@@ -32,12 +32,12 @@ export function CardHeader({
     <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
         {eyebrow ? (
-          <p className="mb-1 text-xs font-semibold uppercase text-slate-500">
+          <p className="mb-1 text-xs font-semibold uppercase theme-text-muted">
             {eyebrow}
           </p>
         ) : null}
-        <h2 className="text-xl font-semibold text-ink">{title}</h2>
-        {children ? <div className="mt-2 text-sm text-slate-600">{children}</div> : null}
+        <h2 className="text-xl font-semibold theme-text">{title}</h2>
+        {children ? <div className="mt-2 text-sm theme-text-muted">{children}</div> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>

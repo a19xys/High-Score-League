@@ -1,10 +1,10 @@
 import type { WeekStatus } from "@/types";
 
 const statusStyles: Record<WeekStatus, string> = {
-  draft: "border-slate-300 bg-white text-slate-600",
+  draft: "theme-border theme-surface theme-text-muted",
   active: "border-circuit/30 bg-circuit/10 text-teal-800",
   frozen: "border-cabinet/30 bg-cabinet/10 text-amber-800",
-  closed: "border-slate-300 bg-slate-100 text-slate-700",
+  closed: "theme-border theme-surface-muted theme-text-muted",
   published: "border-arcade/30 bg-arcade/10 text-red-800",
 };
 
