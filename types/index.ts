@@ -12,6 +12,7 @@ export type Player = {
   username: Username;
   initials: PlayerInitials;
   avatarUrl?: string;
+  bio?: string;
   isAdmin: boolean;
 };
 
@@ -19,7 +20,10 @@ export type Game = {
   id: string;
   title: string;
   slug: string;
+  developer: string;
   genre: string;
+  controlType: string;
+  difficulty: string;
   imageAlt: string;
   imageUrl?: string;
 };

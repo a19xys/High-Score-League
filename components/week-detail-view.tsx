@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { GameHero } from "@/components/game-hero";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LinkButton } from "@/components/link-button";
@@ -20,6 +21,10 @@ type WeekDetailViewProps = {
   game: Game;
   leaderboard: LeaderboardEntry[];
   submissions: WeekSubmission[];
+  backHref?: string;
+  backLabel?: string;
+  seasonBackHref?: string;
+  seasonBackLabel?: string;
 };
 
 export function WeekDetailView({
@@ -28,9 +33,27 @@ export function WeekDetailView({
   game,
   leaderboard,
   submissions,
+  backHref,
+  backLabel,
+  seasonBackHref,
+  seasonBackLabel,
 }: WeekDetailViewProps) {
   return (
     <div className="space-y-6">
+      {backHref || seasonBackHref ? (
+        <div className="flex flex-wrap gap-3 text-sm font-semibold">
+          {backHref ? (
+            <Link className="text-circuit hover:underline" href={backHref}>
+              {backLabel ?? "← Volver"}
+            </Link>
+          ) : null}
+          {seasonBackHref ? (
+            <Link className="theme-text-muted hover:underline" href={seasonBackHref}>
+              {seasonBackLabel ?? `← Volver a ${season.name}`}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
       <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <GameHero game={game} />
         <Card>
@@ -70,13 +93,13 @@ export function WeekDetailView({
         ) : (
           <EmptyState
             title="Todavía no hay puntuaciones para esta semana."
-            description="Cuando conectemos Supabase, este detalle cargará submissions reales."
+            description="Cuando conectemos Supabase, este detalle cargará envíos reales."
           />
         )}
       </Card>
 
       <Card>
-        <CardHeader title="Historial de envíos" eyebrow="Submissions mock" />
+        <CardHeader title="Historial de envíos" eyebrow="Envíos mock" />
         <SubmissionsTable submissions={submissions} showWeek={false} />
       </Card>
     </div>

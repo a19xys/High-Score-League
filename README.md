@@ -63,6 +63,9 @@ de datos, autenticacion, subida real de capturas ni panel admin persistente.
 - Chat de portada preparado visualmente para conectarse a Supabase más adelante.
 - Archivo de semanas y temporadas con filtros, ordenación mock y enlaces
   desactivados para contenido futuro.
+- Semanas futuras con juego secreto y semanas cerradas/publicadas para probar
+  estados, filtros y hover cards.
+- Juegos mock con desarrollador, género, tipo de control y dificultad aproximada.
 - Perfil mock con tema claro/oscuro/sistema guardado en navegador.
 - Formularios visuales preparados para conectar Supabase Auth, Database y
   Storage en fases posteriores.

@@ -20,6 +20,9 @@
   --silver-row-hover: #dbe3ee;
   --bronze-row: #ffead5;
   --bronze-row-hover: #fed7aa;
+  --warning-surface: #fef3c7;
+  --warning-border: #f59e0b;
+  --warning-text: #78350f;
 }
 
 html[data-theme="dark"] {
@@ -40,6 +43,9 @@ html[data-theme="dark"] {
   --silver-row-hover: #475569;
   --bronze-row: #4a2d1e;
   --bronze-row-hover: #633b27;
+  --warning-surface: #3b2f18;
+  --warning-border: #b45309;
+  --warning-text: #fde68a;
 }
 
 * {

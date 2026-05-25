@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { SeasonTable } from "@/components/season-table";
 import { WeeksTable } from "@/components/weeks-table";
 import { PodiumPlaceholder } from "@/components/podium-placeholder";
@@ -14,7 +15,9 @@ import {
 } from "@/lib/mock-data";
 
 export function generateStaticParams() {
-  return seasons.map((season) => ({ seasonId: season.id }));
+  return seasons
+    .filter((season) => season.status !== "draft")
+    .map((season) => ({ seasonId: season.id }));
 }
 
 type SeasonDetailPageProps = {
@@ -27,7 +30,7 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
   const { seasonId } = await params;
   const season = getSeasonById(seasonId);
 
-  if (!season) {
+  if (!season || season.status === "draft") {
     notFound();
   }
 
@@ -36,6 +39,9 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
 
   return (
     <div className="space-y-6">
+      <Link className="text-sm font-semibold text-circuit hover:underline" href="/seasons">
+        ← Volver a temporadas
+      </Link>
       <Card>
         <CardHeader eyebrow="Detalle de temporada" title={season.name}>
           {season.version ?? "Sin versión"} · {formatWeekRange(season.startsAt, season.endsAt)}

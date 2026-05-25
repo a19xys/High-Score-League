@@ -22,14 +22,50 @@ const sections: Array<{ id: ProfileSection; label: string; adminOnly?: boolean }
 
 const mockEmail = "lauravc@example.com";
 
-const adminAreas = [
-  "Gestionar temporadas",
-  "Gestionar semanas",
-  "Moderar puntuaciones",
-  "Gestionar manuales semanales",
-  "Crear/editar juego",
-  "Cambiar estado de semana",
-  "Gestionar descargas de juego",
+const medals = [
+  {
+    label: "Campeón de Temporada I",
+    icon: "I",
+    locked: true,
+    title: "Medalla futura: se desbloqueará al cerrar la Temporada I.",
+  },
+  {
+    label: "Primer líder semanal",
+    icon: "1",
+    locked: false,
+    title: "Mock: primera posición oficial en una semana cerrada.",
+  },
+  {
+    label: "Podio en Galaga",
+    icon: "G",
+    locked: false,
+    title: "Mock: podio conseguido en Galaga.",
+  },
+  {
+    label: "Racha arcade",
+    icon: "R",
+    locked: true,
+    title: "Placeholder para una futura medalla de participación continuada.",
+  },
+];
+
+const adminGroups = [
+  {
+    title: "Temporadas y semanas",
+    actions: ["Gestionar temporadas", "Gestionar semanas", "Cambiar estado de semana"],
+  },
+  {
+    title: "Juegos y manuales",
+    actions: [
+      "Crear/editar juego",
+      "Gestionar manuales semanales",
+      "Gestionar descargas de juego",
+    ],
+  },
+  {
+    title: "Moderación",
+    actions: ["Moderar puntuaciones", "Revisar envíos ocultos", "Gestionar chat público"],
+  },
 ];
 
 export function ProfileDashboard() {
@@ -43,13 +79,11 @@ export function ProfileDashboard() {
   return (
     <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
       <aside className="h-fit rounded-lg border p-3 theme-border theme-surface">
-        <nav className="space-y-1">
+        <nav className="grid gap-1 sm:grid-cols-2 lg:grid-cols-1">
           {visibleSections.map((section) => (
             <button
-              className={`w-full rounded-md px-3 py-2 text-left text-sm font-semibold ${
-                activeSection === section.id
-                  ? "theme-surface-strong"
-                  : "theme-hover theme-text-muted"
+              className={`w-full rounded-md px-3 py-2 text-left text-sm font-semibold theme-hover ${
+                activeSection === section.id ? "bg-[var(--hover)] theme-text" : "theme-text-muted"
               }`}
               key={section.id}
               onClick={() => setActiveSection(section.id)}
@@ -64,33 +98,36 @@ export function ProfileDashboard() {
       <section className="space-y-6">
         {activeSection === "general" ? (
           <>
-            <div className="rounded-lg border p-5 theme-border theme-surface">
+            <div className="rounded-lg border p-6 theme-border theme-surface">
               <p className="text-xs font-semibold uppercase theme-text-muted">
                 Perfil mock
               </p>
-              <div className="mt-4 flex flex-wrap items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full text-xl font-bold theme-surface-strong">
+              <div className="mt-5 flex flex-wrap items-start gap-5">
+                <div className="flex h-24 w-24 items-center justify-center rounded-full text-2xl font-bold theme-surface-strong">
                   {mockUser.initials}
                 </div>
-                <div>
-                  <p className="text-3xl font-bold theme-text">{mockUser.initials}</p>
-                  <p className="text-sm theme-text-muted">@{mockUser.username}</p>
+                <div className="max-w-2xl">
+                  <p className="text-4xl font-bold theme-text">{mockUser.initials}</p>
+                  <p className="mt-1 theme-text-muted">@{mockUser.username}</p>
                   <p className="mt-1 text-sm theme-text-muted">{mockEmail}</p>
+                  <p className="mt-4 leading-7 theme-text">{mockUser.bio}</p>
                 </div>
               </div>
             </div>
+
             <div className="grid gap-3 md:grid-cols-3">
               {[
-                ["Primeros puestos", "1"],
-                ["Podios", "3"],
-                ["Participaciones", String(bestScores.length)],
-                ["Campeonatos", "0"],
-                ["Medallas", "3"],
-                ["Tiempo jugado", "8 h"],
-              ].map(([label, value]) => (
+                ["Victorias oficiales", "1", "Solo cuenta resultados cerrados o publicados."],
+                ["Podios oficiales", "3", "No incluye lideratos provisionales."],
+                ["Participaciones", String(bestScores.length), "Semanas con al menos un envío válido."],
+                ["Campeonatos", "0", "Temporadas cerradas ganadas."],
+                ["Medallas", "2", "Medallas mock desbloqueadas."],
+                ["Tiempo jugado", "8 h", "Dato provisional para futuras estadísticas."],
+              ].map(([label, value, help]) => (
                 <div
                   className="rounded-lg border p-4 theme-border theme-surface-muted"
                   key={label}
+                  title={help}
                 >
                   <p className="text-xs font-semibold uppercase theme-text-muted">
                     {label}
@@ -98,6 +135,29 @@ export function ProfileDashboard() {
                   <p className="mt-2 text-2xl font-bold theme-text">{value}</p>
                 </div>
               ))}
+            </div>
+
+            <div className="rounded-lg border p-5 theme-border theme-surface">
+              <p className="font-semibold theme-text">Medallas futuras</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {medals.map((medal) => (
+                  <div
+                    className={`rounded-lg border p-4 theme-border ${
+                      medal.locked ? "opacity-55 theme-surface-muted" : "theme-surface-muted"
+                    }`}
+                    key={medal.label}
+                    title={medal.title}
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold theme-surface-strong">
+                      {medal.icon}
+                    </div>
+                    <p className="mt-3 text-sm font-semibold theme-text">{medal.label}</p>
+                    <p className="mt-1 text-xs theme-text-muted">
+                      {medal.locked ? "Bloqueada" : "Desbloqueada"}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           </>
         ) : null}
@@ -110,6 +170,7 @@ export function ProfileDashboard() {
                 <ThemeSelect />
               </div>
             </div>
+
             <div className="rounded-lg border p-5 theme-border theme-surface">
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block">
@@ -120,6 +181,9 @@ export function ProfileDashboard() {
                     readOnly
                     value={mockUser.username}
                   />
+                  <span className="mt-1 block text-xs theme-text-muted">
+                    3-20 caracteres: minúsculas, números y guion bajo. Debe empezar por letra.
+                  </span>
                 </label>
                 <label className="block">
                   <span className="text-sm font-semibold theme-text">Siglas</span>
@@ -129,30 +193,48 @@ export function ProfileDashboard() {
                     readOnly
                     value={mockUser.initials}
                   />
+                  <span className="mt-1 block text-xs theme-text-muted">
+                    3 caracteres: letras A-Z o números. Se guardan en mayúsculas.
+                  </span>
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="text-sm font-semibold theme-text">Descripción</span>
+                  <textarea
+                    className="mt-2 min-h-28 w-full rounded-md border px-3 py-2 theme-input"
+                    disabled
+                    readOnly
+                    value={mockUser.bio}
+                  />
+                  <span className="mt-1 block text-xs theme-text-muted">
+                    Bio pública provisional. No se guarda hasta conectar perfiles reales.
+                  </span>
                 </label>
               </div>
-              <button
-                className="mt-4 cursor-not-allowed rounded-md border px-4 py-3 text-sm font-semibold theme-border theme-surface-muted"
-                disabled
-                type="button"
-              >
-                Editar avatar próximamente
-              </button>
-              <button
-                className="ml-3 mt-4 cursor-not-allowed rounded-md border px-4 py-3 text-sm font-semibold theme-border theme-surface-muted"
-                disabled
-                type="button"
-              >
-                Cerrar sesión
-              </button>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  className="cursor-not-allowed rounded-md border px-4 py-3 text-sm font-semibold theme-border theme-surface-muted"
+                  disabled
+                  type="button"
+                >
+                  Cambiar avatar
+                </button>
+                <button
+                  className="cursor-not-allowed rounded-md border px-4 py-3 text-sm font-semibold theme-border theme-surface-muted"
+                  disabled
+                  type="button"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
             </div>
-            <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-5 text-red-200">
+
+            <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-5 text-[var(--warning-text)]">
               <p className="font-semibold">Zona peligrosa</p>
               <p className="mt-1 text-sm">
                 La eliminación de cuenta se definirá cuando exista Auth real.
               </p>
               <button
-                className="mt-3 cursor-not-allowed rounded-md border border-red-500/40 px-4 py-2 text-sm font-semibold"
+                className="mt-3 cursor-not-allowed rounded-md border border-[var(--warning-border)] px-4 py-2 text-sm font-semibold"
                 disabled
                 type="button"
               >
@@ -205,16 +287,25 @@ export function ProfileDashboard() {
         {activeSection === "advanced" ? (
           <div className="rounded-lg border p-5 theme-border theme-surface">
             <p className="mb-4 font-semibold theme-text">Opciones avanzadas</p>
-            <div className="grid gap-3 md:grid-cols-3">
-              {adminAreas.map((area) => (
-                <button
-                  className="cursor-not-allowed rounded-lg border p-4 text-left font-semibold theme-border theme-surface-muted"
-                  disabled
-                  key={area}
-                  type="button"
-                >
-                  {area}
-                </button>
+            <div className="space-y-5">
+              {adminGroups.map((group) => (
+                <section key={group.title}>
+                  <p className="mb-3 text-sm font-semibold uppercase theme-text-muted">
+                    {group.title}
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {group.actions.map((action) => (
+                      <button
+                        className="cursor-not-allowed rounded-lg border p-4 text-left font-semibold theme-border theme-surface-muted"
+                        disabled
+                        key={action}
+                        type="button"
+                      >
+                        {action}
+                      </button>
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           </div>

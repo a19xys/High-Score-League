@@ -24,7 +24,7 @@ export function SubmissionsTable({
     return (
       <EmptyState
         title="Todavía no hay puntuaciones."
-        description="Las submissions aparecerán aquí cuando haya datos reales o mocks para esta sección."
+        description="Los envíos aparecerán aquí cuando haya datos reales o mocks para esta sección."
       />
     );
   }

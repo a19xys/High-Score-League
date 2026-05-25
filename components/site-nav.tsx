@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { mockUser } from "@/lib/mock-data";
+import { usePathname } from "next/navigation";
+import { currentWeek, mockUser } from "@/lib/mock-data";
 
 const links = [
   { href: "/game", label: "JUEGO" },
@@ -9,6 +12,29 @@ const links = [
 ];
 
 export function SiteNav() {
+  const pathname = usePathname();
+
+  function isActive(href: string) {
+    if (href === "/game") {
+      return pathname === "/game" || pathname === `/weeks/${currentWeek.id}`;
+    }
+
+    if (href === "/weeks") {
+      return (
+        pathname === "/weeks" ||
+        (pathname.startsWith("/weeks/") && pathname !== `/weeks/${currentWeek.id}`)
+      );
+    }
+
+    if (href === "/seasons") {
+      return pathname === "/seasons" || pathname.startsWith("/seasons/");
+    }
+
+    return pathname === href;
+  }
+
+  const profileActive = pathname === "/profile";
+
   return (
     <header className="border-b theme-border theme-surface">
       <nav className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -23,16 +49,24 @@ export function SiteNav() {
         <div className="flex flex-wrap items-center gap-2 text-sm font-medium theme-text-muted">
           {links.map((link) => (
             <Link
-              className="rounded-md px-3 py-2 theme-hover"
+              className={`rounded-md px-3 py-2 theme-hover ${
+                isActive(link.href) ? "bg-[var(--hover)] theme-text" : ""
+              }`}
               href={link.href}
               key={link.href}
+              aria-current={isActive(link.href) ? "page" : undefined}
             >
               {link.label}
             </Link>
           ))}
           <Link
             aria-label="Perfil"
-            className="ml-1 flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold theme-surface-strong"
+            aria-current={profileActive ? "page" : undefined}
+            className={`flex h-10 w-10 items-center justify-center rounded-full border text-xs font-bold theme-hover ${
+              profileActive
+                ? "border-circuit bg-[var(--hover)] text-circuit ring-2 ring-circuit/25"
+                : "theme-border theme-text"
+            }`}
             href="/profile"
             title={`@${mockUser.username}`}
           >

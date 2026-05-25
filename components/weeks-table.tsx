@@ -27,12 +27,47 @@ const sortableColumns: Array<{ key: SortKey; label: string }> = [
   { key: "leader", label: "Líder" },
 ];
 
+const controlTypes = [
+  "estándar",
+  "doble stick",
+  "trackball",
+  "spinner",
+  "volante",
+  "botones rápidos",
+  "control especial",
+];
+
 function isFutureWeek(summary: WeekSummary, currentWeekNumber?: number) {
   return (
+    summary.season.status === "active" &&
     typeof currentWeekNumber === "number" &&
     summary.week.number > currentWeekNumber &&
     summary.week.status !== "published"
   );
+}
+
+function publicWeekStatus(summary: WeekSummary) {
+  if (summary.week.status === "active") {
+    return "active";
+  }
+
+  if (summary.week.status === "closed" || summary.week.status === "published") {
+    return "closed";
+  }
+
+  return "inactive";
+}
+
+function publicStatusLabel(status: ReturnType<typeof publicWeekStatus>) {
+  if (status === "active") {
+    return "Activa";
+  }
+
+  if (status === "closed") {
+    return "Cerrada";
+  }
+
+  return "Inactiva";
 }
 
 export function WeeksTable({
@@ -41,9 +76,34 @@ export function WeeksTable({
   currentWeekNumber,
 }: WeeksTableProps) {
   const [query, setQuery] = useState("");
+  const [season, setSeason] = useState("all");
   const [status, setStatus] = useState("all");
-  const [sortKey, setSortKey] = useState<SortKey>("week");
+  const [developer, setDeveloper] = useState("all");
+  const [genre, setGenre] = useState("all");
+  const [controlType, setControlType] = useState("all");
+  const [leader, setLeader] = useState("all");
+  const [difficulty, setDifficulty] = useState("all");
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("dates");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  const filterOptions = useMemo(() => {
+    const publicRows = weeks.filter((summary) => !isFutureWeek(summary, currentWeekNumber));
+
+    return {
+      seasons: [...new Set(weeks.map((summary) => summary.season.name))].sort(),
+      developers: [...new Set(publicRows.map((summary) => summary.game.developer))].sort(),
+      genres: [...new Set(publicRows.map((summary) => summary.game.genre))].sort(),
+      difficulties: [...new Set(publicRows.map((summary) => summary.game.difficulty))].sort(),
+      leaders: [
+        ...new Map(
+          publicRows
+            .filter((summary) => summary.winner)
+            .map((summary) => [summary.winner?.username, summary.winner]),
+        ).values(),
+      ].sort((a, b) => (a?.username ?? "").localeCompare(b?.username ?? "")),
+    };
+  }, [currentWeekNumber, weeks]);
 
   const visibleWeeks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -51,48 +111,90 @@ export function WeeksTable({
     return weeks
       .filter((summary) => {
         const future = isFutureWeek(summary, currentWeekNumber);
-        const searchableGame = future ? "juego secreto" : summary.game.title;
+        const publicStatus = publicWeekStatus(summary);
+        const searchableValues = [
+          summary.season.name,
+          `Semana ${summary.week.number}`,
+          String(summary.week.number),
+          future ? "Juego secreto" : summary.game.title,
+          future ? "" : summary.game.developer,
+          future ? "" : summary.winner?.username,
+          future ? "" : summary.winner?.initials,
+        ];
+
         const matchesQuery =
           normalizedQuery.length === 0 ||
-          summary.season.name.toLowerCase().includes(normalizedQuery) ||
-          searchableGame.toLowerCase().includes(normalizedQuery) ||
-          String(summary.week.number).includes(normalizedQuery) ||
-          summary.winner?.username.includes(normalizedQuery) ||
-          summary.winner?.initials.toLowerCase().includes(normalizedQuery);
-        const publicStatus = summary.week.status === "active" ? "active" : "inactive";
+          searchableValues.some((value) =>
+            value?.toLowerCase().includes(normalizedQuery),
+          );
+        const matchesSeason = season === "all" || summary.season.name === season;
         const matchesStatus = status === "all" || status === publicStatus;
+        const matchesDeveloper =
+          developer === "all" || (!future && summary.game.developer === developer);
+        const matchesGenre = genre === "all" || (!future && summary.game.genre === genre);
+        const matchesControl =
+          controlType === "all" || (!future && summary.game.controlType === controlType);
+        const matchesLeader =
+          leader === "all" || (!future && summary.winner?.username === leader);
+        const matchesDifficulty =
+          difficulty === "all" || (!future && summary.game.difficulty === difficulty);
 
-        return matchesQuery && matchesStatus;
+        return (
+          matchesQuery &&
+          matchesSeason &&
+          matchesStatus &&
+          matchesDeveloper &&
+          matchesGenre &&
+          matchesControl &&
+          matchesLeader &&
+          matchesDifficulty
+        );
       })
+      .map((summary, index) => ({ summary, index }))
       .sort((a, b) => {
         const direction = sortDirection === "asc" ? 1 : -1;
-        const getValue = (summary: WeekSummary) => {
-          const future = isFutureWeek(summary, currentWeekNumber);
+        const getValue = (row: WeekSummary) => {
+          const future = isFutureWeek(row, currentWeekNumber);
+
           switch (sortKey) {
             case "season":
-              return summary.season.name;
+              return row.season.name;
             case "week":
-              return summary.week.number;
+              return row.week.number;
             case "game":
-              return future ? "Juego secreto" : summary.game.title;
+              return future ? "Juego secreto" : row.game.title;
             case "dates":
-              return summary.week.startsAt;
+              return row.week.startsAt;
             case "status":
-              return summary.week.status === "active" ? "Activa" : "Inactiva";
+              return publicStatusLabel(publicWeekStatus(row));
             case "leader":
-              return summary.winner?.username ?? "";
+              return future ? "" : row.winner?.username ?? "";
           }
         };
-        const valueA = getValue(a);
-        const valueB = getValue(b);
+        const valueA = getValue(a.summary);
+        const valueB = getValue(b.summary);
+        const result =
+          typeof valueA === "number" && typeof valueB === "number"
+            ? valueA - valueB
+            : String(valueA).localeCompare(String(valueB));
 
-        if (typeof valueA === "number" && typeof valueB === "number") {
-          return (valueA - valueB) * direction;
-        }
-
-        return String(valueA).localeCompare(String(valueB)) * direction;
-      });
-  }, [currentWeekNumber, query, sortDirection, sortKey, status, weeks]);
+        return result === 0 ? a.index - b.index : result * direction;
+      })
+      .map(({ summary }) => summary);
+  }, [
+    controlType,
+    currentWeekNumber,
+    developer,
+    difficulty,
+    genre,
+    leader,
+    query,
+    season,
+    sortDirection,
+    sortKey,
+    status,
+    weeks,
+  ]);
 
   function toggleSort(nextKey: SortKey) {
     if (nextKey === sortKey) {
@@ -116,115 +218,241 @@ export function WeeksTable({
   return (
     <div className="space-y-4">
       {enableControls ? (
-        <div className="grid gap-3 rounded-lg border p-4 theme-border theme-surface-muted md:grid-cols-4">
-          <label className="block">
-            <span className="text-xs font-semibold uppercase theme-text-muted">
-              Temporada, juego, semana o líder
-            </span>
-            <input
-              className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar..."
-              value={query}
-            />
-          </label>
-          <label className="block">
-            <span className="text-xs font-semibold uppercase theme-text-muted">
-              Estado
-            </span>
-            <select
-              className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-              onChange={(event) => setStatus(event.target.value)}
-              value={status}
+        <div className="space-y-4 rounded-lg border p-4 theme-border theme-surface-muted">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase theme-text">
+              Filtros de semanas
+            </h2>
+            <button
+              className="rounded-md px-3 py-2 text-sm font-semibold theme-surface-strong"
+              onClick={() => setShowMoreFilters((current) => !current)}
+              type="button"
             >
-              <option value="all">Todos</option>
-              <option value="active">Activa</option>
-              <option value="inactive">Inactiva</option>
-            </select>
-          </label>
-          <div className="md:col-span-2">
-            <p className="text-xs font-semibold uppercase theme-text-muted">
-              Ordenación
-            </p>
-            <p className="mt-2 text-sm theme-text-muted">
-              Pulsa un encabezado para ordenar. La tabla muestra el orden actual
-              con ▲ / ▼.
-            </p>
+              Más filtros
+            </button>
           </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="block">
+              <span className="text-xs font-semibold uppercase theme-text-muted">
+                Buscar
+              </span>
+              <input
+                className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Juego, temporada, semana o jugador"
+                value={query}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase theme-text-muted">
+                Temporada
+              </span>
+              <select
+                className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+                onChange={(event) => setSeason(event.target.value)}
+                value={season}
+              >
+                <option value="all">Todas</option>
+                {filterOptions.seasons.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase theme-text-muted">
+                Estado
+              </span>
+              <select
+                className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+                onChange={(event) => setStatus(event.target.value)}
+                value={status}
+              >
+                <option value="all">Todos</option>
+                <option value="active">Activa</option>
+                <option value="closed">Cerrada</option>
+                <option value="inactive">Inactiva</option>
+              </select>
+            </label>
+          </div>
+          {showMoreFilters ? (
+            <div className="grid gap-3 border-t pt-4 theme-border md:grid-cols-5">
+              <label className="block">
+                <span className="text-xs font-semibold uppercase theme-text-muted">
+                  Desarrollador
+                </span>
+                <select
+                  className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+                  onChange={(event) => setDeveloper(event.target.value)}
+                  value={developer}
+                >
+                  <option value="all">Todos</option>
+                  {filterOptions.developers.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold uppercase theme-text-muted">
+                  Género
+                </span>
+                <select
+                  className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+                  onChange={(event) => setGenre(event.target.value)}
+                  value={genre}
+                >
+                  <option value="all">Todos</option>
+                  {filterOptions.genres.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold uppercase theme-text-muted">
+                  Tipo de control
+                </span>
+                <select
+                  className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+                  onChange={(event) => setControlType(event.target.value)}
+                  value={controlType}
+                >
+                  <option value="all">Todos</option>
+                  {controlTypes.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold uppercase theme-text-muted">
+                  Líder/Ganador
+                </span>
+                <select
+                  className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+                  onChange={(event) => setLeader(event.target.value)}
+                  value={leader}
+                >
+                  <option value="all">Todos</option>
+                  {filterOptions.leaders.map((option) =>
+                    option ? (
+                      <option key={option.id} value={option.username}>
+                        @{option.username}
+                      </option>
+                    ) : null,
+                  )}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold uppercase theme-text-muted">
+                  Dificultad
+                </span>
+                <select
+                  className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+                  onChange={(event) => setDifficulty(event.target.value)}
+                  value={difficulty}
+                >
+                  <option value="all">Todas</option>
+                  {filterOptions.difficulties.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
-      <DataTable>
-        <thead className="text-xs font-semibold uppercase theme-table-head">
-          <tr>
-            {sortableColumns.map((column) => (
-              <th className="whitespace-nowrap px-4 py-3" key={column.key} scope="col">
-                <button
-                  className="inline-flex items-center gap-1 font-semibold"
-                  onClick={() => toggleSort(column.key)}
-                  type="button"
-                >
-                  {column.label}
-                  {sortKey === column.key ? (
-                    <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
-                  ) : null}
-                </button>
-              </th>
-            ))}
-            <th className="whitespace-nowrap px-4 py-3" scope="col">
-              Detalle
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y theme-border theme-surface">
-          {visibleWeeks.map((summary) => {
-            const future = isFutureWeek(summary, currentWeekNumber);
+      {visibleWeeks.length === 0 ? (
+        <EmptyState
+          title="No hay semanas con esos filtros."
+          description="Prueba a cambiar el estado, temporada o búsqueda."
+        />
+      ) : (
+        <DataTable>
+          <thead className="text-xs font-semibold uppercase theme-table-head">
+            <tr>
+              {sortableColumns.map((column) => (
+                <th className="whitespace-nowrap px-4 py-3" key={column.key} scope="col">
+                  <button
+                    className="inline-flex items-center gap-1 font-semibold"
+                    onClick={() => toggleSort(column.key)}
+                    type="button"
+                  >
+                    {column.label}
+                    {sortKey === column.key ? (
+                      <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
+                    ) : null}
+                  </button>
+                </th>
+              ))}
+              <th className="whitespace-nowrap px-4 py-3" scope="col" />
+            </tr>
+          </thead>
+          <tbody className="divide-y theme-border theme-surface">
+            {visibleWeeks.map((summary) => {
+              const future = isFutureWeek(summary, currentWeekNumber);
+              const publicStatus = publicWeekStatus(summary);
 
-            return (
-              <tr className="theme-hover" key={summary.week.id}>
-                <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
-                  {summary.season.name}
-                </td>
-                <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
-                  Semana {summary.week.number}
-                </td>
-                <td className="whitespace-nowrap px-4 py-4 theme-text">
-                  {future ? "Juego secreto" : summary.game.title}
-                </td>
-                <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
-                  {formatCompactDateRange(summary.week.startsAt, summary.week.endsAt)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-4">
-                  <StatusBadge
-                    status={summary.week.status === "active" ? "active" : "closed"}
-                  />
-                </td>
-                <td className="whitespace-nowrap px-4 py-4">
-                  {!future && summary.winner ? (
-                    <PlayerHoverCard player={summary.winner} />
-                  ) : (
-                    <span className="theme-text-muted">Pendiente</span>
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-4 py-4">
-                  {future ? (
-                    <span className="cursor-not-allowed font-semibold theme-text-muted">
-                      No disponible
-                    </span>
-                  ) : (
-                    <Link
-                      className="font-semibold text-circuit hover:underline"
-                      href={`/weeks/${summary.week.id}`}
-                    >
-                      Ver semana
-                    </Link>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </DataTable>
+              return (
+                <tr className="theme-hover" key={summary.week.id}>
+                  <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+                    {summary.season.name}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
+                    Semana {summary.week.number}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4 theme-text">
+                    {future ? "Juego secreto" : summary.game.title}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+                    {formatCompactDateRange(summary.week.startsAt, summary.week.endsAt)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4">
+                    <StatusBadge
+                      status={
+                        publicStatus === "active"
+                          ? "active"
+                          : publicStatus === "closed"
+                            ? "closed"
+                            : "draft"
+                      }
+                    />
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4">
+                    {!future && summary.winner ? (
+                      <PlayerHoverCard player={summary.winner} />
+                    ) : (
+                      <span className="theme-text-muted">Pendiente</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4">
+                    {future ? (
+                      <span className="cursor-not-allowed font-semibold theme-text-muted">
+                        No disponible
+                      </span>
+                    ) : (
+                      <Link
+                        className="font-semibold text-circuit hover:underline"
+                        href={`/weeks/${summary.week.id}`}
+                      >
+                        Ver semana
+                      </Link>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </DataTable>
+      )}
     </div>
   );
 }

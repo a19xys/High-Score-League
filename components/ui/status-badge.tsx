@@ -3,17 +3,17 @@ import type { WeekStatus } from "@/types";
 const statusStyles: Record<WeekStatus, string> = {
   draft: "theme-border theme-surface theme-text-muted",
   active: "border-emerald-300 bg-emerald-100 text-emerald-900",
-  frozen: "border-cabinet/30 bg-cabinet/10 text-amber-800",
-  closed: "theme-border theme-surface-muted theme-text-muted",
-  published: "border-arcade/30 bg-arcade/10 text-red-800",
+  frozen: "theme-border theme-surface theme-text-muted",
+  closed: "border-[var(--warning-border)] bg-[var(--warning-surface)] text-[var(--warning-text)]",
+  published: "border-[var(--warning-border)] bg-[var(--warning-surface)] text-[var(--warning-text)]",
 };
 
 const statusLabels: Record<WeekStatus, string> = {
-  draft: "Borrador",
+  draft: "Inactiva",
   active: "Activa",
-  frozen: "Congelada",
-  closed: "Inactiva",
-  published: "Publicada",
+  frozen: "Inactiva",
+  closed: "Cerrada",
+  published: "Cerrada",
 };
 
 type StatusBadgeProps = {

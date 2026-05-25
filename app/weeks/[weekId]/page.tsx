@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { Card, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/state";
 import { WeekDetailView } from "@/components/week-detail-view";
 import {
+  currentWeek,
   getGameById,
   getSeasonById,
   getSubmissionsForWeek,
@@ -34,11 +38,37 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
     notFound();
   }
 
+  const isFutureActiveSeasonWeek =
+    season.status === "active" &&
+    week.number > currentWeek.number &&
+    week.status !== "published";
+
+  if (isFutureActiveSeasonWeek) {
+    return (
+      <div className="space-y-6">
+        <Link className="text-sm font-semibold text-circuit hover:underline" href="/weeks">
+          ← Volver a semanas
+        </Link>
+        <Card>
+          <CardHeader eyebrow={`${season.name} · Semana ${week.number}`} title="Juego secreto" />
+          <EmptyState
+            title="Esta semana todavía no está disponible."
+            description="El juego, reglas y líder permanecerán ocultos hasta que se active la semana."
+          />
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <WeekDetailView
+      backHref="/weeks"
+      backLabel="← Volver a semanas"
       game={game}
       leaderboard={getWeeklyLeaderboard(week.id)}
       season={season}
+      seasonBackHref={`/seasons/${season.id}`}
+      seasonBackLabel={`← Volver a ${season.name}`}
       submissions={getSubmissionsForWeek(week.id)}
       week={week}
     />
