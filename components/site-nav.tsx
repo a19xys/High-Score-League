@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { currentWeek, mockUser } from "@/lib/mock-data";
+import { AuthNavItem } from "@/components/auth/auth-nav-item";
+import { currentWeek } from "@/lib/mock-data";
 
 const links = [
   { href: "/game", label: "JUEGO" },
@@ -33,8 +34,6 @@ export function SiteNav() {
     return pathname === href;
   }
 
-  const profileActive = pathname === "/profile";
-
   return (
     <header className="border-b theme-border theme-surface">
       <nav className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -59,19 +58,7 @@ export function SiteNav() {
               {link.label}
             </Link>
           ))}
-          <Link
-            aria-label="Perfil"
-            aria-current={profileActive ? "page" : undefined}
-            className={`flex h-10 w-10 items-center justify-center rounded-full border text-xs font-bold theme-hover ${
-              profileActive
-                ? "border-circuit bg-[var(--hover)] text-circuit ring-2 ring-circuit/25"
-                : "theme-border theme-text"
-            }`}
-            href="/profile"
-            title={`@${mockUser.username}`}
-          >
-            {mockUser.initials}
-          </Link>
+          <AuthNavItem />
         </div>
       </nav>
     </header>

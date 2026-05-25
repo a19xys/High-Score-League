@@ -55,6 +55,16 @@ http://localhost:3000
 Funciona como interfaz navegable con datos temporales. Todavia no incluye base
 de datos, autenticacion, subida real de capturas ni panel admin persistente.
 
+## Supabase
+
+La conexión inicial está preparada de forma aislada en `/supabase-test`. Consulta
+[docs/supabase-setup.md](docs/supabase-setup.md) para configurar `.env.local` y
+probar una lectura básica sin sustituir el mockup.
+
+Auth mínimo está documentado en [docs/auth-setup.md](docs/auth-setup.md). Incluye
+`/login`, `/register` y `/profile/setup`, pero las páginas principales siguen
+usando datos mock.
+
 ## Plantillas preparadas
 
 - Estados reutilizables: empty, loading, error y placeholder.

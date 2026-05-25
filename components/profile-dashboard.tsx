@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SessionStatusCard } from "@/components/auth/session-status-card";
 import { SubmissionsTable } from "@/components/submissions-table";
 import { ThemeSelect } from "@/components/theme-select";
 import { PlaceholderSection } from "@/components/ui/state";
@@ -77,25 +78,28 @@ export function ProfileDashboard() {
   );
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
-      <aside className="h-fit rounded-lg border p-3 theme-border theme-surface">
-        <nav className="grid gap-1 sm:grid-cols-2 lg:grid-cols-1">
-          {visibleSections.map((section) => (
-            <button
-              className={`w-full rounded-md px-3 py-2 text-left text-sm font-semibold theme-hover ${
-                activeSection === section.id ? "bg-[var(--hover)] theme-text" : "theme-text-muted"
-              }`}
-              key={section.id}
-              onClick={() => setActiveSection(section.id)}
-              type="button"
-            >
-              {section.label}
-            </button>
-          ))}
-        </nav>
-      </aside>
+    <div className="space-y-6">
+      <SessionStatusCard />
 
-      <section className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
+        <aside className="h-fit rounded-lg border p-3 theme-border theme-surface">
+          <nav className="grid gap-1 sm:grid-cols-2 lg:grid-cols-1">
+            {visibleSections.map((section) => (
+              <button
+                className={`w-full rounded-md px-3 py-2 text-left text-sm font-semibold theme-hover ${
+                  activeSection === section.id ? "bg-[var(--hover)] theme-text" : "theme-text-muted"
+                }`}
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
+                type="button"
+              >
+                {section.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <section className="space-y-6">
         {activeSection === "general" ? (
           <>
             <div className="rounded-lg border p-6 theme-border theme-surface">
@@ -310,7 +314,8 @@ export function ProfileDashboard() {
             </div>
           </div>
         ) : null}
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
