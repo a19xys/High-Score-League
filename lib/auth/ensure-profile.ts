@@ -12,8 +12,38 @@ type EnsureProfileResult =
   | { status: "ok"; profile: RealProfile; error: null }
   | { status: "needs-input"; profile: null; error: string };
 
+type SupabaseMutationError = {
+  code?: string;
+  message: string;
+};
+
+const profileColumns =
+  "id,username,initials,avatar_url,is_admin,created_at,updated_at";
+
 function metadataString(value: unknown) {
   return typeof value === "string" ? value : "";
+}
+
+function isPrimaryKeyConflict(error: SupabaseMutationError) {
+  const message = error.message.toLowerCase();
+  return (
+    error.code === "23505" &&
+    (message.includes("profiles_pkey") || message.includes("profiles id key"))
+  );
+}
+
+function humanizeProfileInsertError(error: SupabaseMutationError) {
+  const message = error.message.toLowerCase();
+
+  if (message.includes("profiles_username_lower_unique_idx")) {
+    return "Ese username ya esta usado por otro jugador.";
+  }
+
+  if (message.includes("profiles_initials_upper_unique_idx")) {
+    return "Esas siglas ya estan usadas por otro jugador.";
+  }
+
+  return humanizeSupabaseError(error.message);
 }
 
 export async function ensureProfileForCurrentUser(
@@ -35,7 +65,7 @@ export async function ensureProfileForCurrentUser(
 
   const { data: existingProfile, error: existingError } = await supabase
     .from("profiles")
-    .select("id,username,initials,avatar_url,is_admin,created_at,updated_at")
+    .select(profileColumns)
     .eq("id", userData.user.id)
     .maybeSingle();
 
@@ -80,14 +110,38 @@ export async function ensureProfileForCurrentUser(
       username,
       initials,
     })
-    .select("id,username,initials,avatar_url,is_admin,created_at,updated_at")
+    .select(profileColumns)
     .single();
 
   if (insertError) {
+    if (isPrimaryKeyConflict(insertError)) {
+      const { data: profileAfterRace, error: profileAfterRaceError } = await supabase
+        .from("profiles")
+        .select(profileColumns)
+        .eq("id", userData.user.id)
+        .maybeSingle();
+
+      if (profileAfterRace) {
+        return {
+          status: "ok",
+          profile: profileAfterRace as RealProfile,
+          error: null,
+        };
+      }
+
+      return {
+        status: "needs-input",
+        profile: null,
+        error: profileAfterRaceError
+          ? humanizeSupabaseError(profileAfterRaceError.message)
+          : "El perfil parece existir, pero no se pudo leer de nuevo.",
+      };
+    }
+
     return {
       status: "needs-input",
       profile: null,
-      error: humanizeSupabaseError(insertError.message),
+      error: humanizeProfileInsertError(insertError),
     };
   }
 

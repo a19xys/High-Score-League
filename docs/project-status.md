@@ -1,51 +1,52 @@
 # Project status
 
-High Score League está en fase mock avanzada.
+High Score League esta en fase mock avanzada.
 
 ## Estado actual
 
-- La interfaz principal está montada con Next.js App Router, TypeScript y
+- La interfaz principal esta montada con Next.js App Router, TypeScript y
   Tailwind CSS.
-- Las páginas principales siguen usando `lib/mock-data.ts`.
+- Las paginas principales siguen usando `lib/mock-data.ts`.
 - El mockup incluye portada, juego actual, semanas, temporadas, perfiles,
-  leaderboards, chat mock, tema claro/oscuro, subida provisional y administración
+  leaderboards, chat mock, tema claro/oscuro, subida provisional y administracion
   mock.
 - No se debe sustituir el mockup por datos reales hasta decidir el flujo de
-  conexión.
+  conexion.
 
 ## Supabase
 
-- Supabase ya está conectado mediante clientes de navegador y servidor.
+- Supabase ya esta conectado mediante clientes de navegador y servidor.
 - La prueba aislada vive en `/supabase-test`.
-- La migración principal está en
+- La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.
-- La documentación del modelo está en `docs/database.md`.
-- La documentación de Storage está en `docs/supabase-storage.md`.
+- La documentacion del modelo esta en `docs/database.md`.
+- La documentacion de Storage esta en `docs/supabase-storage.md`.
 
 ## Auth
 
-- Auth mínimo está implementado con email y password.
-- `/login` inicia sesión.
-- `/register` crea cuenta, recoge username/siglas y crea perfil si hay sesión
-  inmediata.
-- Si Supabase exige confirmación de email, el perfil se crea tras el primer
-  login usando `user_metadata`.
-- `/profile` muestra estado real de sesión, crea o edita `public.profiles` y
-  mantiene el perfil mock debajo.
-- `/profile/setup` queda como ruta legacy y ya no forma parte del flujo normal.
+- Auth minimo esta implementado con email y password.
+- `/register` crea cuenta, guarda `username` e `initials` en `user_metadata` y
+  crea perfil si hay sesion inmediata.
+- `/login` inicia sesion y asegura perfil desde un unico helper idempotente.
+- `/profile` es el centro unico de perfil real: muestra sesion, email, perfil,
+  formulario inline si falta perfil y edicion de username/siglas.
+- `/profile/setup` queda como ruta legacy y no forma parte del flujo normal.
+- El borrado de cuentas de prueba existe en `/profile` mediante route handler de
+  servidor y `SUPABASE_SERVICE_ROLE_KEY`.
 - El primer admin se crea manualmente en Supabase SQL Editor.
 
 ## Sigue pendiente
 
-- Lecturas reales controladas desde Supabase en páginas principales.
-- Decidir políticas públicas o flujo autenticado para lectura.
-- Sustitución parcial y progresiva de mock data.
+- Lecturas reales controladas desde Supabase en paginas principales.
+- Decidir politicas publicas o flujo autenticado para lectura.
+- Sustitucion parcial y progresiva de mock data.
 - Subida real de capturas a Storage.
 - Subida real de puntuaciones.
 - Panel admin funcional.
-- Integración con MAME.
+- Integracion con MAME.
 
-## Próximo objetivo recomendado
+## Proximo objetivo recomendado
 
-Auth mínimo está funcionando. El siguiente paso será lectura real controlada de
-datos o sustitución parcial de mocks, manteniendo el mockup como fallback.
+Con Auth simplificado, el siguiente paso sera una lectura real controlada de
+temporadas, semanas y juegos en una ruta o componente aislado, manteniendo el
+mockup como fallback.

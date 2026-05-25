@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { notifyAuthProfileUpdated } from "@/lib/auth/auth-events";
 import { ensureProfileForCurrentUser } from "@/lib/auth/ensure-profile";
 import {
   humanizeSupabaseError,
@@ -12,13 +12,19 @@ import {
 } from "@/lib/auth/validation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { RealProfile } from "@/types/supabase";
+import { DeleteAccountButton } from "./delete-account-button";
 import { LogoutButton } from "./logout-button";
 
 type SessionState =
   | { status: "loading" | "not-configured" | "signed-out" }
   | { status: "signed-in"; email: string; profile: RealProfile | null; error: string | null };
 
+function metadataString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
 export function SessionStatusCard() {
+  const router = useRouter();
   const [state, setState] = useState<SessionState>({ status: "loading" });
   const [username, setUsername] = useState("");
   const [initials, setInitials] = useState("");
@@ -52,7 +58,6 @@ export function SessionStatusCard() {
         profile: result.profile,
         error: null,
       });
-      notifyAuthProfileUpdated();
       return;
     }
 
@@ -62,6 +67,8 @@ export function SessionStatusCard() {
       profile: null,
       error: result.error,
     });
+    setUsername(metadataString(userData.user.user_metadata.username).trim());
+    setInitials(normalizeInitials(metadataString(userData.user.user_metadata.initials)));
   }, []);
 
   useEffect(() => {
@@ -125,11 +132,23 @@ export function SessionStatusCard() {
     }
 
     const profile = response.data as RealProfile;
+    const metadataUpdate = await supabase.auth.updateUser({
+      data: {
+        username: profile.username,
+        initials: profile.initials,
+      },
+    });
+
+    if (metadataUpdate.error) {
+      setFormError(humanizeSupabaseError(metadataUpdate.error.message));
+      return;
+    }
+
     setUsername(profile.username);
     setInitials(profile.initials);
     setState({ ...state, profile, error: null });
     setMessage("Perfil guardado correctamente.");
-    notifyAuthProfileUpdated();
+    router.refresh();
   }
 
   return (
@@ -217,7 +236,19 @@ export function SessionStatusCard() {
           ) : null}
           {message ? <p className="text-sm theme-text-muted">{message}</p> : null}
 
-          <LogoutButton />
+          <div className="flex flex-wrap gap-3">
+            <LogoutButton />
+          </div>
+
+          <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-[var(--warning-text)]">
+            <p className="font-semibold">Zona peligrosa de cuenta real</p>
+            <p className="mt-1 text-sm">
+              Accion de desarrollo para borrar el usuario autenticado y su perfil.
+            </p>
+            <div className="mt-3">
+              <DeleteAccountButton />
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

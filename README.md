@@ -52,8 +52,10 @@ http://localhost:3000
 
 ## Estado del MVP
 
-Funciona como interfaz navegable con datos temporales. Todavia no incluye base
-de datos, autenticacion, subida real de capturas ni panel admin persistente.
+Funciona como interfaz navegable con datos temporales. Supabase y Auth minimo ya
+estan preparados de forma aislada, pero las paginas principales siguen usando
+mock data. Todavia no incluye subida real de capturas, puntuaciones persistentes
+ni panel admin funcional.
 
 ## Supabase
 
@@ -61,9 +63,9 @@ La conexión inicial está preparada de forma aislada en `/supabase-test`. Consu
 [docs/supabase-setup.md](docs/supabase-setup.md) para configurar `.env.local` y
 probar una lectura básica sin sustituir el mockup.
 
-Auth mínimo está documentado en [docs/auth-setup.md](docs/auth-setup.md). Incluye
-`/login` y `/register`; el perfil real se gestiona desde `/profile`, pero las
-páginas principales siguen usando datos mock.
+Auth minimo esta documentado en [docs/auth-setup.md](docs/auth-setup.md). Incluye
+`/login`, `/register`, perfil real desde `/profile` y borrado de cuentas de
+prueba desde servidor; las paginas principales siguen usando datos mock.
 
 ## Plantillas preparadas
 

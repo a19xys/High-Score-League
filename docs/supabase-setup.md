@@ -1,26 +1,29 @@
 # Supabase setup
 
-Esta fase solo prepara la conexión. Las páginas principales siguen usando
-`lib/mock-data.ts`.
+Esta fase mantiene las paginas principales con `lib/mock-data.ts`. Supabase se
+usa de forma controlada para Auth, perfil real y diagnostico.
 
 ## Variables de entorno
 
-Crear un archivo `.env.local` en la raíz del proyecto:
+Crear `.env.local` en la raiz del proyecto:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
+SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
 ```
 
-Las dos variables se copian desde Supabase Dashboard:
+Las variables publicas se copian desde Supabase Dashboard:
 
-- `Project Settings` → `API` → `Project URL`
-- `Project Settings` → `API` → `Project API keys` → `anon public`
+- `Project Settings` -> `API` -> `Project URL`
+- `Project Settings` -> `API` -> `Project API keys` -> `anon public`
 
-No incluir claves reales en `.env.example`, README ni documentación versionada.
-No usar nunca `service_role` en frontend ni en variables `NEXT_PUBLIC_*`.
+`SUPABASE_SERVICE_ROLE_KEY` solo se usa en servidor para acciones de desarrollo,
+como borrar la cuenta de prueba actual. Nunca debe exponerse con prefijo
+`NEXT_PUBLIC_*` ni usarse en componentes cliente.
 
-`.env.local` ya está ignorado por Git mediante `.gitignore`.
+No incluir claves reales en `.env.example`, README ni documentacion versionada.
+`.env.local` esta ignorado por Git mediante `.gitignore`.
 
 ## Ejecutar la app
 
@@ -35,34 +38,35 @@ Abrir:
 http://localhost:3000/supabase-test
 ```
 
-## Qué comprueba `/supabase-test`
+## Que comprueba `/supabase-test`
 
-La página intenta leer una muestra de:
+La pagina muestra:
 
-- `seasons`
-- `games`
-- `weeks`
-
-Muestra estado de conexión, número de filas, errores de Supabase y algunas filas
-si existen.
+- variables publicas configuradas;
+- si `SUPABASE_SERVICE_ROLE_KEY` existe en servidor, sin mostrar su valor;
+- sesion activa;
+- user id y email;
+- metadata `username` e `initials`;
+- perfil real de `public.profiles`;
+- si metadata y perfil coinciden;
+- lectura de muestra de `seasons`, `games` y `weeks`;
+- errores de RLS si existen.
 
 ## Errores esperables
 
-Si faltan variables de entorno, la página muestra qué variables hay que añadir a
+Si faltan variables de entorno, la pagina indica que falta configurar
 `.env.local`.
 
-Si el proyecto Supabase existe pero todavía no se ha aplicado la migración,
-pueden aparecer errores como tabla inexistente.
+Si la migracion no esta aplicada, pueden aparecer errores de tabla inexistente.
 
-Si la migración está aplicada pero RLS bloquea lectura sin sesión, puede aparecer
-un error de permisos o una respuesta sin filas visibles. Esto es esperable hasta
-implementar Auth real o decidir políticas públicas de solo lectura.
+Si RLS bloquea lectura sin sesion, puede aparecer error de permisos o 0 filas
+visibles. Esto es esperable hasta iniciar sesion o definir politicas publicas de
+solo lectura.
 
-Si las tablas existen pero no tienen seed, la conexión puede funcionar y mostrar
+Si las tablas existen pero no tienen seed, la conexion puede funcionar y mostrar
 0 filas.
 
-## Límites de esta fase
+## Limites de esta fase
 
-No hay login, registro, subida de capturas, Storage real ni sustitución de datos
-mock. Esta página es una prueba aislada para confirmar que Next.js puede hablar
-con Supabase usando la anon key.
+Hay Auth minimo y perfil real, pero no hay Storage real, subida de capturas,
+subida de puntuaciones ni sustitucion de datos mock en las paginas principales.

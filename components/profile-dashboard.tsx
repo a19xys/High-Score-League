@@ -235,7 +235,9 @@ export function ProfileDashboard() {
             <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-5 text-[var(--warning-text)]">
               <p className="font-semibold">Zona peligrosa</p>
               <p className="mt-1 text-sm">
-                La eliminación de cuenta se definirá cuando exista Auth real.
+                La accion real para borrar cuentas de prueba esta en el bloque de
+                sesion Supabase superior. Esta zona mock queda preparada para
+                futuras opciones privadas.
               </p>
               <button
                 className="mt-3 cursor-not-allowed rounded-md border border-[var(--warning-border)] px-4 py-2 text-sm font-semibold"

@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { notifyAuthProfileUpdated } from "@/lib/auth/auth-events";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type LogoutButtonProps = {
@@ -23,7 +22,6 @@ export function LogoutButton({ className }: LogoutButtonProps) {
     setIsSubmitting(true);
     await supabase.auth.signOut();
     setIsSubmitting(false);
-    notifyAuthProfileUpdated();
     router.refresh();
     router.push("/login");
   }

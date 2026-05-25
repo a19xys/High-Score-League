@@ -3,14 +3,27 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { authProfileUpdatedEvent } from "@/lib/auth/auth-events";
-import { mockUser } from "@/lib/mock-data";
+import { normalizeInitials, validateInitials } from "@/lib/auth/validation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { RealProfile } from "@/types/supabase";
 
 type AuthNavState =
   | { status: "loading" | "not-configured" | "signed-out" }
-  | { status: "signed-in"; profile: RealProfile | null; email: string };
+  | {
+      status: "signed-in";
+      profile: RealProfile | null;
+      email: string;
+      metadataInitials: string | null;
+    };
+
+function readMetadataInitials(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = normalizeInitials(value);
+  return validateInitials(normalized) ? null : normalized;
+}
 
 export function AuthNavItem() {
   const pathname = usePathname();
@@ -42,6 +55,7 @@ export function AuthNavItem() {
       status: "signed-in",
       profile: (profile ?? null) as RealProfile | null,
       email: userData.user.email ?? "sin email",
+      metadataInitials: readMetadataInitials(userData.user.user_metadata.initials),
     });
   }, []);
 
@@ -49,18 +63,11 @@ export function AuthNavItem() {
     const supabase = createSupabaseBrowserClient();
     void loadAuth();
 
-    function handleProfileUpdated() {
-      void loadAuth();
-    }
-
-    window.addEventListener(authProfileUpdatedEvent, handleProfileUpdated);
-
     const subscription = supabase?.auth.onAuthStateChange(() => {
       void loadAuth();
     });
 
     return () => {
-      window.removeEventListener(authProfileUpdatedEvent, handleProfileUpdated);
       subscription?.data.subscription.unsubscribe();
     };
   }, [loadAuth, pathname]);
@@ -84,8 +91,8 @@ export function AuthNavItem() {
     state.status === "signed-in" && state.profile
       ? state.profile.initials
       : state.status === "signed-in"
-        ? "SET"
-        : mockUser.initials;
+        ? (state.metadataInitials ?? "...")
+        : "...";
   const href = "/profile";
   const title =
     state.status === "signed-in" && state.profile

@@ -51,6 +51,7 @@ async function readTable(
 
 export default async function SupabaseTestPage() {
   const env = getSupabaseEnv();
+  const hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY?.trim());
 
   if (!env.isConfigured) {
     return (
@@ -88,6 +89,19 @@ export default async function SupabaseTestPage() {
           .maybeSingle()
       : { data: null, error: null };
   const realProfile = (profileResponse.data ?? null) as RealProfile | null;
+  const metadataUsername =
+    typeof userData.user?.user_metadata.username === "string"
+      ? userData.user.user_metadata.username
+      : null;
+  const metadataInitials =
+    typeof userData.user?.user_metadata.initials === "string"
+      ? userData.user.user_metadata.initials
+      : null;
+  const metadataMatchesProfile =
+    realProfile && metadataUsername && metadataInitials
+      ? realProfile.username === metadataUsername &&
+        realProfile.initials === metadataInitials.toUpperCase()
+      : null;
   const results = await Promise.all([
     readTable(supabase, "seasons"),
     readTable(supabase, "games"),
@@ -148,13 +162,16 @@ export default async function SupabaseTestPage() {
 
       <Card>
         <CardHeader title="Sesión" eyebrow="Auth" />
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
             <p className="text-xs font-semibold uppercase theme-text-muted">
               Variables
             </p>
             <p className="mt-2 font-semibold theme-text">
               {env.isConfigured ? "Configuradas" : "Faltan variables"}
+            </p>
+            <p className="mt-1 text-sm theme-text-muted">
+              Service role servidor: {hasServiceRoleKey ? "configurada" : "no configurada"}
             </p>
           </div>
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
@@ -166,6 +183,17 @@ export default async function SupabaseTestPage() {
             </p>
             <p className="mt-1 text-sm theme-text-muted">
               {userData.user?.email ?? "No autenticado"}
+            </p>
+          </div>
+          <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+            <p className="text-xs font-semibold uppercase theme-text-muted">
+              Metadata
+            </p>
+            <p className="mt-2 font-semibold theme-text">
+              {metadataInitials ?? "-"} {metadataUsername ? `@${metadataUsername}` : ""}
+            </p>
+            <p className="mt-1 text-sm theme-text-muted">
+              Username e initials guardados en Auth.
             </p>
           </div>
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
@@ -195,6 +223,21 @@ export default async function SupabaseTestPage() {
                   : userData.user
                     ? "Falta perfil o RLS lo oculta"
                     : "Inicia sesión para comprobar perfil"}
+            </p>
+          </div>
+          <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+            <p className="text-xs font-semibold uppercase theme-text-muted">
+              Metadata vs perfil
+            </p>
+            <p className="mt-2 font-semibold theme-text">
+              {metadataMatchesProfile === null
+                ? "No comprobable"
+                : metadataMatchesProfile
+                  ? "Coinciden"
+                  : "No coinciden"}
+            </p>
+            <p className="mt-1 text-sm theme-text-muted">
+              Si no coinciden, guarda el perfil desde /profile.
             </p>
           </div>
         </div>

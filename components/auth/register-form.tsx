@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { notifyAuthProfileUpdated } from "@/lib/auth/auth-events";
 import { ensureProfileForCurrentUser } from "@/lib/auth/ensure-profile";
 import {
   humanizeSupabaseError,
@@ -79,7 +78,6 @@ export function RegisterForm() {
     if (data.session) {
       const profileResult = await ensureProfileForCurrentUser(supabase);
       setIsSubmitting(false);
-      notifyAuthProfileUpdated();
       router.refresh();
 
       if (profileResult.status === "ok") {

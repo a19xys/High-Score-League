@@ -1,7 +1,7 @@
 # Auth setup
 
-High Score League tiene autenticación mínima con Supabase Auth, sin sustituir el
-mockup principal.
+High Score League usa Supabase Auth con email y password. Las paginas principales
+siguen usando datos mock; Auth solo gestiona sesion real y perfil real.
 
 ## Variables necesarias
 
@@ -10,12 +10,14 @@ Crear `.env.local` con:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
+SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
 ```
 
-No usar nunca `service_role` en frontend ni en variables `NEXT_PUBLIC_*`.
+`SUPABASE_SERVICE_ROLE_KEY` solo se usa en route handlers de servidor, por
+ejemplo para borrar cuentas de prueba. Nunca debe usarse en componentes cliente,
+ni exponerse como `NEXT_PUBLIC_*`, ni pegarse en codigo fuente.
 
-En Windows, si aparece `fetch failed` o errores de certificados al instalar o
-consultar, puede hacer falta:
+En Windows, si aparece `fetch failed` o errores de certificados:
 
 ```powershell
 $env:NODE_OPTIONS="--use-system-ca"
@@ -23,20 +25,20 @@ $env:NODE_OPTIONS="--use-system-ca"
 
 ## Email y SMTP
 
-En desarrollo puede desactivarse temporalmente la confirmación de email para
-evitar límites de envío y rate limits mientras se prueba el flujo.
+Supabase puede exigir confirmacion de email. En desarrollo puede desactivarse
+temporalmente para evitar rate limits mientras se prueba el flujo.
 
-El proveedor integrado de email de Supabase tiene límites bajos. Para usuarios
-reales conviene configurar SMTP propio y activar confirmación cuando el flujo ya
-esté cerrado.
+El proveedor integrado de email de Supabase tiene limites bajos. Para usuarios
+reales conviene configurar SMTP propio y activar confirmacion cuando el flujo ya
+este cerrado.
 
 ## Registro
 
-La ruta `/register` pide:
+`/register` pide:
 
 - email;
-- contraseña;
-- confirmación de contraseña;
+- password;
+- confirmacion de password;
 - username;
 - initials.
 
@@ -44,45 +46,70 @@ Reglas:
 
 - `username`: `^[a-z][a-z0-9_]{2,19}$`
 - `initials`: `^[A-Z0-9]{3}$`
-- Las siglas se transforman a mayúsculas antes de validar y guardar.
+- `initials` se transforma a mayusculas antes de validar y guardar.
 
 Al llamar a `supabase.auth.signUp`, la app guarda `username` e `initials` en
-`options.data`. Si Supabase devuelve sesión inmediata, la app crea
-automáticamente `public.profiles` y redirige a `/profile`.
+`options.data`, que Supabase conserva como `user_metadata`.
 
-Si Supabase exige confirmación de email, no se crea perfil todavía. El usuario
-confirma el correo, inicia sesión en `/login` y la app crea el perfil
-automáticamente desde `user_metadata`.
+Si Supabase devuelve sesion inmediata, la app llama a
+`ensureProfileForCurrentUser`, crea `public.profiles` si falta y redirige a
+`/profile`.
+
+Si Supabase exige confirmacion de email, `/register` muestra un mensaje para
+revisar el correo. No redirige a `/profile/setup`.
 
 ## Login
 
-La ruta `/login` usa email y contraseña con `supabase.auth.signInWithPassword`.
-Tras login correcto llama al helper `ensureProfileForCurrentUser`.
+`/login` usa `supabase.auth.signInWithPassword`.
 
-Si el perfil existe o se puede crear desde metadata, redirige a `/profile`. Si
-faltan datos o hay un conflicto de username/siglas, `/profile` muestra un
-formulario para completar o corregir el perfil.
+Tras login correcto, la app llama a `ensureProfileForCurrentUser`:
 
-## Perfil real
+- si el perfil existe, lo devuelve;
+- si falta, intenta crearlo desde `user_metadata`;
+- si falta metadata o hay conflicto de username/siglas, redirige a `/profile`
+  para completar los datos inline.
 
-`/profile` es el centro de gestión del perfil real. Muestra:
+Nunca se redirige a `/profile/setup` desde el flujo normal.
 
-- sesión activa;
-- email;
-- username e initials reales si existen;
-- formulario para crear o actualizar username e initials.
+## Perfil
 
-La app no envía `is_admin`, no permite activar admin y no usa service role.
+`/profile` es el centro unico del perfil real.
 
-`/profile/setup` queda como ruta legacy y enlaza a `/profile`; ya no forma parte
-del flujo normal.
+Si hay sesion y perfil, muestra email, username, initials y permite actualizar
+username e initials. Al guardar se actualiza tambien `user_metadata` y se
+refresca la ruta para que la navegacion no requiera F5.
+
+Si hay sesion pero no hay perfil, `/profile` muestra un formulario inline para
+crearlo. Si no hay sesion, muestra enlace a `/login`.
+
+`localStorage` no es fuente principal de verdad para perfiles. Solo Supabase Auth
+metadata y `public.profiles` se usan para este flujo.
+
+## Ruta legacy
+
+`/profile/setup` queda como ruta legacy con un mensaje simple y enlace a
+`/profile`. Ya no forma parte del registro ni del login.
+
+## Borrar cuenta de prueba
+
+En `/profile` hay una accion "Borrar mi cuenta de prueba". Requiere confirmar
+escribiendo `BORRAR`.
+
+La accion llama a `POST /auth/delete-account`, un route handler de servidor que:
+
+- obtiene el usuario actual desde la sesion;
+- usa `SUPABASE_SERVICE_ROLE_KEY` solo en servidor;
+- llama a `auth.admin.deleteUser(user.id)`;
+- aprovecha `on delete cascade` para eliminar `profiles`;
+- cierra la sesion y devuelve al flujo de registro.
+
+Si falta `SUPABASE_SERVICE_ROLE_KEY`, la ruta devuelve un error claro y no borra
+nada.
 
 ## Primer admin
 
-El primer admin debe crearse manualmente desde Supabase SQL Editor después de
-registrar el usuario.
-
-Si el perfil ya existe:
+El primer admin se crea manualmente en Supabase SQL Editor despues de registrar
+el usuario:
 
 ```sql
 update public.profiles
@@ -90,15 +117,9 @@ set is_admin = true
 where id = 'USER_ID';
 ```
 
-Si el perfil aún no existe, el usuario puede completarlo desde `/profile`, o se
-puede crear manualmente con SQL respetando las reglas de `username` e `initials`.
-
-## Logout
-
-El cierre de sesión está disponible en `/profile`. Llama a
-`supabase.auth.signOut()`, refresca la navegación y redirige a `/login`.
+La app nunca permite a un usuario ponerse `is_admin = true`.
 
 ## Estado actual
 
-Las páginas principales siguen usando datos mock. Auth solo añade estado real de
-sesión, perfil real y rutas mínimas para preparar la siguiente fase.
+Auth minimo esta implementado y simplificado. Las paginas principales siguen
+usando `lib/mock-data.ts`; no hay Storage real ni subida real de puntuaciones.

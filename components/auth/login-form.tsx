@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { notifyAuthProfileUpdated } from "@/lib/auth/auth-events";
 import { ensureProfileForCurrentUser } from "@/lib/auth/ensure-profile";
 import { humanizeSupabaseError, validatePassword } from "@/lib/auth/validation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -52,7 +51,6 @@ export function LoginForm() {
 
     const profileResult = await ensureProfileForCurrentUser(supabase);
     setIsSubmitting(false);
-    notifyAuthProfileUpdated();
     router.refresh();
 
     if (profileResult.status === "ok") {
