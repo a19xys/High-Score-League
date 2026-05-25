@@ -11,6 +11,7 @@ Crear `.env.local` en la raiz del proyecto:
 NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
 SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
+NEXT_PUBLIC_DATA_SOURCE=mock
 ```
 
 Las variables publicas se copian desde Supabase Dashboard:
@@ -21,6 +22,10 @@ Las variables publicas se copian desde Supabase Dashboard:
 `SUPABASE_SERVICE_ROLE_KEY` solo se usa en servidor para acciones de desarrollo,
 como borrar la cuenta de prueba actual. Nunca debe exponerse con prefijo
 `NEXT_PUBLIC_*` ni usarse en componentes cliente.
+
+`NEXT_PUBLIC_DATA_SOURCE` controla pruebas de datos de dominio. Usa `mock` por
+defecto y `supabase` solo cuando quieras probar `/real-data-test` o
+`/seasons-real`.
 
 No incluir claves reales en `.env.example`, README ni documentacion versionada.
 `.env.local` esta ignorado por Git mediante `.gitignore`.

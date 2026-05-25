@@ -17,10 +17,15 @@ High Score League esta en fase mock avanzada.
 
 - Supabase ya esta conectado mediante clientes de navegador y servidor.
 - La prueba aislada vive en `/supabase-test`.
+- La prueba de datos de dominio vive en `/real-data-test`.
+- La pagina temporal `/seasons-real` permite probar temporadas reales sin tocar
+  `/seasons`.
 - La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.
+- El seed de desarrollo esta en `supabase/seed-dev.sql`.
 - La documentacion del modelo esta en `docs/database.md`.
 - La documentacion de Storage esta en `docs/supabase-storage.md`.
+- La documentacion de carga de datos esta en `docs/data-loading.md`.
 
 ## Auth
 
@@ -37,7 +42,7 @@ High Score League esta en fase mock avanzada.
 
 ## Sigue pendiente
 
-- Lecturas reales controladas desde Supabase en paginas principales.
+- Sustituir paginas principales por lecturas reales de forma progresiva.
 - Decidir politicas publicas o flujo autenticado para lectura.
 - Sustitucion parcial y progresiva de mock data.
 - Subida real de capturas a Storage.

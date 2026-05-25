@@ -67,6 +67,11 @@ Auth minimo esta documentado en [docs/auth-setup.md](docs/auth-setup.md). Incluy
 `/login`, `/register`, perfil real desde `/profile` y borrado de cuentas de
 prueba desde servidor; las paginas principales siguen usando datos mock.
 
+La lectura real controlada de `seasons`, `games` y `weeks` esta documentada en
+[docs/data-loading.md](docs/data-loading.md). Usa `NEXT_PUBLIC_DATA_SOURCE=mock`
+por defecto y ofrece `/real-data-test` y `/seasons-real` para diagnostico sin
+sustituir el mockup principal.
+
 ## Plantillas preparadas
 
 - Estados reutilizables: empty, loading, error y placeholder.
