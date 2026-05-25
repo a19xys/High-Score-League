@@ -97,7 +97,8 @@ function MockNotice() {
     <Card>
       <CardHeader title="Temporadas reales" eyebrow="Modo mock">
         `NEXT_PUBLIC_DATA_SOURCE` no esta configurado como `supabase`. Esta ruta
-        conserva el fallback y no cambia `/seasons`.
+        se mantiene como comparativa temporal; `/seasons` ya usa la misma fuente
+        configurable.
       </CardHeader>
       <div className="grid gap-3 md:grid-cols-2">
         {summaries.map(({ season }) => (
@@ -159,8 +160,8 @@ export default async function SeasonsRealPage() {
               : "Supabase"
           }
         >
-          Prueba temporal de lectura real. La ruta publica `/seasons` sigue usando
-          mock data.
+          Comparativa temporal de lectura real. La ruta publica `/seasons` ya usa
+          la fuente configurable con fallback mock.
         </CardHeader>
         {seasons.error || weeks.error ? (
           <div className="mb-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">

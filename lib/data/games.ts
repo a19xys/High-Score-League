@@ -1,5 +1,6 @@
 import { games as mockGames } from "@/lib/mock-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { Game } from "@/types";
 import type { GameRow } from "@/types/supabase";
 import type { DataReadOptions, DataReadResult } from "./types";
 
@@ -62,5 +63,19 @@ export async function getRealGames(
     source: "supabase",
     error: null,
     usingFallback: false,
+  };
+}
+
+export function mapGameRowToGame(row: GameRow): Game {
+  return {
+    id: row.id,
+    title: row.title,
+    slug: row.rom_name ?? row.title.toLowerCase().replaceAll(" ", "-"),
+    developer: row.developer ?? "Desconocido",
+    genre: "Arcade",
+    controlType: "estandar",
+    difficulty: "pendiente",
+    imageAlt: `Imagen de ${row.title}`,
+    imageUrl: row.image_url ?? undefined,
   };
 }

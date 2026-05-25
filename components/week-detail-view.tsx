@@ -21,6 +21,11 @@ type WeekDetailViewProps = {
   game: Game;
   leaderboard: LeaderboardEntry[];
   submissions: WeekSubmission[];
+  dataMode?: "mock" | "supabase";
+  hideDownloads?: boolean;
+  leaderboardPending?: boolean;
+  submissionsPending?: boolean;
+  warning?: string | null;
   backHref?: string;
   backLabel?: string;
   seasonBackHref?: string;
@@ -33,6 +38,11 @@ export function WeekDetailView({
   game,
   leaderboard,
   submissions,
+  dataMode = "mock",
+  hideDownloads = false,
+  leaderboardPending = false,
+  submissionsPending = false,
+  warning,
   backHref,
   backLabel,
   seasonBackHref,
@@ -64,6 +74,11 @@ export function WeekDetailView({
           >
             {formatWeekRange(week.startsAt, week.endsAt)}
           </CardHeader>
+          {warning ? (
+            <div className="mb-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">
+              {warning}
+            </div>
+          ) : null}
           <div className="space-y-5">
             <div>
               <h2 className="text-sm font-semibold uppercase theme-text-muted">
@@ -78,17 +93,27 @@ export function WeekDetailView({
                 ))}
               </ul>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <LinkButton href={week.manualUrl ?? "#"}>Descargar manual</LinkButton>
-              <LinkButton href="#">Descargar juego</LinkButton>
-            </div>
+            {!hideDownloads ? (
+              <div className="flex flex-wrap gap-3">
+                <LinkButton href={week.manualUrl ?? "#"}>Descargar manual</LinkButton>
+                <LinkButton href="#">Descargar juego</LinkButton>
+              </div>
+            ) : null}
           </div>
         </Card>
       </section>
 
       <Card>
-        <CardHeader title="Leaderboard semanal" eyebrow="Ranking" />
-        {leaderboard.length > 0 ? (
+        <CardHeader
+          title="Leaderboard semanal"
+          eyebrow={dataMode === "supabase" ? "Pendiente" : "Ranking"}
+        />
+        {leaderboardPending ? (
+          <EmptyState
+            title="Leaderboard pendiente de conectar."
+            description="Las puntuaciones reales se mostrarán cuando conectemos submissions y weekly_results."
+          />
+        ) : leaderboard.length > 0 ? (
           <LeaderboardTable entries={leaderboard} />
         ) : (
           <EmptyState
@@ -99,8 +124,18 @@ export function WeekDetailView({
       </Card>
 
       <Card>
-        <CardHeader title="Historial de envíos" eyebrow="Envíos mock" />
-        <SubmissionsTable submissions={submissions} showWeek={false} />
+        <CardHeader
+          title="Historial de envíos"
+          eyebrow={dataMode === "supabase" ? "Pendiente" : "Envíos mock"}
+        />
+        {submissionsPending ? (
+          <EmptyState
+            title="Historial de envíos pendiente."
+            description="Los envíos reales se cargarán cuando conectemos submissions."
+          />
+        ) : (
+          <SubmissionsTable submissions={submissions} showWeek={false} />
+        )}
       </Card>
     </div>
   );

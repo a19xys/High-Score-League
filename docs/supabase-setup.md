@@ -24,8 +24,9 @@ como borrar la cuenta de prueba actual. Nunca debe exponerse con prefijo
 `NEXT_PUBLIC_*` ni usarse en componentes cliente.
 
 `NEXT_PUBLIC_DATA_SOURCE` controla pruebas de datos de dominio. Usa `mock` por
-defecto y `supabase` solo cuando quieras probar `/real-data-test` o
-`/seasons-real`.
+defecto. Con `supabase`, `/seasons`, `/seasons/[seasonId]`, `/weeks`,
+`/weeks/[weekId]` y `/game` intentan leer datos reales, y `/real-data-test`
+sigue disponible como diagnostico de dominio.
 
 No incluir claves reales en `.env.example`, README ni documentacion versionada.
 `.env.local` esta ignorado por Git mediante `.gitignore`.

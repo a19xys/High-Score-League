@@ -16,6 +16,7 @@ type WeeksTableProps = {
   weeks: WeekSummary[];
   enableControls?: boolean;
   currentWeekNumber?: number;
+  disableWeekLinks?: boolean;
 };
 
 const sortableColumns: Array<{ key: SortKey; label: string }> = [
@@ -27,16 +28,6 @@ const sortableColumns: Array<{ key: SortKey; label: string }> = [
   { key: "leader", label: "Líder" },
 ];
 
-const controlTypes = [
-  "estándar",
-  "doble stick",
-  "trackball",
-  "spinner",
-  "volante",
-  "botones rápidos",
-  "control especial",
-];
-
 function isFutureWeek(summary: WeekSummary, currentWeekNumber?: number) {
   return (
     summary.season.status === "active" &&
@@ -46,8 +37,16 @@ function isFutureWeek(summary: WeekSummary, currentWeekNumber?: number) {
   );
 }
 
+function isSecretWeek(summary: WeekSummary, currentWeekNumber?: number) {
+  return (
+    isFutureWeek(summary, currentWeekNumber) ||
+    summary.game.title.trim().toLowerCase() === "juego secreto" ||
+    summary.week.status === "draft"
+  );
+}
+
 function publicWeekStatus(summary: WeekSummary) {
-  if (summary.week.status === "active") {
+  if (summary.week.status === "active" || summary.week.status === "frozen") {
     return "active";
   }
 
@@ -74,6 +73,7 @@ export function WeeksTable({
   weeks,
   enableControls = false,
   currentWeekNumber,
+  disableWeekLinks = false,
 }: WeeksTableProps) {
   const [query, setQuery] = useState("");
   const [season, setSeason] = useState("all");
@@ -88,13 +88,16 @@ export function WeeksTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const filterOptions = useMemo(() => {
-    const publicRows = weeks.filter((summary) => !isFutureWeek(summary, currentWeekNumber));
+    const publicRows = weeks.filter((summary) => !isSecretWeek(summary, currentWeekNumber));
+    const compactOptions = (values: string[]) =>
+      [...new Set(values.filter((value) => value.trim().length > 0))].sort();
 
     return {
       seasons: [...new Set(weeks.map((summary) => summary.season.name))].sort(),
-      developers: [...new Set(publicRows.map((summary) => summary.game.developer))].sort(),
-      genres: [...new Set(publicRows.map((summary) => summary.game.genre))].sort(),
-      difficulties: [...new Set(publicRows.map((summary) => summary.game.difficulty))].sort(),
+      developers: compactOptions(publicRows.map((summary) => summary.game.developer)),
+      genres: compactOptions(publicRows.map((summary) => summary.game.genre)),
+      controlTypes: compactOptions(publicRows.map((summary) => summary.game.controlType)),
+      difficulties: compactOptions(publicRows.map((summary) => summary.game.difficulty)),
       leaders: [
         ...new Map(
           publicRows
@@ -110,16 +113,16 @@ export function WeeksTable({
 
     return weeks
       .filter((summary) => {
-        const future = isFutureWeek(summary, currentWeekNumber);
+        const secret = isSecretWeek(summary, currentWeekNumber);
         const publicStatus = publicWeekStatus(summary);
         const searchableValues = [
           summary.season.name,
           `Semana ${summary.week.number}`,
           String(summary.week.number),
-          future ? "Juego secreto" : summary.game.title,
-          future ? "" : summary.game.developer,
-          future ? "" : summary.winner?.username,
-          future ? "" : summary.winner?.initials,
+          secret ? "Juego secreto" : summary.game.title,
+          secret ? "" : summary.game.developer,
+          secret ? "" : summary.winner?.username,
+          secret ? "" : summary.winner?.initials,
         ];
 
         const matchesQuery =
@@ -130,14 +133,14 @@ export function WeeksTable({
         const matchesSeason = season === "all" || summary.season.name === season;
         const matchesStatus = status === "all" || status === publicStatus;
         const matchesDeveloper =
-          developer === "all" || (!future && summary.game.developer === developer);
-        const matchesGenre = genre === "all" || (!future && summary.game.genre === genre);
+          developer === "all" || (!secret && summary.game.developer === developer);
+        const matchesGenre = genre === "all" || (!secret && summary.game.genre === genre);
         const matchesControl =
-          controlType === "all" || (!future && summary.game.controlType === controlType);
+          controlType === "all" || (!secret && summary.game.controlType === controlType);
         const matchesLeader =
-          leader === "all" || (!future && summary.winner?.username === leader);
+          leader === "all" || (!secret && summary.winner?.username === leader);
         const matchesDifficulty =
-          difficulty === "all" || (!future && summary.game.difficulty === difficulty);
+          difficulty === "all" || (!secret && summary.game.difficulty === difficulty);
 
         return (
           matchesQuery &&
@@ -154,7 +157,7 @@ export function WeeksTable({
       .sort((a, b) => {
         const direction = sortDirection === "asc" ? 1 : -1;
         const getValue = (row: WeekSummary) => {
-          const future = isFutureWeek(row, currentWeekNumber);
+          const secret = isSecretWeek(row, currentWeekNumber);
 
           switch (sortKey) {
             case "season":
@@ -162,13 +165,13 @@ export function WeeksTable({
             case "week":
               return row.week.number;
             case "game":
-              return future ? "Juego secreto" : row.game.title;
+              return secret ? "Juego secreto" : row.game.title;
             case "dates":
               return row.week.startsAt;
             case "status":
               return publicStatusLabel(publicWeekStatus(row));
             case "leader":
-              return future ? "" : row.winner?.username ?? "";
+              return secret ? "" : row.winner?.username ?? "";
           }
         };
         const valueA = getValue(a.summary);
@@ -322,7 +325,7 @@ export function WeeksTable({
                   value={controlType}
                 >
                   <option value="all">Todos</option>
-                  {controlTypes.map((option) => (
+                  {filterOptions.controlTypes.map((option) => (
                     <option key={option} value={option}>
                       {option}
                     </option>
@@ -398,8 +401,9 @@ export function WeeksTable({
           </thead>
           <tbody className="divide-y theme-border theme-surface">
             {visibleWeeks.map((summary) => {
-              const future = isFutureWeek(summary, currentWeekNumber);
+              const secret = isSecretWeek(summary, currentWeekNumber);
               const publicStatus = publicWeekStatus(summary);
+              const linkDisabled = secret || disableWeekLinks;
 
               return (
                 <tr className="theme-hover" key={summary.week.id}>
@@ -410,7 +414,7 @@ export function WeeksTable({
                     Semana {summary.week.number}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 theme-text">
-                    {future ? "Juego secreto" : summary.game.title}
+                    {secret ? "Juego secreto" : summary.game.title}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
                     {formatCompactDateRange(summary.week.startsAt, summary.week.endsAt)}
@@ -427,15 +431,22 @@ export function WeeksTable({
                     />
                   </td>
                   <td className="whitespace-nowrap px-4 py-4">
-                    {!future && summary.winner ? (
+                    {!secret && summary.winner ? (
                       <PlayerHoverCard player={summary.winner} />
                     ) : (
                       <span className="theme-text-muted">Pendiente</span>
                     )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4">
-                    {future ? (
-                      <span className="cursor-not-allowed font-semibold theme-text-muted">
+                    {linkDisabled ? (
+                      <span
+                        className="cursor-not-allowed font-semibold theme-text-muted"
+                        title={
+                          disableWeekLinks
+                            ? "Detalle real pendiente de conectar."
+                            : "Semana no disponible todavia."
+                        }
+                      >
                         No disponible
                       </span>
                     ) : (

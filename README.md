@@ -40,11 +40,16 @@ http://localhost:3000
 ## Rutas iniciales
 
 - `/`: portada pública de la liga, juego activo, top 3 semanal y chat mock.
-- `/game`: semana activa, reglas, descargas mock, leaderboard semanal e historial.
-- `/weeks`: archivo de semanas y leaderboards semanales.
-- `/weeks/[weekId]`: detalle mock de una semana, ranking y submissions.
-- `/seasons`: archivo de temporadas.
-- `/seasons/[seasonId]`: detalle mock de temporada, clasificación y semanas.
+- `/game`: semana activa; puede leer Supabase si
+  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con leaderboard e historial pendientes.
+- `/weeks`: archivo de semanas; puede leer Supabase si
+  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con enlaces reales desactivados.
+- `/weeks/[weekId]`: detalle de semana; puede leer Supabase por id real, con
+  ranking y submissions pendientes.
+- `/seasons`: archivo de temporadas; puede leer Supabase si
+  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con fallback mock.
+- `/seasons/[seasonId]`: detalle de temporada; puede leer Supabase si
+  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con clasificacion y podio pendientes.
 - `/players/[username]`: perfil público provisional de jugador.
 - `/submit`: formulario provisional de subida con vista previa local.
 - `/profile`: cuenta, configuración, historial y administración mock.
@@ -67,10 +72,11 @@ Auth minimo esta documentado en [docs/auth-setup.md](docs/auth-setup.md). Incluy
 `/login`, `/register`, perfil real desde `/profile` y borrado de cuentas de
 prueba desde servidor; las paginas principales siguen usando datos mock.
 
-La lectura real controlada de `seasons`, `games` y `weeks` esta documentada en
+La lectura real controlada esta documentada en
 [docs/data-loading.md](docs/data-loading.md). Usa `NEXT_PUBLIC_DATA_SOURCE=mock`
-por defecto y ofrece `/real-data-test` y `/seasons-real` para diagnostico sin
-sustituir el mockup principal.
+por defecto; `/seasons`, `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y
+`/game` pueden leer datos reales con fallback, y `/real-data-test` sigue como
+diagnostico de dominio.
 
 ## Plantillas preparadas
 

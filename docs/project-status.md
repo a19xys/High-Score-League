@@ -6,7 +6,9 @@ High Score League esta en fase mock avanzada.
 
 - La interfaz principal esta montada con Next.js App Router, TypeScript y
   Tailwind CSS.
-- Las paginas principales siguen usando `lib/mock-data.ts`.
+- Las paginas principales siguen usando `lib/mock-data.ts`, salvo `/seasons`,
+  `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y `/game`, que pueden leer Supabase si
+  `NEXT_PUBLIC_DATA_SOURCE=supabase`.
 - El mockup incluye portada, juego actual, semanas, temporadas, perfiles,
   leaderboards, chat mock, tema claro/oscuro, subida provisional y administracion
   mock.
@@ -18,8 +20,9 @@ High Score League esta en fase mock avanzada.
 - Supabase ya esta conectado mediante clientes de navegador y servidor.
 - La prueba aislada vive en `/supabase-test`.
 - La prueba de datos de dominio vive en `/real-data-test`.
-- La pagina temporal `/seasons-real` permite probar temporadas reales sin tocar
-  `/seasons`.
+- `/seasons`, `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y `/game`
+  pueden leer datos reales con fallback mock.
+- La pagina temporal `/seasons-real` queda como comparativa visual.
 - La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.
 - El seed de desarrollo esta en `supabase/seed-dev.sql`.
@@ -42,7 +45,7 @@ High Score League esta en fase mock avanzada.
 
 ## Sigue pendiente
 
-- Sustituir paginas principales por lecturas reales de forma progresiva.
+- Conectar leaderboards y submissions reales de forma progresiva.
 - Decidir politicas publicas o flujo autenticado para lectura.
 - Sustitucion parcial y progresiva de mock data.
 - Subida real de capturas a Storage.
@@ -52,6 +55,5 @@ High Score League esta en fase mock avanzada.
 
 ## Proximo objetivo recomendado
 
-Con Auth simplificado, el siguiente paso sera una lectura real controlada de
-temporadas, semanas y juegos en una ruta o componente aislado, manteniendo el
-mockup como fallback.
+El siguiente paso sera conectar submissions reales de solo lectura para poder
+construir el leaderboard semanal sin activar todavia subida de puntuaciones.

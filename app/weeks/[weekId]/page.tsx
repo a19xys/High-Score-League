@@ -3,18 +3,13 @@ import Link from "next/link";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { WeekDetailView } from "@/components/week-detail-view";
-import {
-  currentWeek,
-  getGameById,
-  getSeasonById,
-  getSubmissionsForWeek,
-  getWeekById,
-  getWeeklyLeaderboard,
-  weeks,
-} from "@/lib/mock-data";
+import { getDataSource } from "@/lib/data/data-source";
+import { getMockWeekStaticParams, getWeekDetailData } from "@/lib/data/week-detail";
+
+export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
-  return weeks.map((week) => ({ weekId: week.id }));
+  return getMockWeekStaticParams();
 }
 
 type WeekDetailPageProps = {
@@ -25,52 +20,48 @@ type WeekDetailPageProps = {
 
 export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
   const { weekId } = await params;
-  const week = getWeekById(weekId);
+  const detail = await getWeekDetailData(weekId);
 
-  if (!week) {
+  if (!detail) {
+    if (getDataSource() === "supabase") {
+      return (
+        <div className="space-y-6">
+          <Link className="text-sm font-semibold text-circuit hover:underline" href="/weeks">
+            ← Volver a semanas
+          </Link>
+          <Card>
+            <CardHeader title="Semana no disponible" eyebrow="Supabase">
+              No se pudo cargar una semana real con ese id. Si RLS bloquea la
+              lectura, inicia sesión y vuelve a intentarlo.
+            </CardHeader>
+            <EmptyState
+              title="Detalle no disponible."
+              description="La semana puede no existir, estar oculta o requerir sesión."
+            />
+          </Card>
+        </div>
+      );
+    }
+
     notFound();
-  }
-
-  const game = getGameById(week.gameId);
-  const season = getSeasonById(week.seasonId);
-
-  if (!game || !season) {
-    notFound();
-  }
-
-  const isFutureActiveSeasonWeek =
-    season.status === "active" &&
-    week.number > currentWeek.number &&
-    week.status !== "published";
-
-  if (isFutureActiveSeasonWeek) {
-    return (
-      <div className="space-y-6">
-        <Link className="text-sm font-semibold text-circuit hover:underline" href="/weeks">
-          ← Volver a semanas
-        </Link>
-        <Card>
-          <CardHeader eyebrow={`${season.name} · Semana ${week.number}`} title="Juego secreto" />
-          <EmptyState
-            title="Esta semana todavía no está disponible."
-            description="El juego, reglas y líder permanecerán ocultos hasta que se active la semana."
-          />
-        </Card>
-      </div>
-    );
   }
 
   return (
     <WeekDetailView
       backHref="/weeks"
       backLabel="← Volver a semanas"
-      game={game}
-      leaderboard={getWeeklyLeaderboard(week.id)}
-      season={season}
-      seasonBackHref={`/seasons/${season.id}`}
-      seasonBackLabel={`← Volver a ${season.name}`}
-      submissions={getSubmissionsForWeek(week.id)}
-      week={week}
+      dataMode={detail.mode}
+      game={detail.game}
+      hideDownloads={detail.hideDownloads}
+      leaderboard={detail.leaderboard}
+      leaderboardPending={detail.leaderboardPending}
+      season={detail.season}
+      seasonBackHref={`/seasons/${detail.season.slug}`}
+      seasonBackLabel={`← Volver a ${detail.season.name}`}
+      submissions={detail.submissions}
+      submissionsPending={detail.submissionsPending}
+      warning={detail.warning}
+      week={detail.week}
     />
   );
 }

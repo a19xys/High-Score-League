@@ -110,6 +110,7 @@ function WeeksRows({ weeks }: { weeks: WeekRow[] }) {
           <th className="px-4 py-3">Temporada</th>
           <th className="px-4 py-3">Juego</th>
           <th className="px-4 py-3">Fechas</th>
+          <th className="px-4 py-3" />
         </tr>
       </thead>
       <tbody className="divide-y theme-border">
@@ -125,6 +126,20 @@ function WeeksRows({ weeks }: { weeks: WeekRow[] }) {
               {week.public_start_at && week.final_deadline_at
                 ? formatCompactDateRange(week.public_start_at, week.final_deadline_at)
                 : "-"}
+            </td>
+            <td className="px-4 py-3">
+              {week.status === "active" ||
+              week.status === "closed" ||
+              week.status === "published" ? (
+                <Link
+                  className="font-semibold text-circuit hover:underline"
+                  href={`/weeks/${week.id}`}
+                >
+                  Abrir
+                </Link>
+              ) : (
+                <span className="theme-text-muted">No disponible</span>
+              )}
             </td>
           </tr>
         ))}
@@ -176,6 +191,16 @@ export default async function RealDataTestPage() {
     getCurrentRealWeek(),
     getActiveRealSeason(),
   ]);
+  const visibleSeasonIds = new Set(
+    seasons.rows
+      .filter((season) => season.status !== "draft")
+      .map((season) => season.id),
+  );
+  const visibleWeeks = weeks.rows.filter((week) => visibleSeasonIds.has(week.season_id));
+  const hiddenDraftWeeks = weeks.rows.length - visibleWeeks.length;
+  const activeSeasonWeeks = activeSeason
+    ? weeks.rows.filter((week) => week.season_id === activeSeason.id)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -185,7 +210,8 @@ export default async function RealDataTestPage() {
           eyebrow="Diagnostico"
           action={<SourceBadge source="supabase" usingFallback={false} />}
         >
-          Lectura de dominio aislada. No sustituye todavia el mockup principal.
+          Lectura de dominio aislada. `/seasons` ya puede usar esta fuente con
+          fallback mock; el resto del mockup principal sigue sin sustituirse.
         </CardHeader>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
@@ -195,6 +221,22 @@ export default async function RealDataTestPage() {
             <p className="mt-2 font-semibold theme-text">
               {activeSeason?.name ?? "No detectada"}
             </p>
+            {activeSeason ? (
+              <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                <Link
+                  className="font-semibold text-circuit hover:underline"
+                  href={`/seasons/${activeSeason.slug}`}
+                >
+                  Abrir por slug
+                </Link>
+                <Link
+                  className="font-semibold text-circuit hover:underline"
+                  href={`/seasons/${activeSeason.id}`}
+                >
+                  Abrir por id
+                </Link>
+              </div>
+            ) : null}
           </div>
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
             <p className="text-xs font-semibold uppercase theme-text-muted">
@@ -203,8 +245,32 @@ export default async function RealDataTestPage() {
             <p className="mt-2 font-semibold theme-text">
               {currentWeek ? `Semana ${currentWeek.week_number}` : "No detectada"}
             </p>
+            <p className="mt-1 text-sm theme-text-muted">
+              {visibleWeeks.length} visibles · {hiddenDraftWeeks} ocultas por draft
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3 text-sm">
+              <Link className="font-semibold text-circuit hover:underline" href="/weeks">
+                Abrir archivo semanal
+              </Link>
+              <Link className="font-semibold text-circuit hover:underline" href="/game">
+                Abrir juego actual
+              </Link>
+              {currentWeek ? (
+                <Link
+                  className="font-semibold text-circuit hover:underline"
+                  href={`/weeks/${currentWeek.id}`}
+                >
+                  Abrir semana activa
+                </Link>
+              ) : null}
+            </div>
           </div>
         </div>
+        {activeSeason ? (
+          <p className="mt-4 text-sm theme-text-muted">
+            Semanas de la temporada activa: {activeSeasonWeeks.length}.
+          </p>
+        ) : null}
       </Card>
 
       <Card>

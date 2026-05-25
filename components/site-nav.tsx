@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { AuthNavItem } from "@/components/auth/auth-nav-item";
 import { currentWeek } from "@/lib/mock-data";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const links = [
   { href: "/game", label: "JUEGO" },
@@ -14,16 +16,63 @@ const links = [
 
 export function SiteNav() {
   const pathname = usePathname();
+  const [realActiveWeekId, setRealActiveWeekId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_DATA_SOURCE !== "supabase") {
+      setRealActiveWeekId(null);
+      return;
+    }
+
+    const supabase = createSupabaseBrowserClient();
+
+    if (!supabase) {
+      setRealActiveWeekId(null);
+      return;
+    }
+
+    const client = supabase;
+    let cancelled = false;
+
+    async function loadActiveWeek() {
+      const { data } = await client
+        .from("weeks")
+        .select("id")
+        .eq("status", "active")
+        .order("public_start_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (!cancelled) {
+        setRealActiveWeekId(typeof data?.id === "string" ? data.id : null);
+      }
+    }
+
+    void loadActiveWeek();
+
+    const subscription = client.auth.onAuthStateChange(() => {
+      void loadActiveWeek();
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.data.subscription.unsubscribe();
+    };
+  }, []);
 
   function isActive(href: string) {
+    const activeWeekPath = realActiveWeekId
+      ? `/weeks/${realActiveWeekId}`
+      : `/weeks/${currentWeek.id}`;
+
     if (href === "/game") {
-      return pathname === "/game" || pathname === `/weeks/${currentWeek.id}`;
+      return pathname === "/game" || pathname === activeWeekPath;
     }
 
     if (href === "/weeks") {
       return (
         pathname === "/weeks" ||
-        (pathname.startsWith("/weeks/") && pathname !== `/weeks/${currentWeek.id}`)
+        (pathname.startsWith("/weeks/") && pathname !== activeWeekPath)
       );
     }
 
