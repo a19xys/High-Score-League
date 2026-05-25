@@ -95,6 +95,7 @@ export default async function SupabaseTestPage() {
   ]);
   const hasErrors = results.some((result) => result.error);
   const totalRows = results.reduce((total, result) => total + (result.count ?? 0), 0);
+  const hasZeroVisibleRows = !hasErrors && totalRows === 0;
 
   return (
     <div className="space-y-6">
@@ -129,19 +130,25 @@ export default async function SupabaseTestPage() {
                 {result.count ?? 0}
               </p>
               <p className="mt-1 text-sm theme-text-muted">
-                {result.error ? "Error al leer" : "Filas leídas"}
+                {result.error ? "Error al leer" : "Filas visibles"}
               </p>
             </div>
           ))}
         </div>
         <p className="mt-4 text-sm theme-text-muted">
-          Total reportado por Supabase: {totalRows} filas.
+          Total visible reportado por Supabase: {totalRows} filas.
         </p>
+        {hasZeroVisibleRows ? (
+          <p className="mt-2 text-sm theme-text-muted">
+            Hay conexión, pero no hay filas visibles. Puede ser normal si las tablas no
+            tienen seed o si RLS no expone datos para esta sesión.
+          </p>
+        ) : null}
       </Card>
 
       <Card>
         <CardHeader title="Sesión" eyebrow="Auth" />
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4">
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
             <p className="text-xs font-semibold uppercase theme-text-muted">
               Variables
@@ -159,6 +166,14 @@ export default async function SupabaseTestPage() {
             </p>
             <p className="mt-1 text-sm theme-text-muted">
               {userData.user?.email ?? "No autenticado"}
+            </p>
+          </div>
+          <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+            <p className="text-xs font-semibold uppercase theme-text-muted">
+              User ID
+            </p>
+            <p className="mt-2 break-all text-sm font-semibold theme-text">
+              {userData.user?.id ?? "-"}
             </p>
           </div>
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
@@ -183,10 +198,10 @@ export default async function SupabaseTestPage() {
             </p>
           </div>
         </div>
-        {!userData.user && hasErrors ? (
+        {!userData.user && (hasErrors || hasZeroVisibleRows) ? (
           <p className="mt-4 text-sm theme-text-muted">
-            Si RLS bloquea lecturas sin sesión, es esperable hasta implementar
-            login completo o políticas públicas de lectura.
+            Si RLS bloquea lecturas sin sesión, es esperable hasta iniciar sesión o
+            definir políticas públicas de lectura.
           </p>
         ) : null}
       </Card>
@@ -196,7 +211,7 @@ export default async function SupabaseTestPage() {
           <CardHeader title={result.table} eyebrow="Resultado" />
           {result.error ? (
             <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">
-              {result.error}
+              Error de lectura: {result.error}. Si no hay sesión, puede ser RLS.
             </div>
           ) : result.rows.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border theme-border">
@@ -225,8 +240,8 @@ export default async function SupabaseTestPage() {
             </div>
           ) : (
             <EmptyState
-              title="Sin filas."
-              description="La conexión funciona, pero esta tabla no tiene datos visibles para la anon key."
+              title="Sin filas visibles."
+              description="La conexión funciona, pero esta tabla no tiene datos visibles para la sesión actual."
             />
           )}
         </Card>

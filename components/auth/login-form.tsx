@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { notifyAuthProfileUpdated } from "@/lib/auth/auth-events";
+import { ensureProfileForCurrentUser } from "@/lib/auth/ensure-profile";
 import { humanizeSupabaseError, validatePassword } from "@/lib/auth/validation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -41,16 +43,29 @@ export function LoginForm() {
       email,
       password,
     });
-    setIsSubmitting(false);
 
     if (signInError) {
+      setIsSubmitting(false);
       setError(humanizeSupabaseError(signInError.message));
       return;
     }
 
-    setMessage("Sesión iniciada. Te llevamos a completar o revisar tu perfil.");
+    const profileResult = await ensureProfileForCurrentUser(supabase);
+    setIsSubmitting(false);
+    notifyAuthProfileUpdated();
     router.refresh();
-    router.push("/profile/setup");
+
+    if (profileResult.status === "ok") {
+      router.push("/profile");
+      return;
+    }
+
+    setMessage(
+      profileResult.error
+        ? `Sesión iniciada. ${profileResult.error} Puedes completar el perfil en /profile.`
+        : "Sesión iniciada. Puedes revisar el perfil en /profile.",
+    );
+    router.push("/profile");
   }
 
   return (

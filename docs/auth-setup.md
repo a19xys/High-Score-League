@@ -21,40 +21,61 @@ consultar, puede hacer falta:
 $env:NODE_OPTIONS="--use-system-ca"
 ```
 
-## Login
+## Email y SMTP
 
-La ruta `/login` usa email y contraseña con `supabase.auth.signInWithPassword`.
-Si el login es correcto, redirige a `/profile/setup` para crear o revisar el
-perfil real.
+En desarrollo puede desactivarse temporalmente la confirmación de email para
+evitar límites de envío y rate limits mientras se prueba el flujo.
+
+El proveedor integrado de email de Supabase tiene límites bajos. Para usuarios
+reales conviene configurar SMTP propio y activar confirmación cuando el flujo ya
+esté cerrado.
 
 ## Registro
 
-La ruta `/register` usa `supabase.auth.signUp`.
+La ruta `/register` pide:
 
-Si Supabase devuelve sesión activa, la app redirige a `/profile/setup`.
-Si el proyecto exige confirmación de email, la app muestra un mensaje para
-revisar el correo antes de iniciar sesión.
-
-## Perfil real
-
-La ruta `/profile/setup` permite crear o actualizar una fila en
-`public.profiles` para el usuario autenticado.
-
-Campos gestionados desde la app:
-
-- `id = auth.user.id`
-- `username`
-- `initials`
-
-La app no envía `is_admin`, no permite activar admin y no usa service role.
+- email;
+- contraseña;
+- confirmación de contraseña;
+- username;
+- initials.
 
 Reglas:
 
 - `username`: `^[a-z][a-z0-9_]{2,19}$`
 - `initials`: `^[A-Z0-9]{3}$`
-- Las siglas se transforman a mayúsculas antes de guardar.
+- Las siglas se transforman a mayúsculas antes de validar y guardar.
 
-Errores como username o siglas duplicadas se muestran como mensajes legibles.
+Al llamar a `supabase.auth.signUp`, la app guarda `username` e `initials` en
+`options.data`. Si Supabase devuelve sesión inmediata, la app crea
+automáticamente `public.profiles` y redirige a `/profile`.
+
+Si Supabase exige confirmación de email, no se crea perfil todavía. El usuario
+confirma el correo, inicia sesión en `/login` y la app crea el perfil
+automáticamente desde `user_metadata`.
+
+## Login
+
+La ruta `/login` usa email y contraseña con `supabase.auth.signInWithPassword`.
+Tras login correcto llama al helper `ensureProfileForCurrentUser`.
+
+Si el perfil existe o se puede crear desde metadata, redirige a `/profile`. Si
+faltan datos o hay un conflicto de username/siglas, `/profile` muestra un
+formulario para completar o corregir el perfil.
+
+## Perfil real
+
+`/profile` es el centro de gestión del perfil real. Muestra:
+
+- sesión activa;
+- email;
+- username e initials reales si existen;
+- formulario para crear o actualizar username e initials.
+
+La app no envía `is_admin`, no permite activar admin y no usa service role.
+
+`/profile/setup` queda como ruta legacy y enlaza a `/profile`; ya no forma parte
+del flujo normal.
 
 ## Primer admin
 
@@ -69,14 +90,13 @@ set is_admin = true
 where id = 'USER_ID';
 ```
 
-Si el perfil aún no existe, el usuario puede completarlo primero desde
-`/profile/setup`, o se puede crear manualmente con SQL respetando las reglas de
-`username` e `initials`.
+Si el perfil aún no existe, el usuario puede completarlo desde `/profile`, o se
+puede crear manualmente con SQL respetando las reglas de `username` e `initials`.
 
 ## Logout
 
 El cierre de sesión está disponible en `/profile`. Llama a
-`supabase.auth.signOut()` y redirige a `/login`.
+`supabase.auth.signOut()`, refresca la navegación y redirige a `/login`.
 
 ## Estado actual
 

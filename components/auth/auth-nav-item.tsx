@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useCallback, useEffect, useState } from "react";
+import { authProfileUpdatedEvent } from "@/lib/auth/auth-events";
 import { mockUser } from "@/lib/mock-data";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { RealProfile } from "@/types/supabase";
 
 type AuthNavState =
@@ -14,39 +15,55 @@ type AuthNavState =
 export function AuthNavItem() {
   const pathname = usePathname();
   const [state, setState] = useState<AuthNavState>({ status: "loading" });
-  const profileActive = pathname === "/profile" || pathname === "/profile/setup";
+  const profileActive = pathname === "/profile";
 
-  useEffect(() => {
-    async function loadAuth() {
-      const supabase = createSupabaseBrowserClient();
+  const loadAuth = useCallback(async () => {
+    const supabase = createSupabaseBrowserClient();
 
-      if (!supabase) {
-        setState({ status: "not-configured" });
-        return;
-      }
-
-      const { data: userData } = await supabase.auth.getUser();
-
-      if (!userData.user) {
-        setState({ status: "signed-out" });
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id,username,initials,avatar_url,is_admin,created_at,updated_at")
-        .eq("id", userData.user.id)
-        .maybeSingle();
-
-      setState({
-        status: "signed-in",
-        profile: (profile ?? null) as RealProfile | null,
-        email: userData.user.email ?? "sin email",
-      });
+    if (!supabase) {
+      setState({ status: "not-configured" });
+      return;
     }
 
-    void loadAuth();
+    const { data: userData } = await supabase.auth.getUser();
+
+    if (!userData.user) {
+      setState({ status: "signed-out" });
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id,username,initials,avatar_url,is_admin,created_at,updated_at")
+      .eq("id", userData.user.id)
+      .maybeSingle();
+
+    setState({
+      status: "signed-in",
+      profile: (profile ?? null) as RealProfile | null,
+      email: userData.user.email ?? "sin email",
+    });
   }, []);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    void loadAuth();
+
+    function handleProfileUpdated() {
+      void loadAuth();
+    }
+
+    window.addEventListener(authProfileUpdatedEvent, handleProfileUpdated);
+
+    const subscription = supabase?.auth.onAuthStateChange(() => {
+      void loadAuth();
+    });
+
+    return () => {
+      window.removeEventListener(authProfileUpdatedEvent, handleProfileUpdated);
+      subscription?.data.subscription.unsubscribe();
+    };
+  }, [loadAuth, pathname]);
 
   if (state.status === "signed-out" || state.status === "not-configured") {
     return (
@@ -69,7 +86,7 @@ export function AuthNavItem() {
       : state.status === "signed-in"
         ? "SET"
         : mockUser.initials;
-  const href = state.status === "signed-in" && state.profile ? "/profile" : "/profile/setup";
+  const href = "/profile";
   const title =
     state.status === "signed-in" && state.profile
       ? `@${state.profile.username}`

@@ -62,8 +62,8 @@ La conexión inicial está preparada de forma aislada en `/supabase-test`. Consu
 probar una lectura básica sin sustituir el mockup.
 
 Auth mínimo está documentado en [docs/auth-setup.md](docs/auth-setup.md). Incluye
-`/login`, `/register` y `/profile/setup`, pero las páginas principales siguen
-usando datos mock.
+`/login` y `/register`; el perfil real se gestiona desde `/profile`, pero las
+páginas principales siguen usando datos mock.
 
 ## Plantillas preparadas
 

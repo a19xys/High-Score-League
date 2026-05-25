@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { humanizeSupabaseError, validatePassword } from "@/lib/auth/validation";
+import { notifyAuthProfileUpdated } from "@/lib/auth/auth-events";
+import { ensureProfileForCurrentUser } from "@/lib/auth/ensure-profile";
+import {
+  humanizeSupabaseError,
+  normalizeInitials,
+  validateInitials,
+  validatePassword,
+  validateUsername,
+} from "@/lib/auth/validation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function RegisterForm() {
@@ -11,6 +19,8 @@ export function RegisterForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [initials, setInitials] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,14 +30,20 @@ export function RegisterForm() {
     setError(null);
     setMessage(null);
 
+    const cleanUsername = username.trim();
+    const cleanInitials = normalizeInitials(initials);
+
     if (!email.includes("@")) {
       setError("Introduce un email válido.");
       return;
     }
 
     const passwordError = validatePassword(password);
-    if (passwordError) {
-      setError(passwordError);
+    const usernameError = validateUsername(cleanUsername);
+    const initialsError = validateInitials(cleanInitials);
+
+    if (passwordError || usernameError || initialsError) {
+      setError(passwordError ?? usernameError ?? initialsError);
       return;
     }
 
@@ -46,22 +62,41 @@ export function RegisterForm() {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          username: cleanUsername,
+          initials: cleanInitials,
+        },
+      },
     });
-    setIsSubmitting(false);
 
     if (signUpError) {
+      setIsSubmitting(false);
       setError(humanizeSupabaseError(signUpError.message));
       return;
     }
 
     if (data.session) {
+      const profileResult = await ensureProfileForCurrentUser(supabase);
+      setIsSubmitting(false);
+      notifyAuthProfileUpdated();
       router.refresh();
-      router.push("/profile/setup");
+
+      if (profileResult.status === "ok") {
+        router.push("/profile");
+        return;
+      }
+
+      setError(
+        `${profileResult.error ?? "No se pudo crear el perfil automáticamente."} Puedes completarlo desde /profile.`,
+      );
+      router.push("/profile");
       return;
     }
 
+    setIsSubmitting(false);
     setMessage(
-      "Cuenta creada. Revisa tu email para confirmar la dirección antes de iniciar sesión.",
+      "Cuenta creada. Revisa tu correo para confirmar la dirección. Después inicia sesión y el perfil se creará automáticamente con los datos enviados.",
     );
   }
 
@@ -78,30 +113,62 @@ export function RegisterForm() {
           value={email}
         />
       </label>
-      <label className="block">
-        <span className="text-sm font-semibold theme-text">Contraseña</span>
-        <input
-          autoComplete="new-password"
-          className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-          onChange={(event) => setPassword(event.target.value)}
-          required
-          type="password"
-          value={password}
-        />
-      </label>
-      <label className="block">
-        <span className="text-sm font-semibold theme-text">
-          Confirmar contraseña
-        </span>
-        <input
-          autoComplete="new-password"
-          className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-          onChange={(event) => setConfirmPassword(event.target.value)}
-          required
-          type="password"
-          value={confirmPassword}
-        />
-      </label>
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="block">
+          <span className="text-sm font-semibold theme-text">Contraseña</span>
+          <input
+            autoComplete="new-password"
+            className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            type="password"
+            value={password}
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-semibold theme-text">
+            Confirmar contraseña
+          </span>
+          <input
+            autoComplete="new-password"
+            className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            required
+            type="password"
+            value={confirmPassword}
+          />
+        </label>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="block">
+          <span className="text-sm font-semibold theme-text">Username</span>
+          <input
+            autoComplete="username"
+            className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+            onChange={(event) => setUsername(event.target.value)}
+            placeholder="lauravc"
+            required
+            value={username}
+          />
+          <span className="mt-1 block text-xs theme-text-muted">
+            Minúsculas, números y guion bajo. Debe empezar por letra.
+          </span>
+        </label>
+        <label className="block">
+          <span className="text-sm font-semibold theme-text">Siglas</span>
+          <input
+            className="mt-2 w-full rounded-md border px-3 py-2 uppercase theme-input"
+            maxLength={3}
+            onChange={(event) => setInitials(normalizeInitials(event.target.value))}
+            placeholder="LVC"
+            required
+            value={initials}
+          />
+          <span className="mt-1 block text-xs theme-text-muted">
+            3 caracteres: letras A-Z o números.
+          </span>
+        </label>
+      </div>
       {error ? (
         <p className="rounded-md border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm text-[var(--warning-text)]">
           {error}

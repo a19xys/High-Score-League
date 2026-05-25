@@ -26,9 +26,13 @@ High Score League está en fase mock avanzada.
 
 - Auth mínimo está implementado con email y password.
 - `/login` inicia sesión.
-- `/register` crea cuenta y contempla confirmación de email.
-- `/profile/setup` crea o actualiza `public.profiles` para el usuario actual.
-- `/profile` muestra estado real de sesión y mantiene el perfil mock debajo.
+- `/register` crea cuenta, recoge username/siglas y crea perfil si hay sesión
+  inmediata.
+- Si Supabase exige confirmación de email, el perfil se crea tras el primer
+  login usando `user_metadata`.
+- `/profile` muestra estado real de sesión, crea o edita `public.profiles` y
+  mantiene el perfil mock debajo.
+- `/profile/setup` queda como ruta legacy y ya no forma parte del flujo normal.
 - El primer admin se crea manualmente en Supabase SQL Editor.
 
 ## Sigue pendiente
@@ -43,5 +47,5 @@ High Score League está en fase mock avanzada.
 
 ## Próximo objetivo recomendado
 
-Decidir si la siguiente fase será lectura real controlada de tablas o sustitución
-parcial de mocks, manteniendo el mockup como fallback.
+Auth mínimo está funcionando. El siguiente paso será lectura real controlada de
+datos o sustitución parcial de mocks, manteniendo el mockup como fallback.
