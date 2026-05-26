@@ -24,6 +24,8 @@ High Score League esta en fase mock avanzada.
   pueden leer datos reales con fallback mock.
 - `/weeks/[weekId]` y `/game` pueden calcular leaderboard semanal real de solo
   lectura desde `submissions` visibles.
+- `POST /api/submissions/ingest` existe como endpoint mínimo autenticado para
+  crear submissions automáticas sin service role.
 - La pagina temporal `/seasons-real` queda como comparativa visual.
 - La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.
@@ -37,6 +39,7 @@ High Score League esta en fase mock avanzada.
   `docs/submission-architecture.md`.
 - La guia para insertar submissions de prueba esta en
   `docs/test-submissions.md`.
+- La documentacion del endpoint de ingestion esta en `docs/ingest-api.md`.
 
 ## Auth
 
@@ -53,7 +56,6 @@ High Score League esta en fase mock avanzada.
 
 ## Sigue pendiente
 
-- Implementar el endpoint futuro de ingestion de submissions.
 - Implementar plugin MAME y app local.
 - Conectar subida real de submissions y capturas.
 - Decidir politicas publicas o flujo autenticado para lectura.

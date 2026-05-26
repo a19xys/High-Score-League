@@ -80,8 +80,10 @@ por defecto; `/seasons`, `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y
 diagnostico de dominio.
 
 La arquitectura futura de submissions automaticas esta documentada en
-[docs/submission-architecture.md](docs/submission-architecture.md). Todavia no
-existe endpoint de ingestion, plugin MAME, app local, Storage real ni subida real.
+[docs/submission-architecture.md](docs/submission-architecture.md). El endpoint
+mínimo `POST /api/submissions/ingest` está documentado en
+[docs/ingest-api.md](docs/ingest-api.md). Todavia no existe plugin MAME, app
+local, Storage real ni subida manual real.
 
 Para probar leaderboards reales sin implementar subida, consulta
 [docs/test-submissions.md](docs/test-submissions.md).

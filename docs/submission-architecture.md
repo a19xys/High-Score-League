@@ -2,8 +2,8 @@
 
 High Score League prepara las submissions para un flujo futuro automatizado.
 Ya existe lectura de solo lectura para construir leaderboards desde submissions
-visibles, pero todavia no implementa plugin MAME, app local, endpoint web,
-Storage ni subida real.
+visibles y un endpoint mínimo autenticado para ingestión. Todavía no implementa
+plugin MAME, app local, Storage ni capturas reales.
 
 ## Vision futura
 
@@ -13,7 +13,7 @@ El flujo principal previsto sera:
 2. El plugin escribe un evento JSON local.
 3. La app local de High Score League lee el JSON, valida contexto basico y
    prepara el envio.
-4. La app local envia el evento a una API web futura.
+4. La app local envia el evento a `POST /api/submissions/ingest`.
 5. La API web valida usuario, semana, juego y puntuacion antes de insertar en
    `public.submissions`.
 
@@ -42,14 +42,13 @@ siendo opcionales para una fase posterior.
 
 ## Payload orientativo
 
-El endpoint real no existe todavia. Este ejemplo solo documenta la forma
-esperada del evento futuro:
+El endpoint mínimo ya existe en `POST /api/submissions/ingest`. Este ejemplo
+documenta la forma esperada del evento:
 
 ```json
 {
   "source": "mame_memory",
   "week_id": "00000000-0000-0000-0000-000000000000",
-  "player_id": "00000000-0000-0000-0000-000000000000",
   "score": 184320,
   "detected_at": "2026-05-24T21:17:00+02:00",
   "rom_name": "galaga",
@@ -68,6 +67,10 @@ esperada del evento futuro:
 El servidor debera tratar `raw_event` como informacion auxiliar. Los campos
 normalizados (`score`, `week_id`, `player_id`, `detected_at`, etc.) seran la
 fuente canonica tras validacion.
+
+El endpoint no acepta `playerId`: `player_id` se deriva siempre del usuario
+autenticado. Tampoco acepta `submittedAt`; `submitted_at` lo fuerza la base de
+datos.
 
 ## Capturas
 
@@ -96,7 +99,8 @@ resultado equivalente.
 
 ## Seguridad basica
 
-La app local no debe usar `service_role`.
+La app local no debe usar `service_role`. El endpoint de ingestión usa la sesión
+del usuario y RLS.
 
 El flujo futuro debera:
 
@@ -113,7 +117,6 @@ El flujo futuro debera:
 
 Esta fase no incluye:
 
-- endpoint `POST /api/submissions/ingest`;
 - plugin MAME;
 - app local;
 - subida real desde la web;

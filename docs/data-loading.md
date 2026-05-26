@@ -201,7 +201,12 @@ lectura:
 `weekly_results` se lee en semanas `published` si existen filas, pero la app no
 los genera ni publica todavia.
 
+`POST /api/submissions/ingest` ya existe como endpoint mínimo autenticado para
+crear submissions automáticas. Usa RLS, deriva `player_id` del usuario
+autenticado y no acepta `submitted_at` desde cliente.
+
 Para crear datos de prueba manuales, consulta `docs/test-submissions.md`.
+Para probar el endpoint, consulta `docs/ingest-api.md`.
 
 ## Pagina temporal
 
@@ -237,8 +242,7 @@ error.
 
 Todavia no hay:
 
-- endpoint de ingestion de submissions;
-- endpoint de ingestion de eventos MAME;
+- app local y plugin MAME;
 - chat real;
 - Storage real;
 - subida real de puntuaciones;
