@@ -53,13 +53,26 @@ número dentro de una misma temporada.
 ### submissions
 
 Representa cada puntuación subida por un jugador. Guarda la semana, jugador,
-puntuación, ruta de captura en Storage, metadatos básicos de la captura,
-comentario opcional y flags de control:
+puntuación, metadatos opcionales de captura, comentario opcional y flags de
+control:
 
 - `is_hidden`: permite ocultar puntuaciones hasta publicar resultados.
 - `is_valid`: permite invalidar una puntuación desde administración.
+- `source`: origen de la submission (`web`, `mame_memory`, `mame_plugin`,
+  `local_app` o `admin_import`).
+- `detected_at`: momento detectado por MAME o la app local.
+- `submitted_at`: momento recibido por la web; lo fuerza el servidor.
+- `rom_name`, `mame_version`, `client_version`: contexto técnico del evento.
+- `raw_event`: payload original para depuración y auditoría.
+- `duplicate_key`: clave de idempotencia para reintentos.
+- `screenshot_path`: ruta opcional de captura en Storage.
 - `screenshot_mime_type`: tipo MIME informado para la captura optimizada.
 - `screenshot_size_bytes`: tamaño final de la captura en bytes, si se conoce.
+
+Las capturas son opcionales desde `0002_submission_events.sql`, porque el flujo
+futuro principal será automático: plugin MAME, evento JSON local, app local y API
+web. La subida manual desde la web queda como fallback o herramienta
+provisional.
 
 La app permite subir puntuaciones aunque no superen el récord personal. La mejor
 puntuación semanal de cada jugador se podrá calcular desde esta tabla, mientras
@@ -125,8 +138,9 @@ generar o revisar estas filas antes de publicar una semana.
 
 1. Un admin crea una temporada, juegos y semanas.
 2. Una semana pasa a `active`.
-3. Los jugadores autenticados insertan filas en `submissions` con su puntuación,
-   ruta de captura y metadatos de archivo.
+3. Los jugadores autenticados insertan filas en `submissions` con su puntuación.
+   En una fase posterior, la API de ingestión recibirá eventos automáticos desde
+   la app local.
 4. En estado `active`, una submission puede insertarse visible u oculta.
 5. En estado `frozen`, una submission solo puede insertarse con
    `is_hidden = true`.
@@ -215,6 +229,7 @@ si esas lecturas se resuelven desde servidor.
   para moderacion u optimizacion.
 - Conexión real del chat de portada a Supabase Realtime o polling, según se
   decida en la fase de producto.
+- Endpoint futuro `POST /api/submissions/ingest` para eventos MAME/app local.
 
 ## Tema claro/oscuro
 

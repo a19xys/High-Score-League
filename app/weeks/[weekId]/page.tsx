@@ -62,6 +62,7 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
       submissionsPending={detail.submissionsPending}
       warning={detail.warning}
       week={detail.week}
+      weeklyResults={detail.weeklyResults}
     />
   );
 }

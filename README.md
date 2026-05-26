@@ -45,13 +45,14 @@ http://localhost:3000
 - `/weeks`: archivo de semanas; puede leer Supabase si
   `NEXT_PUBLIC_DATA_SOURCE=supabase`, con enlaces reales desactivados.
 - `/weeks/[weekId]`: detalle de semana; puede leer Supabase por id real, con
-  ranking y submissions pendientes.
+  leaderboard e historial reales de solo lectura desde submissions visibles.
 - `/seasons`: archivo de temporadas; puede leer Supabase si
   `NEXT_PUBLIC_DATA_SOURCE=supabase`, con fallback mock.
 - `/seasons/[seasonId]`: detalle de temporada; puede leer Supabase si
   `NEXT_PUBLIC_DATA_SOURCE=supabase`, con clasificacion y podio pendientes.
 - `/players/[username]`: perfil público provisional de jugador.
-- `/submit`: formulario provisional de subida con vista previa local.
+- `/submit`: formulario provisional de subida manual con vista previa local;
+  queda como fallback mientras se prepara el flujo automatico MAME/app local.
 - `/profile`: cuenta, configuración, historial y administración mock.
 - `/week`, `/leaderboard`, `/season` y `/admin`: rutas temporales de compatibilidad.
 
@@ -77,6 +78,13 @@ La lectura real controlada esta documentada en
 por defecto; `/seasons`, `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y
 `/game` pueden leer datos reales con fallback, y `/real-data-test` sigue como
 diagnostico de dominio.
+
+La arquitectura futura de submissions automaticas esta documentada en
+[docs/submission-architecture.md](docs/submission-architecture.md). Todavia no
+existe endpoint de ingestion, plugin MAME, app local, Storage real ni subida real.
+
+Para probar leaderboards reales sin implementar subida, consulta
+[docs/test-submissions.md](docs/test-submissions.md).
 
 ## Plantillas preparadas
 

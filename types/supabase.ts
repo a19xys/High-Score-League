@@ -47,3 +47,45 @@ export type WeekRow = {
   created_at?: string;
   updated_at?: string;
 };
+
+export type SubmissionSource =
+  | "web"
+  | "mame_memory"
+  | "mame_plugin"
+  | "local_app"
+  | "admin_import";
+
+export type SubmissionRow = {
+  id: string;
+  week_id: string;
+  player_id: string;
+  score: number;
+  screenshot_path: string | null;
+  screenshot_mime_type: string | null;
+  screenshot_size_bytes: number | null;
+  comment: string | null;
+  is_hidden: boolean;
+  is_valid: boolean;
+  submitted_at: string;
+  source: SubmissionSource;
+  detected_at: string | null;
+  rom_name: string | null;
+  mame_version: string | null;
+  client_version: string | null;
+  duplicate_key: string | null;
+  profiles?: RealProfile | RealProfile[] | null;
+};
+
+export type WeeklyResultRow = {
+  id: string;
+  week_id: string;
+  player_id: string;
+  final_score: number;
+  rank: number;
+  league_points: number;
+  is_first_place: boolean;
+  is_second_place: boolean;
+  is_third_place: boolean;
+  created_at: string;
+  profiles?: RealProfile | RealProfile[] | null;
+};

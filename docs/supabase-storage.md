@@ -25,8 +25,12 @@ season-s1/week-w1/player-p1/2026-05-24T19-30-00.png
 En produccion se usaran UUID reales. El nombre final puede usar extension
 `.webp`, `.jpg` o `.png` segun el resultado de la optimizacion previa.
 
-La fila asociada en `submissions` guarda `screenshot_path`,
+Si una submission incluye captura, la fila asociada guarda `screenshot_path`,
 `screenshot_mime_type` y `screenshot_size_bytes`.
+
+Desde `0002_submission_events.sql`, `screenshot_path` es opcional. El flujo
+futuro principal podra registrar eventos automaticos desde MAME/app local sin
+bloquearse por no tener captura.
 
 ## Permisos previstos
 

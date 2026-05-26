@@ -45,6 +45,26 @@ ejecutarse de nuevo durante desarrollo sin duplicar filas.
 No inserta perfiles ni submissions porque dependen de usuarios reales de
 Supabase Auth.
 
+## Submissions y eventos MAME
+
+La lectura de submissions reales sigue pendiente. La migracion
+`supabase/migrations/0002_submission_events.sql` solo prepara el modelo para una
+fase posterior basada en eventos automaticos:
+
+`MAME plugin -> JSON local -> app local High Score League -> API web`.
+
+La arquitectura esta documentada en `docs/submission-architecture.md`.
+
+Puntos importantes:
+
+- `submitted_at` representa cuando la web recibe el evento y lo fuerza el
+  servidor.
+- `detected_at` representa cuando MAME o la app local detectaron la puntuacion.
+- `screenshot_path` es opcional porque las capturas no seran requisito central.
+- `duplicate_key` preparara idempotencia para reintentos.
+- No existe todavia endpoint de ingestion, plugin MAME, app local, Storage ni
+  leaderboard real.
+
 ## Rutas de diagnostico
 
 `/supabase-test` prueba conexion tecnica y Auth:
@@ -166,6 +186,23 @@ como pendientes hasta conectar submissions y `weekly_results`.
   forma estable por fecha de inicio y numero de semana.
 - Si hay error de lectura o falta sesion, usa fallback mock.
 
+En modo Supabase, `/game` y `/weeks/[weekId]` ya leen submissions reales de solo
+lectura:
+
+- el leaderboard semanal se calcula desde submissions validas y visibles;
+- las submissions ocultas no revelan puntuacion hasta que la semana esta
+  `published`;
+- el historial muestra origen (`source`), envio (`submitted_at`) y deteccion
+  (`detected_at`) cuando existen;
+- si no hay submissions visibles, se muestra estado vacio;
+- si la lectura falla, se muestra un aviso discreto y no se inventan
+  puntuaciones mock dentro de una semana real.
+
+`weekly_results` se lee en semanas `published` si existen filas, pero la app no
+los genera ni publica todavia.
+
+Para crear datos de prueba manuales, consulta `docs/test-submissions.md`.
+
 ## Pagina temporal
 
 `/seasons-real` se mantiene como comparativa temporal.
@@ -200,8 +237,8 @@ error.
 
 Todavia no hay:
 
-- leaderboards reales;
-- submissions reales;
+- endpoint de ingestion de submissions;
+- endpoint de ingestion de eventos MAME;
 - chat real;
 - Storage real;
 - subida real de puntuaciones;

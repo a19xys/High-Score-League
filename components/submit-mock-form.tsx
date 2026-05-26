@@ -37,7 +37,7 @@ export function SubmitMockForm() {
       </label>
 
       <label className="block">
-        <span className="text-sm font-semibold theme-text">Captura</span>
+        <span className="text-sm font-semibold theme-text">Captura opcional</span>
         <input
           accept="image/*"
           className="mt-2 w-full rounded-md border border-dashed px-3 py-3 text-sm theme-input"
@@ -57,8 +57,8 @@ export function SubmitMockForm() {
           />
         ) : (
           <p className="mt-2 text-sm theme-text-muted">
-            Selecciona una imagen para ver una vista previa local. No se sube a
-            ningún servidor en esta fase.
+            Puedes seleccionar una imagen para ver una vista previa local. El
+            flujo futuro podrá registrar eventos automáticos sin captura.
           </p>
         )}
       </div>

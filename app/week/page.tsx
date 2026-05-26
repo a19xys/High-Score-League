@@ -36,6 +36,7 @@ export default async function WeekPage() {
       submissionsPending={detail.submissionsPending}
       warning={detail.warning}
       week={detail.week}
+      weeklyResults={detail.weeklyResults}
     />
   );
 }

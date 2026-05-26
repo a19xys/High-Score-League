@@ -1,4 +1,12 @@
-import type { Game, LeaderboardEntry, Season, Submission, Week, Player } from "@/types";
+import type {
+  Game,
+  LeaderboardEntry,
+  Season,
+  Submission,
+  Week,
+  Player,
+  WeeklyResult,
+} from "@/types";
 import {
   currentSeason,
   currentWeek,
@@ -14,6 +22,12 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDataSource } from "./data-source";
 import { getRealGames, mapGameRowToGame } from "./games";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
+import {
+  buildLeaderboardFromSubmissions,
+  getRealSubmissions,
+  mapSubmissionRowToSubmission,
+} from "./submissions";
+import { getRealWeeklyResults, mapWeeklyResultRowToWeeklyResult } from "./weekly-results";
 import { getRealWeeks, mapWeekRowToWeek } from "./weeks";
 
 type WeekSubmission = Submission & {
@@ -28,6 +42,7 @@ export type WeekDetailData = {
   game: Game;
   leaderboard: LeaderboardEntry[];
   submissions: WeekSubmission[];
+  weeklyResults: WeeklyResult[];
   mode: "mock" | "supabase";
   warning: string | null;
   usingFallback: boolean;
@@ -79,6 +94,7 @@ function mockWeekDetail(weekId: string, warning: string | null): WeekDetailData 
     game: isFutureActiveSeasonWeek ? secretGame() : game,
     leaderboard: isFutureActiveSeasonWeek ? [] : getWeeklyLeaderboard(week.id),
     submissions: isFutureActiveSeasonWeek ? [] : getSubmissionsForWeek(week.id),
+    weeklyResults: [],
     mode: "mock",
     warning,
     usingFallback: Boolean(warning),
@@ -96,6 +112,7 @@ function mockCurrentWeekDetail(warning: string | null): WeekDetailData {
     game: getCurrentGame(),
     leaderboard: getWeeklyLeaderboard(currentWeek.id),
     submissions: getSubmissionsForWeek(currentWeek.id),
+    weeklyResults: [],
     mode: "mock",
     warning,
     usingFallback: Boolean(warning),
@@ -135,11 +152,11 @@ async function requireSession() {
   return Boolean(userData.user);
 }
 
-function buildRealWeekDetail(
+async function buildRealWeekDetail(
   weekId: string,
   context: Awaited<ReturnType<typeof readRealWeekContext>>,
   warning: string | null,
-): WeekDetailData | null {
+): Promise<WeekDetailData | null> {
   const weekRow = context.weeks.find((week) => week.id === weekId);
 
   if (!weekRow) {
@@ -168,6 +185,22 @@ function buildRealWeekDetail(
   const rules = isSecret
     ? ["El juego, reglas y descargas permanecerán ocultos hasta que se active la semana."]
     : week.rules;
+  const submissionsResult = isSecret ? null : await getRealSubmissions(weekRow.id);
+  const weeklyResultsResult =
+    !isSecret && weekRow.status === "published"
+      ? await getRealWeeklyResults(weekRow.id)
+      : null;
+  const warningParts = [
+    warning,
+    submissionsResult?.error
+      ? `No se pudieron cargar submissions reales: ${submissionsResult.error}.`
+      : null,
+    weeklyResultsResult?.error
+      ? `No se pudieron cargar resultados oficiales: ${weeklyResultsResult.error}.`
+      : null,
+  ].filter(Boolean);
+  const realSubmissionRows = submissionsResult?.rows ?? [];
+  const realWeeklyResultRows = weeklyResultsResult?.rows ?? [];
 
   return {
     season: mapSeasonRowToSeason(
@@ -179,15 +212,20 @@ function buildRealWeekDetail(
       rules,
     },
     game: isSecret ? secretGame() : rawGame,
-    leaderboard: [],
-    submissions: [],
+    leaderboard: isSecret
+      ? []
+      : buildLeaderboardFromSubmissions(realSubmissionRows, week.status),
+    submissions: isSecret
+      ? []
+      : realSubmissionRows.map((row) => mapSubmissionRowToSubmission(row, week)),
+    weeklyResults: realWeeklyResultRows.map(mapWeeklyResultRowToWeeklyResult),
     mode: "supabase",
-    warning,
+    warning: warningParts.length > 0 ? warningParts.join(" ") : null,
     usingFallback: Boolean(warning),
     isSecret,
     hideDownloads: isSecret,
-    leaderboardPending: !isSecret,
-    submissionsPending: !isSecret,
+    leaderboardPending: false,
+    submissionsPending: false,
   };
 }
 
@@ -212,7 +250,7 @@ export async function getWeekDetailData(weekId: string): Promise<WeekDetailData 
     );
   }
 
-  return buildRealWeekDetail(weekId, context, null) ?? mockWeekDetail(
+  return (await buildRealWeekDetail(weekId, context, null)) ?? mockWeekDetail(
     weekId,
     "No se encontró una semana real con ese id. Mostrando fallback mock si existe.",
   );
@@ -259,7 +297,7 @@ export async function getActiveWeekDetailData(): Promise<ActiveWeekResult> {
     activeWeeks.length > 1
       ? `Hay ${activeWeeks.length} semanas activas en Supabase. Se muestra la primera por fecha de inicio.`
       : null;
-  const detail = buildRealWeekDetail(activeWeeks[0].id, context, warning);
+  const detail = await buildRealWeekDetail(activeWeeks[0].id, context, warning);
 
   if (!detail) {
     return {

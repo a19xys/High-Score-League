@@ -4,6 +4,11 @@ import { EmptyState } from "@/components/ui/state";
 import { DataTable } from "@/components/ui/table";
 import { getRealGames } from "@/lib/data/games";
 import { getActiveRealSeason, getRealSeasons } from "@/lib/data/seasons";
+import {
+  countVisibleSubmissionsForLeaderboard,
+  getRealSubmissions,
+} from "@/lib/data/submissions";
+import { getRealWeeklyResults } from "@/lib/data/weekly-results";
 import { getCurrentRealWeek, getRealWeeks } from "@/lib/data/weeks";
 import { formatCompactDateRange } from "@/lib/format";
 import { getSupabaseEnv } from "@/lib/supabase/env";
@@ -184,12 +189,22 @@ export default async function RealDataTestPage() {
     );
   }
 
-  const [seasons, games, weeks, currentWeek, activeSeason] = await Promise.all([
+  const [
+    seasons,
+    games,
+    weeks,
+    currentWeek,
+    activeSeason,
+    submissions,
+    weeklyResults,
+  ] = await Promise.all([
     getRealSeasons(),
     getRealGames(),
     getRealWeeks(),
     getCurrentRealWeek(),
     getActiveRealSeason(),
+    getRealSubmissions(),
+    getRealWeeklyResults(),
   ]);
   const visibleSeasonIds = new Set(
     seasons.rows
@@ -201,6 +216,12 @@ export default async function RealDataTestPage() {
   const activeSeasonWeeks = activeSeason
     ? weeks.rows.filter((week) => week.season_id === activeSeason.id)
     : [];
+  const currentWeekVisibleSubmissions = currentWeek
+    ? countVisibleSubmissionsForLeaderboard(
+        submissions.rows.filter((submission) => submission.week_id === currentWeek.id),
+        currentWeek.status,
+      )
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -211,7 +232,8 @@ export default async function RealDataTestPage() {
           action={<SourceBadge source="supabase" usingFallback={false} />}
         >
           Lectura de dominio aislada. `/seasons` ya puede usar esta fuente con
-          fallback mock; el resto del mockup principal sigue sin sustituirse.
+          fallback mock; `/weeks/[weekId]` y `/game` calculan leaderboard real
+          de solo lectura desde submissions visibles.
         </CardHeader>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
@@ -264,6 +286,42 @@ export default async function RealDataTestPage() {
                 </Link>
               ) : null}
             </div>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+            <p className="text-xs font-semibold uppercase theme-text-muted">
+              Submissions reales
+            </p>
+            <p className="mt-2 text-2xl font-bold theme-text">
+              {submissions.rows.length}
+            </p>
+            {submissions.error ? (
+              <p className="mt-2 text-xs text-[var(--warning-text)]">
+                {submissions.error}
+              </p>
+            ) : null}
+          </div>
+          <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+            <p className="text-xs font-semibold uppercase theme-text-muted">
+              Visibles semana actual
+            </p>
+            <p className="mt-2 text-2xl font-bold theme-text">
+              {currentWeekVisibleSubmissions}
+            </p>
+          </div>
+          <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+            <p className="text-xs font-semibold uppercase theme-text-muted">
+              weekly_results
+            </p>
+            <p className="mt-2 text-2xl font-bold theme-text">
+              {weeklyResults.rows.length}
+            </p>
+            {weeklyResults.error ? (
+              <p className="mt-2 text-xs text-[var(--warning-text)]">
+                {weeklyResults.error}
+              </p>
+            ) : null}
           </div>
         </div>
         {activeSeason ? (

@@ -21,16 +21,17 @@ export default function SubmitPage() {
             eyebrow={`Semana ${currentWeek.number}`}
             title={`Subir puntuación · ${game.title}`}
           >
-            Formulario provisional. La subida real se conectará a Supabase Auth,
-            Database y Storage en una fase posterior.
+            Formulario manual provisional. El flujo principal futuro será
+            automático desde MAME/app local; esta pantalla queda como fallback y
+            herramienta de pruebas.
           </CardHeader>
           <SubmitMockForm />
         </Card>
 
         <div className="space-y-6">
           <PlaceholderSection
-            title="Requisitos de captura"
-            description="La captura debe mostrar puntuación final y siglas del jugador. Más adelante se comprimirá antes de subirla a Supabase Storage."
+            title="Captura opcional"
+            description="Las capturas ya no serán requisito central del flujo automático. Si se adjuntan más adelante, se comprimirán antes de subirlas a Supabase Storage."
           />
           <PlaceholderSection
             title="Historial permitido"

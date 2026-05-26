@@ -59,11 +59,19 @@ export type Submission = {
   weekId: string;
   playerId: string;
   score: number;
-  screenshotUrl: string;
+  screenshotUrl?: string | null;
+  screenshotMimeType?: string | null;
+  screenshotSizeBytes?: number | null;
   comment?: string;
   createdAt: string;
   valid: boolean;
   hidden?: boolean;
+  source?: "web" | "mame_memory" | "mame_plugin" | "local_app" | "admin_import";
+  detectedAt?: string | null;
+  romName?: string | null;
+  mameVersion?: string | null;
+  clientVersion?: string | null;
+  duplicateKey?: string | null;
 };
 
 export type LeaderboardEntry = {
@@ -84,6 +92,20 @@ export type SeasonStanding = {
   secondPlaces: number;
   thirdPlaces: number;
   weeksPlayed: number;
+};
+
+export type WeeklyResult = {
+  id: string;
+  weekId: string;
+  playerId: string;
+  finalScore: number;
+  rank: number;
+  leaguePoints: number;
+  isFirstPlace: boolean;
+  isSecondPlace: boolean;
+  isThirdPlace: boolean;
+  createdAt: string;
+  player?: Player;
 };
 
 export type WeekSummary = {

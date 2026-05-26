@@ -22,13 +22,21 @@ High Score League esta en fase mock avanzada.
 - La prueba de datos de dominio vive en `/real-data-test`.
 - `/seasons`, `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y `/game`
   pueden leer datos reales con fallback mock.
+- `/weeks/[weekId]` y `/game` pueden calcular leaderboard semanal real de solo
+  lectura desde `submissions` visibles.
 - La pagina temporal `/seasons-real` queda como comparativa visual.
 - La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.
+- La migracion `supabase/migrations/0002_submission_events.sql` prepara
+  `submissions` para eventos automaticos desde MAME/app local.
 - El seed de desarrollo esta en `supabase/seed-dev.sql`.
 - La documentacion del modelo esta en `docs/database.md`.
 - La documentacion de Storage esta en `docs/supabase-storage.md`.
 - La documentacion de carga de datos esta en `docs/data-loading.md`.
+- La documentacion de arquitectura de submissions esta en
+  `docs/submission-architecture.md`.
+- La guia para insertar submissions de prueba esta en
+  `docs/test-submissions.md`.
 
 ## Auth
 
@@ -45,7 +53,9 @@ High Score League esta en fase mock avanzada.
 
 ## Sigue pendiente
 
-- Conectar leaderboards y submissions reales de forma progresiva.
+- Implementar el endpoint futuro de ingestion de submissions.
+- Implementar plugin MAME y app local.
+- Conectar subida real de submissions y capturas.
 - Decidir politicas publicas o flujo autenticado para lectura.
 - Sustitucion parcial y progresiva de mock data.
 - Subida real de capturas a Storage.
@@ -55,5 +65,5 @@ High Score League esta en fase mock avanzada.
 
 ## Proximo objetivo recomendado
 
-El siguiente paso sera conectar submissions reales de solo lectura para poder
-construir el leaderboard semanal sin activar todavia subida de puntuaciones.
+El siguiente paso sera disenar el contrato del endpoint de ingestion
+`POST /api/submissions/ingest` sin implementar aun Storage ni leaderboards.
