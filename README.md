@@ -41,7 +41,8 @@ http://localhost:3000
 
 - `/`: portada pública de la liga, juego activo, top 3 semanal y chat mock.
 - `/game`: semana activa; puede leer Supabase si
-  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con leaderboard e historial pendientes.
+  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con leaderboard e historial reales de solo
+  lectura desde submissions visibles.
 - `/weeks`: archivo de semanas; puede leer Supabase si
   `NEXT_PUBLIC_DATA_SOURCE=supabase`, con enlaces reales desactivados.
 - `/weeks/[weekId]`: detalle de semana; puede leer Supabase por id real, con
@@ -123,6 +124,7 @@ Los datos mock y calculos temporales estan en `lib/mock-data.ts`.
 
 ## Siguiente fase sugerida
 
-Definir el esquema Supabase inicial, crear migraciones y conectar las lecturas
-de temporada, semanas, jugadores y submissions sin activar aun autenticacion
-completa.
+Probar `POST /api/submissions/ingest` con un usuario real y diseñar la app local
+mínima para enviar eventos autenticados. Siguen pendientes plugin MAME, Storage,
+capturas, subida manual real desde `/submit`, admin funcional y generación
+automática de `weekly_results`.

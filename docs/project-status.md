@@ -57,15 +57,15 @@ High Score League esta en fase mock avanzada.
 ## Sigue pendiente
 
 - Implementar plugin MAME y app local.
-- Conectar subida real de submissions y capturas.
+- Conectar capturas reales a Storage.
 - Decidir politicas publicas o flujo autenticado para lectura.
 - Sustitucion parcial y progresiva de mock data.
-- Subida real de capturas a Storage.
-- Subida real de puntuaciones.
+- Subida manual real desde `/submit`.
 - Panel admin funcional.
+- Generacion automatica de `weekly_results`.
 - Integracion con MAME.
 
 ## Proximo objetivo recomendado
 
-El siguiente paso sera disenar el contrato del endpoint de ingestion
-`POST /api/submissions/ingest` sin implementar aun Storage ni leaderboards.
+El siguiente paso sera probar `POST /api/submissions/ingest` con un usuario real
+y despues diseñar la app local mínima que envíe eventos autenticados.

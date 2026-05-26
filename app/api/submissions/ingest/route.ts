@@ -18,8 +18,10 @@ const isoWithTimeZonePattern =
 
 type IngestPayload = {
   weekId?: unknown;
+  playerId?: unknown;
   score?: unknown;
   detectedAt?: unknown;
+  submittedAt?: unknown;
   source?: unknown;
   rom?: unknown;
   mameVersion?: unknown;
@@ -72,6 +74,22 @@ function optionalNonEmptyString(value: unknown, field: string) {
 }
 
 function validatePayload(payload: IngestPayload): ValidationResult {
+  if (payload.playerId !== undefined) {
+    return {
+      ok: false,
+      status: 400,
+      error: "playerId no se acepta desde cliente.",
+    };
+  }
+
+  if (payload.submittedAt !== undefined) {
+    return {
+      ok: false,
+      status: 400,
+      error: "submittedAt no se acepta desde cliente.",
+    };
+  }
+
   if (typeof payload.weekId !== "string" || !payload.weekId.trim()) {
     return { ok: false, status: 400, error: "weekId es obligatorio." };
   }

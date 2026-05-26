@@ -16,8 +16,8 @@ Valores soportados:
 - `mock`: valor por defecto. `/seasons`, `/seasons/[seasonId]`, `/weeks`,
   `/weeks/[weekId]`, `/game` y el resto de paginas usan fallback mock.
 - `supabase`: `/seasons`, `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y
-  `/game` intentan leer datos reales. Submit, leaderboards y submissions siguen
-  pendientes.
+  `/game` intentan leer datos reales. Submit sigue siendo provisional; el
+  leaderboard semanal se calcula desde submissions visibles.
 
 No se cambia automaticamente toda la aplicacion a Supabase.
 
@@ -47,9 +47,8 @@ Supabase Auth.
 
 ## Submissions y eventos MAME
 
-La lectura de submissions reales sigue pendiente. La migracion
-`supabase/migrations/0002_submission_events.sql` solo prepara el modelo para una
-fase posterior basada en eventos automaticos:
+La migracion `supabase/migrations/0002_submission_events.sql` prepara el modelo
+para una fase basada en eventos automaticos:
 
 `MAME plugin -> JSON local -> app local High Score League -> API web`.
 
@@ -62,8 +61,8 @@ Puntos importantes:
 - `detected_at` representa cuando MAME o la app local detectaron la puntuacion.
 - `screenshot_path` es opcional porque las capturas no seran requisito central.
 - `duplicate_key` preparara idempotencia para reintentos.
-- No existe todavia endpoint de ingestion, plugin MAME, app local, Storage ni
-  leaderboard real.
+- `POST /api/submissions/ingest` ya existe como endpoint mínimo autenticado.
+- Todavía no existen plugin MAME, app local, Storage ni capturas reales.
 
 ## Rutas de diagnostico
 
@@ -172,8 +171,8 @@ una pantalla de juego secreto:
 - no aparecen botones de descarga.
 
 Para semanas activas, cerradas o publicadas con juego real se muestran ficha,
-estado, fechas y reglas reales. Leaderboard e historial de envios se muestran
-como pendientes hasta conectar submissions y `weekly_results`.
+estado, fechas, reglas reales, leaderboard calculado desde submissions visibles
+e historial de envios.
 
 ## `/game`
 
