@@ -88,6 +88,42 @@ segundo o tercer puesto.
 La clasificación de temporada podrá agregarse desde esta tabla sumando puntos y
 contando primeros, segundos y terceros puestos.
 
+Desde `0003_season_memberships_and_results.sql`, estos resultados se calculan
+contra los miembros activos de la temporada. Los jugadores sin submission válida
+en una semana no reciben fila y suman 0 puntos.
+
+### season_memberships
+
+Representa qué jugadores participan en una temporada. Permite que una temporada
+tenga N jugadores y que un usuario se una a una temporada activa.
+
+Campos principales:
+
+- `season_id`
+- `player_id`
+- `status`: `active` o `left`
+- `joined_at`
+
+La pareja `season_id, player_id` es única. Por ahora se permite unirse a una
+temporada activa aunque ya haya empezado; el jugador entra con 0 puntos previos.
+
+### week_benchmarks
+
+Representa referencias visuales de puntuación para una semana, como
+`Puntuación media`, `Puntuación avanzada` o `Puntuación experta`.
+
+No son submissions reales: no tienen jugador, no cuentan para puntos, no generan
+`weekly_results`, no afectan a `M` y no aparecen en historial de envíos.
+
+Campos principales:
+
+- `week_id`
+- `label`
+- `score`
+- `description`
+- `sort_order`
+- `is_active`
+
 ### chat_messages
 
 Prepara el chat público de la liga que aparece en la portada. En esta fase sigue
@@ -133,6 +169,9 @@ generar o revisar estas filas antes de publicar una semana.
 - `weekly_results.week_id` referencia `weeks.id`.
 - `weekly_results.player_id` referencia `profiles.id`.
 - `chat_messages.player_id` referencia `profiles.id`.
+- `season_memberships.season_id` referencia `seasons.id`.
+- `season_memberships.player_id` referencia `profiles.id`.
+- `week_benchmarks.week_id` referencia `weeks.id`.
 
 ## Flujo semanal de datos
 
@@ -208,6 +247,11 @@ Todas las tablas principales tienen Row Level Security activado.
   pueden gestionar todo.
 - `weekly_results`: usuarios autenticados pueden leer; solo admins pueden
   insertar, actualizar o borrar.
+- `season_memberships`: usuarios autenticados pueden leer memberships; cada
+  usuario puede unirse con su propio `player_id` a temporadas `active`; admins
+  pueden gestionar todas las memberships.
+- `week_benchmarks`: usuarios autenticados pueden leer benchmarks activos;
+  admins pueden gestionar todos.
 - `chat_messages`: usuarios autenticados pueden leer mensajes no borrados e
   insertar mensajes propios; admins pueden gestionar todos. El borrado propio se
   deja como decisión futura para no abrir permisos antes de definir moderación.
@@ -221,7 +265,7 @@ si esas lecturas se resuelven desde servidor.
 - Trigger de creacion automatica de `profiles` al registrarse un usuario.
 - Consultas reales desde Next.js.
 - Subida real a Supabase Storage.
-- Publicacion automatizada de resultados.
+- Panel admin completo para revisar y publicar resultados.
 - Vistas SQL para leaderboard semanal y clasificación de temporada, incluyendo
   movimiento de posición respecto a la semana anterior.
 - Auditoría de cambios administrativos.

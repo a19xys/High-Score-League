@@ -26,6 +26,7 @@ export default async function WeekPage() {
 
   return (
     <WeekDetailView
+      benchmarks={detail.benchmarks}
       dataMode={detail.mode}
       game={detail.game}
       hideDownloads={detail.hideDownloads}

@@ -200,12 +200,26 @@ lectura:
 `weekly_results` se lee en semanas `published` si existen filas, pero la app no
 los genera ni publica todavia.
 
+`week_benchmarks` se lee en modo Supabase para mostrar referencias visuales en
+el leaderboard. No son submissions, no alteran ranks, no cuentan para
+`weekly_results` y no aparecen en historial de envios.
+
 `POST /api/submissions/ingest` ya existe como endpoint mínimo autenticado para
 crear submissions automáticas. Usa RLS, deriva `player_id` del usuario
 autenticado y no acepta `submitted_at` desde cliente.
 
+`season_memberships` permite unirse a temporadas activas. `/seasons` y
+`/seasons/[seasonId]` muestran estado `Unido`, botón `Unirse` o enlace a login
+según sesión y membresía.
+
+`POST /api/admin/weeks/[weekId]/weekly-results` calcula resultados oficiales
+desde submissions reales. En `dryRun` devuelve preview; con `dryRun = false`
+reemplaza `weekly_results` solo si la semana está `closed` o `published`.
+
 Para crear datos de prueba manuales, consulta `docs/test-submissions.md`.
 Para probar el endpoint, consulta `docs/ingest-api.md`.
+Para la generación oficial de resultados, consulta `docs/weekly-results.md`.
+Para referencias visuales de leaderboard, consulta `docs/week-benchmarks.md`.
 
 ## Pagina temporal
 
@@ -226,6 +240,9 @@ La lectura real esta en:
 - `lib/data/weeks.ts`
 - `lib/data/week-page.ts`
 - `lib/data/data-source.ts`
+- `lib/data/season-memberships.ts`
+- `lib/data/week-benchmarks.ts`
+- `lib/weekly-results/calculate.ts`
 
 Las funciones devuelven resultados tipados con:
 
@@ -247,4 +264,5 @@ Todavia no hay:
 - subida real de puntuaciones;
 - subida real de capturas;
 - admin funcional;
+- clasificación real de temporada;
 - integracion con MAME.

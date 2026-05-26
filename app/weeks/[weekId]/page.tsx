@@ -50,6 +50,7 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
     <WeekDetailView
       backHref="/weeks"
       backLabel="← Volver a semanas"
+      benchmarks={detail.benchmarks}
       dataMode={detail.mode}
       game={detail.game}
       hideDownloads={detail.hideDownloads}

@@ -26,6 +26,12 @@ High Score League esta en fase mock avanzada.
   lectura desde `submissions` visibles.
 - `POST /api/submissions/ingest` existe como endpoint mínimo autenticado para
   crear submissions automáticas sin service role.
+- `season_memberships` permite registrar jugadores por temporada.
+- `POST /api/admin/weeks/[weekId]/weekly-results` permite preview y generación
+  oficial de resultados semanales para admins usando miembros elegibles por
+  fecha de corte de la semana.
+- `week_benchmarks` permite mostrar referencias visuales en leaderboards sin
+  afectar submissions, puntos ni resultados oficiales.
 - La pagina temporal `/seasons-real` queda como comparativa visual.
 - La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.
@@ -40,6 +46,8 @@ High Score League esta en fase mock avanzada.
 - La guia para insertar submissions de prueba esta en
   `docs/test-submissions.md`.
 - La documentacion del endpoint de ingestion esta en `docs/ingest-api.md`.
+- La documentacion de resultados oficiales esta en `docs/weekly-results.md`.
+- La documentacion de benchmarks visuales esta en `docs/week-benchmarks.md`.
 
 ## Auth
 
@@ -62,7 +70,7 @@ High Score League esta en fase mock avanzada.
 - Sustitucion parcial y progresiva de mock data.
 - Subida manual real desde `/submit`.
 - Panel admin funcional.
-- Generacion automatica de `weekly_results`.
+- Clasificacion real de temporada desde `weekly_results`.
 - Integracion con MAME.
 
 ## Proximo objetivo recomendado

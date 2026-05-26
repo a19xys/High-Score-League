@@ -5,6 +5,7 @@ import type {
   Submission,
   Week,
   Player,
+  WeekBenchmark,
   WeeklyResult,
 } from "@/types";
 import {
@@ -27,6 +28,10 @@ import {
   getRealSubmissions,
   mapSubmissionRowToSubmission,
 } from "./submissions";
+import {
+  getRealWeekBenchmarks,
+  mapWeekBenchmarkRowToBenchmark,
+} from "./week-benchmarks";
 import { getRealWeeklyResults, mapWeeklyResultRowToWeeklyResult } from "./weekly-results";
 import { getRealWeeks, mapWeekRowToWeek } from "./weeks";
 
@@ -41,6 +46,7 @@ export type WeekDetailData = {
   week: Week;
   game: Game;
   leaderboard: LeaderboardEntry[];
+  benchmarks: WeekBenchmark[];
   submissions: WeekSubmission[];
   weeklyResults: WeeklyResult[];
   mode: "mock" | "supabase";
@@ -93,6 +99,7 @@ function mockWeekDetail(weekId: string, warning: string | null): WeekDetailData 
     week,
     game: isFutureActiveSeasonWeek ? secretGame() : game,
     leaderboard: isFutureActiveSeasonWeek ? [] : getWeeklyLeaderboard(week.id),
+    benchmarks: [],
     submissions: isFutureActiveSeasonWeek ? [] : getSubmissionsForWeek(week.id),
     weeklyResults: [],
     mode: "mock",
@@ -111,6 +118,7 @@ function mockCurrentWeekDetail(warning: string | null): WeekDetailData {
     week: currentWeek,
     game: getCurrentGame(),
     leaderboard: getWeeklyLeaderboard(currentWeek.id),
+    benchmarks: [],
     submissions: getSubmissionsForWeek(currentWeek.id),
     weeklyResults: [],
     mode: "mock",
@@ -186,6 +194,7 @@ async function buildRealWeekDetail(
     ? ["El juego, reglas y descargas permanecerán ocultos hasta que se active la semana."]
     : week.rules;
   const submissionsResult = isSecret ? null : await getRealSubmissions(weekRow.id);
+  const benchmarksResult = isSecret ? null : await getRealWeekBenchmarks(weekRow.id);
   const weeklyResultsResult =
     !isSecret && weekRow.status === "published"
       ? await getRealWeeklyResults(weekRow.id)
@@ -195,11 +204,15 @@ async function buildRealWeekDetail(
     submissionsResult?.error
       ? `No se pudieron cargar submissions reales: ${submissionsResult.error}.`
       : null,
+    benchmarksResult?.error
+      ? `No se pudieron cargar benchmarks de semana: ${benchmarksResult.error}.`
+      : null,
     weeklyResultsResult?.error
       ? `No se pudieron cargar resultados oficiales: ${weeklyResultsResult.error}.`
       : null,
   ].filter(Boolean);
   const realSubmissionRows = submissionsResult?.rows ?? [];
+  const realBenchmarkRows = benchmarksResult?.rows ?? [];
   const realWeeklyResultRows = weeklyResultsResult?.rows ?? [];
 
   return {
@@ -215,6 +228,9 @@ async function buildRealWeekDetail(
     leaderboard: isSecret
       ? []
       : buildLeaderboardFromSubmissions(realSubmissionRows, week.status),
+    benchmarks: isSecret
+      ? []
+      : realBenchmarkRows.map(mapWeekBenchmarkRowToBenchmark),
     submissions: isSecret
       ? []
       : realSubmissionRows.map((row) => mapSubmissionRowToSubmission(row, week)),

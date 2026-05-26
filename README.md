@@ -89,6 +89,11 @@ local, Storage real ni subida manual real.
 Para probar leaderboards reales sin implementar subida, consulta
 [docs/test-submissions.md](docs/test-submissions.md).
 
+Las membresías de temporada y la generación oficial de `weekly_results` están
+documentadas en [docs/weekly-results.md](docs/weekly-results.md).
+Los benchmarks visuales de semana están documentados en
+[docs/week-benchmarks.md](docs/week-benchmarks.md).
+
 ## Plantillas preparadas
 
 - Estados reutilizables: empty, loading, error y placeholder.
@@ -127,4 +132,4 @@ Los datos mock y calculos temporales estan en `lib/mock-data.ts`.
 Probar `POST /api/submissions/ingest` con un usuario real y diseñar la app local
 mínima para enviar eventos autenticados. Siguen pendientes plugin MAME, Storage,
 capturas, subida manual real desde `/submit`, admin funcional y generación
-automática de `weekly_results`.
+de clasificación real de temporada.

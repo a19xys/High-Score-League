@@ -7,6 +7,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { SeasonJoinButton } from "@/components/season-join-button";
 import { formatCompactDateRange, formatWeekRange } from "@/lib/format";
 import { getSeasonDetailData } from "@/lib/data/season-detail";
 import { seasons } from "@/lib/mock-data";
@@ -162,6 +163,20 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
             {seasonData.warning}
           </div>
         ) : null}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 theme-border theme-surface-muted">
+          <div>
+            <p className="text-sm font-semibold theme-text">Inscripción</p>
+            <p className="mt-1 text-sm theme-text-muted">
+              Puedes unirte a una temporada activa aunque ya haya empezado. Los
+              puntos previos quedan en 0.
+            </p>
+          </div>
+          <SeasonJoinButton
+            membershipStatus={seasonData.membershipStatus}
+            seasonId={season.id}
+            seasonStatus={season.status}
+          />
+        </div>
         {seasonData.mode === "supabase" ? (
           <EmptyState
             title="Clasificacion pendiente."

@@ -89,3 +89,24 @@ export type WeeklyResultRow = {
   created_at: string;
   profiles?: RealProfile | RealProfile[] | null;
 };
+
+export type SeasonMembershipRow = {
+  id: string;
+  season_id: string;
+  player_id: string;
+  status: "active" | "left";
+  joined_at: string;
+  created_at: string;
+};
+
+export type WeekBenchmarkRow = {
+  id: string;
+  week_id: string;
+  label: string;
+  score: number;
+  description: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};

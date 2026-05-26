@@ -83,6 +83,16 @@ export type LeaderboardEntry = {
   gapToFirst: number;
 };
 
+export type WeekBenchmark = {
+  id: string;
+  weekId: string;
+  label: string;
+  score: number;
+  description?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+};
+
 export type SeasonStanding = {
   rank: number;
   player: Player;
@@ -120,6 +130,7 @@ export type SeasonSummary = {
   season: Season;
   leader?: Player;
   champion?: Player;
+  membershipStatus?: "joined" | "not_joined" | "login_required" | "closed";
 };
 
 export type ChatMessage = {

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { formatCompactDateRange } from "@/lib/format";
 import type { SeasonSummary } from "@/types";
 import { PlayerHoverCard } from "./player-hover-card";
+import { SeasonJoinButton } from "./season-join-button";
 import { EmptyState } from "./ui/state";
 import { StatusBadge } from "./ui/status-badge";
 import { DataTable } from "./ui/table";
@@ -191,10 +192,18 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
                 </th>
               ))}
               <th className="whitespace-nowrap px-5 py-4" scope="col" />
+              <th className="whitespace-nowrap px-5 py-4" scope="col">
+                Inscripción
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y theme-border theme-surface">
-            {visibleSeasons.map(({ season, leader: currentLeader, champion }) => {
+            {visibleSeasons.map(({
+              season,
+              leader: currentLeader,
+              champion,
+              membershipStatus,
+            }) => {
               const visibleLeader = champion ?? currentLeader;
               const publicStatus = publicSeasonStatus(season.status);
 
@@ -236,6 +245,17 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
                     >
                       Ver temporada
                     </Link>
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-6">
+                    <SeasonJoinButton
+                      membershipStatus={
+                        season.status === "active"
+                          ? (membershipStatus ?? "login_required")
+                          : "closed"
+                      }
+                      seasonId={season.id}
+                      seasonStatus={season.status}
+                    />
                   </td>
                 </tr>
               );

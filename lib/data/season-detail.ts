@@ -1,6 +1,7 @@
 import type { Season, SeasonStanding, WeekSummary } from "@/types";
 import { getDataSource } from "./data-source";
 import { getRealGames, mapGameRowToGame } from "./games";
+import { getUserSeasonMemberships } from "./season-memberships";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
 import { getRealWeeks, mapWeekRowToWeek } from "./weeks";
 import {
@@ -19,6 +20,7 @@ export type SeasonDetailData = {
   currentWeekNumber?: number;
   standings: SeasonStanding[];
   hasRealStandings: boolean;
+  membershipStatus?: "joined" | "not_joined" | "login_required" | "closed";
   mode: "mock" | "supabase";
   warning: string | null;
   usingFallback: boolean;
@@ -47,6 +49,8 @@ function getMockSeasonDetail(
     currentWeekNumber: currentWeek.number,
     standings: season.id === "s1" ? seasonStandings : [],
     hasRealStandings: false,
+    membershipStatus:
+      warning && season.status === "active" ? "login_required" : undefined,
     mode: "mock",
     warning,
     usingFallback: Boolean(warning),
@@ -65,6 +69,13 @@ export async function getSeasonDetailData(
   }
 
   const supabase = await createSupabaseServerClient();
+  if (!supabase) {
+    return getMockSeasonDetail(
+      identifier,
+      "Supabase no esta configurado. Mostrando fallback mock si existe.",
+    );
+  }
+
   const { data: userData } = supabase
     ? await supabase.auth.getUser()
     : { data: { user: null } };
@@ -128,6 +139,9 @@ export async function getSeasonDetailData(
     };
   });
   const activeWeek = realWeekRows.find((week) => week.status === "active");
+  const memberships = await getUserSeasonMemberships(supabase, userData.user.id, [
+    seasonRow.id,
+  ]);
 
   return {
     season: mapSeasonRowToSeason(seasonRow, realWeekRows.length),
@@ -135,6 +149,12 @@ export async function getSeasonDetailData(
     currentWeekNumber: activeWeek?.week_number,
     standings: [],
     hasRealStandings: false,
+    membershipStatus:
+      seasonRow.status === "active"
+        ? memberships.get(seasonRow.id)?.status === "active"
+          ? "joined"
+          : "not_joined"
+        : "closed",
     mode: "supabase",
     warning: null,
     usingFallback: false,

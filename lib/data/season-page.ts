@@ -2,6 +2,7 @@ import type { SeasonSummary } from "@/types";
 import { getSeasonSummaries } from "@/lib/mock-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDataSource } from "./data-source";
+import { getUserSeasonMemberships } from "./season-memberships";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
 import { getRealWeeks } from "./weeks";
 
@@ -20,7 +21,12 @@ function getVisibleMockSummaries(): SeasonSummary[] {
 
 function fallbackToMock(warning: string | null): SeasonPageData {
   return {
-    summaries: getVisibleMockSummaries(),
+    summaries: getVisibleMockSummaries().map((summary) => ({
+      ...summary,
+      membershipStatus: warning && summary.season.status === "active"
+        ? "login_required"
+        : undefined,
+    })),
     mode: "mock",
     warning,
     usingFallback: Boolean(warning),
@@ -42,6 +48,12 @@ export async function getSeasonPageData(): Promise<SeasonPageData> {
   }
 
   const supabase = await createSupabaseServerClient();
+  if (!supabase) {
+    return fallbackToMock(
+      "Supabase no esta configurado. Mostrando fallback mock.",
+    );
+  }
+
   const { data: userData } = supabase
     ? await supabase.auth.getUser()
     : { data: { user: null } };
@@ -66,12 +78,26 @@ export async function getSeasonPageData(): Promise<SeasonPageData> {
   }
 
   const weekCounts = countWeeksBySeason(weeksResult.rows);
+  const visibleSeasonRows = seasonsResult.rows.filter(
+    (season) => season.status !== "draft",
+  );
+  const memberships = await getUserSeasonMemberships(
+    supabase,
+    userData.user.id,
+    visibleSeasonRows.map((season) => season.id),
+  );
   const summaries: SeasonSummary[] = seasonsResult.rows
     .filter((season) => season.status !== "draft")
     .map((season) => ({
       season: mapSeasonRowToSeason(season, weekCounts[season.id] ?? 0),
       leader: undefined,
       champion: undefined,
+      membershipStatus:
+        season.status === "active"
+          ? memberships.get(season.id)?.status === "active"
+            ? "joined"
+            : "not_joined"
+          : "closed",
     }));
 
   return {

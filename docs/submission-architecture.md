@@ -122,4 +122,4 @@ Esta fase no incluye:
 - subida real desde la web;
 - Storage real;
 - capturas reales;
-- calculo de `weekly_results`.
+- clasificación real de temporada.

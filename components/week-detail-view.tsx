@@ -15,6 +15,7 @@ import type {
   Submission,
   Week,
   Player,
+  WeekBenchmark,
   WeeklyResult,
 } from "@/types";
 import { RankBadge } from "./rank-badge";
@@ -30,6 +31,7 @@ type WeekDetailViewProps = {
   week: Week;
   game: Game;
   leaderboard: LeaderboardEntry[];
+  benchmarks?: WeekBenchmark[];
   submissions: WeekSubmission[];
   weeklyResults?: WeeklyResult[];
   dataMode?: "mock" | "supabase";
@@ -48,6 +50,7 @@ export function WeekDetailView({
   week,
   game,
   leaderboard,
+  benchmarks = [],
   submissions,
   weeklyResults = [],
   dataMode = "mock",
@@ -127,8 +130,8 @@ export function WeekDetailView({
             title="Leaderboard pendiente de conectar."
             description="Las puntuaciones reales se mostrarán cuando conectemos submissions y weekly_results."
           />
-        ) : leaderboard.length > 0 ? (
-          <LeaderboardTable entries={leaderboard} />
+        ) : leaderboard.length > 0 || benchmarks.length > 0 ? (
+          <LeaderboardTable benchmarks={benchmarks} entries={leaderboard} />
         ) : (
           <EmptyState
             title="Todavía no hay puntuaciones para esta semana."
