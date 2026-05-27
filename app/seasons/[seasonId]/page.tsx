@@ -177,17 +177,16 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
             seasonStatus={season.status}
           />
         </div>
-        {seasonData.mode === "supabase" ? (
-          <EmptyState
-            title="Clasificacion pendiente."
-            description="Los datos reales de clasificacion se conectaran cuando existan weekly_results publicados."
-          />
-        ) : seasonData.standings.length > 0 ? (
+        {seasonData.standings.length > 0 ? (
           <SeasonTable standings={seasonData.standings} />
         ) : (
           <EmptyState
             title="No hay clasificacion publicada."
-            description="Esta temporada todavia no tiene resultados mock asociados."
+            description={
+              seasonData.mode === "supabase"
+                ? "La temporada real no tiene miembros ni weekly_results oficiales todavia."
+                : "Esta temporada todavia no tiene resultados mock asociados."
+            }
           />
         )}
       </Card>
@@ -207,13 +206,20 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
         )}
       </Card>
 
-      {seasonData.mode === "supabase" ? (
+      {seasonData.mode === "supabase" && !seasonData.hasRealStandings ? (
         <EmptyState
           title="Podio pendiente."
-          description="El podio real se mostrara cuando conectemos resultados oficiales."
+          description="El podio real se mostrara cuando existan weekly_results oficiales."
         />
       ) : seasonData.standings.length > 0 ? (
-        <PodiumPlaceholder />
+        <PodiumPlaceholder
+          standings={seasonData.standings}
+          description={
+            seasonData.mode === "supabase"
+              ? "Podio real calculado desde weekly_results oficiales."
+              : "Placeholder preparado para empates en resultados oficiales."
+          }
+        />
       ) : null}
     </div>
   );

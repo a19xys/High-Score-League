@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { SessionStatusCard } from "@/components/auth/session-status-card";
 import { SubmissionsTable } from "@/components/submissions-table";
 import { ThemeSelect } from "@/components/theme-select";
@@ -69,17 +70,99 @@ const adminGroups = [
   },
 ];
 
-export function ProfileDashboard() {
+type AdminCenterData = {
+  isAdmin: boolean;
+  currentWeekId?: string;
+  currentWeekLabel?: string;
+  activeWeekCount?: number;
+  error?: string | null;
+};
+
+function AdminCenter({ data }: { data: AdminCenterData }) {
+  if (!data.isAdmin) {
+    return null;
+  }
+
+  const currentWeekHref =
+    data.currentWeekId && data.activeWeekCount === 1
+      ? `/admin/weeks/${data.currentWeekId}`
+      : "/admin/weeks";
+
+  return (
+    <div className="rounded-lg border p-5 theme-border theme-surface">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase theme-text-muted">
+            Administración real
+          </p>
+          <h2 className="mt-1 text-xl font-bold theme-text">Centro admin</h2>
+          <p className="mt-2 max-w-2xl text-sm theme-text-muted">
+            Gestiona semanas reales, estados, submissions y resultados
+            oficiales. Temporadas, juegos y usuarios quedan como placeholders.
+          </p>
+        </div>
+        <span className="w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase theme-border theme-surface-muted theme-text">
+          Admin
+        </span>
+      </div>
+      {data.error ? (
+        <div className="mt-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm text-[var(--warning-text)]">
+          {data.error}
+        </div>
+      ) : null}
+      {data.activeWeekCount && data.activeWeekCount > 1 ? (
+        <div className="mt-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm text-[var(--warning-text)]">
+          Hay {data.activeWeekCount} semanas activas. Revisa la configuración en
+          el listado.
+        </div>
+      ) : null}
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <Link
+          className="rounded-lg border p-4 theme-border theme-surface-muted theme-hover"
+          href={currentWeekHref}
+        >
+          <p className="font-semibold theme-text">Semana actual</p>
+          <p className="mt-2 text-sm theme-text-muted">
+            {data.currentWeekLabel ?? "No hay semana activa"}
+          </p>
+        </Link>
+        <Link
+          className="rounded-lg border p-4 theme-border theme-surface-muted theme-hover"
+          href="/admin/weeks"
+        >
+          <p className="font-semibold theme-text">Todas las semanas</p>
+          <p className="mt-2 text-sm theme-text-muted">Listado y gestión semanal.</p>
+        </Link>
+        {["Temporadas", "Juegos", "Usuarios"].map((label) => (
+          <div
+            className="rounded-lg border p-4 opacity-70 theme-border theme-surface-muted"
+            key={label}
+          >
+            <p className="font-semibold theme-text">{label}</p>
+            <p className="mt-2 text-sm theme-text-muted">Placeholder futuro.</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ProfileDashboard({
+  adminCenter,
+}: {
+  adminCenter: AdminCenterData;
+}) {
   const [activeSection, setActiveSection] = useState<ProfileSection>("general");
   const recentSubmissions = getPlayerSubmissions(mockUser.id, 5);
   const bestScores = getBestScoresByWeek(mockUser.id);
   const visibleSections = sections.filter(
-    (section) => !section.adminOnly || mockUser.isAdmin,
+    (section) => !section.adminOnly || adminCenter.isAdmin,
   );
 
   return (
     <div className="space-y-6">
       <SessionStatusCard />
+      <AdminCenter data={adminCenter} />
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
         <aside className="h-fit rounded-lg border p-3 theme-border theme-surface">

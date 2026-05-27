@@ -50,7 +50,8 @@ http://localhost:3000
 - `/seasons`: archivo de temporadas; puede leer Supabase si
   `NEXT_PUBLIC_DATA_SOURCE=supabase`, con fallback mock.
 - `/seasons/[seasonId]`: detalle de temporada; puede leer Supabase si
-  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con clasificacion y podio pendientes.
+  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con clasificacion y podio reales desde
+  `weekly_results`.
 - `/players/[username]`: perfil público provisional de jugador.
 - `/submit`: formulario provisional de subida manual con vista previa local;
   queda como fallback mientras se prepara el flujo automatico MAME/app local.
@@ -91,8 +92,12 @@ Para probar leaderboards reales sin implementar subida, consulta
 
 Las membresías de temporada y la generación oficial de `weekly_results` están
 documentadas en [docs/weekly-results.md](docs/weekly-results.md).
+La clasificación real de temporada está documentada en
+[docs/season-standings.md](docs/season-standings.md).
 Los benchmarks visuales de semana están documentados en
 [docs/week-benchmarks.md](docs/week-benchmarks.md).
+El panel admin mínimo de semanas está documentado en
+[docs/admin.md](docs/admin.md).
 
 ## Plantillas preparadas
 
@@ -129,7 +134,7 @@ Los datos mock y calculos temporales estan en `lib/mock-data.ts`.
 
 ## Siguiente fase sugerida
 
-Probar `POST /api/submissions/ingest` con un usuario real y diseñar la app local
-mínima para enviar eventos autenticados. Siguen pendientes plugin MAME, Storage,
-capturas, subida manual real desde `/submit`, admin funcional y generación
-de clasificación real de temporada.
+Probar el flujo admin completo con una semana real: cerrar, revisar submissions,
+generar resultados y publicar. Siguen pendientes plugin MAME, Storage, capturas,
+subida manual real desde `/submit`, paneles completos de temporadas/juegos/
+usuarios, medallas y bonus.

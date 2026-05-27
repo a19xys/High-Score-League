@@ -1,0 +1,332 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  Game,
+  LeaderboardEntry,
+  Season,
+  Submission,
+  Week,
+  WeekBenchmark,
+  WeeklyResult,
+} from "@/types";
+import type {
+  GameRow,
+  SeasonRow,
+  SubmissionRow,
+  WeekBenchmarkRow,
+  WeekRow,
+  WeeklyResultRow,
+} from "@/types/supabase";
+import { mapGameRowToGame } from "./games";
+import { mapSeasonRowToSeason } from "./seasons";
+import {
+  buildLeaderboardFromSubmissions,
+  mapSubmissionRowToSubmission,
+} from "./submissions";
+import { mapWeekBenchmarkRowToBenchmark } from "./week-benchmarks";
+import { mapWeeklyResultRowToWeeklyResult } from "./weekly-results";
+import { mapWeekRowToWeek } from "./weeks";
+
+type AdminSubmission = Submission & {
+  player?: NonNullable<ReturnType<typeof mapSubmissionRowToSubmission>["player"]>;
+  week?: Week;
+  game?: Game;
+};
+
+export type AdminWeekSummary = {
+  season: Season;
+  week: Week;
+  game: Game;
+  submissionCount: number;
+  invalidSubmissionCount: number;
+  hasWeeklyResults: boolean;
+};
+
+export type AdminWeekDetail = AdminWeekSummary & {
+  benchmarks: WeekBenchmark[];
+  leaderboard: LeaderboardEntry[];
+  submissions: AdminSubmission[];
+  weeklyResults: WeeklyResult[];
+};
+
+const seasonColumns =
+  "id,name,slug,version,status,starts_at,ends_at,created_at,updated_at";
+const gameColumns =
+  "id,title,year,developer,publisher,rom_name,image_url,notes,created_at,updated_at";
+const weekColumns =
+  "id,season_id,game_id,week_number,status,public_start_at,public_freeze_at,final_deadline_at,reveal_at,rules_summary,created_at,updated_at";
+const submissionColumns = `
+  id,
+  week_id,
+  player_id,
+  score,
+  screenshot_path,
+  screenshot_mime_type,
+  screenshot_size_bytes,
+  comment,
+  is_hidden,
+  is_valid,
+  submitted_at,
+  source,
+  detected_at,
+  rom_name,
+  mame_version,
+  client_version,
+  duplicate_key,
+  profiles:player_id (
+    id,
+    username,
+    initials,
+    avatar_url,
+    is_admin,
+    created_at,
+    updated_at
+  )
+`;
+const weeklyResultColumns = `
+  id,
+  week_id,
+  player_id,
+  final_score,
+  rank,
+  league_points,
+  is_first_place,
+  is_second_place,
+  is_third_place,
+  created_at,
+  profiles:player_id (
+    id,
+    username,
+    initials,
+    avatar_url,
+    is_admin,
+    created_at,
+    updated_at
+  )
+`;
+const benchmarkColumns =
+  "id,week_id,label,score,description,sort_order,is_active,created_at,updated_at";
+
+function secretGame(): Game {
+  return {
+    id: "secret",
+    title: "Juego secreto",
+    slug: "juego-secreto",
+    developer: "",
+    genre: "",
+    controlType: "",
+    difficulty: "",
+    imageAlt: "Juego secreto",
+  };
+}
+
+function mapContext(
+  weekRows: WeekRow[],
+  seasonRows: SeasonRow[],
+  gameRows: GameRow[],
+  submissionRows: SubmissionRow[],
+  weeklyResultRows: WeeklyResultRow[],
+) {
+  const seasonsById = new Map(seasonRows.map((season) => [season.id, season]));
+  const gamesById = new Map(gameRows.map((game) => [game.id, game]));
+  const weekCounts = weekRows.reduce<Record<string, number>>((counts, week) => {
+    counts[week.season_id] = (counts[week.season_id] ?? 0) + 1;
+    return counts;
+  }, {});
+  const submissionsByWeek = new Map<string, SubmissionRow[]>();
+  const resultsByWeek = new Map<string, WeeklyResultRow[]>();
+
+  for (const submission of submissionRows) {
+    const rows = submissionsByWeek.get(submission.week_id) ?? [];
+    rows.push(submission);
+    submissionsByWeek.set(submission.week_id, rows);
+  }
+
+  for (const result of weeklyResultRows) {
+    const rows = resultsByWeek.get(result.week_id) ?? [];
+    rows.push(result);
+    resultsByWeek.set(result.week_id, rows);
+  }
+
+  return { seasonsById, gamesById, weekCounts, submissionsByWeek, resultsByWeek };
+}
+
+export async function getAdminWeekSummaries(supabase: SupabaseClient) {
+  const [weeks, seasons, games, submissions, weeklyResults] = await Promise.all([
+    supabase.from("weeks").select(weekColumns).order("public_start_at", {
+      ascending: false,
+      nullsFirst: false,
+    }),
+    supabase.from("seasons").select(seasonColumns),
+    supabase.from("games").select(gameColumns),
+    supabase.from("submissions").select("id,week_id,is_valid"),
+    supabase.from("weekly_results").select("id,week_id"),
+  ]);
+
+  const error =
+    weeks.error ??
+    seasons.error ??
+    games.error ??
+    submissions.error ??
+    weeklyResults.error;
+
+  if (error) {
+    return { rows: [], error: error.message };
+  }
+
+  const weekRows = (weeks.data ?? []) as WeekRow[];
+  const seasonRows = (seasons.data ?? []) as SeasonRow[];
+  const gameRows = (games.data ?? []) as GameRow[];
+  const submissionRows = (submissions.data ?? []) as Array<{
+    id: string;
+    week_id: string;
+    is_valid: boolean;
+  }>;
+  const resultRows = (weeklyResults.data ?? []) as Array<{
+    id: string;
+    week_id: string;
+  }>;
+  const seasonsById = new Map(seasonRows.map((season) => [season.id, season]));
+  const gamesById = new Map(gameRows.map((game) => [game.id, game]));
+  const weekCounts = weekRows.reduce<Record<string, number>>((counts, week) => {
+    counts[week.season_id] = (counts[week.season_id] ?? 0) + 1;
+    return counts;
+  }, {});
+
+  return {
+    rows: weekRows
+      .map((weekRow): AdminWeekSummary | null => {
+        const seasonRow = seasonsById.get(weekRow.season_id);
+
+        if (!seasonRow) {
+          return null;
+        }
+
+        const weekSubmissions = submissionRows.filter(
+          (submission) => submission.week_id === weekRow.id,
+        );
+        const gameRow = gamesById.get(weekRow.game_id);
+
+        return {
+          season: mapSeasonRowToSeason(seasonRow, weekCounts[seasonRow.id] ?? 0),
+          week: mapWeekRowToWeek(weekRow),
+          game: gameRow ? mapGameRowToGame(gameRow) : secretGame(),
+          submissionCount: weekSubmissions.length,
+          invalidSubmissionCount: weekSubmissions.filter(
+            (submission) => !submission.is_valid,
+          ).length,
+          hasWeeklyResults: resultRows.some((result) => result.week_id === weekRow.id),
+        };
+      })
+      .filter((summary): summary is AdminWeekSummary => Boolean(summary)),
+    error: null,
+  };
+}
+
+export async function getAdminCurrentWeek(supabase: SupabaseClient) {
+  const summaries = await getAdminWeekSummaries(supabase);
+
+  if (summaries.error) {
+    return { summary: null, activeCount: 0, error: summaries.error };
+  }
+
+  const activeWeeks = summaries.rows
+    .filter((summary) => summary.week.status === "active")
+    .sort((a, b) => {
+      const dateOrder = a.week.startsAt.localeCompare(b.week.startsAt);
+      return dateOrder || a.week.number - b.week.number;
+    });
+
+  return {
+    summary: activeWeeks[0] ?? null,
+    activeCount: activeWeeks.length,
+    error: null,
+  };
+}
+
+export async function getAdminWeekDetail(
+  supabase: SupabaseClient,
+  weekId: string,
+) {
+  const [week, seasons, games, submissions, weeklyResults, benchmarks] =
+    await Promise.all([
+      supabase.from("weeks").select(weekColumns).eq("id", weekId).maybeSingle(),
+      supabase.from("seasons").select(seasonColumns),
+      supabase.from("games").select(gameColumns),
+      supabase
+        .from("submissions")
+        .select(submissionColumns)
+        .eq("week_id", weekId)
+        .order("submitted_at", { ascending: false }),
+      supabase
+        .from("weekly_results")
+        .select(weeklyResultColumns)
+        .eq("week_id", weekId)
+        .order("rank", { ascending: true }),
+      supabase
+        .from("week_benchmarks")
+        .select(benchmarkColumns)
+        .eq("week_id", weekId)
+        .eq("is_active", true)
+        .order("score", { ascending: false }),
+    ]);
+
+  const error =
+    week.error ??
+    seasons.error ??
+    games.error ??
+    submissions.error ??
+    weeklyResults.error ??
+    benchmarks.error;
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  if (!week.data) {
+    return { data: null, error: "Semana no encontrada." };
+  }
+
+  const weekRows = [week.data as WeekRow];
+  const seasonRows = (seasons.data ?? []) as SeasonRow[];
+  const gameRows = (games.data ?? []) as GameRow[];
+  const submissionRows = (submissions.data ?? []) as SubmissionRow[];
+  const weeklyResultRows = (weeklyResults.data ?? []) as WeeklyResultRow[];
+  const benchmarkRows = (benchmarks.data ?? []) as WeekBenchmarkRow[];
+  const context = mapContext(
+    weekRows,
+    seasonRows,
+    gameRows,
+    submissionRows,
+    weeklyResultRows,
+  );
+  const seasonRow = context.seasonsById.get(week.data.season_id);
+
+  if (!seasonRow) {
+    return { data: null, error: "La temporada de la semana no es visible." };
+  }
+
+  const gameRow = context.gamesById.get(week.data.game_id);
+  const mappedWeek = mapWeekRowToWeek(week.data as WeekRow);
+  const mappedGame = gameRow ? mapGameRowToGame(gameRow) : secretGame();
+  const weekSubmissions = context.submissionsByWeek.get(weekId) ?? [];
+  const weekResults = context.resultsByWeek.get(weekId) ?? [];
+
+  return {
+    data: {
+      season: mapSeasonRowToSeason(seasonRow, context.weekCounts[seasonRow.id] ?? 0),
+      week: mappedWeek,
+      game: mappedGame,
+      submissionCount: weekSubmissions.length,
+      invalidSubmissionCount: weekSubmissions.filter((submission) => !submission.is_valid)
+        .length,
+      hasWeeklyResults: weekResults.length > 0,
+      benchmarks: benchmarkRows.map(mapWeekBenchmarkRowToBenchmark),
+      leaderboard: buildLeaderboardFromSubmissions(weekSubmissions, mappedWeek.status),
+      submissions: weekSubmissions.map((submission) =>
+        mapSubmissionRowToSubmission(submission, mappedWeek),
+      ),
+      weeklyResults: weekResults.map(mapWeeklyResultRowToWeeklyResult),
+    } satisfies AdminWeekDetail,
+    error: null,
+  };
+}

@@ -32,6 +32,11 @@ High Score League esta en fase mock avanzada.
   fecha de corte de la semana.
 - `week_benchmarks` permite mostrar referencias visuales en leaderboards sin
   afectar submissions, puntos ni resultados oficiales.
+- `/seasons/[seasonId]` calcula clasificacion y podio reales desde
+  `weekly_results`, incluyendo miembros activos con 0 puntos.
+- `/profile` muestra centro admin real solo para usuarios con `is_admin = true`.
+- `/admin/weeks` y `/admin/weeks/[weekId]` permiten gestionar semanas,
+  submissions y resultados oficiales sin SQL manual.
 - La pagina temporal `/seasons-real` queda como comparativa visual.
 - La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.
@@ -48,6 +53,9 @@ High Score League esta en fase mock avanzada.
 - La documentacion del endpoint de ingestion esta en `docs/ingest-api.md`.
 - La documentacion de resultados oficiales esta en `docs/weekly-results.md`.
 - La documentacion de benchmarks visuales esta en `docs/week-benchmarks.md`.
+- La documentacion de clasificacion de temporada esta en
+  `docs/season-standings.md`.
+- La documentacion del panel admin minimo esta en `docs/admin.md`.
 
 ## Auth
 
@@ -69,11 +77,12 @@ High Score League esta en fase mock avanzada.
 - Decidir politicas publicas o flujo autenticado para lectura.
 - Sustitucion parcial y progresiva de mock data.
 - Subida manual real desde `/submit`.
-- Panel admin funcional.
-- Clasificacion real de temporada desde `weekly_results`.
+- Panel completo de temporadas, juegos y usuarios.
+- Medallas y bonus.
 - Integracion con MAME.
 
 ## Proximo objetivo recomendado
 
-El siguiente paso sera probar `POST /api/submissions/ingest` con un usuario real
-y despues diseñar la app local mínima que envíe eventos autenticados.
+El siguiente paso sera probar varias semanas con `weekly_results` reales y
+preparar el panel admin minimo para gestionar estados de semana y publicacion
+sin usar SQL manual.

@@ -102,6 +102,7 @@ export type SeasonStanding = {
   secondPlaces: number;
   thirdPlaces: number;
   weeksPlayed: number;
+  isTied?: boolean;
 };
 
 export type WeeklyResult = {

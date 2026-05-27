@@ -2,6 +2,7 @@ import type { Season, SeasonStanding, WeekSummary } from "@/types";
 import { getDataSource } from "./data-source";
 import { getRealGames, mapGameRowToGame } from "./games";
 import { getUserSeasonMemberships } from "./season-memberships";
+import { getRealSeasonStandings } from "./season-standings";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
 import { getRealWeeks, mapWeekRowToWeek } from "./weeks";
 import {
@@ -20,6 +21,7 @@ export type SeasonDetailData = {
   currentWeekNumber?: number;
   standings: SeasonStanding[];
   hasRealStandings: boolean;
+  officialResultCount: number;
   membershipStatus?: "joined" | "not_joined" | "login_required" | "closed";
   mode: "mock" | "supabase";
   warning: string | null;
@@ -49,6 +51,7 @@ function getMockSeasonDetail(
     currentWeekNumber: currentWeek.number,
     standings: season.id === "s1" ? seasonStandings : [],
     hasRealStandings: false,
+    officialResultCount: 0,
     membershipStatus:
       warning && season.status === "active" ? "login_required" : undefined,
     mode: "mock",
@@ -139,16 +142,21 @@ export async function getSeasonDetailData(
     };
   });
   const activeWeek = realWeekRows.find((week) => week.status === "active");
-  const memberships = await getUserSeasonMemberships(supabase, userData.user.id, [
-    seasonRow.id,
+  const [memberships, standingsResult] = await Promise.all([
+    getUserSeasonMemberships(supabase, userData.user.id, [seasonRow.id]),
+    getRealSeasonStandings(seasonRow.id),
   ]);
+  const standingsWarning = standingsResult.error
+    ? `No se pudo leer la clasificacion real: ${standingsResult.error}.`
+    : null;
 
   return {
     season: mapSeasonRowToSeason(seasonRow, realWeekRows.length),
     weeks: weekSummaries,
     currentWeekNumber: activeWeek?.week_number,
-    standings: [],
-    hasRealStandings: false,
+    standings: standingsResult.rows,
+    hasRealStandings: standingsResult.officialResultCount > 0,
+    officialResultCount: standingsResult.officialResultCount,
     membershipStatus:
       seasonRow.status === "active"
         ? memberships.get(seasonRow.id)?.status === "active"
@@ -156,7 +164,7 @@ export async function getSeasonDetailData(
           : "not_joined"
         : "closed",
     mode: "supabase",
-    warning: null,
+    warning: standingsWarning,
     usingFallback: false,
   };
 }

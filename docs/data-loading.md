@@ -121,8 +121,10 @@ El detalle de temporada tambien usa la fuente configurable:
 - Los enlaces a semanas reales accesibles apuntan a `/weeks/[id]`; las semanas
   secretas o futuras quedan desactivadas.
 
-Sin `weekly_results`, la clasificacion y el podio reales se muestran como
-pendientes. En modo mock se mantiene la clasificacion mock existente.
+La clasificacion real de temporada se calcula desde `weekly_results`. Tambien
+se incluyen miembros activos de `season_memberships` con 0 puntos. Si no hay
+resultados oficiales, la tabla puede mostrar inscritos a 0 puntos y el podio
+queda pendiente. En modo mock se mantiene la clasificacion mock existente.
 
 ## `/weeks`
 
@@ -216,10 +218,16 @@ según sesión y membresía.
 desde submissions reales. En `dryRun` devuelve preview; con `dryRun = false`
 reemplaza `weekly_results` solo si la semana está `closed` o `published`.
 
+El panel admin mínimo vive en `/profile` para usuarios admin y en
+`/admin/weeks`. Desde `/admin/weeks/[weekId]` se cambian estados, se revisan
+submissions, se ejecuta dry run, se generan resultados oficiales y se marca la
+semana como publicada.
+
 Para crear datos de prueba manuales, consulta `docs/test-submissions.md`.
 Para probar el endpoint, consulta `docs/ingest-api.md`.
 Para la generación oficial de resultados, consulta `docs/weekly-results.md`.
 Para referencias visuales de leaderboard, consulta `docs/week-benchmarks.md`.
+Para administración semanal, consulta `docs/admin.md`.
 
 ## Pagina temporal
 
@@ -240,7 +248,9 @@ La lectura real esta en:
 - `lib/data/weeks.ts`
 - `lib/data/week-page.ts`
 - `lib/data/data-source.ts`
+- `lib/data/admin-weeks.ts`
 - `lib/data/season-memberships.ts`
+- `lib/data/season-standings.ts`
 - `lib/data/week-benchmarks.ts`
 - `lib/weekly-results/calculate.ts`
 
@@ -264,5 +274,5 @@ Todavia no hay:
 - subida real de puntuaciones;
 - subida real de capturas;
 - admin funcional;
-- clasificación real de temporada;
+- medallas y bonus;
 - integracion con MAME.

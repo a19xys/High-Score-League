@@ -74,8 +74,8 @@ En una semana no hay empate competitivo si dos jugadores tienen la misma
 puntuación. Gana quien envió antes la submission.
 
 Este desempate solo afecta al ranking semanal. En la clasificación de temporada,
-los empates se resolverán más adelante con los criterios competitivos ya
-definidos: puntos, primeros, segundos y terceros, sin desempate oculto.
+los empates se resuelven con puntos, primeros, segundos y terceros, sin
+desempate oculto.
 
 ## Puntos para N jugadores
 
@@ -166,11 +166,24 @@ anteriores de esa semana e inserta los nuevos de forma controlada.
 Si no hay miembros elegibles, devuelve error. Si no hay submissions válidas,
 puede guardar una lista vacía, eliminando resultados anteriores de esa semana.
 
+## UI admin mínima
+
+`/admin/weeks/[weekId]` permite ejecutar el mismo flujo desde la interfaz:
+
+1. `Preview resultados` ejecuta `dryRun = true`.
+2. `Generar resultados oficiales` ejecuta `dryRun = false`.
+3. `Publicar semana` marca la semana como `published` si ya está cerrada o
+   publicada.
+
+La publicación queda como flujo explícito de tres pasos: cerrar semana, generar
+resultados y marcar publicada. No se generan resultados automáticamente al
+cambiar estado.
+
 ## Pendiente
 
-- Panel admin completo.
-- Cambios de estado de semana.
-- Clasificación real de temporada.
+- Panel admin completo de temporadas, juegos y usuarios.
+- Automatizar publicación en un único flujo transaccional si se decide más
+  adelante.
 - Medallas.
 - Capturas y Storage.
 - Plugin MAME y app local.

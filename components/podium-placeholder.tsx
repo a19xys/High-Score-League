@@ -1,5 +1,6 @@
 import { formatScore } from "@/lib/format";
 import { seasonStandings } from "@/lib/mock-data";
+import type { SeasonStanding } from "@/types";
 
 function podiumHeight(rank: number) {
   if (rank === 1) {
@@ -25,8 +26,16 @@ function podiumTone(rank: number) {
   return "bg-[var(--bronze-row)]";
 }
 
-export function PodiumPlaceholder() {
-  const podiumStandings = seasonStandings
+type PodiumPlaceholderProps = {
+  standings?: SeasonStanding[];
+  description?: string;
+};
+
+export function PodiumPlaceholder({
+  standings = seasonStandings,
+  description = "Placeholder preparado para empates en resultados oficiales.",
+}: PodiumPlaceholderProps) {
+  const podiumStandings = standings
     .filter((standing) => standing.rank <= 3)
     .sort((a, b) => {
       if (a.rank !== b.rank) {
@@ -55,9 +64,7 @@ export function PodiumPlaceholder() {
         <p className="text-sm font-semibold uppercase theme-text-muted">
           Resumen de podio
         </p>
-        <p className="mt-1 text-sm theme-text-muted">
-          Placeholder preparado para empates en resultados oficiales.
-        </p>
+        <p className="mt-1 text-sm theme-text-muted">{description}</p>
       </div>
       <div className="mt-8 grid items-end gap-4 sm:grid-cols-3 lg:min-h-80">
         {visualOrder.map((standing) => (

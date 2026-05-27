@@ -3,6 +3,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable } from "@/components/ui/table";
 import { getRealGames } from "@/lib/data/games";
+import { getRealSeasonStandings } from "@/lib/data/season-standings";
 import { getActiveRealSeason, getRealSeasons } from "@/lib/data/seasons";
 import {
   countVisibleSubmissionsForLeaderboard,
@@ -216,6 +217,9 @@ export default async function RealDataTestPage() {
   const activeSeasonWeeks = activeSeason
     ? weeks.rows.filter((week) => week.season_id === activeSeason.id)
     : [];
+  const activeSeasonStandings = activeSeason
+    ? await getRealSeasonStandings(activeSeason.id)
+    : null;
   const currentWeekVisibleSubmissions = currentWeek
     ? countVisibleSubmissionsForLeaderboard(
         submissions.rows.filter((submission) => submission.week_id === currentWeek.id),
@@ -288,7 +292,7 @@ export default async function RealDataTestPage() {
             </div>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
             <p className="text-xs font-semibold uppercase theme-text-muted">
               Submissions reales
@@ -320,6 +324,24 @@ export default async function RealDataTestPage() {
             {weeklyResults.error ? (
               <p className="mt-2 text-xs text-[var(--warning-text)]">
                 {weeklyResults.error}
+              </p>
+            ) : null}
+          </div>
+          <div className="rounded-lg border p-4 theme-border theme-surface-muted">
+            <p className="text-xs font-semibold uppercase theme-text-muted">
+              Clasificacion activa
+            </p>
+            <p className="mt-2 text-2xl font-bold theme-text">
+              {activeSeasonStandings?.rows.length ?? 0}
+            </p>
+            <p className="mt-1 text-xs theme-text-muted">
+              {activeSeasonStandings
+                ? `${activeSeasonStandings.officialResultCount} resultados oficiales`
+                : "Sin temporada activa"}
+            </p>
+            {activeSeasonStandings?.error ? (
+              <p className="mt-2 text-xs text-[var(--warning-text)]">
+                {activeSeasonStandings.error}
               </p>
             ) : null}
           </div>
