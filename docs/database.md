@@ -36,6 +36,9 @@ normal no puede promocionarse a si mismo mediante las politicas iniciales.
 Representa una temporada completa, por ejemplo `Temporada I`. Tiene `slug`,
 `version`, fechas opcionales y estado `draft`, `active` o `completed`.
 
+El panel admin mínimo permite crear y editar temporadas, pero no las borra ni
+crea semanas automáticamente.
+
 ### games
 
 Catalogo de juegos arcade. No depende de una temporada concreta, de forma que un

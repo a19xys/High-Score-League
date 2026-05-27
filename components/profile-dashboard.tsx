@@ -133,10 +133,13 @@ function AdminCenter({ data }: { data: AdminCenterData }) {
           <p className="font-semibold theme-text">Todas las semanas</p>
           <p className="mt-2 text-sm theme-text-muted">Listado y gestión semanal.</p>
         </Link>
-        <div className="rounded-lg border p-4 opacity-70 theme-border theme-surface-muted">
+        <Link
+          className="rounded-lg border p-4 theme-border theme-surface-muted theme-hover"
+          href="/admin/seasons"
+        >
           <p className="font-semibold theme-text">Temporadas</p>
-          <p className="mt-2 text-sm theme-text-muted">Placeholder futuro.</p>
-        </div>
+          <p className="mt-2 text-sm theme-text-muted">Gestión real.</p>
+        </Link>
         <Link
           className="rounded-lg border p-4 theme-border theme-surface-muted theme-hover"
           href="/admin/games"

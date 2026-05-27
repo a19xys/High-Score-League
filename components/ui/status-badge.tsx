@@ -1,23 +1,27 @@
-import type { WeekStatus } from "@/types";
+import type { SeasonStatus, WeekStatus } from "@/types";
 
-const statusStyles: Record<WeekStatus, string> = {
+type StatusValue = WeekStatus | SeasonStatus;
+
+const statusStyles: Record<StatusValue, string> = {
   draft: "theme-border theme-surface theme-text-muted",
   active: "border-emerald-300 bg-emerald-100 text-emerald-900",
   frozen: "theme-border theme-surface theme-text-muted",
   closed: "border-[var(--warning-border)] bg-[var(--warning-surface)] text-[var(--warning-text)]",
   published: "border-[var(--warning-border)] bg-[var(--warning-surface)] text-[var(--warning-text)]",
+  completed: "border-[var(--warning-border)] bg-[var(--warning-surface)] text-[var(--warning-text)]",
 };
 
-const statusLabels: Record<WeekStatus, string> = {
+const statusLabels: Record<StatusValue, string> = {
   draft: "Inactiva",
   active: "Activa",
   frozen: "Inactiva",
   closed: "Cerrada",
   published: "Cerrada",
+  completed: "Cerrada",
 };
 
 type StatusBadgeProps = {
-  status: WeekStatus;
+  status: StatusValue;
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {

@@ -100,6 +100,8 @@ El panel admin mínimo de semanas está documentado en
 [docs/admin.md](docs/admin.md).
 La gestión admin del catálogo de juegos está documentada en
 [docs/admin-games.md](docs/admin-games.md).
+La gestión admin de temporadas está documentada en
+[docs/admin-seasons.md](docs/admin-seasons.md).
 
 ## Plantillas preparadas
 
@@ -136,7 +138,8 @@ Los datos mock y calculos temporales estan en `lib/mock-data.ts`.
 
 ## Siguiente fase sugerida
 
-Probar el flujo admin completo con datos reales: crear/editar un juego, cerrar
-una semana, revisar submissions, generar resultados y publicar. Siguen
-pendientes plugin MAME, Storage, capturas, subida manual real desde `/submit`,
-paneles completos de temporadas/usuarios, medallas y bonus.
+Probar el flujo admin completo con datos reales: crear/editar temporada,
+crear/editar juego, cerrar una semana, revisar submissions, generar resultados
+y publicar. Siguen pendientes plugin MAME, Storage, capturas, subida manual real
+desde `/submit`, panel completo de usuarios, creación avanzada de semanas,
+medallas y bonus.

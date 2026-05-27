@@ -227,12 +227,17 @@ semana como publicada.
 `control_type` y `difficulty` se leen desde Supabase cuando existe la migración
 `0005_game_metadata.sql`.
 
+`/admin/seasons` gestiona temporadas reales. Permite crear y editar `name`,
+`slug`, `version`, `status`, `starts_at` y `ends_at`; no crea semanas
+automáticamente.
+
 Para crear datos de prueba manuales, consulta `docs/test-submissions.md`.
 Para probar el endpoint, consulta `docs/ingest-api.md`.
 Para la generación oficial de resultados, consulta `docs/weekly-results.md`.
 Para referencias visuales de leaderboard, consulta `docs/week-benchmarks.md`.
 Para administración semanal, consulta `docs/admin.md`.
 Para administración de juegos, consulta `docs/admin-games.md`.
+Para administración de temporadas, consulta `docs/admin-seasons.md`.
 
 ## Pagina temporal
 

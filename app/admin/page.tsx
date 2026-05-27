@@ -12,6 +12,9 @@ export default function AdminPage() {
         <Link className="font-semibold text-circuit hover:underline" href="/profile">
           Ir al perfil
         </Link>
+        <Link className="font-semibold text-circuit hover:underline" href="/admin/seasons">
+          Gestionar temporadas
+        </Link>
         <Link className="font-semibold text-circuit hover:underline" href="/admin/weeks">
           Gestionar semanas
         </Link>

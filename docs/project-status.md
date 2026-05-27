@@ -39,6 +39,8 @@ High Score League esta en fase mock avanzada.
   submissions y resultados oficiales sin SQL manual.
 - `/admin/games` permite gestionar el catálogo real de juegos: listar, buscar,
   crear y editar.
+- `/admin/seasons` permite gestionar temporadas reales: listar, buscar, crear y
+  editar.
 - La pagina temporal `/seasons-real` queda como comparativa visual.
 - La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.
@@ -59,6 +61,8 @@ High Score League esta en fase mock avanzada.
   `docs/season-standings.md`.
 - La documentacion del panel admin minimo esta en `docs/admin.md`.
 - La documentacion de administracion de juegos esta en `docs/admin-games.md`.
+- La documentacion de administracion de temporadas esta en
+  `docs/admin-seasons.md`.
 
 ## Auth
 
@@ -80,7 +84,8 @@ High Score League esta en fase mock avanzada.
 - Decidir politicas publicas o flujo autenticado para lectura.
 - Sustitucion parcial y progresiva de mock data.
 - Subida manual real desde `/submit`.
-- Panel completo de temporadas y usuarios.
+- Panel completo de usuarios.
+- Creación avanzada de semanas.
 - Storage para imágenes, manuales y descargas.
 - Medallas y bonus.
 - Integracion con MAME.

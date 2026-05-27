@@ -22,7 +22,7 @@ El bloque de administración contiene:
 
 - Semana actual.
 - Todas las semanas.
-- Temporadas como placeholder.
+- Temporadas, enlazando a `/admin/seasons`.
 - Juegos, enlazando al catálogo real en `/admin/games`.
 - Usuarios como placeholder.
 
@@ -62,6 +62,18 @@ crear y editar juegos.
 La edición de juegos no borra entradas para no romper semanas existentes.
 Metadatos como género, tipo de control y dificultad son flexibles y están
 documentados en `docs/admin-games.md`.
+
+## Temporadas
+
+`/admin/seasons` gestiona temporadas reales. Permite listar, buscar, crear y
+editar temporadas.
+
+Crear una temporada no crea semanas automáticamente. Los usuarios pueden unirse
+a temporadas `active`; las temporadas `completed` quedan cerradas para nuevas
+uniones y las `draft` no deben aparecer públicamente.
+
+La gestión avanzada de miembros queda para una fase posterior. Más detalle en
+`docs/admin-seasons.md`.
 
 ## Gestión de una semana
 
@@ -191,8 +203,8 @@ pero no se implementa todavía.
 
 ## Pendiente
 
-- Panel completo de temporadas.
 - Panel completo de usuarios.
+- Creación avanzada de semanas.
 - Creación avanzada de semanas.
 - Medallas.
 - Storage y capturas.
