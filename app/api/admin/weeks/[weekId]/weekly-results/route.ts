@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import {
   calculateWeeklyResultsForWeek,
+  type CalculatedWeeklyResult,
   replaceWeeklyResultsForWeek,
 } from "@/lib/weekly-results/calculate";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -17,6 +18,21 @@ type Payload = {
 
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
+}
+
+function serializeResult(result: CalculatedWeeklyResult) {
+  return {
+    weekId: result.week_id,
+    playerId: result.player_id,
+    finalScore: result.final_score,
+    rank: result.rank,
+    leaguePoints: result.league_points,
+    isFirstPlace: result.is_first_place,
+    isSecondPlace: result.is_second_place,
+    isThirdPlace: result.is_third_place,
+    submittedAt: result.submitted_at,
+    username: result.username,
+  };
 }
 
 export async function POST(
@@ -84,7 +100,7 @@ export async function POST(
       weekStatus: calculation.week.status,
       cutoffAt: calculation.cutoffAt,
       memberCount: calculation.memberCount,
-      results: calculation.results,
+      results: calculation.results.map(serializeResult),
     });
   }
 
@@ -105,7 +121,7 @@ export async function POST(
     weekStatus: calculation.week.status,
     cutoffAt: calculation.cutoffAt,
     memberCount: calculation.memberCount,
-    results: calculation.results,
+    results: calculation.results.map(serializeResult),
     savedRows: writeResult.rows,
   });
 }

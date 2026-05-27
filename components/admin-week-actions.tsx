@@ -6,6 +6,7 @@ import { formatScore } from "@/lib/format";
 import type { WeekStatus } from "@/types";
 
 type PreviewResult = {
+  weekId: string;
   playerId: string;
   username: string;
   finalScore: number;
@@ -14,6 +15,7 @@ type PreviewResult = {
   isFirstPlace: boolean;
   isSecondPlace: boolean;
   isThirdPlace: boolean;
+  submittedAt: string;
 };
 
 type WeeklyResultsResponse = {
@@ -200,7 +202,10 @@ export function WeeklyResultsActions({
             </thead>
             <tbody className="divide-y theme-border theme-surface">
               {preview.results.map((result) => (
-                <tr className="theme-hover" key={result.playerId}>
+                <tr
+                  className="theme-hover"
+                  key={`${result.weekId}-${result.playerId}-${result.rank}`}
+                >
                   <td className="px-4 py-3 font-semibold theme-text">
                     #{result.rank}
                   </td>
