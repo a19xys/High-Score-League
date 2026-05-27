@@ -23,7 +23,7 @@ El bloque de administración contiene:
 - Semana actual.
 - Todas las semanas.
 - Temporadas como placeholder.
-- Juegos como placeholder.
+- Juegos, enlazando al catálogo real en `/admin/games`.
 - Usuarios como placeholder.
 
 `Publicar resultados` y `Revisar submissions` no son tarjetas separadas porque
@@ -53,6 +53,15 @@ pertenecen a una semana concreta. Se gestionan desde `/admin/weeks/[weekId]`.
 - enlace a gestionar semana.
 
 No incluye filtros complejos todavía.
+
+## Juegos
+
+`/admin/games` gestiona el catálogo real de juegos. Permite listar, buscar,
+crear y editar juegos.
+
+La edición de juegos no borra entradas para no romper semanas existentes.
+Metadatos como género, tipo de control y dificultad son flexibles y están
+documentados en `docs/admin-games.md`.
 
 ## Gestión de una semana
 
@@ -183,7 +192,6 @@ pero no se implementa todavía.
 ## Pendiente
 
 - Panel completo de temporadas.
-- Panel completo de juegos.
 - Panel completo de usuarios.
 - Creación avanzada de semanas.
 - Medallas.

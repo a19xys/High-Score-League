@@ -98,6 +98,8 @@ Los benchmarks visuales de semana están documentados en
 [docs/week-benchmarks.md](docs/week-benchmarks.md).
 El panel admin mínimo de semanas está documentado en
 [docs/admin.md](docs/admin.md).
+La gestión admin del catálogo de juegos está documentada en
+[docs/admin-games.md](docs/admin-games.md).
 
 ## Plantillas preparadas
 
@@ -134,7 +136,7 @@ Los datos mock y calculos temporales estan en `lib/mock-data.ts`.
 
 ## Siguiente fase sugerida
 
-Probar el flujo admin completo con una semana real: cerrar, revisar submissions,
-generar resultados y publicar. Siguen pendientes plugin MAME, Storage, capturas,
-subida manual real desde `/submit`, paneles completos de temporadas/juegos/
-usuarios, medallas y bonus.
+Probar el flujo admin completo con datos reales: crear/editar un juego, cerrar
+una semana, revisar submissions, generar resultados y publicar. Siguen
+pendientes plugin MAME, Storage, capturas, subida manual real desde `/submit`,
+paneles completos de temporadas/usuarios, medallas y bonus.

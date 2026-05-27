@@ -15,6 +15,9 @@ export default function AdminPage() {
         <Link className="font-semibold text-circuit hover:underline" href="/admin/weeks">
           Gestionar semanas
         </Link>
+        <Link className="font-semibold text-circuit hover:underline" href="/admin/games">
+          Gestionar juegos
+        </Link>
       </div>
     </Card>
   );

@@ -223,11 +223,16 @@ El panel admin mínimo vive en `/profile` para usuarios admin y en
 submissions, se ejecuta dry run, se generan resultados oficiales y se marca la
 semana como publicada.
 
+`/admin/games` gestiona el catálogo real de juegos. Los metadatos `genre`,
+`control_type` y `difficulty` se leen desde Supabase cuando existe la migración
+`0005_game_metadata.sql`.
+
 Para crear datos de prueba manuales, consulta `docs/test-submissions.md`.
 Para probar el endpoint, consulta `docs/ingest-api.md`.
 Para la generación oficial de resultados, consulta `docs/weekly-results.md`.
 Para referencias visuales de leaderboard, consulta `docs/week-benchmarks.md`.
 Para administración semanal, consulta `docs/admin.md`.
+Para administración de juegos, consulta `docs/admin-games.md`.
 
 ## Pagina temporal
 

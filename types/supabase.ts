@@ -27,6 +27,9 @@ export type GameRow = {
   developer: string | null;
   publisher: string | null;
   rom_name: string | null;
+  genre: string | null;
+  control_type: string | null;
+  difficulty: string | null;
   image_url: string | null;
   notes: string | null;
   created_at?: string;

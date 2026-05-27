@@ -5,7 +5,7 @@ import type { GameRow } from "@/types/supabase";
 import type { DataReadOptions, DataReadResult } from "./types";
 
 const gameColumns =
-  "id,title,year,developer,publisher,rom_name,image_url,notes,created_at,updated_at";
+  "id,title,year,developer,publisher,rom_name,genre,control_type,difficulty,image_url,notes,created_at,updated_at";
 
 function mockGameRows(): GameRow[] {
   return mockGames.map((game) => ({
@@ -15,6 +15,9 @@ function mockGameRows(): GameRow[] {
     developer: game.developer,
     publisher: null,
     rom_name: game.slug,
+    genre: game.genre,
+    control_type: game.controlType,
+    difficulty: game.difficulty,
     image_url: game.imageUrl ?? null,
     notes: `${game.genre} · ${game.controlType} · dificultad ${game.difficulty}`,
     created_at: undefined,
@@ -72,9 +75,9 @@ export function mapGameRowToGame(row: GameRow): Game {
     title: row.title,
     slug: row.rom_name ?? row.title.toLowerCase().replaceAll(" ", "-"),
     developer: row.developer ?? "Desconocido",
-    genre: "Arcade",
-    controlType: "estandar",
-    difficulty: "pendiente",
+    genre: row.genre ?? "Arcade",
+    controlType: row.control_type ?? "estandar",
+    difficulty: row.difficulty ?? "pendiente",
     imageAlt: `Imagen de ${row.title}`,
     imageUrl: row.image_url ?? undefined,
   };

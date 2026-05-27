@@ -133,15 +133,21 @@ function AdminCenter({ data }: { data: AdminCenterData }) {
           <p className="font-semibold theme-text">Todas las semanas</p>
           <p className="mt-2 text-sm theme-text-muted">Listado y gestión semanal.</p>
         </Link>
-        {["Temporadas", "Juegos", "Usuarios"].map((label) => (
-          <div
-            className="rounded-lg border p-4 opacity-70 theme-border theme-surface-muted"
-            key={label}
-          >
-            <p className="font-semibold theme-text">{label}</p>
-            <p className="mt-2 text-sm theme-text-muted">Placeholder futuro.</p>
-          </div>
-        ))}
+        <div className="rounded-lg border p-4 opacity-70 theme-border theme-surface-muted">
+          <p className="font-semibold theme-text">Temporadas</p>
+          <p className="mt-2 text-sm theme-text-muted">Placeholder futuro.</p>
+        </div>
+        <Link
+          className="rounded-lg border p-4 theme-border theme-surface-muted theme-hover"
+          href="/admin/games"
+        >
+          <p className="font-semibold theme-text">Juegos</p>
+          <p className="mt-2 text-sm theme-text-muted">Catálogo real.</p>
+        </Link>
+        <div className="rounded-lg border p-4 opacity-70 theme-border theme-surface-muted">
+          <p className="font-semibold theme-text">Usuarios</p>
+          <p className="mt-2 text-sm theme-text-muted">Placeholder futuro.</p>
+        </div>
       </div>
     </div>
   );

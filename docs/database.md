@@ -41,6 +41,15 @@ Representa una temporada completa, por ejemplo `Temporada I`. Tiene `slug`,
 Catalogo de juegos arcade. No depende de una temporada concreta, de forma que un
 juego pueda reutilizarse en futuras temporadas.
 
+Desde `0005_game_metadata.sql` incluye metadatos opcionales de UI:
+
+- `genre`;
+- `control_type`;
+- `difficulty`.
+
+Son campos `text` flexibles. Pueden ser `null`, pero si existen no pueden ser
+texto vacío. No se usan enums todavía.
+
 ### weeks
 
 Representa una semana competitiva dentro de una temporada. Relaciona
@@ -266,6 +275,7 @@ si esas lecturas se resuelven desde servidor.
 - Consultas reales desde Next.js.
 - Subida real a Supabase Storage.
 - Panel admin completo para revisar y publicar resultados.
+- Panel admin completo de temporadas, juegos y usuarios.
 - Vistas SQL para leaderboard semanal y clasificación de temporada, incluyendo
   movimiento de posición respecto a la semana anterior.
 - Auditoría de cambios administrativos.
