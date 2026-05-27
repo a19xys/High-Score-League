@@ -223,6 +223,9 @@ El panel admin mínimo vive en `/profile` para usuarios admin y en
 submissions, se ejecuta dry run, se generan resultados oficiales y se marca la
 semana como publicada.
 
+`/admin/weeks/new` crea semanas reales y `/admin/weeks/[weekId]/edit` edita
+temporada, juego, número, estado, fechas, reglas resumidas y benchmarks básicos.
+
 `/admin/games` gestiona el catálogo real de juegos. Los metadatos `genre`,
 `control_type` y `difficulty` se leen desde Supabase cuando existe la migración
 `0005_game_metadata.sql`.
@@ -236,6 +239,7 @@ Para probar el endpoint, consulta `docs/ingest-api.md`.
 Para la generación oficial de resultados, consulta `docs/weekly-results.md`.
 Para referencias visuales de leaderboard, consulta `docs/week-benchmarks.md`.
 Para administración semanal, consulta `docs/admin.md`.
+Para creación y edición de semanas, consulta `docs/admin-weeks.md`.
 Para administración de juegos, consulta `docs/admin-games.md`.
 Para administración de temporadas, consulta `docs/admin-seasons.md`.
 
@@ -283,6 +287,7 @@ Todavia no hay:
 - Storage real;
 - subida real de puntuaciones;
 - subida real de capturas;
-- admin funcional;
+- panel completo de usuarios;
+- manuales, descargas y configuración MAME desde admin;
 - medallas y bonus;
 - integracion con MAME.

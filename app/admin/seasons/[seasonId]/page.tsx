@@ -80,6 +80,12 @@ export default async function AdminSeasonPage({ params }: AdminSeasonPageProps) 
         >
           Ver página pública
         </Link>
+        <Link
+          className="theme-text-muted hover:underline"
+          href={`/admin/weeks/new?seasonId=${data.season.id}`}
+        >
+          Crear semana para esta temporada
+        </Link>
       </div>
 
       <Card>
@@ -129,11 +135,11 @@ export default async function AdminSeasonPage({ params }: AdminSeasonPageProps) 
         {data.weeks.length === 0 ? (
           <EmptyState
             title="No hay semanas."
-            description="La creación de semanas queda para una fase posterior."
+            description="Puedes crear la primera semana desde el enlace superior."
           />
         ) : (
           <DataTable>
-            <TableHead labels={["Semana", "Estado", "Fechas", "Gestionar"]} />
+            <TableHead labels={["Semana", "Estado", "Fechas", "Gestionar", "Editar"]} />
             <tbody className="divide-y theme-border theme-surface">
               {data.weeks.map((week) => (
                 <tr className="theme-hover" key={week.id}>
@@ -157,6 +163,14 @@ export default async function AdminSeasonPage({ params }: AdminSeasonPageProps) 
                       href={`/admin/weeks/${week.id}`}
                     >
                       Gestionar semana
+                    </Link>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4">
+                    <Link
+                      className="font-semibold text-circuit hover:underline"
+                      href={`/admin/weeks/${week.id}/edit`}
+                    >
+                      Editar datos
                     </Link>
                   </td>
                 </tr>

@@ -94,6 +94,12 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
         <Link className="theme-text-muted hover:underline" href={`/weeks/${data.week.id}`}>
           Ver página pública
         </Link>
+        <Link
+          className="theme-text-muted hover:underline"
+          href={`/admin/weeks/${data.week.id}/edit`}
+        >
+          Editar datos de semana
+        </Link>
       </div>
 
       <Card>

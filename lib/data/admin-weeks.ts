@@ -48,6 +48,13 @@ export type AdminWeekDetail = AdminWeekSummary & {
   weeklyResults: WeeklyResult[];
 };
 
+export type AdminWeekEditData = {
+  week: WeekRow;
+  seasons: SeasonRow[];
+  games: GameRow[];
+  benchmarks: WeekBenchmarkRow[];
+};
+
 const seasonColumns =
   "id,name,slug,version,status,starts_at,ends_at,created_at,updated_at";
 const gameColumns =
@@ -239,6 +246,65 @@ export async function getAdminCurrentWeek(supabase: SupabaseClient) {
   return {
     summary: activeWeeks[0] ?? null,
     activeCount: activeWeeks.length,
+    error: null,
+  };
+}
+
+export async function getAdminWeekFormOptions(supabase: SupabaseClient) {
+  const [seasons, games] = await Promise.all([
+    supabase.from("seasons").select(seasonColumns).order("starts_at", {
+      ascending: false,
+      nullsFirst: false,
+    }),
+    supabase.from("games").select(gameColumns).order("title", { ascending: true }),
+  ]);
+
+  const error = seasons.error ?? games.error;
+
+  if (error) {
+    return { seasons: [], games: [], error: error.message };
+  }
+
+  return {
+    seasons: (seasons.data ?? []) as SeasonRow[],
+    games: (games.data ?? []) as GameRow[],
+    error: null,
+  };
+}
+
+export async function getAdminWeekEditData(
+  supabase: SupabaseClient,
+  weekId: string,
+) {
+  const [week, options, benchmarks] = await Promise.all([
+    supabase.from("weeks").select(weekColumns).eq("id", weekId).maybeSingle(),
+    getAdminWeekFormOptions(supabase),
+    supabase
+      .from("week_benchmarks")
+      .select(benchmarkColumns)
+      .eq("week_id", weekId)
+      .order("is_active", { ascending: false })
+      .order("score", { ascending: false })
+      .order("sort_order", { ascending: true }),
+  ]);
+
+  const error = week.error ?? options.error ?? benchmarks.error;
+
+  if (error) {
+    return { data: null, error: typeof error === "string" ? error : error.message };
+  }
+
+  if (!week.data) {
+    return { data: null, error: "Semana no encontrada." };
+  }
+
+  return {
+    data: {
+      week: week.data as WeekRow,
+      seasons: options.seasons,
+      games: options.games,
+      benchmarks: (benchmarks.data ?? []) as WeekBenchmarkRow[],
+    } satisfies AdminWeekEditData,
     error: null,
   };
 }

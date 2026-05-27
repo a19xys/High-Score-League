@@ -57,6 +57,14 @@ export default async function AdminWeeksPage() {
           Gestión mínima del flujo semanal: estado, submissions y resultados
           oficiales.
         </CardHeader>
+        <div className="mb-4">
+          <Link
+            className="inline-flex rounded-md bg-circuit px-4 py-3 text-sm font-semibold text-white"
+            href="/admin/weeks/new"
+          >
+            Crear semana
+          </Link>
+        </div>
         {error ? (
           <div className="mb-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">
             {error}

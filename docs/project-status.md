@@ -37,6 +37,8 @@ High Score League esta en fase mock avanzada.
 - `/profile` muestra centro admin real solo para usuarios con `is_admin = true`.
 - `/admin/weeks` y `/admin/weeks/[weekId]` permiten gestionar semanas,
   submissions y resultados oficiales sin SQL manual.
+- `/admin/weeks/new` y `/admin/weeks/[weekId]/edit` permiten crear semanas,
+  editar sus metadatos principales y gestionar benchmarks básicos.
 - `/admin/games` permite gestionar el catálogo real de juegos: listar, buscar,
   crear y editar.
 - `/admin/seasons` permite gestionar temporadas reales: listar, buscar, crear y
@@ -60,6 +62,8 @@ High Score League esta en fase mock avanzada.
 - La documentacion de clasificacion de temporada esta en
   `docs/season-standings.md`.
 - La documentacion del panel admin minimo esta en `docs/admin.md`.
+- La documentacion de administracion de semanas esta en
+  `docs/admin-weeks.md`.
 - La documentacion de administracion de juegos esta en `docs/admin-games.md`.
 - La documentacion de administracion de temporadas esta en
   `docs/admin-seasons.md`.
@@ -85,13 +89,13 @@ High Score League esta en fase mock avanzada.
 - Sustitucion parcial y progresiva de mock data.
 - Subida manual real desde `/submit`.
 - Panel completo de usuarios.
-- Creación avanzada de semanas.
+- Creación avanzada de semanas con manuales, descargas y configuración MAME.
 - Storage para imágenes, manuales y descargas.
 - Medallas y bonus.
 - Integracion con MAME.
 
 ## Proximo objetivo recomendado
 
-El siguiente paso sera probar varias semanas con `weekly_results` reales y
-preparar el panel admin minimo para gestionar estados de semana y publicacion
-sin usar SQL manual.
+El siguiente paso sera probar el flujo admin completo con datos reales: crear
+temporada, crear juego, crear semana, recibir submissions, cerrar semana,
+generar resultados y publicar.

@@ -52,6 +52,8 @@ pertenecen a una semana concreta. Se gestionan desde `/admin/weeks/[weekId]`.
 - si tiene `weekly_results`;
 - enlace a gestionar semana.
 
+También incluye el botón `Crear semana`, que abre `/admin/weeks/new`.
+
 No incluye filtros complejos todavía.
 
 ## Juegos
@@ -74,6 +76,28 @@ uniones y las `draft` no deben aparecer públicamente.
 
 La gestión avanzada de miembros queda para una fase posterior. Más detalle en
 `docs/admin-seasons.md`.
+
+Desde el detalle admin de una temporada puede abrirse
+`/admin/weeks/new?seasonId=...` para crear una semana con esa temporada
+precargada.
+
+## Crear y editar semanas
+
+`/admin/weeks/new` crea semanas reales asociando temporada, juego, número,
+estado, fechas y reglas resumidas.
+
+`/admin/weeks/[weekId]/edit` edita esos mismos datos principales y separa la
+edición de metadatos del cuadro de mandos operativo.
+
+La edición de semanas incluye una gestión básica de benchmarks visuales:
+
+- listar benchmarks;
+- crear benchmarks;
+- editar `label`, `score`, descripción, orden y estado activo;
+- activar o desactivar referencias.
+
+Los benchmarks no son submissions y no afectan a puntos ni resultados
+oficiales. Más detalle en `docs/admin-weeks.md`.
 
 ## Gestión de una semana
 
@@ -204,8 +228,7 @@ pero no se implementa todavía.
 ## Pendiente
 
 - Panel completo de usuarios.
-- Creación avanzada de semanas.
-- Creación avanzada de semanas.
+- Creación avanzada de semanas con manuales, descargas y configuración MAME.
 - Medallas.
 - Storage y capturas.
 - Plugin MAME y app local.
