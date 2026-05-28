@@ -107,6 +107,8 @@ La gestión admin del catálogo de juegos está documentada en
 [docs/admin-games.md](docs/admin-games.md).
 La gestión admin de temporadas está documentada en
 [docs/admin-seasons.md](docs/admin-seasons.md).
+La automatización por fechas de semanas y temporadas está documentada en
+[docs/automation.md](docs/automation.md).
 
 ## Plantillas preparadas
 
@@ -144,8 +146,7 @@ Los datos mock y calculos temporales estan en `lib/mock-data.ts`.
 
 ## Siguiente fase sugerida
 
-Probar el flujo admin completo con datos reales: crear/editar temporada,
-crear/editar juego, crear/editar semana, cerrar una semana, revisar submissions,
-generar resultados y publicar. Siguen pendientes plugin MAME, Storage, capturas,
+Probar el flujo admin completo con datos reales y configurar un cron real para
+`/api/cron/process-schedule`. Siguen pendientes plugin MAME, Storage, capturas,
 subida manual real desde `/submit`, panel completo de usuarios, manuales,
 descargas/configuración MAME, moderación del chat, medallas y bonus.

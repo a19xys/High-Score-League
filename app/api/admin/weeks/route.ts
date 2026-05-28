@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { adminWeekColumns, validateWeekPayload } from "@/lib/admin/weeks";
+import { getSynchronizedWeekStatus } from "@/lib/week-status";
 import type { WeekRow } from "@/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -20,30 +21,11 @@ async function validateSchedule(
   supabase: SupabaseClient,
   data: {
     season_id: string;
-    status: WeekRow["status"];
     public_start_at: string | null;
     final_deadline_at: string | null;
   },
   excludeWeekId?: string,
 ) {
-  if (data.status === "active") {
-    let query = supabase.from("weeks").select("id").eq("status", "active").limit(1);
-
-    if (excludeWeekId) {
-      query = query.neq("id", excludeWeekId);
-    }
-
-    const { data: activeWeek, error } = await query.maybeSingle<{ id: string }>();
-
-    if (error) {
-      return "No se pudo validar si ya existe otra semana activa.";
-    }
-
-    if (activeWeek) {
-      return "Ya existe otra semana marcada como active.";
-    }
-  }
-
   if (!data.public_start_at || !data.final_deadline_at) {
     return null;
   }
@@ -112,7 +94,15 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await auth.supabase
     .from("weeks")
-    .insert(validated.data)
+    .insert({
+      ...validated.data,
+      status: getSynchronizedWeekStatus({
+        status: "draft",
+        public_start_at: validated.data.public_start_at,
+        public_freeze_at: validated.data.public_freeze_at,
+        final_deadline_at: validated.data.final_deadline_at,
+      }),
+    })
     .select(adminWeekColumns)
     .single<WeekRow>();
 

@@ -1,5 +1,6 @@
 import { seasons as mockSeasons } from "@/lib/mock-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSynchronizedSeasonStatus } from "@/lib/week-status";
 import type { Season } from "@/types";
 import type { SeasonRow } from "@/types/supabase";
 import type { DataReadOptions, DataReadResult } from "./types";
@@ -36,7 +37,7 @@ export function mapSeasonRowToSeason(row: SeasonRow, weekCount = 0): Season {
     name: row.name,
     slug: row.slug,
     version: row.version ?? undefined,
-    status: row.status,
+    status: getSynchronizedSeasonStatus(row),
     startsAt: row.starts_at ?? "",
     endsAt: row.ends_at ?? "",
     weekCount,
@@ -93,5 +94,9 @@ export async function getActiveRealSeason(
   options: DataReadOptions = {},
 ): Promise<SeasonRow | null> {
   const result = await getRealSeasons(options);
-  return result.rows.find((season) => season.status === "active") ?? null;
+  return (
+    result.rows.find(
+      (season) => getSynchronizedSeasonStatus(season) === "active",
+    ) ?? null
+  );
 }

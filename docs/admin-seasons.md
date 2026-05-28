@@ -1,8 +1,8 @@
-# Administración de temporadas
+# Administracion de temporadas
 
 `/admin/seasons` gestiona temporadas reales desde la web.
 
-Esta sección es solo para admins. Usa la sesión Supabase normal y RLS; no usa
+Esta seccion es solo para admins. Usa la sesion Supabase normal y RLS; no usa
 `service_role`.
 
 ## Temporada, semana y juego
@@ -10,23 +10,27 @@ Esta sección es solo para admins. Usa la sesión Supabase normal y RLS; no usa
 Una temporada agrupa semanas y miembros. Define:
 
 - nombre;
-- slug público;
-- versión opcional;
-- estado;
-- fechas de inicio y fin.
+- slug publico;
+- version opcional;
+- fecha de inicio;
+- fecha de fin.
 
 Una semana pertenece a una temporada y define el juego activo, fechas
 competitivas, reglas y resultados semanales.
 
-Un juego pertenece al catálogo y puede reutilizarse en distintas semanas.
+Un juego pertenece al catalogo y puede reutilizarse en distintas semanas.
 
-## Estados
+## Estados internos
 
-Estados permitidos:
+El admin ya no elige estado manualmente. El sistema sincroniza:
 
-- `draft`: no debe aparecer públicamente.
-- `active`: permite que usuarios se unan.
-- `completed`: temporada cerrada; no permite nuevas uniones.
+- `draft`: antes de `starts_at`;
+- `active`: entre `starts_at` y `ends_at`;
+- `completed`: despues de `ends_at`.
+
+El endpoint `/api/cron/process-schedule` actualiza estos estados en base de
+datos. Las vistas tambien pueden derivar el estado para no depender de una
+sincronizacion inmediata.
 
 ## Listado
 
@@ -34,12 +38,12 @@ Estados permitidos:
 
 - nombre;
 - slug;
-- estado;
-- versión;
+- estado sincronizado o derivado;
+- version;
 - fechas;
-- número de semanas;
-- número de miembros;
-- enlace de edición.
+- numero de semanas;
+- numero de miembros;
+- enlace de edicion.
 
 Incluye buscador simple por `name` y `slug`.
 
@@ -50,38 +54,35 @@ Incluye buscador simple por `name` y `slug`.
 - `name` obligatorio;
 - `slug` obligatorio;
 - `version` opcional;
-- `status` obligatorio;
-- `starts_at` opcional;
-- `ends_at` opcional.
+- `starts_at` obligatorio;
+- `ends_at` obligatorio.
 
-Crear una temporada no crea semanas automáticamente.
+Crear una temporada no crea semanas automaticamente.
 
 ## Editar temporada
 
 `/admin/seasons/[seasonId]` permite editar los mismos campos.
 
-También muestra de forma informativa:
+Tambien muestra de forma informativa:
 
 - miembros unidos;
 - semanas asociadas;
-- enlace a la página pública `/seasons/[slug]`;
-- enlaces a gestión admin de cada semana.
+- enlace a la pagina publica `/seasons/[slug]`;
+- enlaces a gestion admin de cada semana.
 
-No se implementa gestión avanzada de miembros en esta fase.
+No se implementa gestion avanzada de miembros en esta fase.
 
 ## Validaciones
 
-- `name` no puede estar vacío.
-- `slug` usa minúsculas, números y guiones.
-- `version` es opcional, pero si se informa no puede estar vacía.
-- `status` debe ser `draft`, `active` o `completed`.
-- `starts_at` y `ends_at`, si existen, deben ser ISO con zona horaria explícita.
-- Si ambas fechas existen, `starts_at <= ends_at`.
-- No se permite más de una temporada con `status = active`.
+- `name` no puede estar vacio.
+- `slug` usa minusculas, numeros y guiones.
+- `version` es opcional, pero si se informa no puede estar vacia.
+- `starts_at` y `ends_at` deben ser ISO con zona horaria explicita.
+- `starts_at <= ends_at`.
 - Si dos temporadas tienen `starts_at` y `ends_at`, sus rangos no pueden
   solaparse.
 
-Ejemplos de fechas válidas:
+Ejemplos de fechas validas:
 
 ```text
 2026-05-18T00:00:00+02:00
@@ -91,12 +92,11 @@ Ejemplos de fechas válidas:
 ## Sin borrado
 
 No se permite borrar temporadas en esta fase para evitar romper semanas,
-`weekly_results`, standings y membresías.
+`weekly_results`, standings y membresias.
 
 ## Pendiente
 
-- Creación avanzada de semanas.
-- Gestión avanzada de miembros.
+- Gestion avanzada de miembros.
 - Borrado o archivado seguro de temporadas.
 - Medallas.
 - Panel completo de usuarios.

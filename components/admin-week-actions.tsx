@@ -27,67 +27,6 @@ type WeeklyResultsResponse = {
   results?: PreviewResult[];
 };
 
-type WeekStatusActionsProps = {
-  weekId: string;
-  currentStatus: WeekStatus;
-};
-
-const statusActions: Array<{ status: WeekStatus; label: string }> = [
-  { status: "draft", label: "Marcar draft" },
-  { status: "active", label: "Marcar activa" },
-  { status: "frozen", label: "Congelar" },
-  { status: "closed", label: "Cerrar" },
-  { status: "published", label: "Marcar publicada" },
-];
-
-export function WeekStatusActions({
-  weekId,
-  currentStatus,
-}: WeekStatusActionsProps) {
-  const router = useRouter();
-  const [message, setMessage] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  function updateStatus(status: WeekStatus) {
-    setMessage(null);
-    startTransition(async () => {
-      const response = await fetch(`/api/admin/weeks/${weekId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      const payload = (await response.json()) as { ok: boolean; error?: string };
-
-      if (!response.ok || !payload.ok) {
-        setMessage(payload.error ?? "No se pudo cambiar el estado.");
-        return;
-      }
-
-      setMessage(`Estado actualizado a ${status}.`);
-      router.refresh();
-    });
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {statusActions.map((action) => (
-          <button
-            className="rounded-md border px-3 py-2 text-sm font-semibold theme-border theme-hover disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isPending || action.status === currentStatus}
-            key={action.status}
-            onClick={() => updateStatus(action.status)}
-            type="button"
-          >
-            {action.label}
-          </button>
-        ))}
-      </div>
-      {message ? <p className="text-sm theme-text-muted">{message}</p> : null}
-    </div>
-  );
-}
-
 export function WeeklyResultsActions({
   weekId,
   weekStatus,
@@ -127,30 +66,6 @@ export function WeeklyResultsActions({
     });
   }
 
-  function publishWeek() {
-    if (!canGenerate) {
-      setMessage("Primero debes cerrar la semana.");
-      return;
-    }
-
-    startTransition(async () => {
-      const response = await fetch(`/api/admin/weeks/${weekId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "published" }),
-      });
-      const payload = (await response.json()) as { ok: boolean; error?: string };
-
-      if (!response.ok || !payload.ok) {
-        setMessage(payload.error ?? "No se pudo publicar la semana.");
-        return;
-      }
-
-      setMessage("Semana marcada como publicada.");
-      router.refresh();
-    });
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -171,20 +86,12 @@ export function WeeklyResultsActions({
         >
           Generar resultados oficiales
         </button>
-        <button
-          className="rounded-md border px-3 py-2 text-sm font-semibold text-circuit theme-border theme-hover disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={isPending || !canGenerate}
-          onClick={publishWeek}
-          title={canGenerate ? undefined : "Primero cierra la semana."}
-          type="button"
-        >
-          Publicar semana
-        </button>
       </div>
       {!canGenerate ? (
         <p className="text-sm text-[var(--warning-text)]">
-          Para generar resultados oficiales o publicar, primero marca la semana
-          como cerrada.
+          Los resultados oficiales se generan automÃ¡ticamente al cierre. Esta
+          acciÃ³n queda disponible para preview o regeneraciÃ³n cuando la semana
+          ya estÃ© cerrada/publicada.
         </p>
       ) : null}
       {message ? <p className="text-sm theme-text-muted">{message}</p> : null}

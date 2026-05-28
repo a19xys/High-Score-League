@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { validateSeasonPayload, adminSeasonColumns } from "@/lib/admin/seasons";
 import { requireAdmin } from "@/lib/auth/admin";
+import { getSynchronizedSeasonStatus } from "@/lib/week-status";
 import type { SeasonRow } from "@/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -17,30 +18,11 @@ function jsonError(error: string, status = 400) {
 async function validateSeasonSchedule(
   supabase: SupabaseClient,
   data: {
-    status: SeasonRow["status"];
     starts_at: string | null;
     ends_at: string | null;
   },
   excludeSeasonId: string,
 ) {
-  if (data.status === "active") {
-    const { data: activeSeason, error } = await supabase
-      .from("seasons")
-      .select("id")
-      .eq("status", "active")
-      .neq("id", excludeSeasonId)
-      .limit(1)
-      .maybeSingle<{ id: string }>();
-
-    if (error) {
-      return "No se pudo validar si ya existe otra temporada activa.";
-    }
-
-    if (activeSeason) {
-      return "Ya existe otra temporada marcada como active.";
-    }
-  }
-
   if (!data.starts_at || !data.ends_at) {
     return null;
   }
@@ -108,7 +90,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   const { data, error } = await auth.supabase
     .from("seasons")
-    .update(validated.data)
+    .update({
+      ...validated.data,
+      status: getSynchronizedSeasonStatus(validated.data),
+    })
     .eq("id", seasonId)
     .select(adminSeasonColumns)
     .maybeSingle<SeasonRow>();

@@ -25,7 +25,10 @@ import {
 import { mapWeekBenchmarkRowToBenchmark } from "./week-benchmarks";
 import { mapWeeklyResultRowToWeeklyResult } from "./weekly-results";
 import { mapWeekRowToWeek } from "./weeks";
-import { getDerivedWeekStatus } from "@/lib/week-status";
+import {
+  getDerivedWeekStatus,
+  getSynchronizedWeekStatus,
+} from "@/lib/week-status";
 
 type AdminSubmission = Submission & {
   player?: NonNullable<ReturnType<typeof mapSubmissionRowToSubmission>["player"]>;
@@ -213,16 +216,23 @@ export async function getAdminWeekSummaries(supabase: SupabaseClient) {
           (submission) => submission.week_id === weekRow.id,
         );
         const gameRow = gamesById.get(weekRow.game_id);
+        const hasWeeklyResults = resultRows.some(
+          (result) => result.week_id === weekRow.id,
+        );
+        const week = mapWeekRowToWeek(weekRow);
 
         return {
           season: mapSeasonRowToSeason(seasonRow, weekCounts[seasonRow.id] ?? 0),
-          week: mapWeekRowToWeek(weekRow),
+          week: {
+            ...week,
+            status: getSynchronizedWeekStatus(weekRow, new Date(), hasWeeklyResults),
+          },
           game: gameRow ? mapGameRowToGame(gameRow) : secretGame(),
           submissionCount: weekSubmissions.length,
           invalidSubmissionCount: weekSubmissions.filter(
             (submission) => !submission.is_valid,
           ).length,
-          hasWeeklyResults: resultRows.some((result) => result.week_id === weekRow.id),
+          hasWeeklyResults,
         };
       })
       .filter((summary): summary is AdminWeekSummary => Boolean(summary)),
@@ -385,20 +395,29 @@ export async function getAdminWeekDetail(
   const mappedGame = gameRow ? mapGameRowToGame(gameRow) : secretGame();
   const weekSubmissions = context.submissionsByWeek.get(weekId) ?? [];
   const weekResults = context.resultsByWeek.get(weekId) ?? [];
+  const synchronizedStatus = getSynchronizedWeekStatus(
+    week.data as WeekRow,
+    new Date(),
+    weekResults.length > 0,
+  );
+  const visibleWeek = {
+    ...mappedWeek,
+    status: synchronizedStatus,
+  };
 
   return {
     data: {
       season: mapSeasonRowToSeason(seasonRow, context.weekCounts[seasonRow.id] ?? 0),
-      week: mappedWeek,
+      week: visibleWeek,
       game: mappedGame,
       submissionCount: weekSubmissions.length,
       invalidSubmissionCount: weekSubmissions.filter((submission) => !submission.is_valid)
         .length,
       hasWeeklyResults: weekResults.length > 0,
       benchmarks: benchmarkRows.map(mapWeekBenchmarkRowToBenchmark),
-      leaderboard: buildLeaderboardFromSubmissions(weekSubmissions, mappedWeek.status),
+      leaderboard: buildLeaderboardFromSubmissions(weekSubmissions, visibleWeek.status),
       submissions: weekSubmissions.map((submission) =>
-        mapSubmissionRowToSubmission(submission, mappedWeek),
+        mapSubmissionRowToSubmission(submission, visibleWeek),
       ),
       weeklyResults: weekResults.map(mapWeeklyResultRowToWeeklyResult),
     } satisfies AdminWeekDetail,

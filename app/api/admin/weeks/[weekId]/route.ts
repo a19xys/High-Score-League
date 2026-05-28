@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { adminWeekColumns, validateWeekPayload } from "@/lib/admin/weeks";
+import { getSynchronizedWeekStatus } from "@/lib/week-status";
 import type { WeekRow } from "@/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -26,30 +27,11 @@ async function validateSchedule(
   supabase: SupabaseClient,
   data: {
     season_id: string;
-    status: WeekRow["status"];
     public_start_at: string | null;
     final_deadline_at: string | null;
   },
   excludeWeekId: string,
 ) {
-  if (data.status === "active") {
-    const { data: activeWeek, error } = await supabase
-      .from("weeks")
-      .select("id")
-      .eq("status", "active")
-      .neq("id", excludeWeekId)
-      .limit(1)
-      .maybeSingle<{ id: string }>();
-
-    if (error) {
-      return "No se pudo validar si ya existe otra semana activa.";
-    }
-
-    if (activeWeek) {
-      return "Ya existe otra semana marcada como active.";
-    }
-  }
-
   if (!data.public_start_at || !data.final_deadline_at) {
     return null;
   }
@@ -116,9 +98,31 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return jsonError(scheduleError, 409);
   }
 
+  const { data: existingResults, error: resultsError } = await auth.supabase
+    .from("weekly_results")
+    .select("id")
+    .eq("week_id", weekId)
+    .limit(1);
+
+  if (resultsError) {
+    return jsonError("No se pudo comprobar si hay resultados oficiales.", 500);
+  }
+
   const { data, error } = await auth.supabase
     .from("weeks")
-    .update(validated.data)
+    .update({
+      ...validated.data,
+      status: getSynchronizedWeekStatus(
+        {
+          status: "draft",
+          public_start_at: validated.data.public_start_at,
+          public_freeze_at: validated.data.public_freeze_at,
+          final_deadline_at: validated.data.final_deadline_at,
+        },
+        new Date(),
+        (existingResults ?? []).length > 0,
+      ),
+    })
     .eq("id", weekId)
     .select(adminWeekColumns)
     .maybeSingle<WeekRow>();

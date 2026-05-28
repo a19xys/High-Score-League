@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import {
   SubmissionValidityButton,
   WeeklyResultsActions,
-  WeekStatusActions,
 } from "@/components/admin-week-actions";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -147,17 +146,10 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
       </Card>
 
       <Card>
-        <CardHeader title="Estado de semana" eyebrow="Flujo manual">
-          Cambia el estado sin automatizar fechas. Para publicar con seguridad:
-          cerrar semana, generar resultados y marcar publicada.
-        </CardHeader>
-        <WeekStatusActions currentStatus={data.week.status} weekId={data.week.id} />
-      </Card>
-
-      <Card>
         <CardHeader title="Resultados" eyebrow="weekly_results">
-          Preview no escribe. Generar resultados oficiales reemplaza los
-          resultados existentes si la semana está cerrada o publicada.
+          El estado se sincroniza por fechas. Preview no escribe. Regenerar
+          resultados oficiales reemplaza los resultados existentes si la semana
+          ya está cerrada o publicada.
         </CardHeader>
         <WeeklyResultsActions weekId={data.week.id} weekStatus={data.week.status} />
       </Card>

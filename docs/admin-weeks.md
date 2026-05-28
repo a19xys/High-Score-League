@@ -40,9 +40,9 @@ En la UI publica, `active` y `final_stretch` se muestran como competicion activa
 Durante el tramo final, el ingest acepta submissions pero guarda las nuevas
 puntuaciones ocultas hasta el cierre.
 
-`published` se mantiene por ahora como estado interno util para resultados
-oficiales. No hay cron automatico todavia: el estado se deriva en lectura y las
-operaciones admin siguen siendo manuales.
+`published` se mantiene como estado interno util para resultados oficiales. El
+endpoint `/api/cron/process-schedule` sincroniza estos estados por fechas y
+genera resultados al cierre.
 
 ## Crear semana
 
@@ -51,7 +51,6 @@ operaciones admin siguen siendo manuales.
 - temporada (`season_id`);
 - juego (`game_id`);
 - numero de semana;
-- estado base (`draft`, `active`, `frozen`, `closed`, `published`);
 - apertura;
 - tramo final opcional;
 - cierre;
@@ -80,13 +79,12 @@ El orden valido es:
 apertura <= tramo final <= cierre
 ```
 
-El tramo final puede quedar vacio. Si apertura o cierre faltan, la app conserva
-compatibilidad con datos legacy y no aplica validacion estricta de solape.
+El tramo final puede quedar vacio. Apertura y cierre son obligatorios en los
+formularios admin actuales.
 
 Validaciones server-side:
 
 - `week_number` no debe duplicarse dentro de una temporada.
-- No se permiten dos semanas con `status = active` al mismo tiempo.
 - Si una semana tiene apertura y cierre, no puede solaparse con otra semana de
   la misma temporada que tambien tenga apertura y cierre.
 
@@ -109,12 +107,10 @@ generan puntos y no afectan a `weekly_results`.
 
 `/admin/weeks/[weekId]` se mantiene como la pagina operativa:
 
-- cambiar estado base;
 - revisar submissions;
 - marcar submissions validas o invalidas;
 - hacer dry run de resultados;
-- generar `weekly_results`;
-- marcar una semana como publicada.
+- regenerar `weekly_results` si hace falta.
 
 Los metadatos de la semana se editan desde `/admin/weeks/[weekId]/edit` para
 mantener separadas las operaciones semanales de la edicion de datos.
@@ -123,7 +119,7 @@ mantener separadas las operaciones semanales de la edicion de datos.
 
 No se implementa todavia:
 
-- cron automatico de estados;
+- configuracion de Vercel Cron en el repositorio;
 - borrado de semanas;
 - subida de manuales;
 - ZIPs o descargas configuradas;

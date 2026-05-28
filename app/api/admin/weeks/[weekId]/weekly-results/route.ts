@@ -5,6 +5,7 @@ import {
   replaceWeeklyResultsForWeek,
 } from "@/lib/weekly-results/calculate";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSynchronizedWeekStatus } from "@/lib/week-status";
 
 type WeeklyResultsRouteContext = {
   params: Promise<{
@@ -85,7 +86,9 @@ export async function POST(
     return jsonError(calculation.error, calculation.status);
   }
 
-  if (!dryRun && !["closed", "published"].includes(calculation.week.status)) {
+  const synchronizedStatus = getSynchronizedWeekStatus(calculation.week);
+
+  if (!dryRun && !["closed", "published"].includes(synchronizedStatus)) {
     return jsonError(
       "Solo se pueden generar resultados oficiales para semanas closed o published.",
       409,
@@ -97,7 +100,7 @@ export async function POST(
       ok: true,
       dryRun: true,
       weekId,
-      weekStatus: calculation.week.status,
+      weekStatus: synchronizedStatus,
       cutoffAt: calculation.cutoffAt,
       memberCount: calculation.memberCount,
       results: calculation.results.map(serializeResult),
@@ -114,11 +117,16 @@ export async function POST(
     return jsonError(writeResult.error, writeResult.status);
   }
 
+  await supabase
+    .from("weeks")
+    .update({ status: "published" })
+    .eq("id", weekId);
+
   return NextResponse.json({
     ok: true,
     dryRun: false,
     weekId,
-    weekStatus: calculation.week.status,
+    weekStatus: "published",
     cutoffAt: calculation.cutoffAt,
     memberCount: calculation.memberCount,
     results: calculation.results.map(serializeResult),

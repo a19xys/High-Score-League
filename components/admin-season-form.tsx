@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { SeasonRow } from "@/types/supabase";
-import type { SeasonStatus } from "@/types";
 
 type AdminSeasonFormProps = {
   mode: "create" | "edit";
@@ -14,7 +13,6 @@ type FormState = {
   name: string;
   slug: string;
   version: string;
-  status: SeasonStatus;
   startsAt: string;
   endsAt: string;
 };
@@ -24,7 +22,6 @@ function initialState(season?: SeasonRow): FormState {
     name: season?.name ?? "",
     slug: season?.slug ?? "",
     version: season?.version ?? "",
-    status: season?.status ?? "draft",
     startsAt: season?.starts_at ?? "",
     endsAt: season?.ends_at ?? "",
   };
@@ -39,9 +36,9 @@ function TextInput({
   help,
 }: {
   label: string;
-  name: keyof Omit<FormState, "status">;
+  name: keyof FormState;
   value: string;
-  onChange: (name: keyof Omit<FormState, "status">, value: string) => void;
+  onChange: (name: keyof FormState, value: string) => void;
   required?: boolean;
   help?: string;
 }) {
@@ -66,7 +63,7 @@ export function AdminSeasonForm({ mode, season }: AdminSeasonFormProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  function updateField(name: keyof Omit<FormState, "status">, value: string) {
+  function updateField(name: keyof FormState, value: string) {
     setState((current) => ({ ...current, [name]: value }));
   }
 
@@ -134,28 +131,12 @@ export function AdminSeasonForm({ mode, season }: AdminSeasonFormProps) {
           onChange={updateField}
           value={state.version}
         />
-        <label className="block">
-          <span className="text-sm font-semibold theme-text">Estado</span>
-          <select
-            className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                status: event.target.value as SeasonStatus,
-              }))
-            }
-            value={state.status}
-          >
-            <option value="draft">draft</option>
-            <option value="active">active</option>
-            <option value="completed">completed</option>
-          </select>
-        </label>
         <TextInput
           help="ISO con zona horaria. Ejemplo: 2026-05-18T00:00:00+02:00"
           label="Inicio"
           name="startsAt"
           onChange={updateField}
+          required
           value={state.startsAt}
         />
         <TextInput
@@ -163,6 +144,7 @@ export function AdminSeasonForm({ mode, season }: AdminSeasonFormProps) {
           label="Fin"
           name="endsAt"
           onChange={updateField}
+          required
           value={state.endsAt}
         />
       </div>

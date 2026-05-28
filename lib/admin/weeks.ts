@@ -1,10 +1,7 @@
-import type { WeekStatus } from "@/types";
-
 export type WeekFormPayload = {
   seasonId?: unknown;
   gameId?: unknown;
   weekNumber?: unknown;
-  status?: unknown;
   publicStartAt?: unknown;
   publicFreezeAt?: unknown;
   finalDeadlineAt?: unknown;
@@ -27,7 +24,6 @@ export type ValidatedWeekPayload =
         season_id: string;
         game_id: string;
         week_number: number;
-        status: WeekStatus;
         public_start_at: string | null;
         public_freeze_at: string | null;
         final_deadline_at: string | null;
@@ -56,13 +52,6 @@ export const adminWeekColumns =
 export const adminBenchmarkColumns =
   "id,week_id,label,score,description,sort_order,is_active,created_at,updated_at";
 
-const allowedStatuses = new Set<WeekStatus>([
-  "draft",
-  "active",
-  "frozen",
-  "closed",
-  "published",
-]);
 const zonedDateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
@@ -151,10 +140,6 @@ export function validateWeekPayload(payload: WeekFormPayload): ValidatedWeekPayl
     return { ok: false, error: "week_number debe ser un entero mayor que 0." };
   }
 
-  if (typeof payload.status !== "string" || !allowedStatuses.has(payload.status as WeekStatus)) {
-    return { ok: false, error: "status no permitido." };
-  }
-
   const publicStartAt = optionalZonedDateTime(payload.publicStartAt, "public_start_at");
   if (!publicStartAt.ok) return { ok: false, error: publicStartAt.error };
   const publicFreezeAt = optionalZonedDateTime(payload.publicFreezeAt, "public_freeze_at");
@@ -165,6 +150,14 @@ export function validateWeekPayload(payload: WeekFormPayload): ValidatedWeekPayl
   if (!revealAt.ok) return { ok: false, error: revealAt.error };
   const rulesSummary = optionalText(payload.rulesSummary, "rules_summary");
   if (!rulesSummary.ok) return { ok: false, error: rulesSummary.error };
+
+  if (!publicStartAt.value) {
+    return { ok: false, error: "public_start_at es obligatorio." };
+  }
+
+  if (!finalDeadlineAt.value) {
+    return { ok: false, error: "final_deadline_at es obligatorio." };
+  }
 
   const dateError = validateOrderedDates([
     { label: "public_start_at", value: publicStartAt.value },
@@ -182,7 +175,6 @@ export function validateWeekPayload(payload: WeekFormPayload): ValidatedWeekPayl
       season_id: seasonId.value,
       game_id: gameId.value,
       week_number: weekNumber,
-      status: payload.status as WeekStatus,
       public_start_at: publicStartAt.value,
       public_freeze_at: publicFreezeAt.value,
       final_deadline_at: finalDeadlineAt.value,

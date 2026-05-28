@@ -1,9 +1,10 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { RealProfile, WeekRow } from "@/types/supabase";
 
-type SupabaseServerClient = NonNullable<
-  Awaited<ReturnType<typeof createSupabaseServerClient>>
->;
+type SupabaseServerClient =
+  | NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>
+  | SupabaseClient;
 
 type MembershipWithProfile = {
   player_id: string;

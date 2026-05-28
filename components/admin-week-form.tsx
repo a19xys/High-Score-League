@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { WeekStatus } from "@/types";
 import type { GameRow, SeasonRow, WeekRow } from "@/types/supabase";
 
 type AdminWeekFormProps = {
@@ -17,7 +16,6 @@ type FormState = {
   seasonId: string;
   gameId: string;
   weekNumber: string;
-  status: WeekStatus;
   publicStartAt: string;
   publicFreezeAt: string;
   finalDeadlineAt: string;
@@ -35,7 +33,6 @@ function initialState(
     seasonId: week?.season_id ?? defaultSeasonId ?? seasons[0]?.id ?? "",
     gameId: week?.game_id ?? games[0]?.id ?? "",
     weekNumber: week ? String(week.week_number) : "",
-    status: week?.status ?? "draft",
     publicStartAt: week?.public_start_at ?? "",
     publicFreezeAt: week?.public_freeze_at ?? "",
     finalDeadlineAt: week?.final_deadline_at ?? "",
@@ -53,7 +50,7 @@ function TextInput({
   help,
 }: {
   label: string;
-  name: keyof Omit<FormState, "status" | "seasonId" | "gameId" | "rulesSummary">;
+  name: keyof Omit<FormState, "seasonId" | "gameId" | "rulesSummary">;
   value: string;
   onChange: (name: keyof FormState, value: string) => void;
   required?: boolean;
@@ -168,30 +165,12 @@ export function AdminWeekForm({
           required
           value={state.weekNumber}
         />
-        <label className="block">
-          <span className="text-sm font-semibold theme-text">Estado</span>
-          <select
-            className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                status: event.target.value as WeekStatus,
-              }))
-            }
-            value={state.status}
-          >
-            <option value="draft">draft</option>
-            <option value="active">active</option>
-            <option value="frozen">frozen</option>
-            <option value="closed">closed</option>
-            <option value="published">published</option>
-          </select>
-        </label>
         <TextInput
           help="ISO con zona horaria. Ejemplo: 2026-05-18T00:00:00+02:00"
           label="Apertura"
           name="publicStartAt"
           onChange={updateField}
+          required
           value={state.publicStartAt}
         />
         <TextInput
@@ -206,6 +185,7 @@ export function AdminWeekForm({
           label="Cierre"
           name="finalDeadlineAt"
           onChange={updateField}
+          required
           value={state.finalDeadlineAt}
         />
         <label className="block md:col-span-2">

@@ -1,5 +1,6 @@
 import type { WeekStatus } from "@/types";
 import type { WeekRow } from "@/types/supabase";
+import type { SeasonStatus } from "@/types";
 
 export type DerivedWeekStatus =
   | "draft"
@@ -138,4 +139,62 @@ export function derivedStatusToVisibleWeekStatus(
   }
 
   return "closed";
+}
+
+export function getSynchronizedWeekStatus(
+  week: Pick<
+    WeekRow,
+    | "status"
+    | "public_start_at"
+    | "public_freeze_at"
+    | "final_deadline_at"
+  >,
+  now = new Date(),
+  hasOfficialResults = false,
+): WeekStatus {
+  if (hasOfficialResults || week.status === "published") {
+    return "published";
+  }
+
+  const derivedStatus = getDerivedWeekStatus(week, now, false);
+
+  if (derivedStatus === "active") {
+    return "active";
+  }
+
+  if (derivedStatus === "final_stretch") {
+    return "frozen";
+  }
+
+  if (derivedStatus === "closed") {
+    return "closed";
+  }
+
+  return "draft";
+}
+
+export function getSynchronizedSeasonStatus(
+  season: {
+    starts_at?: string | null;
+    ends_at?: string | null;
+  },
+  now = new Date(),
+): SeasonStatus {
+  const nowTime = now.getTime();
+  const startsAt = timestamp(season.starts_at);
+  const endsAt = timestamp(season.ends_at);
+
+  if (startsAt !== null && nowTime < startsAt) {
+    return "draft";
+  }
+
+  if (endsAt !== null && nowTime >= endsAt) {
+    return "completed";
+  }
+
+  if (startsAt !== null && nowTime >= startsAt) {
+    return "active";
+  }
+
+  return "draft";
 }

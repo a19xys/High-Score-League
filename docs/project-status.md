@@ -41,7 +41,10 @@ High Score League esta en fase mock avanzada.
   editar sus metadatos principales y gestionar benchmarks básicos.
 - Las semanas usan estado derivado por fechas: apertura (`public_start_at`),
   tramo final opcional (`public_freeze_at`) y cierre (`final_deadline_at`).
-  `reveal_at` queda como campo legacy y no hay cron automático todavía.
+  `reveal_at` queda como campo legacy.
+- `POST /api/cron/process-schedule` sincroniza estados internos de semanas y
+  temporadas por fechas, genera `weekly_results` al cierre y marca semanas como
+  `published`.
 - `/admin/games` permite gestionar el catálogo real de juegos: listar, buscar,
   crear y editar.
 - `/admin/seasons` permite gestionar temporadas reales: listar, buscar, crear y
@@ -78,6 +81,8 @@ High Score League esta en fase mock avanzada.
 - La documentacion de administracion de juegos esta en `docs/admin-games.md`.
 - La documentacion de administracion de temporadas esta en
   `docs/admin-seasons.md`.
+- La documentacion de automatizacion de calendario esta en
+  `docs/automation.md`.
 - La documentacion del chat global esta en `docs/chat.md`.
 
 ## Auth
@@ -106,6 +111,8 @@ High Score League esta en fase mock avanzada.
 - Medallas y bonus.
 - Moderación UI del chat.
 - Integracion con MAME.
+- Configuracion de Vercel Cron o equivalente para ejecutar
+  `/api/cron/process-schedule`.
 
 ## Proximo objetivo recomendado
 

@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { adminSeasonColumns } from "@/lib/admin/seasons";
+import {
+  getSynchronizedSeasonStatus,
+  getSynchronizedWeekStatus,
+} from "@/lib/week-status";
 import type { SeasonRow, WeekRow, RealProfile } from "@/types/supabase";
 
 export type AdminSeasonSummary = {
@@ -75,7 +79,10 @@ export async function getAdminSeasonSummaries(supabase: SupabaseClient) {
 
   return {
     rows: ((seasons.data ?? []) as SeasonRow[]).map((season) => ({
-      season,
+      season: {
+        ...season,
+        status: getSynchronizedSeasonStatus(season),
+      },
       weekCount: weekCounts[season.id] ?? 0,
       memberCount: memberCounts[season.id] ?? 0,
     })),
@@ -146,8 +153,14 @@ export async function getAdminSeasonDetail(
 
   return {
     data: {
-      season: season.data,
-      weeks: (detailWeeks.data ?? []) as WeekRow[],
+      season: {
+        ...season.data,
+        status: getSynchronizedSeasonStatus(season.data),
+      },
+      weeks: ((detailWeeks.data ?? []) as WeekRow[]).map((week) => ({
+        ...week,
+        status: getSynchronizedWeekStatus(week),
+      })),
       members: memberRows.map((membership) => ({
         playerId: membership.player_id,
         status: membership.status,

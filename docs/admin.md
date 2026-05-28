@@ -1,9 +1,7 @@
-# Administración mínima
+# Administracion minima
 
-El panel admin mínimo sirve para gestionar el flujo semanal sin SQL manual.
-
-No sustituye todavía a un panel completo de temporadas, juegos, usuarios,
-medallas, Storage ni MAME.
+El panel admin minimo sirve para gestionar el flujo semanal sin SQL manual. No
+sustituye todavia a un panel completo de usuarios, medallas, Storage ni MAME.
 
 ## Acceso
 
@@ -18,12 +16,12 @@ admin vuelven a comprobar `is_admin` en servidor.
 
 ## Centro admin en `/profile`
 
-El bloque de administración contiene:
+El bloque de administracion contiene:
 
 - Semana actual.
 - Todas las semanas.
 - Temporadas, enlazando a `/admin/seasons`.
-- Juegos, enlazando al catálogo real en `/admin/games`.
+- Juegos, enlazando al catalogo real en `/admin/games`.
 - Usuarios como placeholder.
 
 `Publicar resultados` y `Revisar submissions` no son tarjetas separadas porque
@@ -31,75 +29,62 @@ pertenecen a una semana concreta. Se gestionan desde `/admin/weeks/[weekId]`.
 
 ## Semana actual
 
-`/admin/weeks/current` resuelve la semana real con `status = active`:
+`/admin/weeks/current` resuelve la semana real activa por fechas:
 
 - si hay una sola semana activa, redirige a `/admin/weeks/[weekId]`;
 - si no hay semana activa, redirige a `/admin/weeks`;
 - si hay varias semanas activas, redirige a `/admin/weeks` para revisar la
-  configuración.
+  configuracion.
 
 ## Todas las semanas
 
-`/admin/weeks` lista semanas reales con:
+`/admin/weeks` lista semanas reales con temporada, numero, juego, estado,
+fechas, submissions, invalidas, resultados oficiales y enlace a gestionar.
 
-- temporada;
-- número de semana;
-- juego;
-- estado;
-- rango de fechas;
-- número de submissions;
-- número de submissions inválidas;
-- si tiene `weekly_results`;
-- enlace a gestionar semana.
-
-También incluye el botón `Crear semana`, que abre `/admin/weeks/new`.
-
-No incluye filtros complejos todavía.
+Tambien incluye el boton `Crear semana`, que abre `/admin/weeks/new`.
 
 ## Juegos
 
-`/admin/games` gestiona el catálogo real de juegos. Permite listar, buscar,
-crear y editar juegos.
-
-La edición de juegos no borra entradas para no romper semanas existentes.
-Metadatos como género, tipo de control y dificultad son flexibles y están
-documentados en `docs/admin-games.md`.
+`/admin/games` gestiona el catalogo real de juegos. Permite listar, buscar,
+crear y editar juegos. La edicion de juegos no borra entradas para no romper
+semanas existentes.
 
 ## Temporadas
 
 `/admin/seasons` gestiona temporadas reales. Permite listar, buscar, crear y
-editar temporadas.
+editar temporadas. Crear una temporada no crea semanas automaticamente.
 
-Crear una temporada no crea semanas automáticamente. Los usuarios pueden unirse
-a temporadas `active`; las temporadas `completed` quedan cerradas para nuevas
-uniones y las `draft` no deben aparecer públicamente.
+Los estados de temporada se sincronizan por fechas:
 
-La gestión avanzada de miembros queda para una fase posterior. Más detalle en
-`docs/admin-seasons.md`.
-
-Desde el detalle admin de una temporada puede abrirse
-`/admin/weeks/new?seasonId=...` para crear una semana con esa temporada
-precargada.
+- antes de inicio: `draft`;
+- entre inicio y fin: `active`;
+- tras fin: `completed`.
 
 ## Crear y editar semanas
 
-`/admin/weeks/new` crea semanas reales asociando temporada, juego, número,
-estado, fechas y reglas resumidas.
+`/admin/weeks/new` crea semanas reales asociando temporada, juego, numero,
+apertura, tramo final opcional, cierre y reglas resumidas.
 
 `/admin/weeks/[weekId]/edit` edita esos mismos datos principales y separa la
-edición de metadatos del cuadro de mandos operativo.
+edicion de metadatos del cuadro de mandos operativo.
 
-La edición de semanas incluye una gestión básica de benchmarks visuales:
+La edicion de semanas incluye gestion basica de benchmarks visuales. Los
+benchmarks no son submissions y no afectan a puntos ni resultados oficiales.
 
-- listar benchmarks;
-- crear benchmarks;
-- editar `label`, `score`, descripción, orden y estado activo;
-- activar o desactivar referencias.
+## Estados de semana
 
-Los benchmarks no son submissions y no afectan a puntos ni resultados
-oficiales. Más detalle en `docs/admin-weeks.md`.
+El admin ya no elige estados manualmente desde la UI. Las semanas se sincronizan
+por fechas:
 
-## Gestión de una semana
+- antes de apertura: `draft`;
+- apertura normal: `active`;
+- tramo final: `frozen`;
+- cierre procesado: `published`.
+
+El endpoint `/api/cron/process-schedule` actualiza estados y genera
+`weekly_results` al cierre. Consulta `docs/automation.md`.
+
+## Gestion de una semana
 
 `/admin/weeks/[weekId]` muestra:
 
@@ -109,126 +94,39 @@ oficiales. Más detalle en `docs/admin-weeks.md`.
 - leaderboard vivo desde submissions visibles;
 - submissions reales de la semana;
 - `weekly_results` oficiales si existen;
-- acciones admin.
+- acciones admin de revision y resultados.
 
-## Estados de semana
+La UI conserva preview y regeneracion de resultados como herramienta de
+emergencia, pero no muestra botones manuales para cambiar estado.
 
-Endpoint:
+## Revision de submissions
 
-```text
-PATCH /api/admin/weeks/[weekId]/status
-```
+`PATCH /api/admin/submissions/[submissionId]` permite marcar una submission como
+valida o invalida. No permite borrar submissions, cambiar score, cambiar jugador
+ni tocar capturas o Storage.
 
-Payload:
+## Resultados oficiales
 
-```json
-{
-  "status": "closed"
-}
-```
+`POST /api/admin/weeks/[weekId]/weekly-results` permite:
 
-Estados permitidos:
+- `dryRun: true`: preview sin escribir.
+- `dryRun: false`: regenerar resultados oficiales si la semana ya esta cerrada
+  por fechas o publicada.
 
-- `draft`;
-- `active`;
-- `frozen`;
-- `closed`;
-- `published`.
-
-En esta fase MVP se permiten cambios manuales entre estados válidos para
-facilitar pruebas. No se automatizan fechas.
-
-## Revisión de submissions
-
-Endpoint:
-
-```text
-PATCH /api/admin/submissions/[submissionId]
-```
-
-Payload:
-
-```json
-{
-  "isValid": false
-}
-```
-
-Permite marcar una submission como válida o inválida.
-
-No permite:
-
-- borrar submissions;
-- cambiar score;
-- cambiar jugador;
-- tocar capturas o Storage.
-
-## Preview de resultados
-
-Desde `/admin/weeks/[weekId]`, el botón `Preview resultados` llama a:
-
-```text
-POST /api/admin/weeks/[weekId]/weekly-results
-```
-
-con:
-
-```json
-{
-  "dryRun": true
-}
-```
-
-Devuelve preview sin escribir en `weekly_results`.
-
-La UI muestra:
-
-- rank;
-- jugador;
-- puntuación final;
-- puntos;
-- banderas de podio;
-- `cutoffAt`;
-- miembros elegibles.
-
-## Generar resultados oficiales
-
-El botón `Generar resultados oficiales` llama al mismo endpoint con:
-
-```json
-{
-  "dryRun": false
-}
-```
-
-Solo está habilitado si la semana está `closed` o `published`.
-
-El endpoint reemplaza los `weekly_results` anteriores de esa semana de forma
-controlada.
-
-## Publicar semana
-
-En esta fase se deja un flujo explícito dentro de la misma página:
-
-1. Cerrar semana.
-2. Generar resultados oficiales.
-3. Marcar publicada.
-
-El botón `Publicar semana` marca `published` solo si la semana ya está cerrada
-o publicada. No genera resultados automáticamente.
+La publicacion normal ocurre por cron. Al llegar el cierre, el sistema genera
+`weekly_results` y marca la semana como `published`.
 
 ## Cuentas de prueba
 
-La opción actual de borrar cuenta se mantiene como herramienta de desarrollo.
+La opcion actual de borrar cuenta se mantiene como herramienta de desarrollo.
 
-En producción, borrar cuenta debería sustituirse por desactivar y anonimizar el
-usuario para no romper competiciones pasadas o en curso. Esto queda documentado,
-pero no se implementa todavía.
+En produccion, borrar cuenta deberia sustituirse por desactivar y anonimizar el
+usuario para no romper competiciones pasadas o en curso.
 
 ## Pendiente
 
 - Panel completo de usuarios.
-- Creación avanzada de semanas con manuales, descargas y configuración MAME.
+- Creacion avanzada de semanas con manuales, descargas y configuracion MAME.
 - Medallas.
 - Storage y capturas.
 - Plugin MAME y app local.

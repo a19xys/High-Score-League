@@ -1,10 +1,7 @@
-import type { SeasonStatus } from "@/types";
-
 export type SeasonFormPayload = {
   name?: unknown;
   slug?: unknown;
   version?: unknown;
-  status?: unknown;
   startsAt?: unknown;
   endsAt?: unknown;
 };
@@ -16,7 +13,6 @@ export type ValidatedSeasonPayload =
         name: string;
         slug: string;
         version: string | null;
-        status: SeasonStatus;
         starts_at: string | null;
         ends_at: string | null;
       };
@@ -26,7 +22,6 @@ export type ValidatedSeasonPayload =
 export const adminSeasonColumns =
   "id,name,slug,version,status,starts_at,ends_at,created_at,updated_at";
 
-const allowedStatuses = new Set<SeasonStatus>(["draft", "active", "completed"]);
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const zonedDateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -92,16 +87,20 @@ export function validateSeasonPayload(
     };
   }
 
-  if (typeof payload.status !== "string" || !allowedStatuses.has(payload.status as SeasonStatus)) {
-    return { ok: false, error: "status no permitido." };
-  }
-
   const version = optionalText(payload.version, "version");
   if (!version.ok) return { ok: false, error: version.error };
   const startsAt = optionalZonedDateTime(payload.startsAt, "starts_at");
   if (!startsAt.ok) return { ok: false, error: startsAt.error };
   const endsAt = optionalZonedDateTime(payload.endsAt, "ends_at");
   if (!endsAt.ok) return { ok: false, error: endsAt.error };
+
+  if (!startsAt.value) {
+    return { ok: false, error: "starts_at es obligatorio." };
+  }
+
+  if (!endsAt.value) {
+    return { ok: false, error: "ends_at es obligatorio." };
+  }
 
   if (
     startsAt.value &&
@@ -117,7 +116,6 @@ export function validateSeasonPayload(
       name: payload.name.trim(),
       slug,
       version: version.value,
-      status: payload.status as SeasonStatus,
       starts_at: startsAt.value,
       ends_at: endsAt.value,
     },
