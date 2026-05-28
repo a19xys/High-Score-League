@@ -62,6 +62,10 @@ export type ActiveWeekResult =
   | { status: "ok"; data: WeekDetailData }
   | { status: "empty"; message: string; warning?: string | null };
 
+type ActiveWeekOptions = {
+  fallbackToMock?: boolean;
+};
+
 function secretGame(): Game {
   return {
     id: "secret",
@@ -272,12 +276,24 @@ export async function getWeekDetailData(weekId: string): Promise<WeekDetailData 
   );
 }
 
-export async function getActiveWeekDetailData(): Promise<ActiveWeekResult> {
+export async function getActiveWeekDetailData(
+  options: ActiveWeekOptions = {},
+): Promise<ActiveWeekResult> {
+  const fallbackToMock = options.fallbackToMock ?? true;
+
   if (getDataSource() !== "supabase") {
     return { status: "ok", data: mockCurrentWeekDetail(null) };
   }
 
   if (!(await requireSession())) {
+    if (!fallbackToMock) {
+      return {
+        status: "empty",
+        message:
+          "Inicia sesión para leer la semana activa real. RLS puede ocultar los datos sin sesión.",
+      };
+    }
+
     return {
       status: "ok",
       data: mockCurrentWeekDetail(
@@ -289,6 +305,14 @@ export async function getActiveWeekDetailData(): Promise<ActiveWeekResult> {
   const context = await readRealWeekContext();
 
   if (context.error) {
+    if (!fallbackToMock) {
+      return {
+        status: "empty",
+        message: "No se pudieron cargar los datos reales de la semana activa.",
+        warning: context.error,
+      };
+    }
+
     return {
       status: "ok",
       data: mockCurrentWeekDetail(`${context.error}. Mostrando fallback mock.`),

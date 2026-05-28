@@ -92,7 +92,7 @@ export function formatWeekRange(startsAt: string, endsAt: string) {
     return `${start.day} de ${monthFormatter.format(startDate)} – ${end.day} de ${monthFormatter.format(endDate)} de ${end.year}`;
   }
 
-  return `${formatDate(startsAt)} – ${formatDate(endsAt)}`;
+  return `${start.day} de ${monthFormatter.format(startDate)} de ${start.year} – ${end.day} de ${monthFormatter.format(endDate)} de ${end.year}`;
 }
 
 export function formatCompactDateRange(startsAt: string, endsAt: string) {

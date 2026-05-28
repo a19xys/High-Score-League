@@ -23,8 +23,6 @@ export default async function WeeksPage() {
             </span>
           }
         >
-          Archivo semanal con filtros y ordenacion. Los detalles de semana siguen
-          pendientes de conectar.
         </CardHeader>
         {weekData.warning ? (
           <div className="mb-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">
