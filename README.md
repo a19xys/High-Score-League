@@ -97,7 +97,7 @@ La clasificación real de temporada está documentada en
 [docs/season-standings.md](docs/season-standings.md).
 Los benchmarks visuales de semana están documentados en
 [docs/week-benchmarks.md](docs/week-benchmarks.md).
-El chat global de la liga está documentado en
+El chat global de la liga, incluyendo Supabase Realtime, está documentado en
 [docs/chat.md](docs/chat.md).
 El panel admin mínimo de semanas está documentado en
 [docs/admin.md](docs/admin.md).
@@ -148,4 +148,4 @@ Probar el flujo admin completo con datos reales: crear/editar temporada,
 crear/editar juego, crear/editar semana, cerrar una semana, revisar submissions,
 generar resultados y publicar. Siguen pendientes plugin MAME, Storage, capturas,
 subida manual real desde `/submit`, panel completo de usuarios, manuales,
-descargas/configuración MAME, realtime/moderación del chat, medallas y bonus.
+descargas/configuración MAME, moderación del chat, medallas y bonus.

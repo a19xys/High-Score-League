@@ -93,11 +93,30 @@ mensajes en orden cronológico, con los más nuevos abajo.
 
 En modo mock, la home puede seguir mostrando mensajes mock locales.
 
+## Realtime
+
+La migración `0007_league_chat_realtime.sql` añade
+`public.league_chat_messages` a la publicación `supabase_realtime` de forma
+idempotente.
+
+El componente de chat se suscribe a inserts de esa tabla. Cuando llega un insert,
+no usa directamente el payload realtime para pintar el mensaje, porque ese
+payload no trae el perfil unido. En su lugar llama a:
+
+```text
+GET /api/chat/messages
+```
+
+Ese endpoint devuelve los últimos 50 mensajes con autor normalizado. La lista se
+deduplica por `id`, se ordena de más antiguos a más nuevos y se recorta a 50.
+
+Los tiempos relativos se recalculan en cliente cada 60 segundos. Los mensajes de
+menos de un minuto se muestran como `ahora mismo`.
+
 ## Pendiente
 
 Todavía no hay:
 
-- realtime;
 - chat por temporada;
 - chat por semana;
 - moderación UI;

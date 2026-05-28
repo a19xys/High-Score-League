@@ -215,7 +215,9 @@ autenticado y no acepta `submitted_at` desde cliente.
 según sesión y membresía.
 
 `/` lee `league_chat_messages` en modo Supabase para mostrar el chat global real
-de la liga. El envío usa `POST /api/chat/messages`; no hay realtime todavía.
+de la liga. El envío usa `POST /api/chat/messages` y el componente se suscribe a
+inserts con Supabase Realtime. Al recibir un insert, recarga `GET
+/api/chat/messages` para obtener los últimos 50 mensajes con perfiles.
 
 `POST /api/admin/weeks/[weekId]/weekly-results` calcula resultados oficiales
 desde submissions reales. En `dryRun` devuelve preview; con `dryRun = false`
@@ -287,7 +289,7 @@ error.
 Todavia no hay:
 
 - app local y plugin MAME;
-- realtime del chat;
+- moderación UI del chat;
 - Storage real;
 - subida real de puntuaciones;
 - subida real de capturas;

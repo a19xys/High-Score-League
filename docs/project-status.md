@@ -49,6 +49,7 @@ High Score League esta en fase mock avanzada.
   `user` y `system`.
 - `POST /api/chat/messages` permite enviar mensajes autenticados sin aceptar
   `authorId` ni `messageType` desde cliente.
+- El chat usa Supabase Realtime para recibir inserts sin recargar la página.
 - La pagina temporal `/seasons-real` queda como comparativa visual.
 - La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.
@@ -99,7 +100,7 @@ High Score League esta en fase mock avanzada.
 - Creación avanzada de semanas con manuales, descargas y configuración MAME.
 - Storage para imágenes, manuales y descargas.
 - Medallas y bonus.
-- Realtime y moderación UI del chat.
+- Moderación UI del chat.
 - Integracion con MAME.
 
 ## Proximo objetivo recomendado

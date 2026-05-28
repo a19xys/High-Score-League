@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
+  getRealLeagueChatMessages,
   mapLeagueChatRowToMessage,
 } from "@/lib/data/league-chat";
 import type { LeagueChatMessageRow } from "@/types/supabase";
@@ -28,6 +29,28 @@ function validateContent(value: unknown) {
   }
 
   return { ok: true as const, content };
+}
+
+export async function GET() {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return jsonError("Supabase no está configurado.", 500);
+  }
+
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !userData.user) {
+    return jsonError("Necesitas iniciar sesión para leer el chat.", 401);
+  }
+
+  const result = await getRealLeagueChatMessages();
+
+  if (result.error) {
+    return jsonError(result.error, 500);
+  }
+
+  return NextResponse.json({ ok: true, messages: result.rows });
 }
 
 export async function POST(request: NextRequest) {

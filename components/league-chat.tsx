@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatExactDateTime, formatRelativeTime } from "@/lib/format";
 import type { LeagueChatMessage } from "@/types";
 
@@ -14,7 +14,44 @@ type LeagueChatProps = {
   mode?: "mock" | "supabase";
 };
 
-function MessageAvatar({ message, isOwn }: { message: LeagueChatMessage; isOwn: boolean }) {
+type ChatMessagesPayload = {
+  ok: boolean;
+  error?: string;
+  messages?: LeagueChatMessage[];
+};
+
+function normalizeMessages(messages: LeagueChatMessage[]) {
+  const byId = new Map<string, LeagueChatMessage>();
+
+  for (const message of messages) {
+    byId.set(message.id, message);
+  }
+
+  return Array.from(byId.values())
+    .sort((a, b) => {
+      const dateOrder =
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+
+      return dateOrder || a.id.localeCompare(b.id);
+    })
+    .slice(-50);
+}
+
+function isNearBottom(element: HTMLDivElement | null) {
+  if (!element) {
+    return true;
+  }
+
+  return element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+}
+
+function MessageAvatar({
+  message,
+  isOwn,
+}: {
+  message: LeagueChatMessage;
+  isOwn: boolean;
+}) {
   return (
     <div
       className={
@@ -35,18 +72,82 @@ export function LeagueChat({
   error = null,
   mode = "mock",
 }: LeagueChatProps) {
-  const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottom = useRef(true);
   const [draft, setDraft] = useState("");
-  const [localMessages, setLocalMessages] = useState(messages);
+  const [localMessages, setLocalMessages] = useState(() => normalizeMessages(messages));
   const [messageError, setMessageError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
   const [isPending, startTransition] = useTransition();
 
+  const refreshMessages = useCallback(async () => {
+    shouldStickToBottom.current = isNearBottom(scrollRef.current);
+
+    const response = await fetch("/api/chat/messages", {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    const payload = (await response.json()) as ChatMessagesPayload;
+
+    if (!response.ok || !payload.ok || !payload.messages) {
+      setMessageError(payload.error ?? "No se pudo actualizar el chat.");
+      return;
+    }
+
+    setLocalMessages(normalizeMessages(payload.messages));
+  }, []);
+
   useEffect(() => {
-    setLocalMessages(messages);
+    shouldStickToBottom.current = isNearBottom(scrollRef.current);
+    setLocalMessages(normalizeMessages(messages));
   }, [messages]);
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(new Date());
+    }, 60_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "supabase" || !canPost) {
+      return;
+    }
+
+    const supabase = createSupabaseBrowserClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    const channel = supabase
+      .channel("league-chat-messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "league_chat_messages",
+        },
+        () => {
+          void refreshMessages();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [canPost, mode, refreshMessages]);
+
+  useEffect(() => {
+    if (!shouldStickToBottom.current) {
+      return;
+    }
+
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "auto",
@@ -61,6 +162,7 @@ export function LeagueChat({
       return;
     }
 
+    shouldStickToBottom.current = true;
     setMessageError(null);
     startTransition(async () => {
       const response = await fetch("/api/chat/messages", {
@@ -80,8 +182,9 @@ export function LeagueChat({
       }
 
       setDraft("");
-      setLocalMessages((current) => [...current, payload.message as LeagueChatMessage].slice(-50));
-      router.refresh();
+      setLocalMessages((current) =>
+        normalizeMessages([...current, payload.message as LeagueChatMessage]),
+      );
     });
   }
 
@@ -94,6 +197,9 @@ export function LeagueChat({
       ) : null}
       <div
         className="h-96 space-y-3 overflow-y-auto rounded-lg border p-4 theme-border theme-surface-muted"
+        onScroll={() => {
+          shouldStickToBottom.current = isNearBottom(scrollRef.current);
+        }}
         ref={scrollRef}
       >
         {localMessages.length === 0 ? (
@@ -141,21 +247,37 @@ export function LeagueChat({
                         : "flex flex-wrap items-baseline gap-2"
                     }
                   >
-                    <p className={isOwn ? "font-semibold text-white" : "font-semibold theme-text"}>
+                    <p
+                      className={
+                        isOwn ? "font-semibold text-white" : "font-semibold theme-text"
+                      }
+                    >
                       {message.author?.initials ?? "???"}
                     </p>
-                    <p className={isOwn ? "text-xs text-white/75" : "text-xs theme-text-muted"}>
+                    <p
+                      className={
+                        isOwn ? "text-xs text-white/75" : "text-xs theme-text-muted"
+                      }
+                    >
                       @{message.author?.username ?? "desconocido"}
                     </p>
                     <time
-                      className={isOwn ? "text-xs text-white/75" : "text-xs theme-text-muted"}
+                      className={
+                        isOwn ? "text-xs text-white/75" : "text-xs theme-text-muted"
+                      }
                       dateTime={message.createdAt}
                       title={formatExactDateTime(message.createdAt)}
                     >
-                      {formatRelativeTime(message.createdAt)}
+                      {formatRelativeTime(message.createdAt, now)}
                     </time>
                   </div>
-                  <p className={isOwn ? "mt-1 text-sm leading-6 text-white" : "mt-1 text-sm leading-6 theme-text"}>
+                  <p
+                    className={
+                      isOwn
+                        ? "mt-1 text-sm leading-6 text-white"
+                        : "mt-1 text-sm leading-6 theme-text"
+                    }
+                  >
                     {message.content}
                   </p>
                 </div>
