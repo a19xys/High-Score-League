@@ -22,6 +22,7 @@ export type HomePageData = {
   benchmarks: WeekBenchmark[];
   chatMessages: LeagueChatMessage[];
   canPostChat: boolean;
+  currentUserId: string | null;
   chatError: string | null;
   warning: string | null;
   activeWeekMessage: string | null;
@@ -49,6 +50,7 @@ function mockHomeData(warning: string | null = null): HomePageData {
     benchmarks: [],
     chatMessages: getMockLeagueChatMessages(),
     canPostChat: false,
+    currentUserId: null,
     chatError: null,
     warning,
     activeWeekMessage: null,
@@ -56,11 +58,11 @@ function mockHomeData(warning: string | null = null): HomePageData {
   };
 }
 
-async function hasSession() {
+async function getCurrentUserId() {
   const supabase = await createSupabaseServerClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
 
-  return Boolean(data.user);
+  return data.user?.id ?? null;
 }
 
 export async function getHomePageData(): Promise<HomePageData> {
@@ -68,7 +70,9 @@ export async function getHomePageData(): Promise<HomePageData> {
     return mockHomeData();
   }
 
-  if (!(await hasSession())) {
+  const currentUserId = await getCurrentUserId();
+
+  if (!currentUserId) {
     return {
       mode: "supabase",
       season: null,
@@ -78,6 +82,7 @@ export async function getHomePageData(): Promise<HomePageData> {
       benchmarks: [],
       chatMessages: [],
       canPostChat: false,
+      currentUserId: null,
       chatError: "Inicia sesión para leer y escribir en el chat.",
       warning: "Inicia sesión para leer datos reales. RLS puede ocultar temporadas, semanas y puntuaciones sin sesión.",
       activeWeekMessage: "No se puede detectar la semana activa sin sesión.",
@@ -102,6 +107,7 @@ export async function getHomePageData(): Promise<HomePageData> {
       benchmarks: activeWeekResult.data.benchmarks,
       chatMessages: chatResult.rows,
       canPostChat: true,
+      currentUserId,
       chatError: chatResult.error,
       warning: activeWeekResult.data.warning,
       activeWeekMessage: null,
@@ -120,6 +126,7 @@ export async function getHomePageData(): Promise<HomePageData> {
     benchmarks: [],
     chatMessages: chatResult.rows,
     canPostChat: true,
+    currentUserId,
     chatError: chatResult.error,
     warning: activeWeekResult.warning ?? null,
     activeWeekMessage: activeWeekResult.message,

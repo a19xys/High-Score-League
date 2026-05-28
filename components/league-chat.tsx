@@ -9,21 +9,20 @@ import type { LeagueChatMessage } from "@/types";
 type LeagueChatProps = {
   messages: LeagueChatMessage[];
   canPost?: boolean;
+  currentUserId?: string | null;
   error?: string | null;
   mode?: "mock" | "supabase";
 };
 
-function MessageAvatar({ message }: { message: LeagueChatMessage }) {
-  if (message.messageType === "system") {
-    return (
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold theme-surface-strong">
-        SYS
-      </div>
-    );
-  }
-
+function MessageAvatar({ message, isOwn }: { message: LeagueChatMessage; isOwn: boolean }) {
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold theme-surface-strong">
+    <div
+      className={
+        isOwn
+          ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-circuit text-xs font-bold text-white"
+          : "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold theme-surface-strong"
+      }
+    >
       {message.author?.initials ?? "???"}
     </div>
   );
@@ -32,6 +31,7 @@ function MessageAvatar({ message }: { message: LeagueChatMessage }) {
 export function LeagueChat({
   messages,
   canPost = false,
+  currentUserId = null,
   error = null,
   mode = "mock",
 }: LeagueChatProps) {
@@ -93,7 +93,7 @@ export function LeagueChat({
         </div>
       ) : null}
       <div
-        className="max-h-96 space-y-3 overflow-y-auto rounded-lg border p-4 theme-border theme-surface-muted"
+        className="h-96 space-y-3 overflow-y-auto rounded-lg border p-4 theme-border theme-surface-muted"
         ref={scrollRef}
       >
         {localMessages.length === 0 ? (
@@ -104,48 +104,64 @@ export function LeagueChat({
             </p>
           </div>
         ) : (
-          localMessages.map((message) => (
-            <article
-              className={
-                message.messageType === "system"
-                  ? "flex gap-3 opacity-90"
-                  : "flex gap-3"
-              }
-              key={message.id}
-            >
-              <MessageAvatar message={message} />
-              <div
-                className={
-                  message.messageType === "system"
-                    ? "min-w-0 flex-1 rounded-lg border border-dashed p-3 theme-border theme-surface-muted"
-                    : "min-w-0 flex-1 rounded-lg border p-3 theme-border theme-surface"
-                }
-              >
-                <div className="flex flex-wrap items-baseline gap-2">
-                  {message.messageType === "system" ? (
-                    <p className="font-semibold theme-text">Sistema</p>
-                  ) : (
-                    <>
-                      <p className="font-semibold theme-text">
-                        {message.author?.initials ?? "???"}
-                      </p>
-                      <p className="text-xs theme-text-muted">
-                        @{message.author?.username ?? "desconocido"}
-                      </p>
-                    </>
-                  )}
+          localMessages.map((message) => {
+            if (message.messageType === "system") {
+              return (
+                <article className="flex justify-center" key={message.id}>
                   <time
-                    className="text-xs theme-text-muted"
+                    className="max-w-[85%] rounded-full border px-3 py-1 text-center text-xs font-medium theme-border theme-surface"
                     dateTime={message.createdAt}
                     title={formatExactDateTime(message.createdAt)}
                   >
-                    {formatRelativeTime(message.createdAt)}
+                    {message.content}
                   </time>
+                </article>
+              );
+            }
+
+            const isOwn = Boolean(currentUserId && message.authorId === currentUserId);
+
+            return (
+              <article
+                className={isOwn ? "flex flex-row-reverse gap-3" : "flex gap-3"}
+                key={message.id}
+              >
+                <MessageAvatar isOwn={isOwn} message={message} />
+                <div
+                  className={
+                    isOwn
+                      ? "min-w-0 max-w-[82%] flex-1 rounded-lg border border-circuit/40 bg-circuit p-3 text-white"
+                      : "min-w-0 max-w-[82%] flex-1 rounded-lg border p-3 theme-border theme-surface"
+                  }
+                >
+                  <div
+                    className={
+                      isOwn
+                        ? "flex flex-wrap items-baseline gap-2 text-white"
+                        : "flex flex-wrap items-baseline gap-2"
+                    }
+                  >
+                    <p className={isOwn ? "font-semibold text-white" : "font-semibold theme-text"}>
+                      {message.author?.initials ?? "???"}
+                    </p>
+                    <p className={isOwn ? "text-xs text-white/75" : "text-xs theme-text-muted"}>
+                      @{message.author?.username ?? "desconocido"}
+                    </p>
+                    <time
+                      className={isOwn ? "text-xs text-white/75" : "text-xs theme-text-muted"}
+                      dateTime={message.createdAt}
+                      title={formatExactDateTime(message.createdAt)}
+                    >
+                      {formatRelativeTime(message.createdAt)}
+                    </time>
+                  </div>
+                  <p className={isOwn ? "mt-1 text-sm leading-6 text-white" : "mt-1 text-sm leading-6 theme-text"}>
+                    {message.content}
+                  </p>
                 </div>
-                <p className="mt-1 text-sm leading-6 theme-text">{message.content}</p>
-              </div>
-            </article>
-          ))
+              </article>
+            );
+          })
         )}
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">

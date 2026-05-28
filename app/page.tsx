@@ -178,6 +178,7 @@ export default async function HomePage() {
         </CardHeader>
         <LeagueChat
           canPost={data.canPostChat}
+          currentUserId={data.currentUserId}
           error={data.chatError}
           messages={data.chatMessages}
           mode={data.mode}

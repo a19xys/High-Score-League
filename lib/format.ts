@@ -108,7 +108,7 @@ export function formatRelativeTime(value: string, now = new Date()) {
   const diffSeconds = Math.max(0, Math.floor((now.getTime() - target.getTime()) / 1000));
 
   if (diffSeconds < 60) {
-    return `hace ${diffSeconds || 1} ${diffSeconds === 1 ? "segundo" : "segundos"}`;
+    return "ahora mismo";
   }
 
   const diffMinutes = Math.floor(diffSeconds / 60);
