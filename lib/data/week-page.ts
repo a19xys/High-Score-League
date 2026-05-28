@@ -9,6 +9,10 @@ import { getDataSource } from "./data-source";
 import { getRealGames, mapGameRowToGame } from "./games";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
 import { getRealWeeks, mapWeekRowToWeek } from "./weeks";
+import {
+  derivedStatusToVisibleWeekStatus,
+  getDerivedWeekStatusFromRow,
+} from "@/lib/week-status";
 
 export type WeekPageData = {
   weeks: WeekSummary[];
@@ -83,7 +87,12 @@ export async function getWeekPageData(): Promise<WeekPageData> {
       const seasonRow = seasonsById.get(week.season_id);
       const gameRow = gamesById.get(week.game_id);
       const rawGame = gameRow ? mapGameRowToGame(gameRow) : fallbackGame;
-      const game = isSecretGameTitle(rawGame.title)
+      const derivedStatus = getDerivedWeekStatusFromRow(week);
+      const isSecret =
+        derivedStatus === "draft" ||
+        derivedStatus === "scheduled" ||
+        isSecretGameTitle(rawGame.title);
+      const game = isSecret
         ? {
             ...rawGame,
             title: "Juego secreto",
@@ -93,9 +102,13 @@ export async function getWeekPageData(): Promise<WeekPageData> {
             difficulty: "",
           }
         : rawGame;
+      const mappedWeek = mapWeekRowToWeek(week);
 
       return {
-        week: mapWeekRowToWeek(week),
+        week: {
+          ...mappedWeek,
+          status: derivedStatusToVisibleWeekStatus(derivedStatus),
+        },
         season: mapSeasonRowToSeason(
           seasonRow as NonNullable<typeof seasonRow>,
           weekCounts[week.season_id] ?? 0,
@@ -106,7 +119,10 @@ export async function getWeekPageData(): Promise<WeekPageData> {
       };
     })
     .sort((a, b) => b.week.startsAt.localeCompare(a.week.startsAt));
-  const activeWeek = weeksResult.rows.find((week) => week.status === "active");
+  const activeWeek = weeksResult.rows.find((week) => {
+    const status = getDerivedWeekStatusFromRow(week);
+    return status === "active" || status === "final_stretch";
+  });
 
   return {
     weeks: weekSummaries,

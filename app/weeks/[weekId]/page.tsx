@@ -61,6 +61,7 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
       seasonBackLabel={`← Volver a ${detail.season.name}`}
       submissions={detail.submissions}
       submissionsPending={detail.submissionsPending}
+      statusHelp={detail.statusHelp}
       warning={detail.warning}
       week={detail.week}
       weeklyResults={detail.weeklyResults}

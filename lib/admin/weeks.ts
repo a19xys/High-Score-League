@@ -170,7 +170,6 @@ export function validateWeekPayload(payload: WeekFormPayload): ValidatedWeekPayl
     { label: "public_start_at", value: publicStartAt.value },
     { label: "public_freeze_at", value: publicFreezeAt.value },
     { label: "final_deadline_at", value: finalDeadlineAt.value },
-    { label: "reveal_at", value: revealAt.value },
   ]);
 
   if (dateError) {

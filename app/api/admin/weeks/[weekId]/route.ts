@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { adminWeekColumns, validateWeekPayload } from "@/lib/admin/weeks";
 import type { WeekRow } from "@/types/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type RouteContext = {
   params: Promise<{
@@ -19,6 +20,68 @@ function mapWeekWriteError(message: string, code?: string) {
   }
 
   return "No se pudo actualizar la semana.";
+}
+
+async function validateSchedule(
+  supabase: SupabaseClient,
+  data: {
+    season_id: string;
+    status: WeekRow["status"];
+    public_start_at: string | null;
+    final_deadline_at: string | null;
+  },
+  excludeWeekId: string,
+) {
+  if (data.status === "active") {
+    const { data: activeWeek, error } = await supabase
+      .from("weeks")
+      .select("id")
+      .eq("status", "active")
+      .neq("id", excludeWeekId)
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+
+    if (error) {
+      return "No se pudo validar si ya existe otra semana activa.";
+    }
+
+    if (activeWeek) {
+      return "Ya existe otra semana marcada como active.";
+    }
+  }
+
+  if (!data.public_start_at || !data.final_deadline_at) {
+    return null;
+  }
+
+  const { data: weeks, error } = await supabase
+    .from("weeks")
+    .select("id,week_number,public_start_at,final_deadline_at")
+    .eq("season_id", data.season_id)
+    .neq("id", excludeWeekId)
+    .not("public_start_at", "is", null)
+    .not("final_deadline_at", "is", null);
+
+  if (error) {
+    return "No se pudo validar solape de fechas con otras semanas.";
+  }
+
+  const startsAt = new Date(data.public_start_at).getTime();
+  const endsAt = new Date(data.final_deadline_at).getTime();
+  const overlapping = ((weeks ?? []) as Array<{
+    week_number: number;
+    public_start_at: string;
+    final_deadline_at: string;
+  }>).find((week) => {
+    const otherStartsAt = new Date(week.public_start_at).getTime();
+    const otherEndsAt = new Date(week.final_deadline_at).getTime();
+
+    return startsAt < otherEndsAt && otherStartsAt < endsAt;
+  });
+
+  return overlapping
+    ? `Las fechas se solapan con la semana ${overlapping.week_number} de esta temporada.`
+    : null;
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
@@ -41,6 +104,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   if (!validated.ok) {
     return jsonError(validated.error);
+  }
+
+  const scheduleError = await validateSchedule(
+    auth.supabase,
+    validated.data,
+    weekId,
+  );
+
+  if (scheduleError) {
+    return jsonError(scheduleError, 409);
   }
 
   const { data, error } = await auth.supabase

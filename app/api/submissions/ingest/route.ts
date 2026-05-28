@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getDerivedWeekStatusFromRow } from "@/lib/week-status";
 import type { SubmissionSource, WeekRow } from "@/types/supabase";
 
 const allowedSources = [
@@ -233,30 +234,30 @@ async function createAuthenticatedClient(request: NextRequest) {
   return createSupabaseServerClient();
 }
 
-function resolveHiddenState(
-  weekStatus: WeekRow["status"],
-  requestedHidden: boolean | null,
-) {
-  if (weekStatus === "active") {
+function resolveHiddenState(week: WeekRow, requestedHidden: boolean | null) {
+  const derivedStatus = getDerivedWeekStatusFromRow(week);
+
+  if (derivedStatus === "active") {
     return { ok: true as const, isHidden: requestedHidden ?? false };
   }
 
-  if (weekStatus === "frozen") {
-    if (requestedHidden === false) {
-      return {
-        ok: false as const,
-        status: 409,
-        error: "La semana está congelada: solo admite submissions ocultas.",
-      };
-    }
-
+  if (derivedStatus === "final_stretch") {
     return { ok: true as const, isHidden: true };
   }
+
+  const messages = {
+    draft: "La semana está en configuración y no admite submissions.",
+    scheduled: "La semana todavía no ha abierto y no admite submissions.",
+    active: "",
+    final_stretch: "",
+    closed: "La semana ya está cerrada y no admite submissions.",
+    published: "La semana ya tiene resultados publicados y no admite submissions.",
+  } satisfies Record<string, string>;
 
   return {
     ok: false as const,
     status: 409,
-    error: `La semana está en estado ${weekStatus} y no admite submissions.`,
+    error: messages[derivedStatus],
   };
 }
 
@@ -291,9 +292,11 @@ export async function POST(request: NextRequest) {
 
   const { data: week, error: weekError } = await supabase
     .from("weeks")
-    .select("id,status")
+    .select(
+      "id,season_id,game_id,week_number,status,public_start_at,public_freeze_at,final_deadline_at,reveal_at,rules_summary,created_at,updated_at",
+    )
     .eq("id", input.weekId)
-    .maybeSingle<Pick<WeekRow, "id" | "status">>();
+    .maybeSingle<WeekRow>();
 
   if (weekError) {
     return jsonError("No se pudo validar la semana.", 500);
@@ -303,7 +306,7 @@ export async function POST(request: NextRequest) {
     return jsonError("La semana indicada no existe o no es visible.", 404);
   }
 
-  const hiddenState = resolveHiddenState(week.status, input.isHidden);
+  const hiddenState = resolveHiddenState(week, input.isHidden);
 
   if (!hiddenState.ok) {
     return jsonError(hiddenState.error, hiddenState.status);

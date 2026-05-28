@@ -39,6 +39,7 @@ type WeekDetailViewProps = {
   leaderboardPending?: boolean;
   submissionsPending?: boolean;
   warning?: string | null;
+  statusHelp?: string | null;
   backHref?: string;
   backLabel?: string;
   seasonBackHref?: string;
@@ -58,6 +59,7 @@ export function WeekDetailView({
   leaderboardPending = false,
   submissionsPending = false,
   warning,
+  statusHelp,
   backHref,
   backLabel,
   seasonBackHref,
@@ -94,6 +96,11 @@ export function WeekDetailView({
           {warning ? (
             <div className="mb-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">
               {warning}
+            </div>
+          ) : null}
+          {statusHelp ? (
+            <div className="mb-4 rounded-lg border p-4 text-sm theme-border theme-surface-muted theme-text-muted">
+              {statusHelp}
             </div>
           ) : null}
           <div className="space-y-5">

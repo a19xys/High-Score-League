@@ -35,6 +35,7 @@ export default async function WeekPage() {
       season={detail.season}
       submissions={detail.submissions}
       submissionsPending={detail.submissionsPending}
+      statusHelp={detail.statusHelp}
       warning={detail.warning}
       week={detail.week}
       weeklyResults={detail.weeklyResults}

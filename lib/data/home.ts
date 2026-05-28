@@ -25,6 +25,7 @@ export type HomePageData = {
   currentUserId: string | null;
   chatError: string | null;
   warning: string | null;
+  statusHelp: string | null;
   activeWeekMessage: string | null;
   activeSeasonMessage: string | null;
 };
@@ -53,6 +54,7 @@ function mockHomeData(warning: string | null = null): HomePageData {
     currentUserId: null,
     chatError: null,
     warning,
+    statusHelp: null,
     activeWeekMessage: null,
     activeSeasonMessage: null,
   };
@@ -85,6 +87,7 @@ export async function getHomePageData(): Promise<HomePageData> {
       currentUserId: null,
       chatError: "Inicia sesión para leer y escribir en el chat.",
       warning: "Inicia sesión para leer datos reales. RLS puede ocultar temporadas, semanas y puntuaciones sin sesión.",
+      statusHelp: null,
       activeWeekMessage: "No se puede detectar la semana activa sin sesión.",
       activeSeasonMessage: "No se puede detectar la temporada activa sin sesión.",
     };
@@ -110,6 +113,7 @@ export async function getHomePageData(): Promise<HomePageData> {
       currentUserId,
       chatError: chatResult.error,
       warning: activeWeekResult.data.warning,
+      statusHelp: activeWeekResult.data.statusHelp,
       activeWeekMessage: null,
       activeSeasonMessage: activeSeason
         ? null
@@ -129,6 +133,7 @@ export async function getHomePageData(): Promise<HomePageData> {
     currentUserId,
     chatError: chatResult.error,
     warning: activeWeekResult.warning ?? null,
+    statusHelp: null,
     activeWeekMessage: activeWeekResult.message,
     activeSeasonMessage: activeSeason
       ? null

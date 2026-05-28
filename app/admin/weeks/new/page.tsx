@@ -60,8 +60,9 @@ export default async function NewAdminWeekPage({
       </Link>
       <Card>
         <CardHeader title="Crear semana" eyebrow="Semanas">
-          Asocia una temporada, un juego, fechas y reglas. No se crean
-          submissions ni resultados automáticamente.
+          Asocia una temporada, un juego, apertura, tramo final opcional,
+          cierre y reglas. No se crean submissions ni resultados
+          automáticamente.
         </CardHeader>
         {options.error ? (
           <div className="mb-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">

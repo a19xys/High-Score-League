@@ -25,6 +25,7 @@ import {
 import { mapWeekBenchmarkRowToBenchmark } from "./week-benchmarks";
 import { mapWeeklyResultRowToWeeklyResult } from "./weekly-results";
 import { mapWeekRowToWeek } from "./weeks";
+import { getDerivedWeekStatus } from "@/lib/week-status";
 
 type AdminSubmission = Submission & {
   player?: NonNullable<ReturnType<typeof mapSubmissionRowToSubmission>["player"]>;
@@ -237,7 +238,15 @@ export async function getAdminCurrentWeek(supabase: SupabaseClient) {
   }
 
   const activeWeeks = summaries.rows
-    .filter((summary) => summary.week.status === "active")
+    .filter((summary) => {
+      const status = getDerivedWeekStatus({
+        status: summary.week.status,
+        public_start_at: summary.week.startsAt,
+        public_freeze_at: undefined,
+        final_deadline_at: summary.week.endsAt,
+      });
+      return status === "active" || status === "final_stretch";
+    })
     .sort((a, b) => {
       const dateOrder = a.week.startsAt.localeCompare(b.week.startsAt);
       return dateOrder || a.week.number - b.week.number;

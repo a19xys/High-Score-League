@@ -34,6 +34,11 @@ import {
 } from "./week-benchmarks";
 import { getRealWeeklyResults, mapWeeklyResultRowToWeeklyResult } from "./weekly-results";
 import { getRealWeeks, mapWeekRowToWeek } from "./weeks";
+import {
+  derivedStatusToVisibleWeekStatus,
+  getDerivedWeekStatusFromRow,
+  getWeekStatusHelp,
+} from "@/lib/week-status";
 
 type WeekSubmission = Submission & {
   player?: Player;
@@ -56,6 +61,7 @@ export type WeekDetailData = {
   hideDownloads: boolean;
   leaderboardPending: boolean;
   submissionsPending: boolean;
+  statusHelp: string | null;
 };
 
 export type ActiveWeekResult =
@@ -113,6 +119,7 @@ function mockWeekDetail(weekId: string, warning: string | null): WeekDetailData 
     hideDownloads: isFutureActiveSeasonWeek,
     leaderboardPending: false,
     submissionsPending: false,
+    statusHelp: null,
   };
 }
 
@@ -132,6 +139,7 @@ function mockCurrentWeekDetail(warning: string | null): WeekDetailData {
     hideDownloads: false,
     leaderboardPending: false,
     submissionsPending: false,
+    statusHelp: null,
   };
 }
 
@@ -182,27 +190,34 @@ async function buildRealWeekDetail(
   }
 
   const activeWeek = context.weeks
-    .filter((week) => week.status === "active" && week.season_id === seasonRow.id)
+    .filter((week) => {
+      const status = getDerivedWeekStatusFromRow(week);
+      return (
+        week.season_id === seasonRow.id &&
+        (status === "active" || status === "final_stretch")
+      );
+    })
     .sort((a, b) => a.week_number - b.week_number)[0];
   const gameRow = context.games.find((game) => game.id === weekRow.game_id);
   const rawGame = gameRow ? mapGameRowToGame(gameRow) : secretGame();
+  const preliminaryDerivedStatus = getDerivedWeekStatusFromRow(weekRow);
   const isFuture =
     seasonRow.status === "active" &&
     activeWeek &&
     weekRow.week_number > activeWeek.week_number &&
     weekRow.status !== "published";
   const isSecret =
-    weekRow.status === "draft" || Boolean(isFuture) || isSecretGameTitle(rawGame.title);
+    preliminaryDerivedStatus === "draft" ||
+    preliminaryDerivedStatus === "scheduled" ||
+    Boolean(isFuture) ||
+    isSecretGameTitle(rawGame.title);
   const week = mapWeekRowToWeek(weekRow);
   const rules = isSecret
     ? ["El juego, reglas y descargas permanecerán ocultos hasta que se active la semana."]
     : week.rules;
   const submissionsResult = isSecret ? null : await getRealSubmissions(weekRow.id);
   const benchmarksResult = isSecret ? null : await getRealWeekBenchmarks(weekRow.id);
-  const weeklyResultsResult =
-    !isSecret && weekRow.status === "published"
-      ? await getRealWeeklyResults(weekRow.id)
-      : null;
+  const weeklyResultsResult = isSecret ? null : await getRealWeeklyResults(weekRow.id);
   const warningParts = [
     warning,
     submissionsResult?.error
@@ -218,26 +233,33 @@ async function buildRealWeekDetail(
   const realSubmissionRows = submissionsResult?.rows ?? [];
   const realBenchmarkRows = benchmarksResult?.rows ?? [];
   const realWeeklyResultRows = weeklyResultsResult?.rows ?? [];
+  const derivedStatus = getDerivedWeekStatusFromRow(
+    weekRow,
+    new Date(),
+    realWeeklyResultRows.length > 0,
+  );
+  const visibleWeek = {
+    ...week,
+    status: derivedStatusToVisibleWeekStatus(derivedStatus),
+    rules,
+  };
 
   return {
     season: mapSeasonRowToSeason(
       seasonRow,
       context.weeks.filter((row) => row.season_id === seasonRow.id).length,
     ),
-    week: {
-      ...week,
-      rules,
-    },
+    week: visibleWeek,
     game: isSecret ? secretGame() : rawGame,
     leaderboard: isSecret
       ? []
-      : buildLeaderboardFromSubmissions(realSubmissionRows, week.status),
+      : buildLeaderboardFromSubmissions(realSubmissionRows, visibleWeek.status),
     benchmarks: isSecret
       ? []
       : realBenchmarkRows.map(mapWeekBenchmarkRowToBenchmark),
     submissions: isSecret
       ? []
-      : realSubmissionRows.map((row) => mapSubmissionRowToSubmission(row, week)),
+      : realSubmissionRows.map((row) => mapSubmissionRowToSubmission(row, visibleWeek)),
     weeklyResults: realWeeklyResultRows.map(mapWeeklyResultRowToWeeklyResult),
     mode: "supabase",
     warning: warningParts.length > 0 ? warningParts.join(" ") : null,
@@ -246,6 +268,7 @@ async function buildRealWeekDetail(
     hideDownloads: isSecret,
     leaderboardPending: false,
     submissionsPending: false,
+    statusHelp: getWeekStatusHelp(isSecret ? preliminaryDerivedStatus : derivedStatus),
   };
 }
 
@@ -320,7 +343,10 @@ export async function getActiveWeekDetailData(
   }
 
   const activeWeeks = context.weeks
-    .filter((week) => week.status === "active")
+    .filter((week) => {
+      const status = getDerivedWeekStatusFromRow(week);
+      return status === "active" || status === "final_stretch";
+    })
     .sort((a, b) => {
       const dateOrder = (a.public_start_at ?? "").localeCompare(b.public_start_at ?? "");
       return dateOrder || a.week_number - b.week_number;

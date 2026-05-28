@@ -113,6 +113,10 @@ deduplica por `id`, se ordena de más antiguos a más nuevos y se recorta a 50.
 Los tiempos relativos se recalculan en cliente cada 60 segundos. Los mensajes de
 menos de un minuto se muestran como `ahora mismo`.
 
+Como respaldo, el componente también hace polling cada 10 segundos mientras hay
+sesión activa. Usa el mismo `GET /api/chat/messages`, normaliza por `id` y
+mantiene solo los últimos 50 mensajes.
+
 ## Pendiente
 
 Todavía no hay:

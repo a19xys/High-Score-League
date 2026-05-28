@@ -144,6 +144,20 @@ export function LeagueChat({
   }, [canPost, mode, refreshMessages]);
 
   useEffect(() => {
+    if (mode !== "supabase" || !canPost) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshMessages();
+    }, 10_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [canPost, mode, refreshMessages]);
+
+  useEffect(() => {
     if (!shouldStickToBottom.current) {
       return;
     }

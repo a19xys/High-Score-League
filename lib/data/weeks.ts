@@ -2,6 +2,7 @@ import { weeks as mockWeeks } from "@/lib/mock-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Week } from "@/types";
 import type { WeekRow } from "@/types/supabase";
+import { getDerivedWeekStatusFromRow } from "@/lib/week-status";
 import type { DataReadOptions, DataReadResult } from "./types";
 
 const weekColumns =
@@ -88,7 +89,12 @@ export async function getCurrentRealWeek(
   options: DataReadOptions = {},
 ): Promise<WeekRow | null> {
   const result = await getRealWeeks(options);
-  return result.rows.find((week) => week.status === "active") ?? null;
+  return (
+    result.rows.find((week) => {
+      const status = getDerivedWeekStatusFromRow(week);
+      return status === "active" || status === "final_stretch";
+    }) ?? null
+  );
 }
 
 export async function getRealWeekById(

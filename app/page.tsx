@@ -26,10 +26,6 @@ function weekStatusText(status: string) {
     return "Competición abierta";
   }
 
-  if (status === "frozen") {
-    return "Competición congelada";
-  }
-
   if (status === "closed") {
     return "Semana cerrada";
   }
@@ -104,6 +100,11 @@ export default async function HomePage() {
                 <p className="mt-2 text-sm leading-6 theme-text-muted">
                   Ya puedes jugar al arcade semanal e ir enviando tus puntuaciones.
                 </p>
+                {data.statusHelp ? (
+                  <p className="mt-2 text-sm leading-6 theme-text-muted">
+                    {data.statusHelp}
+                  </p>
+                ) : null}
               </div>
             </>
           ) : (

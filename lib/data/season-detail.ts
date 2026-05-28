@@ -6,6 +6,10 @@ import { getRealSeasonStandings } from "./season-standings";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
 import { getRealWeeks, mapWeekRowToWeek } from "./weeks";
 import {
+  derivedStatusToVisibleWeekStatus,
+  getDerivedWeekStatusFromRow,
+} from "@/lib/week-status";
+import {
   currentWeek,
   games as mockGames,
   getSeasonById,
@@ -129,19 +133,38 @@ export async function getSeasonDetailData(
   const weekSummaries: WeekSummary[] = realWeekRows.map((weekRow) => {
     const gameRow = gameRowsById.get(weekRow.game_id);
     const game = gameRow ? mapGameRowToGame(gameRow) : fallbackGame;
-    const publicGame = isSecretGameTitle(game.title)
-      ? { ...game, title: "Juego secreto" }
+    const derivedStatus = getDerivedWeekStatusFromRow(weekRow);
+    const isSecret =
+      derivedStatus === "draft" ||
+      derivedStatus === "scheduled" ||
+      isSecretGameTitle(game.title);
+    const publicGame = isSecret
+      ? {
+          ...game,
+          title: "Juego secreto",
+          developer: "",
+          genre: "",
+          controlType: "",
+          difficulty: "",
+        }
       : game;
+    const mappedWeek = mapWeekRowToWeek(weekRow);
 
     return {
-      week: mapWeekRowToWeek(weekRow),
+      week: {
+        ...mappedWeek,
+        status: derivedStatusToVisibleWeekStatus(derivedStatus),
+      },
       season: mapSeasonRowToSeason(seasonRow, realWeekRows.length),
       game: publicGame,
       winner: undefined,
       leaderboard: [],
     };
   });
-  const activeWeek = realWeekRows.find((week) => week.status === "active");
+  const activeWeek = realWeekRows.find((week) => {
+    const status = getDerivedWeekStatusFromRow(week);
+    return status === "active" || status === "final_stretch";
+  });
   const [memberships, standingsResult] = await Promise.all([
     getUserSeasonMemberships(supabase, userData.user.id, [seasonRow.id]),
     getRealSeasonStandings(seasonRow.id),

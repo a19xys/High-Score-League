@@ -77,6 +77,9 @@ No se implementa gestión avanzada de miembros en esta fase.
 - `status` debe ser `draft`, `active` o `completed`.
 - `starts_at` y `ends_at`, si existen, deben ser ISO con zona horaria explícita.
 - Si ambas fechas existen, `starts_at <= ends_at`.
+- No se permite más de una temporada con `status = active`.
+- Si dos temporadas tienen `starts_at` y `ends_at`, sus rangos no pueden
+  solaparse.
 
 Ejemplos de fechas válidas:
 

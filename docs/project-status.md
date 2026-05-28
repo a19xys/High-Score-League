@@ -39,6 +39,9 @@ High Score League esta en fase mock avanzada.
   submissions y resultados oficiales sin SQL manual.
 - `/admin/weeks/new` y `/admin/weeks/[weekId]/edit` permiten crear semanas,
   editar sus metadatos principales y gestionar benchmarks básicos.
+- Las semanas usan estado derivado por fechas: apertura (`public_start_at`),
+  tramo final opcional (`public_freeze_at`) y cierre (`final_deadline_at`).
+  `reveal_at` queda como campo legacy y no hay cron automático todavía.
 - `/admin/games` permite gestionar el catálogo real de juegos: listar, buscar,
   crear y editar.
 - `/admin/seasons` permite gestionar temporadas reales: listar, buscar, crear y
@@ -49,7 +52,8 @@ High Score League esta en fase mock avanzada.
   `user` y `system`.
 - `POST /api/chat/messages` permite enviar mensajes autenticados sin aceptar
   `authorId` ni `messageType` desde cliente.
-- El chat usa Supabase Realtime para recibir inserts sin recargar la página.
+- El chat usa Supabase Realtime para recibir inserts sin recargar la página y
+  polling de respaldo cada 10 segundos.
 - La pagina temporal `/seasons-real` queda como comparativa visual.
 - La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.

@@ -189,31 +189,24 @@ export function AdminWeekForm({
         </label>
         <TextInput
           help="ISO con zona horaria. Ejemplo: 2026-05-18T00:00:00+02:00"
-          label="Inicio público"
+          label="Apertura"
           name="publicStartAt"
           onChange={updateField}
           value={state.publicStartAt}
         />
         <TextInput
-          help="ISO con zona horaria."
-          label="Freeze público"
+          help="Opcional. Desde este momento, las nuevas puntuaciones se guardan ocultas hasta el cierre."
+          label="Tramo final"
           name="publicFreezeAt"
           onChange={updateField}
           value={state.publicFreezeAt}
         />
         <TextInput
-          help="ISO con zona horaria."
-          label="Deadline final"
+          help="ISO con zona horaria. La semana deja de aceptar submissions desde este momento."
+          label="Cierre"
           name="finalDeadlineAt"
           onChange={updateField}
           value={state.finalDeadlineAt}
-        />
-        <TextInput
-          help="ISO con zona horaria."
-          label="Revelación"
-          name="revealAt"
-          onChange={updateField}
-          value={state.revealAt}
         />
         <label className="block md:col-span-2">
           <span className="text-sm font-semibold theme-text">Reglas resumidas</span>
