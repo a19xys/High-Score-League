@@ -214,6 +214,9 @@ autenticado y no acepta `submitted_at` desde cliente.
 `/seasons/[seasonId]` muestran estado `Unido`, botón `Unirse` o enlace a login
 según sesión y membresía.
 
+`/` lee `league_chat_messages` en modo Supabase para mostrar el chat global real
+de la liga. El envío usa `POST /api/chat/messages`; no hay realtime todavía.
+
 `POST /api/admin/weeks/[weekId]/weekly-results` calcula resultados oficiales
 desde submissions reales. En `dryRun` devuelve preview; con `dryRun = false`
 reemplaza `weekly_results` solo si la semana está `closed` o `published`.
@@ -238,6 +241,7 @@ Para crear datos de prueba manuales, consulta `docs/test-submissions.md`.
 Para probar el endpoint, consulta `docs/ingest-api.md`.
 Para la generación oficial de resultados, consulta `docs/weekly-results.md`.
 Para referencias visuales de leaderboard, consulta `docs/week-benchmarks.md`.
+Para el chat global de la liga, consulta `docs/chat.md`.
 Para administración semanal, consulta `docs/admin.md`.
 Para creación y edición de semanas, consulta `docs/admin-weeks.md`.
 Para administración de juegos, consulta `docs/admin-games.md`.
@@ -283,7 +287,7 @@ error.
 Todavia no hay:
 
 - app local y plugin MAME;
-- chat real;
+- realtime del chat;
 - Storage real;
 - subida real de puntuaciones;
 - subida real de capturas;

@@ -3,7 +3,7 @@ import { LeagueChat } from "@/components/league-chat";
 import { LinkButton } from "@/components/link-button";
 import { getRankCardClass, RankBadge } from "@/components/rank-badge";
 import { Card, CardHeader } from "@/components/ui/card";
-import { EmptyState, PlaceholderSection } from "@/components/ui/state";
+import { EmptyState } from "@/components/ui/state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getHomePageData } from "@/lib/data/home";
 import { formatScore, formatCompactDateRange } from "@/lib/format";
@@ -170,20 +170,19 @@ export default async function HomePage() {
         )}
       </Card>
 
-      {data.mode === "mock" ? (
-        <Card>
-          <CardHeader title="Chat de la liga" eyebrow="Comentarios">
-            Comentarios públicos mock. Supabase tendrá una tabla dedicada para
-            persistirlos más adelante.
-          </CardHeader>
-          <LeagueChat messages={data.chatMessages} />
-        </Card>
-      ) : (
-        <PlaceholderSection
-          title="Chat pendiente"
-          description="El chat público no se conecta en esta fase. No se muestran mensajes mock en modo Supabase."
+      <Card>
+        <CardHeader title="Chat de la liga" eyebrow="Comentarios">
+          {data.mode === "supabase"
+            ? "Chat global real de la liga. Se conservan los últimos 50 mensajes."
+            : "Comentarios públicos mock. Supabase tendrá una tabla dedicada para persistirlos más adelante."}
+        </CardHeader>
+        <LeagueChat
+          canPost={data.canPostChat}
+          error={data.chatError}
+          messages={data.chatMessages}
+          mode={data.mode}
         />
-      )}
+      </Card>
     </div>
   );
 }

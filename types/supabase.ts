@@ -113,3 +113,12 @@ export type WeekBenchmarkRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type LeagueChatMessageRow = {
+  id: string;
+  message_type: "user" | "system";
+  author_id: string | null;
+  content: string;
+  created_at: string;
+  profiles?: RealProfile | RealProfile[] | null;
+};

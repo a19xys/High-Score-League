@@ -9,9 +9,9 @@ High Score League esta en fase mock avanzada.
 - Las paginas principales siguen usando `lib/mock-data.ts`, salvo `/seasons`,
   `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y `/game`, que pueden leer Supabase si
   `NEXT_PUBLIC_DATA_SOURCE=supabase`.
-- El mockup incluye portada, juego actual, semanas, temporadas, perfiles,
-  leaderboards, chat mock, tema claro/oscuro, subida provisional y administracion
-  mock.
+- El mockup incluye juego actual, semanas, temporadas, perfiles, leaderboards,
+  tema claro/oscuro, subida provisional y administracion mock. La portada ya
+  puede usar datos reales y chat real en modo Supabase.
 - No se debe sustituir el mockup por datos reales hasta decidir el flujo de
   conexion.
 
@@ -43,6 +43,12 @@ High Score League esta en fase mock avanzada.
   crear y editar.
 - `/admin/seasons` permite gestionar temporadas reales: listar, buscar, crear y
   editar.
+- `/` lee semana activa, temporada activa, leaderboard y chat real cuando
+  `NEXT_PUBLIC_DATA_SOURCE=supabase`.
+- `league_chat_messages` guarda el chat global real de la liga con mensajes
+  `user` y `system`.
+- `POST /api/chat/messages` permite enviar mensajes autenticados sin aceptar
+  `authorId` ni `messageType` desde cliente.
 - La pagina temporal `/seasons-real` queda como comparativa visual.
 - La migracion principal esta en
   `supabase/migrations/0001_initial_schema.sql`.
@@ -67,6 +73,7 @@ High Score League esta en fase mock avanzada.
 - La documentacion de administracion de juegos esta en `docs/admin-games.md`.
 - La documentacion de administracion de temporadas esta en
   `docs/admin-seasons.md`.
+- La documentacion del chat global esta en `docs/chat.md`.
 
 ## Auth
 
@@ -92,6 +99,7 @@ High Score League esta en fase mock avanzada.
 - Creación avanzada de semanas con manuales, descargas y configuración MAME.
 - Storage para imágenes, manuales y descargas.
 - Medallas y bonus.
+- Realtime y moderación UI del chat.
 - Integracion con MAME.
 
 ## Proximo objetivo recomendado

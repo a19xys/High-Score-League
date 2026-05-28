@@ -136,17 +136,24 @@ Campos principales:
 - `sort_order`
 - `is_active`
 
-### chat_messages
+### league_chat_messages
 
-Prepara el chat público de la liga que aparece en la portada. En esta fase sigue
-siendo mock, pero la migración ya reserva la tabla para conectarlo más adelante.
+Representa el chat global real de la liga en la portada. Se crea en
+`0006_league_chat.sql`.
 
-Cada mensaje pertenece a un `profile`, guarda el texto en `body`, un flag
-`is_deleted` para moderación y `created_at`. El texto no puede estar vacío y
-tiene un límite inicial de 500 caracteres.
+Campos principales:
 
-El chat se mostrará en orden cronológico, con los mensajes nuevos abajo y un
-máximo visual razonable de 50 mensajes en la portada.
+- `message_type`: `user` o `system`.
+- `author_id`: perfil autor para mensajes `user`; `null` para mensajes
+  `system`.
+- `content`: texto del mensaje, máximo 500 caracteres.
+- `created_at`.
+
+El chat conserva solo los 50 mensajes más nuevos mediante trigger. Al crear un
+perfil nuevo, otro trigger inserta un mensaje `system` con el username.
+
+La tabla inicial `chat_messages` queda como preparación histórica anterior; el
+chat conectado de la home usa `league_chat_messages`.
 
 ## Empates de temporada
 
@@ -181,6 +188,8 @@ generar o revisar estas filas antes de publicar una semana.
 - `weekly_results.week_id` referencia `weeks.id`.
 - `weekly_results.player_id` referencia `profiles.id`.
 - `chat_messages.player_id` referencia `profiles.id`.
+- `league_chat_messages.author_id` referencia `profiles.id` con
+  `on delete set null`.
 - `season_memberships.season_id` referencia `seasons.id`.
 - `season_memberships.player_id` referencia `profiles.id`.
 - `week_benchmarks.week_id` referencia `weeks.id`.
@@ -202,8 +211,7 @@ generar o revisar estas filas antes de publicar una semana.
    `is_valid = false`.
 9. Al publicar, el admin crea filas en `weekly_results`.
 10. La clasificación general de temporada se lee agregando `weekly_results`.
-11. Los comentarios del chat se leerán desde `chat_messages` cuando se conecte
-    Supabase; por ahora son datos mock.
+11. La portada lee los últimos 50 mensajes desde `league_chat_messages`.
 
 Las fechas de cierre y revelación existen como datos de la semana. En la UI mock
 principal solo se muestra el rango competitivo, por ejemplo
@@ -235,8 +243,7 @@ Para el MVP inicial se necesitan:
 - `seasons`, `games`, `weeks` para calendario competitivo.
 - `submissions` para el historial de subidas.
 - `weekly_results` para resultados publicados y clasificación estable.
-- `chat_messages` para comentarios públicos de la liga, cuando se conecte el
-  chat mock a Supabase.
+- `league_chat_messages` para el chat global real de la liga.
 
 En la interfaz mock, `positionChange` simula el movimiento de cada jugador
 respecto a la semana anterior. Más adelante se calculará comparando resultados
@@ -267,6 +274,9 @@ Todas las tablas principales tienen Row Level Security activado.
 - `chat_messages`: usuarios autenticados pueden leer mensajes no borrados e
   insertar mensajes propios; admins pueden gestionar todos. El borrado propio se
   deja como decisión futura para no abrir permisos antes de definir moderación.
+- `league_chat_messages`: usuarios autenticados pueden leer mensajes; pueden
+  insertar mensajes `user` solo como ellos mismos; no pueden insertar mensajes
+  `system`; admins pueden gestionar todo.
 
 Nota: si la home pública debe leer datos directamente desde Supabase sin sesión,
 habrá que decidir más adelante si se añaden políticas `anon` de solo lectura o
@@ -284,9 +294,7 @@ si esas lecturas se resuelven desde servidor.
 - Auditoría de cambios administrativos.
 - Metadatos adicionales de capturas como `original_file_name`, si se necesitan
   para moderacion u optimizacion.
-- Conexión real del chat de portada a Supabase Realtime o polling, según se
-  decida en la fase de producto.
-- Endpoint futuro `POST /api/submissions/ingest` para eventos MAME/app local.
+- Realtime para el chat de portada.
 
 ## Tema claro/oscuro
 

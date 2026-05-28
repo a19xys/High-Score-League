@@ -145,3 +145,12 @@ export type ChatMessage = {
 export type ChatMessageWithPlayer = ChatMessage & {
   player: Player;
 };
+
+export type LeagueChatMessage = {
+  id: string;
+  messageType: "user" | "system";
+  authorId?: string | null;
+  content: string;
+  createdAt: string;
+  author?: Player | null;
+};

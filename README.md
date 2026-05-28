@@ -39,7 +39,8 @@ http://localhost:3000
 
 ## Rutas iniciales
 
-- `/`: portada pública de la liga, juego activo, top 3 semanal y chat mock.
+- `/`: portada pública de la liga; puede mostrar semana activa, top 3,
+  leaderboard y chat real si `NEXT_PUBLIC_DATA_SOURCE=supabase`.
 - `/game`: semana activa; puede leer Supabase si
   `NEXT_PUBLIC_DATA_SOURCE=supabase`, con leaderboard e historial reales de solo
   lectura desde submissions visibles.
@@ -96,6 +97,8 @@ La clasificación real de temporada está documentada en
 [docs/season-standings.md](docs/season-standings.md).
 Los benchmarks visuales de semana están documentados en
 [docs/week-benchmarks.md](docs/week-benchmarks.md).
+El chat global de la liga está documentado en
+[docs/chat.md](docs/chat.md).
 El panel admin mínimo de semanas está documentado en
 [docs/admin.md](docs/admin.md).
 La creación y edición admin de semanas está documentada en
@@ -110,7 +113,7 @@ La gestión admin de temporadas está documentada en
 - Estados reutilizables: empty, loading, error y placeholder.
 - Tablas: leaderboard semanal, clasificación de temporada, semanas, temporadas
   e historial de submissions.
-- Chat de portada preparado visualmente para conectarse a Supabase más adelante.
+- Chat de portada real en modo Supabase, con fallback mock en modo mock.
 - Archivo de semanas y temporadas con filtros, ordenación mock y enlaces
   desactivados para contenido futuro.
 - Semanas futuras con juego secreto y semanas cerradas/publicadas para probar
@@ -135,6 +138,7 @@ Los tipos principales viven en `types/index.ts`:
 - `LeaderboardEntry`
 - `SeasonStanding`
 - `ChatMessage`
+- `LeagueChatMessage`
 
 Los datos mock y calculos temporales estan en `lib/mock-data.ts`.
 
@@ -144,4 +148,4 @@ Probar el flujo admin completo con datos reales: crear/editar temporada,
 crear/editar juego, crear/editar semana, cerrar una semana, revisar submissions,
 generar resultados y publicar. Siguen pendientes plugin MAME, Storage, capturas,
 subida manual real desde `/submit`, panel completo de usuarios, manuales,
-descargas/configuración MAME, medallas y bonus.
+descargas/configuración MAME, realtime/moderación del chat, medallas y bonus.
