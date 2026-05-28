@@ -56,6 +56,10 @@ function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
 }
 
+function jsonCodeError(code: string, error: string, status = 400) {
+  return NextResponse.json({ ok: false, code, error }, { status });
+}
+
 function optionalNonEmptyString(value: unknown, field: string) {
   if (value === undefined || value === null) {
     return { ok: true as const, value: null };
@@ -303,6 +307,30 @@ export async function POST(request: NextRequest) {
 
   if (!week) {
     return jsonError("La semana indicada no existe o no es visible.", 404);
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from("season_memberships")
+    .select("id")
+    .eq("season_id", week.season_id)
+    .eq("player_id", userData.user.id)
+    .eq("status", "active")
+    .maybeSingle<{ id: string }>();
+
+  if (membershipError) {
+    return jsonCodeError(
+      "MEMBERSHIP_CHECK_FAILED",
+      "No se pudo comprobar la pertenencia a la temporada.",
+      500,
+    );
+  }
+
+  if (!membership) {
+    return jsonCodeError(
+      "NOT_SEASON_MEMBER",
+      "No perteneces a la temporada de esta semana.",
+      403,
+    );
   }
 
   const hiddenState = resolveHiddenState(week, input.isHidden);

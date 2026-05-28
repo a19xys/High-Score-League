@@ -17,6 +17,10 @@ autenticado.
 
 `submitted_at` no se acepta desde cliente. Lo fuerza la base de datos.
 
+El usuario autenticado debe pertenecer a la temporada de la semana. La
+membership se comprueba con `season_memberships.season_id = weeks.season_id`,
+`season_memberships.player_id = auth user id` y `status = 'active'`.
+
 ## Payload
 
 ```json
@@ -60,6 +64,24 @@ Campos:
   `true`. Si llega `false`, devuelve error.
 - `draft`, `closed`, `published`: no permiten submissions.
 
+## Membresia de temporada
+
+Solo usuarios unidos a la temporada de la semana pueden enviar puntuaciones.
+Si el usuario autenticado no tiene una fila activa en `season_memberships`, el
+endpoint rechaza la submission:
+
+```json
+{
+  "ok": false,
+  "code": "NOT_SEASON_MEMBER",
+  "error": "No perteneces a la temporada de esta semana."
+}
+```
+
+La app local debe tratar `NOT_SEASON_MEMBER` como un error recuperable de
+producto: informar al jugador de que debe unirse a la temporada desde la web y
+no reintentar en bucle la misma submission hasta que la membership exista.
+
 ## Respuesta de éxito
 
 ```json
@@ -100,6 +122,9 @@ Si RLS no permite leer la fila duplicada pero el índice único la detecta, la
 respuesta puede indicar duplicado con `submission: null`.
 
 ## Errores comunes
+
+- `403` con `code = "NOT_SEASON_MEMBER"`: el usuario no pertenece a la
+  temporada de la semana.
 
 - `401`: no hay sesión válida.
 - `400`: payload inválido.
@@ -147,6 +172,57 @@ await fetch("/api/submissions/ingest", {
 `curl` sin cookies de sesión o sin `Authorization: Bearer <access_token>` no
 funcionará. La app local futura deberá autenticarse correctamente con Supabase
 Auth o con el mecanismo seguro que se defina.
+
+## Auditoria de submissions sin membership
+
+Para detectar submissions ya existentes de usuarios que no pertenecen a la
+temporada correspondiente:
+
+```sql
+select
+  sub.id as submission_id,
+  sub.week_id,
+  w.season_id,
+  sub.player_id,
+  p.username,
+  sub.score,
+  sub.source,
+  sub.duplicate_key,
+  sub.submitted_at,
+  sub.is_valid,
+  sub.is_hidden
+from public.submissions sub
+join public.weeks w
+  on w.id = sub.week_id
+left join public.profiles p
+  on p.id = sub.player_id
+left join public.season_memberships sm
+  on sm.season_id = w.season_id
+ and sm.player_id = sub.player_id
+ and sm.status = 'active'
+where sm.id is null
+order by sub.submitted_at desc;
+```
+
+Para invalidarlas manualmente en desarrollo o auditoria:
+
+```sql
+update public.submissions sub
+set
+  is_valid = false,
+  comment = coalesce(sub.comment, '') || ' [INVALIDADA: jugador no unido a la temporada]'
+from public.weeks w
+where w.id = sub.week_id
+  and not exists (
+    select 1
+    from public.season_memberships sm
+    where sm.season_id = w.season_id
+      and sm.player_id = sub.player_id
+      and sm.status = 'active'
+  );
+```
+
+Este SQL es solo de auditoria; no se ejecuta automaticamente desde la app.
 
 ## Pendiente
 
