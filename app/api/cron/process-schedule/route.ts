@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     weeksResult.error ?? seasonsResult.error ?? weeklyResultsResult.error;
 
   if (readError) {
-    return jsonError("No se pudo leer el calendario.", 500);
+    return jsonError(`No se pudo leer el calendario: ${readError.message}`, 500);
   }
 
   const resultWeekIds = new Set(
@@ -73,6 +73,17 @@ export async function POST(request: NextRequest) {
     generatedResults: boolean;
     error?: string;
   }> = [];
+  const weekDiagnostics = {
+    checked: 0,
+    updated: 0,
+    activated: 0,
+    frozen: 0,
+    published: 0,
+    skipped: 0,
+    unchanged: 0,
+    errors: [] as Array<{ id: string; reason: string }>,
+    skippedDetails: [] as Array<{ id: string; reason: string }>,
+  };
 
   for (const season of (seasonsResult.data ?? []) as SeasonRow[]) {
     if (!season.starts_at || !season.ends_at) {
@@ -101,7 +112,14 @@ export async function POST(request: NextRequest) {
   }
 
   for (const week of (weeksResult.data ?? []) as WeekRow[]) {
+    weekDiagnostics.checked += 1;
+
     if (!week.public_start_at || !week.final_deadline_at) {
+      weekDiagnostics.skipped += 1;
+      weekDiagnostics.skippedDetails.push({
+        id: week.id,
+        reason: "missing_public_start_at_or_final_deadline_at",
+      });
       continue;
     }
 
@@ -115,6 +133,8 @@ export async function POST(request: NextRequest) {
           .eq("id", week.id);
 
         if (!error) {
+          weekDiagnostics.updated += 1;
+          weekDiagnostics.published += 1;
           weekChanges.push({
             id: week.id,
             weekNumber: week.week_number,
@@ -123,6 +143,12 @@ export async function POST(request: NextRequest) {
             generatedResults: false,
           });
         }
+      } else {
+        weekDiagnostics.skipped += 1;
+        weekDiagnostics.skippedDetails.push({
+          id: week.id,
+          reason: "already_published",
+        });
       }
 
       continue;
@@ -134,11 +160,45 @@ export async function POST(request: NextRequest) {
       const calculation = await calculateWeeklyResultsForWeek(supabase, week.id);
 
       if (!calculation.ok) {
+        if (
+          calculation.status === 409 &&
+          calculation.error === "No hay miembros elegibles para esta semana."
+        ) {
+          const { error } = await supabase
+            .from("weeks")
+            .update({ status: "published" })
+            .eq("id", week.id);
+
+          if (error) {
+            weekDiagnostics.errors.push({
+              id: week.id,
+              reason: error.message,
+            });
+          } else {
+            weekDiagnostics.updated += 1;
+            weekDiagnostics.published += 1;
+          }
+
+          weekChanges.push({
+            id: week.id,
+            weekNumber: week.week_number,
+            previousStatus: week.status,
+            nextStatus: error ? week.status : "published",
+            generatedResults: false,
+            error: error?.message,
+          });
+          continue;
+        }
+
         const { error } = await supabase
           .from("weeks")
           .update({ status: "closed" })
           .eq("id", week.id);
 
+        weekDiagnostics.errors.push({
+          id: week.id,
+          reason: calculation.error,
+        });
         weekChanges.push({
           id: week.id,
           weekNumber: week.week_number,
@@ -157,6 +217,10 @@ export async function POST(request: NextRequest) {
       );
 
       if (!writeResult.ok) {
+        weekDiagnostics.errors.push({
+          id: week.id,
+          reason: writeResult.error,
+        });
         weekChanges.push({
           id: week.id,
           weekNumber: week.week_number,
@@ -181,10 +245,20 @@ export async function POST(request: NextRequest) {
         generatedResults: !error,
         error: error?.message,
       });
+      if (error) {
+        weekDiagnostics.errors.push({
+          id: week.id,
+          reason: error.message,
+        });
+      } else {
+        weekDiagnostics.updated += 1;
+        weekDiagnostics.published += 1;
+      }
       continue;
     }
 
     if (nextStatus === week.status) {
+      weekDiagnostics.unchanged += 1;
       continue;
     }
 
@@ -194,12 +268,24 @@ export async function POST(request: NextRequest) {
       .eq("id", week.id);
 
     if (!error) {
+      weekDiagnostics.updated += 1;
+      if (nextStatus === "active") {
+        weekDiagnostics.activated += 1;
+      }
+      if (nextStatus === "frozen") {
+        weekDiagnostics.frozen += 1;
+      }
       weekChanges.push({
         id: week.id,
         weekNumber: week.week_number,
         previousStatus: week.status,
         nextStatus,
         generatedResults: false,
+      });
+    } else {
+      weekDiagnostics.errors.push({
+        id: week.id,
+        reason: error.message,
       });
     }
   }
@@ -208,6 +294,9 @@ export async function POST(request: NextRequest) {
     ok: true,
     processedAt: now.toISOString(),
     seasons: seasonChanges,
-    weeks: weekChanges,
+    weeks: {
+      ...weekDiagnostics,
+      changes: weekChanges,
+    },
   });
 }

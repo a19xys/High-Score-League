@@ -156,18 +156,29 @@ export function getSynchronizedWeekStatus(
     return "published";
   }
 
-  const derivedStatus = getDerivedWeekStatus(week, now, false);
+  const nowTime = now.getTime();
+  const opensAt = timestamp(week.public_start_at);
+  const finalStretchAt = timestamp(week.public_freeze_at);
+  const closesAt = timestamp(week.final_deadline_at);
 
-  if (derivedStatus === "active") {
-    return "active";
+  if (opensAt !== null && nowTime < opensAt) {
+    return "draft";
   }
 
-  if (derivedStatus === "final_stretch") {
+  if (closesAt !== null && nowTime >= closesAt) {
+    return "closed";
+  }
+
+  if (
+    finalStretchAt !== null &&
+    nowTime >= finalStretchAt &&
+    (closesAt === null || nowTime < closesAt)
+  ) {
     return "frozen";
   }
 
-  if (derivedStatus === "closed") {
-    return "closed";
+  if (opensAt !== null && nowTime >= opensAt) {
+    return "active";
   }
 
   return "draft";

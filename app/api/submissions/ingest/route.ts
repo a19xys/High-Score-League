@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getDerivedWeekStatusFromRow } from "@/lib/week-status";
+import { getSynchronizedWeekStatus } from "@/lib/week-status";
 import type { SubmissionSource, WeekRow } from "@/types/supabase";
 
 const allowedSources = [
@@ -235,21 +235,20 @@ async function createAuthenticatedClient(request: NextRequest) {
 }
 
 function resolveHiddenState(week: WeekRow, requestedHidden: boolean | null) {
-  const derivedStatus = getDerivedWeekStatusFromRow(week);
+  const synchronizedStatus = getSynchronizedWeekStatus(week);
 
-  if (derivedStatus === "active") {
+  if (synchronizedStatus === "active") {
     return { ok: true as const, isHidden: requestedHidden ?? false };
   }
 
-  if (derivedStatus === "final_stretch") {
+  if (synchronizedStatus === "frozen") {
     return { ok: true as const, isHidden: true };
   }
 
   const messages = {
-    draft: "La semana está en configuración y no admite submissions.",
-    scheduled: "La semana todavía no ha abierto y no admite submissions.",
+    draft: "La semana todavía no ha abierto y no admite submissions.",
     active: "",
-    final_stretch: "",
+    frozen: "",
     closed: "La semana ya está cerrada y no admite submissions.",
     published: "La semana ya tiene resultados publicados y no admite submissions.",
   } satisfies Record<string, string>;
@@ -257,7 +256,7 @@ function resolveHiddenState(week: WeekRow, requestedHidden: boolean | null) {
   return {
     ok: false as const,
     status: 409,
-    error: messages[derivedStatus],
+    error: messages[synchronizedStatus],
   };
 }
 
