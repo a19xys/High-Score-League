@@ -9,39 +9,165 @@ type AdminWeekFormProps = {
   week?: WeekRow;
   seasons: SeasonRow[];
   games: GameRow[];
+  weeks: WeekRow[];
   defaultSeasonId?: string;
 };
+
+type FinalStretchMode =
+  | "none"
+  | "last_1"
+  | "last_2"
+  | "last_3"
+  | "last_7"
+  | "all"
+  | "custom";
 
 type FormState = {
   seasonId: string;
   gameId: string;
-  weekNumber: string;
-  publicStartAt: string;
-  publicFreezeAt: string;
-  finalDeadlineAt: string;
-  revealAt: string;
+  openDate: string;
+  closeDate: string;
+  finalStretchMode: FinalStretchMode;
+  customFinalStretchDate: string;
   rulesSummary: string;
 };
+
+function dateOnly(value?: string | null) {
+  return value ? value.slice(0, 10) : "";
+}
+
+function dateAtUtc(dateText: string) {
+  const [year, month, day] = dateText.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function addDays(dateText: string, days: number) {
+  const date = dateAtUtc(dateText);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function diffDays(startDate: string, endDate: string) {
+  return Math.round((dateAtUtc(endDate).getTime() - dateAtUtc(startDate).getTime()) / 86_400_000);
+}
+
+function nextMondayFrom(dateText: string) {
+  const date = dateAtUtc(dateText);
+  const day = date.getUTCDay();
+  const daysUntilMonday = (8 - day) % 7 || 7;
+  date.setUTCDate(date.getUTCDate() + daysUntilMonday);
+  return date.toISOString().slice(0, 10);
+}
+
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function activeSeasonId(seasons: SeasonRow[]) {
+  const now = Date.now();
+  const active = seasons.find((season) => {
+    const startsAt = season.starts_at ? new Date(season.starts_at).getTime() : null;
+    const endsAt = season.ends_at ? new Date(season.ends_at).getTime() : null;
+
+    return (
+      season.status === "active" ||
+      (startsAt !== null && startsAt <= now && (endsAt === null || now < endsAt))
+    );
+  });
+
+  return active?.id ?? "";
+}
+
+function defaultsForSeason(seasonId: string, seasons: SeasonRow[], weeks: WeekRow[]) {
+  const seasonWeeks = weeks
+    .filter((week) => week.season_id === seasonId)
+    .sort((a, b) => {
+      const aDate = a.final_deadline_at ?? a.public_start_at ?? "";
+      const bDate = b.final_deadline_at ?? b.public_start_at ?? "";
+      return aDate.localeCompare(bDate) || a.week_number - b.week_number;
+    });
+  const lastWeek = seasonWeeks.at(-1);
+  let openDate = "";
+
+  if (lastWeek?.final_deadline_at) {
+    openDate = nextMondayFrom(dateOnly(lastWeek.final_deadline_at));
+  } else {
+    const season = seasons.find((row) => row.id === seasonId);
+    openDate = dateOnly(season?.starts_at) || nextMondayFrom(todayDate());
+  }
+
+  return {
+    openDate,
+    closeDate: openDate ? addDays(openDate, 6) : "",
+    finalStretchMode: "last_3" as FinalStretchMode,
+    customFinalStretchDate: "",
+  };
+}
+
+function inferFinalStretchMode(week: WeekRow): {
+  mode: FinalStretchMode;
+  customDate: string;
+} {
+  const openDate = dateOnly(week.public_start_at);
+  const closeDate = dateOnly(week.final_deadline_at);
+  const freezeDate = dateOnly(week.public_freeze_at);
+
+  if (!freezeDate) {
+    return { mode: "none", customDate: "" };
+  }
+
+  if (freezeDate === openDate) {
+    return { mode: "all", customDate: "" };
+  }
+
+  const days = diffDays(freezeDate, closeDate) + 1;
+
+  if (days === 1 || days === 2 || days === 3 || days === 7) {
+    return { mode: `last_${days}` as FinalStretchMode, customDate: "" };
+  }
+
+  return { mode: "custom", customDate: freezeDate };
+}
 
 function initialState(
   seasons: SeasonRow[],
   games: GameRow[],
+  weeks: WeekRow[],
   week?: WeekRow,
   defaultSeasonId?: string,
 ): FormState {
+  if (week) {
+    const finalStretch = inferFinalStretchMode(week);
+
+    return {
+      seasonId: week.season_id,
+      gameId: week.game_id,
+      openDate: dateOnly(week.public_start_at),
+      closeDate: dateOnly(week.final_deadline_at),
+      finalStretchMode: finalStretch.mode,
+      customFinalStretchDate: finalStretch.customDate,
+      rulesSummary: week.rules_summary ?? "",
+    };
+  }
+
+  const seasonId =
+    defaultSeasonId && seasons.some((season) => season.id === defaultSeasonId)
+      ? defaultSeasonId
+      : activeSeasonId(seasons);
+  const defaults = defaultsForSeason(seasonId, seasons, weeks);
+
   return {
-    seasonId: week?.season_id ?? defaultSeasonId ?? seasons[0]?.id ?? "",
-    gameId: week?.game_id ?? games[0]?.id ?? "",
-    weekNumber: week ? String(week.week_number) : "",
-    publicStartAt: week?.public_start_at ?? "",
-    publicFreezeAt: week?.public_freeze_at ?? "",
-    finalDeadlineAt: week?.final_deadline_at ?? "",
-    revealAt: week?.reveal_at ?? "",
-    rulesSummary: week?.rules_summary ?? "",
+    seasonId,
+    gameId: games.length > 0 ? "" : "",
+    openDate: defaults.openDate,
+    closeDate: defaults.closeDate,
+    finalStretchMode: defaults.finalStretchMode,
+    customFinalStretchDate: defaults.customFinalStretchDate,
+    rulesSummary: "",
   };
 }
 
-function TextInput({
+function DateInput({
   label,
   name,
   value,
@@ -50,7 +176,7 @@ function TextInput({
   help,
 }: {
   label: string;
-  name: keyof Omit<FormState, "seasonId" | "gameId" | "rulesSummary">;
+  name: "openDate" | "closeDate" | "customFinalStretchDate";
   value: string;
   onChange: (name: keyof FormState, value: string) => void;
   required?: boolean;
@@ -63,6 +189,7 @@ function TextInput({
         className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
         onChange={(event) => onChange(name, event.target.value)}
         required={required}
+        type="date"
         value={value}
       />
       {help ? <span className="mt-1 block text-xs theme-text-muted">{help}</span> : null}
@@ -70,22 +197,45 @@ function TextInput({
   );
 }
 
+function finalStretchOptions(openDate: string, closeDate: string) {
+  const duration = openDate && closeDate ? diffDays(openDate, closeDate) + 1 : 0;
+
+  return [
+    { value: "none", label: "Sin tramo final", enabled: true },
+    { value: "last_1", label: "Ultimo dia", enabled: duration >= 1 },
+    { value: "last_2", label: "Ultimos 2 dias", enabled: duration >= 2 },
+    { value: "last_3", label: "Ultimos 3 dias", enabled: duration >= 3 },
+    { value: "last_7", label: "Ultimos 7 dias", enabled: duration > 7 },
+    { value: "all", label: "Todo el plazo", enabled: duration >= 1 },
+    { value: "custom", label: "Personalizado", enabled: duration >= 1 },
+  ] as Array<{ value: FinalStretchMode; label: string; enabled: boolean }>;
+}
+
 export function AdminWeekForm({
   mode,
   week,
   seasons,
   games,
+  weeks,
   defaultSeasonId,
 }: AdminWeekFormProps) {
   const router = useRouter();
   const [state, setState] = useState<FormState>(() =>
-    initialState(seasons, games, week, defaultSeasonId),
+    initialState(seasons, games, weeks, week, defaultSeasonId),
   );
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function updateField(name: keyof FormState, value: string) {
-    setState((current) => ({ ...current, [name]: value }));
+    setState((current) => {
+      if (name === "seasonId" && mode === "create") {
+        const defaults = defaultsForSeason(value, seasons, weeks);
+
+        return { ...current, seasonId: value, ...defaults };
+      }
+
+      return { ...current, [name]: value };
+    });
   }
 
   function submit() {
@@ -144,6 +294,11 @@ export function AdminWeekForm({
     });
   }
 
+  const availableFinalStretchOptions = finalStretchOptions(
+    state.openDate,
+    state.closeDate,
+  );
+
   return (
     <form
       className="space-y-5"
@@ -161,6 +316,9 @@ export function AdminWeekForm({
             required
             value={state.seasonId}
           >
+            {mode === "create" && !state.seasonId ? (
+              <option value="">Elige una</option>
+            ) : null}
             {seasons.map((season) => (
               <option key={season.id} value={season.id}>
                 {season.name}
@@ -176,6 +334,7 @@ export function AdminWeekForm({
             required
             value={state.gameId}
           >
+            <option value="">Elige uno</option>
             {games.map((game) => (
               <option key={game.id} value={game.id}>
                 {game.title}
@@ -183,36 +342,71 @@ export function AdminWeekForm({
             ))}
           </select>
         </label>
-        <TextInput
-          label="Número de semana"
-          name="weekNumber"
+        {mode === "edit" && week ? (
+          <div className="rounded-md border px-3 py-2 theme-border theme-surface-muted">
+            <p className="text-sm font-semibold theme-text">Numero de semana</p>
+            <p className="mt-1 text-sm theme-text-muted">
+              Semana {week.week_number}. Se recalcula automaticamente por fecha.
+            </p>
+          </div>
+        ) : null}
+        {mode === "create" ? (
+          <div className="rounded-md border px-3 py-2 theme-border theme-surface-muted">
+            <p className="text-sm font-semibold theme-text">Numero de semana</p>
+            <p className="mt-1 text-sm theme-text-muted">
+              Se asigna automaticamente segun la posicion cronologica.
+            </p>
+          </div>
+        ) : null}
+        <DateInput
+          help="Se guardara como 00:00:00 Europe/Madrid."
+          label="Fecha de apertura"
+          name="openDate"
           onChange={updateField}
           required
-          value={state.weekNumber}
+          value={state.openDate}
         />
-        <TextInput
-          help="ISO con zona horaria. Ejemplo: 2026-05-18T00:00:00+02:00"
-          label="Apertura"
-          name="publicStartAt"
+        <DateInput
+          help="Se guardara como 23:59:59 Europe/Madrid."
+          label="Fecha de cierre"
+          name="closeDate"
           onChange={updateField}
           required
-          value={state.publicStartAt}
+          value={state.closeDate}
         />
-        <TextInput
-          help="Opcional. Desde este momento, las nuevas puntuaciones se guardan ocultas hasta el cierre."
-          label="Tramo final"
-          name="publicFreezeAt"
-          onChange={updateField}
-          value={state.publicFreezeAt}
-        />
-        <TextInput
-          help="ISO con zona horaria. La semana deja de aceptar submissions desde este momento."
-          label="Cierre"
-          name="finalDeadlineAt"
-          onChange={updateField}
-          required
-          value={state.finalDeadlineAt}
-        />
+        <label className="block">
+          <span className="text-sm font-semibold theme-text">Tramo final</span>
+          <select
+            className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+            onChange={(event) =>
+              updateField("finalStretchMode", event.target.value)
+            }
+            value={state.finalStretchMode}
+          >
+            {availableFinalStretchOptions.map((option) => (
+              <option
+                disabled={!option.enabled}
+                key={option.value}
+                value={option.value}
+              >
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs theme-text-muted">
+            Las submissions desde el tramo final se guardan ocultas hasta el cierre.
+          </span>
+        </label>
+        {state.finalStretchMode === "custom" ? (
+          <DateInput
+            help="Debe estar dentro del rango de la semana."
+            label="Fecha de tramo final"
+            name="customFinalStretchDate"
+            onChange={updateField}
+            required
+            value={state.customFinalStretchDate}
+          />
+        ) : null}
         <label className="block md:col-span-2">
           <span className="text-sm font-semibold theme-text">Reglas resumidas</span>
           <textarea

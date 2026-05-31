@@ -74,6 +74,7 @@ export default async function NewAdminWeekPage({
           games={options.games}
           mode="create"
           seasons={options.seasons}
+          weeks={options.weeks}
         />
       </Card>
     </div>

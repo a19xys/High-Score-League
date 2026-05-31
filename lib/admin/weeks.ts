@@ -1,11 +1,10 @@
 export type WeekFormPayload = {
   seasonId?: unknown;
   gameId?: unknown;
-  weekNumber?: unknown;
-  publicStartAt?: unknown;
-  publicFreezeAt?: unknown;
-  finalDeadlineAt?: unknown;
-  revealAt?: unknown;
+  openDate?: unknown;
+  closeDate?: unknown;
+  finalStretchMode?: unknown;
+  customFinalStretchDate?: unknown;
   rulesSummary?: unknown;
 };
 
@@ -23,7 +22,6 @@ export type ValidatedWeekPayload =
       data: {
         season_id: string;
         game_id: string;
-        week_number: number;
         public_start_at: string | null;
         public_freeze_at: string | null;
         final_deadline_at: string | null;
@@ -54,6 +52,16 @@ export const adminBenchmarkColumns =
 
 const zonedDateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
+const finalStretchModes = new Set([
+  "none",
+  "last_1",
+  "last_2",
+  "last_3",
+  "last_7",
+  "all",
+  "custom",
+]);
 
 function requiredText(value: unknown, label: string) {
   if (typeof value !== "string" || !value.trim()) {
@@ -98,6 +106,145 @@ function optionalZonedDateTime(value: unknown, label: string) {
   return { ok: true as const, value: text.value };
 }
 
+function requiredDateOnly(value: unknown, label: string) {
+  if (typeof value !== "string" || !dateOnlyPattern.test(value.trim())) {
+    return { ok: false as const, error: `${label} debe ser una fecha YYYY-MM-DD.` };
+  }
+
+  const trimmed = value.trim();
+  const [year, month, day] = trimmed.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return { ok: false as const, error: `${label} debe ser una fecha valida.` };
+  }
+
+  return { ok: true as const, value: trimmed };
+}
+
+function optionalDateOnly(value: unknown, label: string) {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true as const, value: null };
+  }
+
+  return requiredDateOnly(value, label);
+}
+
+function dateParts(dateText: string) {
+  const [year, month, day] = dateText.split("-").map(Number);
+  return { year, month, day };
+}
+
+function dateAtUtc(dateText: string) {
+  const { year, month, day } = dateParts(dateText);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function addDays(dateText: string, days: number) {
+  const date = dateAtUtc(dateText);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function diffDays(startDate: string, endDate: string) {
+  const start = dateAtUtc(startDate).getTime();
+  const end = dateAtUtc(endDate).getTime();
+  return Math.round((end - start) / 86_400_000);
+}
+
+function madridOffsetForDate(dateText: string) {
+  const { year, month, day } = dateParts(dateText);
+  const probe = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Madrid",
+    timeZoneName: "shortOffset",
+  }).formatToParts(probe);
+  const value = parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT+1";
+  const match = value.match(/^GMT([+-])(\d{1,2})(?::(\d{2}))?$/);
+
+  if (!match) {
+    return "+01:00";
+  }
+
+  const sign = match[1];
+  const hours = match[2].padStart(2, "0");
+  const minutes = match[3] ?? "00";
+
+  return `${sign}${hours}:${minutes}`;
+}
+
+function madridTimestamp(dateText: string, timeText: string) {
+  return `${dateText}T${timeText}${madridOffsetForDate(dateText)}`;
+}
+
+function resolveFinalStretchDate(
+  openDate: string,
+  closeDate: string,
+  mode: string,
+  customDate: string | null,
+) {
+  const durationDays = diffDays(openDate, closeDate) + 1;
+
+  if (durationDays <= 0) {
+    return {
+      ok: false as const,
+      error: "La fecha de apertura debe ser anterior o igual a la fecha de cierre.",
+    };
+  }
+
+  if (mode === "none") {
+    return { ok: true as const, value: null };
+  }
+
+  if (mode === "all") {
+    return { ok: true as const, value: openDate };
+  }
+
+  if (mode === "custom") {
+    if (!customDate) {
+      return {
+        ok: false as const,
+        error: "customFinalStretchDate es obligatorio con tramo final personalizado.",
+      };
+    }
+
+    if (customDate < openDate || customDate > closeDate) {
+      return {
+        ok: false as const,
+        error: "La fecha de tramo final debe estar dentro del rango de la semana.",
+      };
+    }
+
+    return { ok: true as const, value: customDate };
+  }
+
+  const days = Number(mode.replace("last_", ""));
+
+  if (!Number.isInteger(days) || days <= 0) {
+    return { ok: false as const, error: "Modo de tramo final no permitido." };
+  }
+
+  if (days === 7 && durationDays <= 7) {
+    return {
+      ok: false as const,
+      error: "Ultimos 7 dias solo esta disponible para semanas de mas de 7 dias.",
+    };
+  }
+
+  if (days > durationDays) {
+    return {
+      ok: false as const,
+      error: "El tramo final elegido es mayor que la duracion de la semana.",
+    };
+  }
+
+  return { ok: true as const, value: addDays(closeDate, -(days - 1)) };
+}
+
 function validateOrderedDates(
   dates: Array<{ label: string; value: string | null }>,
 ) {
@@ -129,56 +276,64 @@ export function validateWeekPayload(payload: WeekFormPayload): ValidatedWeekPayl
   const gameId = requiredText(payload.gameId, "game_id");
   if (!gameId.ok) return { ok: false, error: gameId.error };
 
-  const weekNumber =
-    typeof payload.weekNumber === "number"
-      ? payload.weekNumber
-      : typeof payload.weekNumber === "string"
-        ? Number(payload.weekNumber)
-        : Number.NaN;
-
-  if (!Number.isInteger(weekNumber) || weekNumber <= 0) {
-    return { ok: false, error: "week_number debe ser un entero mayor que 0." };
+  const openDate = requiredDateOnly(payload.openDate, "openDate");
+  if (!openDate.ok) return { ok: false, error: openDate.error };
+  const closeDate = requiredDateOnly(payload.closeDate, "closeDate");
+  if (!closeDate.ok) return { ok: false, error: closeDate.error };
+  const customFinalStretchDate = optionalDateOnly(
+    payload.customFinalStretchDate,
+    "customFinalStretchDate",
+  );
+  if (!customFinalStretchDate.ok) {
+    return { ok: false, error: customFinalStretchDate.error };
   }
 
-  const publicStartAt = optionalZonedDateTime(payload.publicStartAt, "public_start_at");
-  if (!publicStartAt.ok) return { ok: false, error: publicStartAt.error };
-  const publicFreezeAt = optionalZonedDateTime(payload.publicFreezeAt, "public_freeze_at");
-  if (!publicFreezeAt.ok) return { ok: false, error: publicFreezeAt.error };
-  const finalDeadlineAt = optionalZonedDateTime(payload.finalDeadlineAt, "final_deadline_at");
-  if (!finalDeadlineAt.ok) return { ok: false, error: finalDeadlineAt.error };
-  const revealAt = optionalZonedDateTime(payload.revealAt, "reveal_at");
-  if (!revealAt.ok) return { ok: false, error: revealAt.error };
+  const finalStretchMode =
+    typeof payload.finalStretchMode === "string"
+      ? payload.finalStretchMode
+      : "last_3";
+
+  if (!finalStretchModes.has(finalStretchMode)) {
+    return { ok: false, error: "Modo de tramo final no permitido." };
+  }
+
+  const finalStretchDate = resolveFinalStretchDate(
+    openDate.value,
+    closeDate.value,
+    finalStretchMode,
+    customFinalStretchDate.value,
+  );
+
+  if (!finalStretchDate.ok) {
+    return { ok: false, error: finalStretchDate.error };
+  }
+
   const rulesSummary = optionalText(payload.rulesSummary, "rules_summary");
   if (!rulesSummary.ok) return { ok: false, error: rulesSummary.error };
 
-  if (!publicStartAt.value) {
-    return { ok: false, error: "public_start_at es obligatorio." };
-  }
-
-  if (!finalDeadlineAt.value) {
-    return { ok: false, error: "final_deadline_at es obligatorio." };
-  }
+  const publicStartAt = madridTimestamp(openDate.value, "00:00:00");
+  const publicFreezeAt = finalStretchDate.value
+    ? madridTimestamp(finalStretchDate.value, "00:00:00")
+    : null;
+  const finalDeadlineAt = madridTimestamp(closeDate.value, "23:59:59");
 
   const dateError = validateOrderedDates([
-    { label: "public_start_at", value: publicStartAt.value },
-    { label: "public_freeze_at", value: publicFreezeAt.value },
-    { label: "final_deadline_at", value: finalDeadlineAt.value },
+    { label: "public_start_at", value: publicStartAt },
+    { label: "public_freeze_at", value: publicFreezeAt },
+    { label: "final_deadline_at", value: finalDeadlineAt },
   ]);
 
-  if (dateError) {
-    return { ok: false, error: dateError };
-  }
+  if (dateError) return { ok: false, error: dateError };
 
   return {
     ok: true,
     data: {
       season_id: seasonId.value,
       game_id: gameId.value,
-      week_number: weekNumber,
-      public_start_at: publicStartAt.value,
-      public_freeze_at: publicFreezeAt.value,
-      final_deadline_at: finalDeadlineAt.value,
-      reveal_at: revealAt.value,
+      public_start_at: publicStartAt,
+      public_freeze_at: publicFreezeAt,
+      final_deadline_at: finalDeadlineAt,
+      reveal_at: null,
       rules_summary: rulesSummary.value,
     },
   };

@@ -56,6 +56,7 @@ export type AdminWeekEditData = {
   week: WeekRow;
   seasons: SeasonRow[];
   games: GameRow[];
+  weeks: WeekRow[];
   benchmarks: WeekBenchmarkRow[];
 };
 
@@ -270,23 +271,25 @@ export async function getAdminCurrentWeek(supabase: SupabaseClient) {
 }
 
 export async function getAdminWeekFormOptions(supabase: SupabaseClient) {
-  const [seasons, games] = await Promise.all([
+  const [seasons, games, weeks] = await Promise.all([
     supabase.from("seasons").select(seasonColumns).order("starts_at", {
       ascending: false,
       nullsFirst: false,
     }),
     supabase.from("games").select(gameColumns).order("title", { ascending: true }),
+    supabase.from("weeks").select(weekColumns),
   ]);
 
-  const error = seasons.error ?? games.error;
+  const error = seasons.error ?? games.error ?? weeks.error;
 
   if (error) {
-    return { seasons: [], games: [], error: error.message };
+    return { seasons: [], games: [], weeks: [], error: error.message };
   }
 
   return {
     seasons: (seasons.data ?? []) as SeasonRow[],
     games: (games.data ?? []) as GameRow[],
+    weeks: (weeks.data ?? []) as WeekRow[],
     error: null,
   };
 }
@@ -322,6 +325,7 @@ export async function getAdminWeekEditData(
       week: week.data as WeekRow,
       seasons: options.seasons,
       games: options.games,
+      weeks: options.weeks,
       benchmarks: (benchmarks.data ?? []) as WeekBenchmarkRow[],
     } satisfies AdminWeekEditData,
     error: null,

@@ -39,6 +39,9 @@ High Score League esta en fase mock avanzada.
   submissions y resultados oficiales sin SQL manual.
 - `/admin/weeks/new` y `/admin/weeks/[weekId]/edit` permiten crear semanas,
   editar sus metadatos principales y gestionar benchmarks básicos.
+- El formulario admin de semanas usa fechas simples, selecciona temporada
+  activa por defecto si existe, no autoselecciona juego y calcula
+  `week_number` automaticamente por orden cronologico dentro de la temporada.
 - Las semanas usan estado derivado por fechas: apertura (`public_start_at`),
   tramo final opcional (`public_freeze_at`) y cierre (`final_deadline_at`).
   `reveal_at` queda como campo legacy.

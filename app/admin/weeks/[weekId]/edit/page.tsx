@@ -93,6 +93,7 @@ export default async function EditAdminWeekPage({
           mode="edit"
           seasons={data.seasons}
           week={data.week}
+          weeks={data.weeks}
         />
       </Card>
 

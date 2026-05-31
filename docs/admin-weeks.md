@@ -15,11 +15,17 @@ se hace en servidor.
 
 ## Calendario simplificado
 
-En UI el admin gestiona tres fechas principales:
+En UI el admin gestiona fechas simples, no timestamps completos:
 
 - Apertura: se guarda en `public_start_at`.
 - Tramo final: se guarda en `public_freeze_at` y es opcional.
 - Cierre: se guarda en `final_deadline_at`.
+
+El formulario muestra inputs `YYYY-MM-DD`. El servidor convierte internamente:
+
+- apertura a `00:00:00` en zona `Europe/Madrid`;
+- tramo final a `00:00:00` en zona `Europe/Madrid`;
+- cierre a `23:59:59` en zona `Europe/Madrid`.
 
 `reveal_at` queda como campo legacy y no se muestra en el formulario principal.
 No se borra de base de datos para mantener compatibilidad con datos existentes.
@@ -50,9 +56,8 @@ genera resultados al cierre.
 
 - temporada (`season_id`);
 - juego (`game_id`);
-- numero de semana;
 - apertura;
-- tramo final opcional;
+- tramo final mediante selector;
 - cierre;
 - reglas resumidas.
 
@@ -61,6 +66,15 @@ Tambien puede abrirse con una temporada precargada:
 ```text
 /admin/weeks/new?seasonId=SEASON_ID
 ```
+
+Si no llega `seasonId`, el formulario selecciona la temporada activa si existe.
+Si no hay temporada activa, muestra `Elige una`. El juego no se autoselecciona:
+el selector empieza en `Elige uno`.
+
+El `week_number` no se pide al admin al crear. El servidor lo calcula segun la
+posicion cronologica de la semana dentro de su temporada. Si una semana nueva o
+editada queda entre semanas existentes, se renumeran las semanas de esa
+temporada para mantener numeros consecutivos sin huecos ni duplicados.
 
 Crear una semana no crea submissions, resultados oficiales ni benchmarks
 automaticamente.
@@ -75,7 +89,17 @@ Las fechas deben usar ISO con zona horaria explicita:
 2026-05-18T00:00:00+02:00
 ```
 
-El orden valido es:
+El tramo final se elige con modos:
+
+- sin tramo final;
+- ultimo dia;
+- ultimos 2 dias;
+- ultimos 3 dias;
+- ultimos 7 dias, solo si la duracion es mayor de 7 dias;
+- todo el plazo;
+- personalizado al editar si las fechas existentes no coinciden con un modo.
+
+El orden valido resultante es:
 
 ```text
 apertura <= tramo final <= cierre
@@ -89,11 +113,18 @@ Validaciones server-side:
 - `week_number` no debe duplicarse dentro de una temporada.
 - Si una semana tiene apertura y cierre, no puede solaparse con otra semana de
   la misma temporada que tambien tenga apertura y cierre.
+- Si la temporada tiene `starts_at` y `ends_at`, la semana debe quedar dentro de
+  esas fechas.
+- Los solapes siguen bloqueados. Todavia no se implementa desplazar semanas
+  posteriores automaticamente.
 
 ## Editar semana
 
 `/admin/weeks/[weekId]/edit` edita los mismos datos principales. No borra
 semanas ni submissions.
+
+El numero de semana se muestra como dato informativo, pero no es editable. Al
+guardar, se vuelve a calcular por posicion cronologica.
 
 Tras guardar, el servidor ejecuta una reconciliacion de semana:
 
