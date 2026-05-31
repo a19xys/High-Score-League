@@ -103,6 +103,12 @@ export function AdminWeekForm({
         ok: boolean;
         error?: string;
         week?: WeekRow;
+        reconciliation?: {
+          reopened?: boolean;
+          weeklyResultsDeleted?: number;
+          submissionsMadeVisible?: number;
+          submissionsMadeHidden?: number;
+        };
       };
 
       if (!response.ok || !payload.ok || !payload.week) {
@@ -110,7 +116,26 @@ export function AdminWeekForm({
         return;
       }
 
-      setMessage(mode === "create" ? "Semana creada." : "Semana actualizada.");
+      const details: string[] = [];
+
+      if (payload.reconciliation?.reopened) {
+        details.push("Esta semana se ha reabierto. Los resultados oficiales anteriores se han retirado.");
+      }
+
+      if (
+        payload.reconciliation &&
+        ((payload.reconciliation.submissionsMadeVisible ?? 0) > 0 ||
+          (payload.reconciliation.submissionsMadeHidden ?? 0) > 0)
+      ) {
+        details.push("La visibilidad de submissions se ha reconciliado con las nuevas fechas.");
+      }
+
+      setMessage(
+        [
+          mode === "create" ? "Semana creada." : "Semana actualizada.",
+          ...details,
+        ].join(" "),
+      );
       router.refresh();
 
       if (mode === "create") {

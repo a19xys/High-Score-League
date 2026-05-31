@@ -65,6 +65,8 @@ Tambien puede abrirse con una temporada precargada:
 Crear una semana no crea submissions, resultados oficiales ni benchmarks
 automaticamente.
 
+No se pueden crear semanas dentro de una temporada `completed`.
+
 ## Validaciones
 
 Las fechas deben usar ISO con zona horaria explicita:
@@ -91,7 +93,19 @@ Validaciones server-side:
 ## Editar semana
 
 `/admin/weeks/[weekId]/edit` edita los mismos datos principales. No borra
-semanas y no modifica submissions ni `weekly_results`.
+semanas ni submissions.
+
+Tras guardar, el servidor ejecuta una reconciliacion de semana:
+
+- sincroniza el `status` interno con las nuevas fechas;
+- recalcula `is_hidden` de submissions validas usando `detected_at` y, si falta,
+  `submitted_at`;
+- si la semana tenia `weekly_results` y las nuevas fechas la reabren, elimina
+  esos resultados oficiales.
+
+Esto es intencional: una semana reabierta vuelve a comportarse como una semana
+sin resultados oficiales para que la clasificacion de temporada deje de contarla
+hasta que el cron la cierre de nuevo.
 
 La pantalla incluye una gestion basica de benchmarks visuales:
 
@@ -102,6 +116,9 @@ La pantalla incluye una gestion basica de benchmarks visuales:
 
 Los benchmarks son referencias visuales del leaderboard. No son submissions, no
 generan puntos y no afectan a `weekly_results`.
+
+No se pueden editar semanas ni benchmarks de semanas pertenecientes a una
+temporada `completed`.
 
 ## Cuadro de mandos
 

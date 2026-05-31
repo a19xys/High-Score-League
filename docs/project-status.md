@@ -42,9 +42,14 @@ High Score League esta en fase mock avanzada.
 - Las semanas usan estado derivado por fechas: apertura (`public_start_at`),
   tramo final opcional (`public_freeze_at`) y cierre (`final_deadline_at`).
   `reveal_at` queda como campo legacy.
+- Crear o editar una semana ejecuta una reconciliacion server-side: sincroniza
+  estado interno, recalcula `is_hidden` de submissions validas y retira
+  `weekly_results` si la semana se reabre.
+- Las temporadas `completed` bloquean cambios normales en sus semanas,
+  benchmarks y generacion manual de resultados.
 - `POST /api/cron/process-schedule` sincroniza estados internos de semanas y
-  temporadas por fechas, genera `weekly_results` al cierre y marca semanas como
-  `published`.
+  temporadas por fechas, reutiliza la reconciliacion de semanas, genera
+  `weekly_results` al cierre y marca semanas como `published`.
 - `/admin/games` permite gestionar el catálogo real de juegos: listar, buscar,
   crear y editar.
 - `/admin/seasons` permite gestionar temporadas reales: listar, buscar, crear y

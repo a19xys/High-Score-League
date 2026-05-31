@@ -4,10 +4,8 @@ import {
   calculateWeeklyResultsForWeek,
   replaceWeeklyResultsForWeek,
 } from "@/lib/weekly-results/calculate";
-import {
-  getSynchronizedSeasonStatus,
-  getSynchronizedWeekStatus,
-} from "@/lib/week-status";
+import { reconcileWeek } from "@/lib/admin/reconcile-week";
+import { getSynchronizedSeasonStatus } from "@/lib/week-status";
 import type { SeasonRow, WeekRow } from "@/types/supabase";
 
 const weekColumns =
@@ -41,24 +39,17 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date();
-  const [weeksResult, seasonsResult, weeklyResultsResult] = await Promise.all([
+  const [weeksResult, seasonsResult] = await Promise.all([
     supabase.from("weeks").select(weekColumns),
     supabase.from("seasons").select(seasonColumns),
-    supabase.from("weekly_results").select("id,week_id"),
   ]);
 
-  const readError =
-    weeksResult.error ?? seasonsResult.error ?? weeklyResultsResult.error;
+  const readError = weeksResult.error ?? seasonsResult.error;
 
   if (readError) {
     return jsonError(`No se pudo leer el calendario: ${readError.message}`, 500);
   }
 
-  const resultWeekIds = new Set(
-    ((weeklyResultsResult.data ?? []) as Array<{ week_id: string }>).map(
-      (result) => result.week_id,
-    ),
-  );
   const seasonChanges: Array<{
     id: string;
     name: string;
@@ -79,6 +70,10 @@ export async function POST(request: NextRequest) {
     activated: 0,
     frozen: 0,
     published: 0,
+    reopened: 0,
+    weeklyResultsDeleted: 0,
+    submissionsMadeVisible: 0,
+    submissionsMadeHidden: 0,
     skipped: 0,
     unchanged: 0,
     errors: [] as Array<{ id: string; reason: string }>,
@@ -123,38 +118,49 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    const hasOfficialResults = resultWeekIds.has(week.id);
+    const reconciliation = await reconcileWeek(supabase, week.id, now);
 
-    if (week.status === "published" || hasOfficialResults) {
-      if (week.status !== "published") {
-        const { error } = await supabase
-          .from("weeks")
-          .update({ status: "published" })
-          .eq("id", week.id);
-
-        if (!error) {
-          weekDiagnostics.updated += 1;
-          weekDiagnostics.published += 1;
-          weekChanges.push({
-            id: week.id,
-            weekNumber: week.week_number,
-            previousStatus: week.status,
-            nextStatus: "published",
-            generatedResults: false,
-          });
-        }
-      } else {
-        weekDiagnostics.skipped += 1;
-        weekDiagnostics.skippedDetails.push({
-          id: week.id,
-          reason: "already_published",
-        });
-      }
-
+    if (!reconciliation.ok) {
+      weekDiagnostics.errors.push({
+        id: week.id,
+        reason: reconciliation.error,
+      });
       continue;
     }
 
-    const nextStatus = getSynchronizedWeekStatus(week, now, false);
+    const nextStatus = reconciliation.summary.nextStatus;
+
+    if (reconciliation.summary.statusUpdated) {
+      weekDiagnostics.updated += 1;
+      if (nextStatus === "active") {
+        weekDiagnostics.activated += 1;
+      }
+      if (nextStatus === "frozen") {
+        weekDiagnostics.frozen += 1;
+      }
+      if (nextStatus === "published") {
+        weekDiagnostics.published += 1;
+      }
+      weekChanges.push({
+        id: week.id,
+        weekNumber: week.week_number,
+        previousStatus: reconciliation.summary.previousStatus,
+        nextStatus,
+        generatedResults: false,
+      });
+    } else {
+      weekDiagnostics.unchanged += 1;
+    }
+
+    if (reconciliation.summary.reopened) {
+      weekDiagnostics.reopened += 1;
+    }
+    weekDiagnostics.weeklyResultsDeleted +=
+      reconciliation.summary.weeklyResultsDeleted;
+    weekDiagnostics.submissionsMadeVisible +=
+      reconciliation.summary.submissionsMadeVisible;
+    weekDiagnostics.submissionsMadeHidden +=
+      reconciliation.summary.submissionsMadeHidden;
 
     if (nextStatus === "closed") {
       const calculation = await calculateWeeklyResultsForWeek(supabase, week.id);
@@ -182,7 +188,7 @@ export async function POST(request: NextRequest) {
           weekChanges.push({
             id: week.id,
             weekNumber: week.week_number,
-            previousStatus: week.status,
+            previousStatus: nextStatus,
             nextStatus: error ? week.status : "published",
             generatedResults: false,
             error: error?.message,
@@ -202,7 +208,7 @@ export async function POST(request: NextRequest) {
         weekChanges.push({
           id: week.id,
           weekNumber: week.week_number,
-          previousStatus: week.status,
+          previousStatus: nextStatus,
           nextStatus: error ? week.status : "closed",
           generatedResults: false,
           error: calculation.error,
@@ -240,7 +246,7 @@ export async function POST(request: NextRequest) {
       weekChanges.push({
         id: week.id,
         weekNumber: week.week_number,
-        previousStatus: week.status,
+        previousStatus: nextStatus,
         nextStatus: error ? week.status : "published",
         generatedResults: !error,
         error: error?.message,
@@ -255,38 +261,6 @@ export async function POST(request: NextRequest) {
         weekDiagnostics.published += 1;
       }
       continue;
-    }
-
-    if (nextStatus === week.status) {
-      weekDiagnostics.unchanged += 1;
-      continue;
-    }
-
-    const { error } = await supabase
-      .from("weeks")
-      .update({ status: nextStatus })
-      .eq("id", week.id);
-
-    if (!error) {
-      weekDiagnostics.updated += 1;
-      if (nextStatus === "active") {
-        weekDiagnostics.activated += 1;
-      }
-      if (nextStatus === "frozen") {
-        weekDiagnostics.frozen += 1;
-      }
-      weekChanges.push({
-        id: week.id,
-        weekNumber: week.week_number,
-        previousStatus: week.status,
-        nextStatus,
-        generatedResults: false,
-      });
-    } else {
-      weekDiagnostics.errors.push({
-        id: week.id,
-        reason: error.message,
-      });
     }
   }
 

@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { adminWeekColumns, validateWeekPayload } from "@/lib/admin/weeks";
+import {
+  assertSeasonCanReceiveWeekChanges,
+  assertWeekSeasonCanBeChanged,
+  reconcileWeek,
+} from "@/lib/admin/reconcile-week";
 import { getSynchronizedWeekStatus } from "@/lib/week-status";
 import type { WeekRow } from "@/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -13,6 +18,10 @@ type RouteContext = {
 
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
+}
+
+function jsonCodeError(code: string, error: string, status = 400) {
+  return NextResponse.json({ ok: false, code, error }, { status });
 }
 
 function mapWeekWriteError(message: string, code?: string) {
@@ -88,6 +97,32 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return jsonError(validated.error);
   }
 
+  const existingSeasonCheck = await assertWeekSeasonCanBeChanged(
+    auth.supabase,
+    weekId,
+  );
+
+  if (!existingSeasonCheck.ok) {
+    return jsonCodeError(
+      existingSeasonCheck.code,
+      existingSeasonCheck.error,
+      existingSeasonCheck.status,
+    );
+  }
+
+  const targetSeasonCheck = await assertSeasonCanReceiveWeekChanges(
+    auth.supabase,
+    validated.data.season_id,
+  );
+
+  if (!targetSeasonCheck.ok) {
+    return jsonCodeError(
+      targetSeasonCheck.code,
+      targetSeasonCheck.error,
+      targetSeasonCheck.status,
+    );
+  }
+
   const scheduleError = await validateSchedule(
     auth.supabase,
     validated.data,
@@ -135,5 +170,15 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return jsonError("Semana no encontrada.", 404);
   }
 
-  return NextResponse.json({ ok: true, week: data });
+  const reconciliation = await reconcileWeek(auth.supabase, data.id);
+
+  if (!reconciliation.ok) {
+    return jsonError(reconciliation.error, reconciliation.status);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    week: reconciliation.week,
+    reconciliation: reconciliation.summary,
+  });
 }

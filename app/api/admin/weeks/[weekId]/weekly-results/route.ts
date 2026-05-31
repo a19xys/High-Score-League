@@ -4,6 +4,7 @@ import {
   type CalculatedWeeklyResult,
   replaceWeeklyResultsForWeek,
 } from "@/lib/weekly-results/calculate";
+import { assertWeekSeasonCanBeChanged } from "@/lib/admin/reconcile-week";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSynchronizedWeekStatus } from "@/lib/week-status";
 
@@ -19,6 +20,10 @@ type Payload = {
 
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
+}
+
+function jsonCodeError(code: string, error: string, status = 400) {
+  return NextResponse.json({ ok: false, code, error }, { status });
 }
 
 function serializeResult(result: CalculatedWeeklyResult) {
@@ -80,6 +85,12 @@ export async function POST(
   }
 
   const dryRun = payload.dryRun ?? true;
+  const seasonCheck = await assertWeekSeasonCanBeChanged(supabase, weekId);
+
+  if (!seasonCheck.ok) {
+    return jsonCodeError(seasonCheck.code, seasonCheck.error, seasonCheck.status);
+  }
+
   const calculation = await calculateWeeklyResultsForWeek(supabase, weekId);
 
   if (!calculation.ok) {

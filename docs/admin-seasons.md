@@ -72,6 +72,11 @@ Tambien muestra de forma informativa:
 
 No se implementa gestion avanzada de miembros en esta fase.
 
+Si una temporada ya esta `completed`, no se pueden crear ni editar semanas
+dentro de ella, ni editar benchmarks o regenerar resultados semanales desde el
+panel admin normal. Cualquier reapertura de una temporada completada queda como
+accion admin futura especifica.
+
 ## Validaciones
 
 - `name` no puede estar vacio.

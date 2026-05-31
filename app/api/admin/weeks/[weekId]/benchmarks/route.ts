@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
+import { assertWeekSeasonCanBeChanged } from "@/lib/admin/reconcile-week";
 import {
   adminBenchmarkColumns,
   validateBenchmarkPayload,
@@ -16,6 +17,10 @@ function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
 }
 
+function jsonCodeError(code: string, error: string, status = 400) {
+  return NextResponse.json({ ok: false, code, error }, { status });
+}
+
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const auth = await requireAdmin();
 
@@ -24,6 +29,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   const { weekId } = await params;
+  const seasonCheck = await assertWeekSeasonCanBeChanged(auth.supabase, weekId);
+
+  if (!seasonCheck.ok) {
+    return jsonCodeError(seasonCheck.code, seasonCheck.error, seasonCheck.status);
+  }
+
   let payload: unknown;
 
   try {

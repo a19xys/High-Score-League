@@ -1,12 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { adminWeekColumns, validateWeekPayload } from "@/lib/admin/weeks";
+import {
+  assertSeasonCanReceiveWeekChanges,
+  reconcileWeek,
+} from "@/lib/admin/reconcile-week";
 import { getSynchronizedWeekStatus } from "@/lib/week-status";
 import type { WeekRow } from "@/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
+}
+
+function jsonCodeError(code: string, error: string, status = 400) {
+  return NextResponse.json({ ok: false, code, error }, { status });
 }
 
 function mapWeekWriteError(message: string, code?: string) {
@@ -86,6 +94,15 @@ export async function POST(request: NextRequest) {
     return jsonError(validated.error);
   }
 
+  const seasonCheck = await assertSeasonCanReceiveWeekChanges(
+    auth.supabase,
+    validated.data.season_id,
+  );
+
+  if (!seasonCheck.ok) {
+    return jsonCodeError(seasonCheck.code, seasonCheck.error, seasonCheck.status);
+  }
+
   const scheduleError = await validateSchedule(auth.supabase, validated.data);
 
   if (scheduleError) {
@@ -110,5 +127,15 @@ export async function POST(request: NextRequest) {
     return jsonError(mapWeekWriteError(error.message, error.code), 500);
   }
 
-  return NextResponse.json({ ok: true, week: data });
+  const reconciliation = await reconcileWeek(auth.supabase, data.id);
+
+  if (!reconciliation.ok) {
+    return jsonError(reconciliation.error, reconciliation.status);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    week: reconciliation.week,
+    reconciliation: reconciliation.summary,
+  });
 }

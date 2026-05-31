@@ -44,10 +44,16 @@ El cron procesa semanas con `public_start_at` y `final_deadline_at`:
 El tramo final usa `public_freeze_at`. Si no existe, la semana pasa de
 `active` a cierre directamente.
 
+Antes de decidir si debe generar resultados, el cron reutiliza la reconciliacion
+de semana: ajusta el estado por fechas, recalcula `is_hidden` de submissions
+validas y retira `weekly_results` si una semana publicada fue reabierta al mover
+su cierre al futuro.
+
 La generacion es idempotente: si la semana ya tiene resultados oficiales o esta
 `published`, el cron no crea duplicados. Si no hay submissions validas pero hay
 miembros elegibles, se publican resultados vacios. Si no hay miembros elegibles,
-la semana queda `closed` y el resultado del cron incluye el error.
+la semana tambien puede quedar `published` con 0 resultados para no bloquear el
+cierre automatico.
 
 ## Temporadas
 
