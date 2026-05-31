@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminBenchmarksManager } from "@/components/admin-benchmarks-manager";
+import { AdminWeekDeleteButton } from "@/components/admin-week-delete-button";
 import { AdminWeekForm } from "@/components/admin-week-form";
 import { Card, CardHeader } from "@/components/ui/card";
 import { requireAdmin } from "@/lib/auth/admin";
@@ -103,6 +104,21 @@ export default async function EditAdminWeekPage({
           submissions, no cuentan para puntos y no afectan a resultados oficiales.
         </CardHeader>
         <AdminBenchmarksManager benchmarks={data.benchmarks} weekId={data.week.id} />
+      </Card>
+
+      <Card>
+        <CardHeader title="Zona peligrosa" eyebrow="Borrado seguro">
+          Solo se pueden borrar semanas inactivas sin submissions ni resultados.
+          Al borrar una semana también se eliminan sus benchmarks y se renumeran
+          las semanas restantes de la temporada.
+        </CardHeader>
+        {data.deleteEligibility.deletable ? (
+          <AdminWeekDeleteButton weekId={data.week.id} />
+        ) : (
+          <div className="rounded-lg border p-4 text-sm theme-border theme-surface-muted theme-text-muted">
+            {data.deleteEligibility.reason}
+          </div>
+        )}
       </Card>
     </div>
   );

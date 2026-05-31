@@ -68,3 +68,30 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   return NextResponse.json({ ok: true, benchmark: data });
 }
+
+export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+  const auth = await requireAdmin();
+
+  if (!auth.ok) {
+    return jsonError(auth.error, auth.status);
+  }
+
+  const { weekId, benchmarkId } = await params;
+  const seasonCheck = await assertWeekSeasonCanBeChanged(auth.supabase, weekId);
+
+  if (!seasonCheck.ok) {
+    return jsonCodeError(seasonCheck.code, seasonCheck.error, seasonCheck.status);
+  }
+
+  const { error } = await auth.supabase
+    .from("week_benchmarks")
+    .delete()
+    .eq("id", benchmarkId)
+    .eq("week_id", weekId);
+
+  if (error) {
+    return jsonError("No se pudo eliminar el benchmark.", 500);
+  }
+
+  return NextResponse.json({ ok: true, deletedBenchmarkId: benchmarkId });
+}

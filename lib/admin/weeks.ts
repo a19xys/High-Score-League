@@ -369,7 +369,12 @@ export function validateBenchmarkPayload(
   const description = optionalText(payload.description, "description");
   if (!description.ok) return { ok: false, error: description.error };
 
-  if (typeof payload.isActive !== "boolean") {
+  const isActive =
+    payload.isActive === undefined || payload.isActive === null
+      ? true
+      : payload.isActive;
+
+  if (typeof isActive !== "boolean") {
     return { ok: false, error: "is_active debe ser booleano." };
   }
 
@@ -380,7 +385,7 @@ export function validateBenchmarkPayload(
       score,
       description: description.value,
       sort_order: sortOrder,
-      is_active: payload.isActive,
+      is_active: isActive,
     },
   };
 }

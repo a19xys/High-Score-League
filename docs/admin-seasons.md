@@ -94,14 +94,37 @@ Ejemplos de fechas validas:
 2026-07-12T23:59:00+02:00
 ```
 
-## Sin borrado
+## Borrado seguro
 
-No se permite borrar temporadas en esta fase para evitar romper semanas,
-`weekly_results`, standings y membresias.
+`/admin/seasons/[seasonId]` incluye una zona peligrosa para borrar temporadas
+solo cuando el borrado es seguro.
+
+Una temporada es borrable si:
+
+- está inactiva o en borrador por fechas;
+- no está activa;
+- no está `completed`;
+- ninguna de sus semanas tiene submissions;
+- ninguna de sus semanas tiene `weekly_results`.
+
+El endpoint `DELETE /api/admin/seasons/[seasonId]` exige admin en servidor. Si la
+temporada no es borrable devuelve:
+
+```json
+{
+  "ok": false,
+  "code": "SEASON_NOT_DELETABLE",
+  "error": "Solo se pueden borrar temporadas inactivas sin submissions ni resultados."
+}
+```
+
+Al borrar una temporada se elimina la fila de `seasons`; sus semanas,
+benchmarks y membresías asociadas se eliminan por cascada. No se borran juegos
+ni usuarios.
 
 ## Pendiente
 
 - Gestion avanzada de miembros.
-- Borrado o archivado seguro de temporadas.
+- Archivado seguro de temporadas.
 - Medallas.
 - Panel completo de usuarios.

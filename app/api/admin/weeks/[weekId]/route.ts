@@ -12,6 +12,7 @@ import {
   resolveWeekOverlaps,
   validateWeekWithinSeason,
 } from "@/lib/admin/week-calendar";
+import { getWeekDeleteEligibility } from "@/lib/admin/delete-safety";
 import { getSynchronizedWeekStatus } from "@/lib/week-status";
 import type { WeekRow } from "@/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -253,5 +254,43 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     week: reconciliation.week,
     reconciliation: reconciliation.summary,
     shiftedWeeks: overlapResolution.shiftedWeeks,
+  });
+}
+
+export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+  const auth = await requireAdmin();
+
+  if (!auth.ok) {
+    return jsonError(auth.error, auth.status);
+  }
+
+  const { weekId } = await params;
+  const eligibility = await getWeekDeleteEligibility(auth.supabase, weekId);
+
+  if (!eligibility.deletable || !eligibility.week) {
+    return jsonCodeError(
+      eligibility.code === "WEEK_DELETABLE" ? "WEEK_NOT_DELETABLE" : eligibility.code,
+      eligibility.reason,
+      eligibility.code === "WEEK_NOT_FOUND" ? 404 : 409,
+    );
+  }
+
+  const seasonId = eligibility.week.season_id;
+  const { error } = await auth.supabase.from("weeks").delete().eq("id", weekId);
+
+  if (error) {
+    return jsonError("No se pudo eliminar la semana.", 500);
+  }
+
+  const renumbering = await renumberWeeksInSeason(auth.supabase, seasonId);
+
+  if (!renumbering.ok) {
+    return jsonError(renumbering.error, 500);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    deletedWeekId: weekId,
+    seasonId,
   });
 }

@@ -39,6 +39,8 @@ High Score League esta en fase mock avanzada.
   submissions y resultados oficiales sin SQL manual.
 - `/admin/weeks/new` y `/admin/weeks/[weekId]/edit` permiten crear semanas,
   editar sus metadatos principales y gestionar benchmarks básicos.
+- `/admin/weeks/[weekId]/edit` permite borrar semanas inactivas sin submissions
+  ni resultados, con confirmación explícita y renumeración posterior.
 - El formulario admin de semanas usa fechas simples, selecciona temporada
   activa por defecto si existe, no autoselecciona juego y calcula
   `week_number` automáticamente por orden cronológico dentro de la temporada.
@@ -60,6 +62,8 @@ High Score League esta en fase mock avanzada.
   crear y editar.
 - `/admin/seasons` permite gestionar temporadas reales: listar, buscar, crear y
   editar.
+- `/admin/seasons/[seasonId]` permite borrar temporadas inactivas sin
+  submissions ni resultados, sin borrar juegos ni usuarios.
 - `/` lee semana activa, temporada activa, leaderboard y chat real cuando
   `NEXT_PUBLIC_DATA_SOURCE=supabase`.
 - `league_chat_messages` guarda el chat global real de la liga con mensajes

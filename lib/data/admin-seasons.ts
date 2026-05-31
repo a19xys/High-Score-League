@@ -4,6 +4,10 @@ import {
   getSynchronizedSeasonStatus,
   getSynchronizedWeekStatus,
 } from "@/lib/week-status";
+import {
+  getSeasonDeleteEligibility,
+  type SeasonDeleteEligibility,
+} from "@/lib/admin/delete-safety";
 import type { SeasonRow, WeekRow, RealProfile } from "@/types/supabase";
 
 export type AdminSeasonSummary = {
@@ -22,6 +26,7 @@ export type AdminSeasonMember = {
 export type AdminSeasonDetail = AdminSeasonSummary & {
   weeks: WeekRow[];
   members: AdminSeasonMember[];
+  deleteEligibility: SeasonDeleteEligibility;
 };
 
 const weekColumns =
@@ -169,6 +174,7 @@ export async function getAdminSeasonDetail(
       })),
       weekCount: (detailWeeks.data ?? []).length,
       memberCount: memberRows.length,
+      deleteEligibility: await getSeasonDeleteEligibility(supabase, realSeasonId),
     } satisfies AdminSeasonDetail,
     error: null,
   };

@@ -29,6 +29,10 @@ import {
   getDerivedWeekStatus,
   getSynchronizedWeekStatus,
 } from "@/lib/week-status";
+import {
+  getWeekDeleteEligibility,
+  type WeekDeleteEligibility,
+} from "@/lib/admin/delete-safety";
 
 type AdminSubmission = Submission & {
   player?: NonNullable<ReturnType<typeof mapSubmissionRowToSubmission>["player"]>;
@@ -58,6 +62,7 @@ export type AdminWeekEditData = {
   games: GameRow[];
   weeks: WeekRow[];
   benchmarks: WeekBenchmarkRow[];
+  deleteEligibility: WeekDeleteEligibility;
 };
 
 const seasonColumns =
@@ -305,9 +310,8 @@ export async function getAdminWeekEditData(
       .from("week_benchmarks")
       .select(benchmarkColumns)
       .eq("week_id", weekId)
-      .order("is_active", { ascending: false })
       .order("score", { ascending: false })
-      .order("sort_order", { ascending: true }),
+      .order("label", { ascending: true }),
   ]);
 
   const error = week.error ?? options.error ?? benchmarks.error;
@@ -327,6 +331,10 @@ export async function getAdminWeekEditData(
       games: options.games,
       weeks: options.weeks,
       benchmarks: (benchmarks.data ?? []) as WeekBenchmarkRow[],
+      deleteEligibility: await getWeekDeleteEligibility(
+        supabase,
+        (week.data as WeekRow).id,
+      ),
     } satisfies AdminWeekEditData,
     error: null,
   };

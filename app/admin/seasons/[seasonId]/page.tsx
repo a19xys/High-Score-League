@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminSeasonDeleteButton } from "@/components/admin-season-delete-button";
 import { AdminSeasonForm } from "@/components/admin-season-form";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
@@ -94,8 +95,8 @@ export default async function AdminSeasonPage({ params }: AdminSeasonPageProps) 
           eyebrow="Editar temporada"
           action={<StatusBadge status={data.season.status} />}
         >
-          No se permite borrar temporadas en esta fase para no romper semanas,
-          resultados ni membresías.
+          Edita los datos principales de la temporada. El borrado solo está
+          disponible para temporadas inactivas sin submissions ni resultados.
         </CardHeader>
         <AdminSeasonForm mode="edit" season={data.season} />
       </Card>
@@ -212,6 +213,24 @@ export default async function AdminSeasonPage({ params }: AdminSeasonPageProps) 
               ))}
             </tbody>
           </DataTable>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader title="Zona peligrosa" eyebrow="Borrado seguro">
+          Solo se pueden borrar temporadas inactivas sin submissions ni resultados.
+          Al borrar una temporada también se eliminan sus semanas, benchmarks y
+          membresías asociadas.
+        </CardHeader>
+        {data.deleteEligibility.deletable ? (
+          <AdminSeasonDeleteButton
+            seasonId={data.season.id}
+            seasonName={data.season.name}
+          />
+        ) : (
+          <div className="rounded-lg border p-4 text-sm theme-border theme-surface-muted theme-text-muted">
+            {data.deleteEligibility.reason}
+          </div>
         )}
       </Card>
     </div>

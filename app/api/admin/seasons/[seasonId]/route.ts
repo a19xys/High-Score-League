@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { validateSeasonPayload, adminSeasonColumns } from "@/lib/admin/seasons";
+import { getSeasonDeleteEligibility } from "@/lib/admin/delete-safety";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getSynchronizedSeasonStatus } from "@/lib/week-status";
 import type { SeasonRow } from "@/types/supabase";
@@ -13,6 +14,10 @@ type RouteContext = {
 
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
+}
+
+function jsonCodeError(code: string, error: string, status = 400) {
+  return NextResponse.json({ ok: false, code, error }, { status });
 }
 
 async function validateSeasonSchedule(
@@ -107,4 +112,39 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 
   return NextResponse.json({ ok: true, season: data });
+}
+
+export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+  const auth = await requireAdmin();
+
+  if (!auth.ok) {
+    return jsonError(auth.error, auth.status);
+  }
+
+  const { seasonId } = await params;
+  const eligibility = await getSeasonDeleteEligibility(auth.supabase, seasonId);
+
+  if (!eligibility.deletable || !eligibility.season) {
+    return jsonCodeError(
+      eligibility.code === "SEASON_DELETABLE"
+        ? "SEASON_NOT_DELETABLE"
+        : eligibility.code,
+      eligibility.reason,
+      eligibility.code === "SEASON_NOT_FOUND" ? 404 : 409,
+    );
+  }
+
+  const { error } = await auth.supabase
+    .from("seasons")
+    .delete()
+    .eq("id", eligibility.season.id);
+
+  if (error) {
+    return jsonError("No se pudo eliminar la temporada.", 500);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    deletedSeasonId: eligibility.season.id,
+  });
 }

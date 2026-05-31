@@ -37,10 +37,7 @@ function getVisualRows(entries: LeaderboardEntry[], benchmarks: WeekBenchmark[])
     }
 
     if (a.type === "benchmark" && b.type === "benchmark") {
-      return (
-        a.benchmark.sortOrder - b.benchmark.sortOrder ||
-        a.benchmark.label.localeCompare(b.benchmark.label)
-      );
+      return a.benchmark.label.localeCompare(b.benchmark.label);
     }
 
     return 0;

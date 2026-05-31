@@ -124,8 +124,7 @@ Validaciones server-side:
 
 ## Editar semana
 
-`/admin/weeks/[weekId]/edit` edita los mismos datos principales. No borra
-semanas ni submissions.
+`/admin/weeks/[weekId]/edit` edita los mismos datos principales.
 
 El numero de semana no es editable. Al guardar, se vuelve a calcular por
 posicion cronologica.
@@ -145,15 +144,46 @@ hasta que el cron la cierre de nuevo.
 La pantalla incluye una gestion basica de benchmarks visuales:
 
 - listar benchmarks existentes;
-- crear benchmark;
-- editar label, score, descripcion, orden e indicador activo;
-- activar o desactivar benchmark.
+- crear benchmark con etiqueta, puntuación y descripción opcional;
+- ver benchmarks existentes en modo lectura por defecto;
+- editar un único benchmark cada vez;
+- eliminar benchmarks reales con confirmación.
 
 Los benchmarks son referencias visuales del leaderboard. No son submissions, no
 generan puntos y no afectan a `weekly_results`.
 
 No se pueden editar semanas ni benchmarks de semanas pertenecientes a una
 temporada `completed`.
+
+## Borrado seguro de semanas
+
+`/admin/weeks/[weekId]/edit` incluye una zona peligrosa para borrar semanas
+solo cuando el borrado es seguro.
+
+Una semana es borrable si:
+
+- su temporada no está `completed`;
+- no tiene submissions;
+- no tiene `weekly_results`;
+- no está abierta por fechas;
+- no está en tramo final;
+- no está cerrada ni publicada;
+- sigue siendo una semana futura o interna de configuración.
+
+El endpoint `DELETE /api/admin/weeks/[weekId]` exige admin en servidor. Si la
+semana no es borrable devuelve:
+
+```json
+{
+  "ok": false,
+  "code": "WEEK_NOT_DELETABLE",
+  "error": "Solo se pueden borrar semanas inactivas sin submissions ni resultados."
+}
+```
+
+Al borrar una semana se elimina la fila de `weeks`; los benchmarks asociados se
+eliminan por cascada y después se renumeran las semanas restantes de la
+temporada. No se borran juegos, temporadas ni usuarios.
 
 ## Cuadro de mandos
 
@@ -172,7 +202,6 @@ mantener separadas las operaciones semanales de la edición de datos.
 No se implementa todavia:
 
 - configuracion de Vercel Cron en el repositorio;
-- borrado de semanas;
 - subida de manuales;
 - ZIPs o descargas configuradas;
 - configuraciones MAME;
