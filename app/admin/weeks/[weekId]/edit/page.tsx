@@ -84,8 +84,8 @@ export default async function EditAdminWeekPage({
           title={`Editar semana ${data.week.week_number}`}
           eyebrow="Datos de semana"
         >
-          Edita la temporada, el juego, el estado base, apertura, tramo final,
-          cierre y reglas resumidas. Las submissions y resultados oficiales se
+          Edita la temporada, el juego, apertura, tramo final, cierre y reglas
+          resumidas. Las submissions y resultados oficiales se
           gestionan desde el cuadro de mandos de la semana.
         </CardHeader>
         <AdminWeekForm

@@ -6,9 +6,9 @@ web sin usar SQL manual para el flujo semanal basico.
 ## Rutas
 
 - `/admin/weeks`: listado de semanas reales.
-- `/admin/weeks/new`: creacion de una semana.
+- `/admin/weeks/new`: creación de una semana.
 - `/admin/weeks/[weekId]`: cuadro de mandos operativo de una semana.
-- `/admin/weeks/[weekId]/edit`: edicion de metadatos de una semana.
+- `/admin/weeks/[weekId]/edit`: edición de metadatos de una semana.
 
 Todas las rutas requieren sesion y `profiles.is_admin = true`. La comprobacion
 se hace en servidor.
@@ -68,7 +68,7 @@ Tambien puede abrirse con una temporada precargada:
 ```
 
 Si no llega `seasonId`, el formulario selecciona la temporada activa si existe.
-Si no hay temporada activa, muestra `Elige una`. El juego no se autoselecciona:
+El selector incluye siempre la opción `Selecciona una`. El juego no se autoselecciona:
 el selector empieza en `Elige uno`.
 
 El `week_number` no se pide al admin al crear. El servidor lo calcula segun la
@@ -77,7 +77,7 @@ editada queda entre semanas existentes, se renumeran las semanas de esa
 temporada para mantener numeros consecutivos sin huecos ni duplicados.
 
 Crear una semana no crea submissions, resultados oficiales ni benchmarks
-automaticamente.
+automáticamente.
 
 No se pueden crear semanas dentro de una temporada `completed`.
 
@@ -86,17 +86,14 @@ No se pueden crear semanas dentro de una temporada `completed`.
 Las fechas deben usar ISO con zona horaria explicita:
 
 ```text
-2026-05-18T00:00:00+02:00
+2026-05-18
 ```
 
 El tramo final se elige con modos:
 
-- sin tramo final;
-- ultimo dia;
-- ultimos 2 dias;
-- ultimos 3 dias;
-- ultimos 7 dias, solo si la duracion es mayor de 7 dias;
 - todo el plazo;
+- ultimos 3 dias;
+- sin tramo final;
 - personalizado al editar si las fechas existentes no coinciden con un modo.
 
 El orden valido resultante es:
@@ -115,16 +112,23 @@ Validaciones server-side:
   la misma temporada que tambien tenga apertura y cierre.
 - Si la temporada tiene `starts_at` y `ends_at`, la semana debe quedar dentro de
   esas fechas.
-- Los solapes siguen bloqueados. Todavia no se implementa desplazar semanas
-  posteriores automaticamente.
+- Si hay solape con semanas posteriores, el admin puede marcar `Retrasar
+  semanas posteriores si hay solape`. Sin esa confirmacion explicita, el
+  servidor devuelve error.
+- El desplazamiento solo afecta semanas posteriores de la misma temporada,
+  mantiene duración y tramo final relativo, y después renumera por orden
+  cronológico.
+- No se desplazan semanas con `weekly_results`.
+- Si el desplazamiento haria que una semana saliera de `ends_at` de la
+  temporada, se rechaza. La temporada no se extiende automáticamente.
 
 ## Editar semana
 
 `/admin/weeks/[weekId]/edit` edita los mismos datos principales. No borra
 semanas ni submissions.
 
-El numero de semana se muestra como dato informativo, pero no es editable. Al
-guardar, se vuelve a calcular por posicion cronologica.
+El numero de semana no es editable. Al guardar, se vuelve a calcular por
+posicion cronologica.
 
 Tras guardar, el servidor ejecuta una reconciliacion de semana:
 
@@ -161,7 +165,7 @@ temporada `completed`.
 - regenerar `weekly_results` si hace falta.
 
 Los metadatos de la semana se editan desde `/admin/weeks/[weekId]/edit` para
-mantener separadas las operaciones semanales de la edicion de datos.
+mantener separadas las operaciones semanales de la edición de datos.
 
 ## Pendiente
 

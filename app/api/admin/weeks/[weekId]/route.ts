@@ -6,6 +6,12 @@ import {
   assertWeekSeasonCanBeChanged,
   reconcileWeek,
 } from "@/lib/admin/reconcile-week";
+import {
+  getNextWeekNumber,
+  renumberWeeksInSeason,
+  resolveWeekOverlaps,
+  validateWeekWithinSeason,
+} from "@/lib/admin/week-calendar";
 import { getSynchronizedWeekStatus } from "@/lib/week-status";
 import type { WeekRow } from "@/types/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -75,114 +81,6 @@ async function validateSchedule(
     : null;
 }
 
-async function validateWithinSeason(
-  data: {
-    public_start_at: string | null;
-    public_freeze_at: string | null;
-    final_deadline_at: string | null;
-  },
-  season: { starts_at: string | null; ends_at: string | null },
-) {
-  if (!season.starts_at || !season.ends_at) {
-    return null;
-  }
-
-  if (!data.public_start_at || !data.final_deadline_at) {
-    return null;
-  }
-
-  const seasonStartsAt = new Date(season.starts_at).getTime();
-  const seasonEndsAt = new Date(season.ends_at).getTime();
-  const startsAt = new Date(data.public_start_at).getTime();
-  const endsAt = new Date(data.final_deadline_at).getTime();
-  const freezeAt = data.public_freeze_at
-    ? new Date(data.public_freeze_at).getTime()
-    : null;
-
-  if (
-    startsAt < seasonStartsAt ||
-    endsAt > seasonEndsAt ||
-    (freezeAt !== null && (freezeAt < startsAt || freezeAt > endsAt))
-  ) {
-    return "La semana debe estar dentro de las fechas de la temporada.";
-  }
-
-  return null;
-}
-
-async function getNextWeekNumber(supabase: SupabaseClient, seasonId: string) {
-  const { data, error } = await supabase
-    .from("weeks")
-    .select("week_number")
-    .eq("season_id", seasonId)
-    .order("week_number", { ascending: false })
-    .limit(1);
-
-  if (error) {
-    return { ok: false as const, error: "No se pudo calcular el número de semana." };
-  }
-
-  return {
-    ok: true as const,
-    value: (((data ?? [])[0] as { week_number: number } | undefined)
-      ?.week_number ?? 0) + 1,
-  };
-}
-
-async function renumberWeeksInSeason(
-  supabase: SupabaseClient,
-  seasonId: string,
-) {
-  const { data, error } = await supabase
-    .from("weeks")
-    .select("id,week_number,public_start_at,final_deadline_at,created_at")
-    .eq("season_id", seasonId);
-
-  if (error) {
-    return { ok: false as const, error: "No se pudieron leer semanas para renumerar." };
-  }
-
-  const weeks = ((data ?? []) as Array<{
-    id: string;
-    week_number: number;
-    public_start_at: string | null;
-    final_deadline_at: string | null;
-    created_at?: string;
-  }>).sort((a, b) => {
-    const aDate = a.public_start_at ?? a.final_deadline_at ?? a.created_at ?? "";
-    const bDate = b.public_start_at ?? b.final_deadline_at ?? b.created_at ?? "";
-    return aDate.localeCompare(bDate) || a.id.localeCompare(b.id);
-  });
-
-  const offset = 1_000_000;
-
-  for (let index = 0; index < weeks.length; index += 1) {
-    const { error: updateError } = await supabase
-      .from("weeks")
-      .update({ week_number: offset + index + 1 })
-      .eq("id", weeks[index].id);
-
-    if (updateError) {
-      return { ok: false as const, error: "No se pudo preparar la renumeración de semanas." };
-    }
-  }
-
-  for (let index = 0; index < weeks.length; index += 1) {
-    const nextNumber = index + 1;
-
-    const { error: updateError } = await supabase
-      .from("weeks")
-      .update({ week_number: nextNumber })
-      .eq("id", weeks[index].id);
-
-    if (updateError) {
-      return { ok: false as const, error: "No se pudo renumerar semanas." };
-    }
-  }
-
-  return { ok: true as const };
-}
-
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const auth = await requireAdmin();
 
@@ -231,7 +129,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     );
   }
 
-  const seasonRangeError = await validateWithinSeason(
+  const seasonRangeError = await validateWeekWithinSeason(
     validated.data,
     targetSeasonCheck.season,
   );
@@ -240,14 +138,18 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return jsonError(seasonRangeError, 409);
   }
 
-  const scheduleError = await validateSchedule(
+  const { shift_following_weeks: shiftFollowingWeeks, ...weekData } =
+    validated.data;
+  const overlapResolution = await resolveWeekOverlaps(
     auth.supabase,
-    validated.data,
+    weekData,
+    targetSeasonCheck.season,
+    shiftFollowingWeeks,
     weekId,
   );
 
-  if (scheduleError) {
-    return jsonError(scheduleError, 409);
+  if (!overlapResolution.ok) {
+    return jsonError(overlapResolution.error, overlapResolution.status);
   }
 
   const { data: existingResults, error: resultsError } = await auth.supabase
@@ -276,10 +178,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   let weekNumber = existingWeek.week_number;
 
-  if (existingWeek.season_id !== validated.data.season_id) {
+  if (existingWeek.season_id !== weekData.season_id) {
     const nextWeekNumber = await getNextWeekNumber(
       auth.supabase,
-      validated.data.season_id,
+      weekData.season_id,
     );
 
     if (!nextWeekNumber.ok) {
@@ -292,14 +194,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { data, error } = await auth.supabase
     .from("weeks")
     .update({
-      ...validated.data,
+      ...weekData,
       week_number: weekNumber,
       status: getSynchronizedWeekStatus(
         {
           status: "draft",
-          public_start_at: validated.data.public_start_at,
-          public_freeze_at: validated.data.public_freeze_at,
-          final_deadline_at: validated.data.final_deadline_at,
+          public_start_at: weekData.public_start_at,
+          public_freeze_at: weekData.public_freeze_at,
+          final_deadline_at: weekData.final_deadline_at,
         },
         new Date(),
         (existingResults ?? []).length > 0,
@@ -318,7 +220,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 
   const affectedSeasonIds = Array.from(
-    new Set([existingWeek.season_id, validated.data.season_id]),
+    new Set([existingWeek.season_id, weekData.season_id]),
   );
 
   for (const seasonId of affectedSeasonIds) {
@@ -335,9 +237,21 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return jsonError(reconciliation.error, reconciliation.status);
   }
 
+  for (const shiftedWeek of overlapResolution.shiftedWeeks) {
+    const shiftedReconciliation = await reconcileWeek(
+      auth.supabase,
+      shiftedWeek.id,
+    );
+
+    if (!shiftedReconciliation.ok) {
+      return jsonError(shiftedReconciliation.error, shiftedReconciliation.status);
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     week: reconciliation.week,
     reconciliation: reconciliation.summary,
+    shiftedWeeks: overlapResolution.shiftedWeeks,
   });
 }

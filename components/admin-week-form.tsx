@@ -15,10 +15,7 @@ type AdminWeekFormProps = {
 
 type FinalStretchMode =
   | "none"
-  | "last_1"
-  | "last_2"
   | "last_3"
-  | "last_7"
   | "all"
   | "custom";
 
@@ -29,6 +26,7 @@ type FormState = {
   closeDate: string;
   finalStretchMode: FinalStretchMode;
   customFinalStretchDate: string;
+  shiftFollowingWeeks: boolean;
   rulesSummary: string;
 };
 
@@ -122,8 +120,8 @@ function inferFinalStretchMode(week: WeekRow): {
 
   const days = diffDays(freezeDate, closeDate) + 1;
 
-  if (days === 1 || days === 2 || days === 3 || days === 7) {
-    return { mode: `last_${days}` as FinalStretchMode, customDate: "" };
+  if (days === 3) {
+    return { mode: "last_3", customDate: "" };
   }
 
   return { mode: "custom", customDate: freezeDate };
@@ -146,6 +144,7 @@ function initialState(
       closeDate: dateOnly(week.final_deadline_at),
       finalStretchMode: finalStretch.mode,
       customFinalStretchDate: finalStretch.customDate,
+      shiftFollowingWeeks: false,
       rulesSummary: week.rules_summary ?? "",
     };
   }
@@ -163,6 +162,7 @@ function initialState(
     closeDate: defaults.closeDate,
     finalStretchMode: defaults.finalStretchMode,
     customFinalStretchDate: defaults.customFinalStretchDate,
+    shiftFollowingWeeks: false,
     rulesSummary: "",
   };
 }
@@ -201,12 +201,9 @@ function finalStretchOptions(openDate: string, closeDate: string) {
   const duration = openDate && closeDate ? diffDays(openDate, closeDate) + 1 : 0;
 
   return [
-    { value: "none", label: "Sin tramo final", enabled: true },
-    { value: "last_1", label: "Ultimo dia", enabled: duration >= 1 },
-    { value: "last_2", label: "Ultimos 2 dias", enabled: duration >= 2 },
-    { value: "last_3", label: "Ultimos 3 dias", enabled: duration >= 3 },
-    { value: "last_7", label: "Ultimos 7 dias", enabled: duration > 7 },
     { value: "all", label: "Todo el plazo", enabled: duration >= 1 },
+    { value: "last_3", label: "Últimos 3 días", enabled: duration >= 3 },
+    { value: "none", label: "Sin tramo final", enabled: true },
     { value: "custom", label: "Personalizado", enabled: duration >= 1 },
   ] as Array<{ value: FinalStretchMode; label: string; enabled: boolean }>;
 }
@@ -238,6 +235,10 @@ export function AdminWeekForm({
     });
   }
 
+  function updateCheckbox(name: "shiftFollowingWeeks", value: boolean) {
+    setState((current) => ({ ...current, [name]: value }));
+  }
+
   function submit() {
     setMessage(null);
     startTransition(async () => {
@@ -259,6 +260,7 @@ export function AdminWeekForm({
           submissionsMadeVisible?: number;
           submissionsMadeHidden?: number;
         };
+        shiftedWeeks?: Array<{ id: string; weekNumber: number }>;
       };
 
       if (!response.ok || !payload.ok || !payload.week) {
@@ -278,6 +280,10 @@ export function AdminWeekForm({
           (payload.reconciliation.submissionsMadeHidden ?? 0) > 0)
       ) {
         details.push("La visibilidad de submissions se ha reconciliado con las nuevas fechas.");
+      }
+
+      if (payload.shiftedWeeks && payload.shiftedWeeks.length > 0) {
+        details.push(`Se han retrasado ${payload.shiftedWeeks.length} semanas posteriores.`);
       }
 
       setMessage(
@@ -316,9 +322,7 @@ export function AdminWeekForm({
             required
             value={state.seasonId}
           >
-            {mode === "create" && !state.seasonId ? (
-              <option value="">Elige una</option>
-            ) : null}
+            <option value="">Selecciona una</option>
             {seasons.map((season) => (
               <option key={season.id} value={season.id}>
                 {season.name}
@@ -342,24 +346,8 @@ export function AdminWeekForm({
             ))}
           </select>
         </label>
-        {mode === "edit" && week ? (
-          <div className="rounded-md border px-3 py-2 theme-border theme-surface-muted">
-            <p className="text-sm font-semibold theme-text">Numero de semana</p>
-            <p className="mt-1 text-sm theme-text-muted">
-              Semana {week.week_number}. Se recalcula automaticamente por fecha.
-            </p>
-          </div>
-        ) : null}
-        {mode === "create" ? (
-          <div className="rounded-md border px-3 py-2 theme-border theme-surface-muted">
-            <p className="text-sm font-semibold theme-text">Numero de semana</p>
-            <p className="mt-1 text-sm theme-text-muted">
-              Se asigna automaticamente segun la posicion cronologica.
-            </p>
-          </div>
-        ) : null}
         <DateInput
-          help="Se guardara como 00:00:00 Europe/Madrid."
+          help="Se guardará como 00:00:00 Europe/Madrid."
           label="Fecha de apertura"
           name="openDate"
           onChange={updateField}
@@ -367,7 +355,7 @@ export function AdminWeekForm({
           value={state.openDate}
         />
         <DateInput
-          help="Se guardara como 23:59:59 Europe/Madrid."
+          help="Se guardará como 23:59:59 Europe/Madrid."
           label="Fecha de cierre"
           name="closeDate"
           onChange={updateField}
@@ -414,6 +402,24 @@ export function AdminWeekForm({
             onChange={(event) => updateField("rulesSummary", event.target.value)}
             value={state.rulesSummary}
           />
+        </label>
+        <label className="flex items-start gap-3 rounded-md border p-3 text-sm theme-border theme-surface-muted md:col-span-2">
+          <input
+            checked={state.shiftFollowingWeeks}
+            className="mt-1"
+            onChange={(event) =>
+              updateCheckbox("shiftFollowingWeeks", event.target.checked)
+            }
+            type="checkbox"
+          />
+          <span>
+            <span className="block font-semibold theme-text">
+              Retrasar semanas posteriores si hay solape
+            </span>
+            <span className="mt-1 block theme-text-muted">
+              Mantiene duración y tramo final relativo. No desplaza semanas con resultados oficiales.
+            </span>
+          </span>
         </label>
       </div>
       <div className="flex flex-wrap items-center gap-3">

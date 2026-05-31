@@ -41,7 +41,10 @@ High Score League esta en fase mock avanzada.
   editar sus metadatos principales y gestionar benchmarks básicos.
 - El formulario admin de semanas usa fechas simples, selecciona temporada
   activa por defecto si existe, no autoselecciona juego y calcula
-  `week_number` automaticamente por orden cronologico dentro de la temporada.
+  `week_number` automáticamente por orden cronológico dentro de la temporada.
+- Si una semana solapa semanas posteriores, el admin puede confirmar retrasarlas
+  automáticamente; no se desplazan semanas con resultados oficiales ni se
+  extiende la temporada.
 - Las semanas usan estado derivado por fechas: apertura (`public_start_at`),
   tramo final opcional (`public_freeze_at`) y cierre (`final_deadline_at`).
   `reveal_at` queda como campo legacy.

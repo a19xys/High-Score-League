@@ -5,6 +5,7 @@ export type WeekFormPayload = {
   closeDate?: unknown;
   finalStretchMode?: unknown;
   customFinalStretchDate?: unknown;
+  shiftFollowingWeeks?: unknown;
   rulesSummary?: unknown;
 };
 
@@ -27,6 +28,7 @@ export type ValidatedWeekPayload =
         final_deadline_at: string | null;
         reveal_at: string | null;
         rules_summary: string | null;
+        shift_following_weeks: boolean;
       };
     }
   | { ok: false; error: string };
@@ -55,10 +57,7 @@ const zonedDateTimePattern =
 const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
 const finalStretchModes = new Set([
   "none",
-  "last_1",
-  "last_2",
   "last_3",
-  "last_7",
   "all",
   "custom",
 ]);
@@ -228,17 +227,10 @@ function resolveFinalStretchDate(
     return { ok: false as const, error: "Modo de tramo final no permitido." };
   }
 
-  if (days === 7 && durationDays <= 7) {
-    return {
-      ok: false as const,
-      error: "Ultimos 7 dias solo esta disponible para semanas de mas de 7 dias.",
-    };
-  }
-
   if (days > durationDays) {
     return {
       ok: false as const,
-      error: "El tramo final elegido es mayor que la duracion de la semana.",
+      error: "El tramo final elegido es mayor que la duración de la semana.",
     };
   }
 
@@ -310,6 +302,10 @@ export function validateWeekPayload(payload: WeekFormPayload): ValidatedWeekPayl
 
   const rulesSummary = optionalText(payload.rulesSummary, "rules_summary");
   if (!rulesSummary.ok) return { ok: false, error: rulesSummary.error };
+  const shiftFollowingWeeks =
+    typeof payload.shiftFollowingWeeks === "boolean"
+      ? payload.shiftFollowingWeeks
+      : false;
 
   const publicStartAt = madridTimestamp(openDate.value, "00:00:00");
   const publicFreezeAt = finalStretchDate.value
@@ -335,6 +331,7 @@ export function validateWeekPayload(payload: WeekFormPayload): ValidatedWeekPayl
       final_deadline_at: finalDeadlineAt,
       reveal_at: null,
       rules_summary: rulesSummary.value,
+      shift_following_weeks: shiftFollowingWeeks,
     },
   };
 }
