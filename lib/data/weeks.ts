@@ -44,9 +44,7 @@ export function mapWeekRowToWeek(row: WeekRow): Week {
     endsAt: row.final_deadline_at ?? "",
     revealAt: row.reveal_at ?? undefined,
     status: row.status,
-    rules: row.rules_summary
-      ? row.rules_summary.split("\n").filter(Boolean)
-      : ["Reglas pendientes."],
+    rules: row.rules_summary ? row.rules_summary.split("\n").filter(Boolean) : [],
   };
 }
 

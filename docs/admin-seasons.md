@@ -16,7 +16,7 @@ Una temporada agrupa semanas y miembros. Define:
 - fecha de fin.
 
 Una semana pertenece a una temporada y define el juego activo, fechas
-competitivas, reglas y resultados semanales.
+competitivas, instrucciones específicas opcionales y resultados semanales.
 
 Un juego pertenece al catalogo y puede reutilizarse en distintas semanas.
 

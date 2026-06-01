@@ -19,6 +19,8 @@ type FormState = {
   controlType: string;
   difficulty: string;
   imageUrl: string;
+  instructions: string;
+  manualUrl: string;
   notes: string;
 };
 
@@ -33,6 +35,8 @@ function initialState(game?: GameRow): FormState {
     controlType: game?.control_type ?? "",
     difficulty: game?.difficulty ?? "",
     imageUrl: game?.image_url ?? "",
+    instructions: game?.instructions ?? "",
+    manualUrl: game?.manual_url ?? "",
     notes: game?.notes ?? "",
   };
 }
@@ -95,6 +99,8 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
             controlType: state.controlType,
             difficulty: state.difficulty,
             imageUrl: state.imageUrl,
+            instructions: state.instructions,
+            manualUrl: state.manualUrl,
             notes: state.notes,
           }),
         },
@@ -190,6 +196,33 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
           />
           <span className="mt-1 block text-xs theme-text-muted">
             Solo texto por ahora. No hay subida real de imágenes.
+          </span>
+        </label>
+        <label className="block md:col-span-2">
+          <span className="text-sm font-semibold theme-text">
+            Instrucciones del juego
+          </span>
+          <textarea
+            className="mt-2 min-h-36 w-full rounded-md border px-3 py-2 theme-input"
+            name="instructions"
+            onChange={(event) => updateField("instructions", event.target.value)}
+            value={state.instructions}
+          />
+          <span className="mt-1 block text-xs theme-text-muted">
+            Instrucciones base: cómo jugar, controles, ROM recomendada y normas de puntuación.
+          </span>
+        </label>
+        <label className="block md:col-span-2">
+          <span className="text-sm font-semibold theme-text">URL del manual</span>
+          <input
+            className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+            name="manualUrl"
+            onChange={(event) => updateField("manualUrl", event.target.value)}
+            placeholder="https://..."
+            value={state.manualUrl}
+          />
+          <span className="mt-1 block text-xs theme-text-muted">
+            Enlace externo por ahora. No hay subida real de manuales ni Storage.
           </span>
         </label>
         <label className="block md:col-span-2">

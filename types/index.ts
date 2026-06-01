@@ -26,6 +26,8 @@ export type Game = {
   difficulty: string;
   imageAlt: string;
   imageUrl?: string;
+  instructions?: string;
+  manualUrl?: string;
 };
 
 export type Season = {

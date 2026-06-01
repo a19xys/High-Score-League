@@ -66,6 +66,17 @@ export function WeekDetailView({
   seasonBackLabel,
 }: WeekDetailViewProps) {
   const showOfficialResults = dataMode === "supabase" && week.status === "published";
+  const weekInstructions = week.rules.filter((rule) => rule.trim());
+  const gameInstructions = game.instructions?.trim() ?? "";
+  const effectiveInstructions =
+    weekInstructions.length > 0 ? weekInstructions.join("\n") : gameInstructions;
+  const instructionSource =
+    weekInstructions.length > 0
+      ? "Instrucciones específicas de esta semana"
+      : gameInstructions
+        ? "Instrucciones del juego"
+        : null;
+  const manualHref = week.manualUrl ?? game.manualUrl;
 
   return (
     <div className="space-y-6">
@@ -106,20 +117,31 @@ export function WeekDetailView({
           <div className="space-y-5">
             <div>
               <h2 className="text-sm font-semibold uppercase theme-text-muted">
-                Reglas
+                Instrucciones
               </h2>
-              <ul className="mt-3 space-y-2 text-sm leading-6 theme-text-muted">
-                {week.rules.map((rule) => (
-                  <li className="flex gap-2" key={rule}>
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-circuit" />
-                    <span>{rule}</span>
-                  </li>
-                ))}
-              </ul>
+              {effectiveInstructions ? (
+                <div className="mt-3 rounded-lg border p-4 theme-border theme-surface-muted">
+                  {instructionSource ? (
+                    <p className="text-xs font-semibold uppercase theme-text-muted">
+                      {instructionSource}
+                    </p>
+                  ) : null}
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 theme-text-muted">
+                    {effectiveInstructions}
+                  </p>
+                </div>
+              ) : (
+                <EmptyState
+                  title="No hay instrucciones disponibles."
+                  description="Añade instrucciones al juego o un override específico en la semana."
+                />
+              )}
             </div>
             {!hideDownloads ? (
               <div className="flex flex-wrap gap-3">
-                <LinkButton href={week.manualUrl ?? "#"}>Descargar manual</LinkButton>
+                {manualHref ? (
+                  <LinkButton href={manualHref}>Ver manual</LinkButton>
+                ) : null}
                 <LinkButton href="#">Descargar juego</LinkButton>
               </div>
             ) : null}

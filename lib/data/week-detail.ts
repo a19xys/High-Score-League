@@ -213,7 +213,7 @@ async function buildRealWeekDetail(
     isSecretGameTitle(rawGame.title);
   const week = mapWeekRowToWeek(weekRow);
   const rules = isSecret
-    ? ["El juego, reglas y descargas permanecerán ocultos hasta que se active la semana."]
+    ? ["El juego, instrucciones y descargas permanecerán ocultos hasta que se active la semana."]
     : week.rules;
   const submissionsResult = isSecret ? null : await getRealSubmissions(weekRow.id);
   const benchmarksResult = isSecret ? null : await getRealWeekBenchmarks(weekRow.id);

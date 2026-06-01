@@ -38,7 +38,8 @@ High Score League esta en fase mock avanzada.
 - `/admin/weeks` y `/admin/weeks/[weekId]` permiten gestionar semanas,
   submissions y resultados oficiales sin SQL manual.
 - `/admin/weeks/new` y `/admin/weeks/[weekId]/edit` permiten crear semanas,
-  editar sus metadatos principales y gestionar benchmarks básicos.
+  editar sus metadatos principales, definir instrucciones específicas
+  opcionales y gestionar benchmarks básicos.
 - `/admin/weeks/[weekId]/edit` permite borrar semanas inactivas sin submissions
   ni resultados, con confirmación explícita y renumeración posterior.
 - El formulario admin de semanas usa fechas simples, selecciona temporada
@@ -59,7 +60,8 @@ High Score League esta en fase mock avanzada.
   temporadas por fechas, reutiliza la reconciliacion de semanas, genera
   `weekly_results` al cierre y marca semanas como `published`.
 - `/admin/games` permite gestionar el catálogo real de juegos: listar, buscar,
-  crear y editar.
+  crear, editar, definir instrucciones base y guardar un enlace externo al
+  manual.
 - `/admin/seasons` permite gestionar temporadas reales: listar, buscar, crear y
   editar.
 - `/admin/seasons/[seasonId]` permite borrar temporadas inactivas sin
@@ -77,6 +79,8 @@ High Score League esta en fase mock avanzada.
   `supabase/migrations/0001_initial_schema.sql`.
 - La migracion `supabase/migrations/0002_submission_events.sql` prepara
   `submissions` para eventos automaticos desde MAME/app local.
+- La migracion `supabase/migrations/0009_game_instructions.sql` añade
+  `games.instructions` y `games.manual_url`.
 - El seed de desarrollo esta en `supabase/seed-dev.sql`.
 - La documentacion del modelo esta en `docs/database.md`.
 - La documentacion de Storage esta en `docs/supabase-storage.md`.

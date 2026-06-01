@@ -51,8 +51,8 @@ export default async function AdminGamesPage() {
       </Link>
       <Card>
         <CardHeader title="Catálogo de juegos" eyebrow="Administración">
-          Gestiona juegos reutilizables. Las reglas, manuales y descargas viven
-          en la gestión semanal más adelante.
+          Gestiona juegos reutilizables, instrucciones base y enlaces externos
+          de manual. Las descargas configuradas siguen pendientes.
         </CardHeader>
         {error ? (
           <div className="mb-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">

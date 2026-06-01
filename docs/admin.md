@@ -46,8 +46,8 @@ Tambien incluye el boton `Crear semana`, que abre `/admin/weeks/new`.
 ## Juegos
 
 `/admin/games` gestiona el catalogo real de juegos. Permite listar, buscar,
-crear y editar juegos. La edicion de juegos no borra entradas para no romper
-semanas existentes.
+crear y editar juegos, incluyendo instrucciones base y URL externa de manual.
+La edicion de juegos no borra entradas para no romper semanas existentes.
 
 ## Temporadas
 
@@ -63,7 +63,7 @@ Los estados de temporada se sincronizan por fechas:
 ## Crear y editar semanas
 
 `/admin/weeks/new` crea semanas reales asociando temporada, juego, numero,
-apertura, tramo final opcional, cierre y reglas resumidas.
+apertura, tramo final opcional, cierre e instrucciones específicas opcionales.
 
 `/admin/weeks/[weekId]/edit` edita esos mismos datos principales y separa la
 edicion de metadatos del cuadro de mandos operativo.

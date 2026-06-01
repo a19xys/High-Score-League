@@ -10,6 +10,8 @@ export type GameFormPayload = {
   controlType?: unknown;
   difficulty?: unknown;
   imageUrl?: unknown;
+  instructions?: unknown;
+  manualUrl?: unknown;
   notes?: unknown;
 };
 
@@ -26,13 +28,15 @@ export type ValidatedGamePayload =
         control_type: string | null;
         difficulty: string | null;
         image_url: string | null;
+        instructions: string | null;
+        manual_url: string | null;
         notes: string | null;
       };
     }
   | { ok: false; error: string };
 
 export const adminGameColumns =
-  "id,title,year,developer,publisher,rom_name,genre,control_type,difficulty,image_url,notes,created_at,updated_at";
+  "id,title,year,developer,publisher,rom_name,genre,control_type,difficulty,image_url,instructions,manual_url,notes,created_at,updated_at";
 
 function optionalText(value: unknown, label: string) {
   if (value === undefined || value === null) {
@@ -52,7 +56,7 @@ function optionalText(value: unknown, label: string) {
   return { ok: true as const, value: trimmed };
 }
 
-function validateOptionalUrl(value: string | null) {
+function validateOptionalUrl(value: string | null, label: string) {
   if (!value) {
     return { ok: true as const, value: null };
   }
@@ -61,12 +65,12 @@ function validateOptionalUrl(value: string | null) {
     const url = new URL(value);
 
     if (!["http:", "https:"].includes(url.protocol)) {
-      return { ok: false as const, error: "image_url debe ser http o https." };
+      return { ok: false as const, error: `${label} debe ser http o https.` };
     }
 
     return { ok: true as const, value };
   } catch {
-    return { ok: false as const, error: "image_url debe ser una URL válida." };
+    return { ok: false as const, error: `${label} debe ser una URL válida.` };
   }
 }
 
@@ -106,13 +110,23 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
   if (!difficulty.ok) return { ok: false, error: difficulty.error };
   const rawImageUrl = optionalText(payload.imageUrl, "image_url");
   if (!rawImageUrl.ok) return { ok: false, error: rawImageUrl.error };
+  const instructions = optionalText(payload.instructions, "instructions");
+  if (!instructions.ok) return { ok: false, error: instructions.error };
+  const rawManualUrl = optionalText(payload.manualUrl, "manual_url");
+  if (!rawManualUrl.ok) return { ok: false, error: rawManualUrl.error };
   const notes = optionalText(payload.notes, "notes");
   if (!notes.ok) return { ok: false, error: notes.error };
 
-  const imageUrl = validateOptionalUrl(rawImageUrl.value);
+  const imageUrl = validateOptionalUrl(rawImageUrl.value, "image_url");
 
   if (!imageUrl.ok) {
     return { ok: false, error: imageUrl.error };
+  }
+
+  const manualUrl = validateOptionalUrl(rawManualUrl.value, "manual_url");
+
+  if (!manualUrl.ok) {
+    return { ok: false, error: manualUrl.error };
   }
 
   return {
@@ -127,6 +141,8 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
       control_type: controlType.value,
       difficulty: difficulty.value,
       image_url: imageUrl.value,
+      instructions: instructions.value,
+      manual_url: manualUrl.value,
       notes: notes.value,
     },
   };

@@ -396,12 +396,17 @@ export function AdminWeekForm({
           />
         ) : null}
         <label className="block md:col-span-2">
-          <span className="text-sm font-semibold theme-text">Reglas resumidas</span>
+          <span className="text-sm font-semibold theme-text">
+            Instrucciones específicas de esta semana
+          </span>
           <textarea
             className="mt-2 min-h-28 w-full rounded-md border px-3 py-2 theme-input"
             onChange={(event) => updateField("rulesSummary", event.target.value)}
             value={state.rulesSummary}
           />
+          <span className="mt-1 block text-xs theme-text-muted">
+            Déjalo vacío para usar las instrucciones del juego asociado.
+          </span>
         </label>
         <label className="flex items-start gap-3 rounded-md border p-3 text-sm theme-border theme-surface-muted md:col-span-2">
           <input

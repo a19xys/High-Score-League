@@ -59,7 +59,7 @@ genera resultados al cierre.
 - apertura;
 - tramo final mediante selector;
 - cierre;
-- reglas resumidas.
+- instrucciones específicas opcionales.
 
 Tambien puede abrirse con una temporada precargada:
 
@@ -80,6 +80,22 @@ Crear una semana no crea submissions, resultados oficiales ni benchmarks
 automáticamente.
 
 No se pueden crear semanas dentro de una temporada `completed`.
+
+## Instrucciones
+
+`weeks.rules_summary` se mantiene en base de datos, pero en la UI se interpreta
+como override opcional de instrucciones de semana.
+
+Prioridad de visualización:
+
+1. si `weeks.rules_summary` tiene texto, se muestran esas instrucciones
+   específicas;
+2. si está vacío y `games.instructions` tiene texto, se muestran las
+   instrucciones base del juego;
+3. si ambos faltan, se muestra un estado vacío.
+
+El formulario lo muestra como `Instrucciones específicas de esta semana` con la
+ayuda `Déjalo vacío para usar las instrucciones del juego asociado`.
 
 ## Validaciones
 

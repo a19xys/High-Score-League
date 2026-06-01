@@ -161,7 +161,8 @@ El detalle de semana usa fuente configurable:
 - En modo mock acepta ids mock como `w1`.
 - En modo Supabase busca por `id` real de `public.weeks`.
 - No hay slug real de semana en el esquema actual, asi que no se busca por slug.
-- Lee la semana, temporada asociada, juego asociado y `rules_summary`.
+- Lee la semana, temporada asociada, juego asociado, `rules_summary`,
+  `games.instructions` y `games.manual_url`.
 - Si no hay sesion, RLS bloquea o Supabase falla, usa fallback mock si existe.
 
 Si una semana es futura, `draft` o usa el placeholder `Juego secreto`, se muestra
@@ -169,12 +170,12 @@ una pantalla de juego secreto:
 
 - no se revela juego real;
 - no se muestran metadatos;
-- no se muestran reglas reales;
+- no se muestran instrucciones reales;
 - no aparecen botones de descarga.
 
 Para semanas activas, cerradas o publicadas con juego real se muestran ficha,
-estado, fechas, reglas reales, leaderboard calculado desde submissions visibles
-e historial de envios.
+estado, fechas, instrucciones efectivas, leaderboard calculado desde submissions
+visibles e historial de envios.
 
 ## `/game`
 
@@ -229,11 +230,13 @@ submissions, se ejecuta dry run, se generan resultados oficiales y se marca la
 semana como publicada.
 
 `/admin/weeks/new` crea semanas reales y `/admin/weeks/[weekId]/edit` edita
-temporada, juego, número, estado, fechas, reglas resumidas y benchmarks básicos.
+temporada, juego, número, fechas, instrucciones específicas opcionales y
+benchmarks básicos.
 
 `/admin/games` gestiona el catálogo real de juegos. Los metadatos `genre`,
 `control_type` y `difficulty` se leen desde Supabase cuando existe la migración
-`0005_game_metadata.sql`.
+`0005_game_metadata.sql`. Desde `0009_game_instructions.sql` también gestiona
+`instructions` y `manual_url`.
 
 `/admin/seasons` gestiona temporadas reales. Permite crear y editar `name`,
 `slug`, `version`, `status`, `starts_at` y `ends_at`; no crea semanas

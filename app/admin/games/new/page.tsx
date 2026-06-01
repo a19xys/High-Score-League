@@ -51,7 +51,8 @@ export default async function NewAdminGamePage() {
       </Link>
       <Card>
         <CardHeader title="Crear juego" eyebrow="Catálogo">
-          image_url es texto por ahora. No hay Storage ni subida de imágenes.
+          image_url y manual_url son texto por ahora. No hay Storage ni subida
+          de imágenes o manuales.
         </CardHeader>
         <AdminGameForm mode="create" />
       </Card>

@@ -53,6 +53,14 @@ Desde `0005_game_metadata.sql` incluye metadatos opcionales de UI:
 Son campos `text` flexibles. Pueden ser `null`, pero si existen no pueden ser
 texto vacío. No se usan enums todavía.
 
+Desde `0009_game_instructions.sql` incluye instrucciones base y manual externo:
+
+- `instructions`: instrucciones base del juego;
+- `manual_url`: enlace externo opcional al manual.
+
+`manual_url` puede ser `null`, pero si existe debe empezar por `http://` o
+`https://`. No hay Storage ni subida de manuales todavía.
+
 ### weeks
 
 Representa una semana competitiva dentro de una temporada. Relaciona
@@ -61,6 +69,10 @@ estado `draft`, `active`, `frozen`, `closed` o `published`.
 
 La restricción `unique(season_id, week_number)` evita dos semanas con el mismo
 número dentro de una misma temporada.
+
+`weeks.rules_summary` se mantiene como campo legacy, pero la app lo interpreta
+como override opcional de instrucciones de semana. Si está vacío, el detalle de
+semana usa `games.instructions`; si tampoco existe, muestra un estado vacío.
 
 ### submissions
 

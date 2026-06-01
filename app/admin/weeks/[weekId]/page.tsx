@@ -83,6 +83,16 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
     data.week.startsAt && data.week.endsAt
       ? formatCompactDateRange(data.week.startsAt, data.week.endsAt)
       : "Fechas pendientes";
+  const weekInstructions = data.week.rules.filter((rule) => rule.trim());
+  const gameInstructions = data.game.instructions?.trim() ?? "";
+  const effectiveInstructions =
+    weekInstructions.length > 0 ? weekInstructions.join("\n") : gameInstructions;
+  const instructionSource =
+    weekInstructions.length > 0
+      ? "Usando instrucciones específicas de la semana"
+      : gameInstructions
+        ? "Usando instrucciones del juego"
+        : null;
 
   return (
     <div className="space-y-6">
@@ -143,6 +153,20 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
             </p>
           </div>
         </div>
+      </Card>
+
+      <Card>
+        <CardHeader title="Instrucciones" eyebrow={instructionSource ?? "Sin instrucciones"} />
+        {effectiveInstructions ? (
+          <p className="whitespace-pre-line text-sm leading-6 theme-text-muted">
+            {effectiveInstructions}
+          </p>
+        ) : (
+          <EmptyState
+            title="No hay instrucciones disponibles."
+            description="Añade instrucciones base al juego o un override específico en la semana."
+          />
+        )}
       </Card>
 
       <Card>
