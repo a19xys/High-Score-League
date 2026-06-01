@@ -63,7 +63,12 @@ function resolveDateDrivenStatus(week: WeekRow, now: Date) {
 function resolveSubmissionHiddenState(
   submission: SubmissionVisibilityRow,
   week: WeekRow,
+  revealAll = false,
 ) {
+  if (revealAll) {
+    return false;
+  }
+
   const effectiveTime =
     parseTime(submission.detected_at) ?? parseTime(submission.submitted_at);
   const startsAt = parseTime(week.public_start_at);
@@ -95,6 +100,7 @@ function resolveSubmissionHiddenState(
 async function updateSubmissionVisibility(
   supabase: SupabaseClient,
   week: WeekRow,
+  revealAll = false,
 ) {
   const { data, error } = await supabase
     .from("submissions")
@@ -115,7 +121,7 @@ async function updateSubmissionVisibility(
   const makeHidden: string[] = [];
 
   for (const submission of submissions) {
-    const nextHidden = resolveSubmissionHiddenState(submission, week);
+    const nextHidden = resolveSubmissionHiddenState(submission, week, revealAll);
 
     if (nextHidden === submission.is_hidden) {
       continue;
@@ -315,7 +321,11 @@ export async function reconcileWeek(
         : "closed"
       : dateDrivenStatus;
 
-  const visibility = await updateSubmissionVisibility(supabase, week);
+  const visibility = await updateSubmissionVisibility(
+    supabase,
+    week,
+    nextStatus === "closed" || nextStatus === "published",
+  );
 
   if (!visibility.ok) {
     return visibility;

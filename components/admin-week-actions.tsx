@@ -71,8 +71,9 @@ export function WeeklyResultsActions({
       <div className="flex flex-wrap gap-2">
         <button
           className="rounded-md border px-3 py-2 text-sm font-semibold theme-border theme-hover disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={isPending}
+          disabled={isPending || !canGenerate}
           onClick={() => callResults(true)}
+          title={canGenerate ? undefined : "La semana debe estar cerrada."}
           type="button"
         >
           Preview resultados
@@ -84,14 +85,15 @@ export function WeeklyResultsActions({
           title={canGenerate ? undefined : "Primero cierra la semana."}
           type="button"
         >
-          Generar resultados oficiales
+          {weekStatus === "published"
+            ? "Regenerar resultados oficiales"
+            : "Publicar resultados oficiales"}
         </button>
       </div>
       {!canGenerate ? (
         <p className="text-sm text-[var(--warning-text)]">
-          Los resultados oficiales se generan automÃ¡ticamente al cierre. Esta
-          acciÃ³n queda disponible para preview o regeneraciÃ³n cuando la semana
-          ya estÃ© cerrada/publicada.
+          El cron solo cierra la semana y revela puntuaciones. La publicación
+          oficial queda disponible cuando la semana esté cerrada.
         </p>
       ) : null}
       {message ? <p className="text-sm theme-text-muted">{message}</p> : null}

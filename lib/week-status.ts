@@ -113,11 +113,11 @@ export function getWeekStatusHelp(status: DerivedWeekStatus) {
   }
 
   if (status === "closed") {
-    return "La fecha de cierre ya pasó. La semana no acepta nuevas submissions.";
+    return "Semana cerrada. Puntuaciones reveladas. Resultados oficiales pendientes.";
   }
 
   if (status === "published") {
-    return "La semana ya tiene resultados oficiales publicados.";
+    return "Resultados oficiales publicados.";
   }
 
   return null;

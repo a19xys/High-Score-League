@@ -38,22 +38,26 @@ El cron procesa semanas con `public_start_at` y `final_deadline_at`:
 - antes de apertura: `draft`;
 - desde apertura hasta tramo final: `active`;
 - desde tramo final hasta cierre: `frozen`;
-- al llegar al cierre: genera `weekly_results` y marca `published`;
-- si ya esta `published`, no regenera resultados.
+- al llegar al cierre: marca `closed` y revela submissions válidas ocultas;
+- si ya está `published`, mantiene `published`.
 
 El tramo final usa `public_freeze_at`. Si no existe, la semana pasa de
 `active` a cierre directamente.
 
-Antes de decidir si debe generar resultados, el cron reutiliza la reconciliacion
-de semana: ajusta el estado por fechas, recalcula `is_hidden` de submissions
-validas y retira `weekly_results` si una semana publicada fue reabierta al mover
-su cierre al futuro.
+El cron reutiliza la reconciliación de semana: ajusta el estado por fechas,
+recalcula `is_hidden` de submissions válidas, revela puntuaciones al cerrar y
+retira `weekly_results` si una semana publicada fue reabierta al mover su cierre
+al futuro.
 
-La generacion es idempotente: si la semana ya tiene resultados oficiales o esta
-`published`, el cron no crea duplicados. Si no hay submissions validas pero hay
-miembros elegibles, se publican resultados vacios. Si no hay miembros elegibles,
-la semana tambien puede quedar `published` con 0 resultados para no bloquear el
-cierre automatico.
+El cron no genera `weekly_results`. La publicación oficial queda como acción
+manual de admin desde `/admin/weeks/[weekId]`. Esto separa:
+
+- `closed`: puntuaciones reveladas, sin submissions nuevas, sin contar para
+  clasificación de temporada;
+- `published`: `weekly_results` generados y semana contabilizada oficialmente.
+
+El endpoint es idempotente: ejecutarlo varias veces no duplica resultados y no
+cambia una semana `published` a `closed`.
 
 ## Temporadas
 

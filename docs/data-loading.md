@@ -136,7 +136,8 @@ queda pendiente. En modo mock se mantiene la clasificacion mock existente.
 - Si no hay sesion o Supabase devuelve error, muestra aviso y fallback mock.
 - No muestra semanas de temporadas `draft`.
 - `active` y `frozen` se agrupan visualmente como "Activa".
-- `closed` y `published` se muestran como "Cerrada".
+- `closed` se muestra como "Cerrada".
+- `published` se muestra como "Resultados oficiales".
 - `draft` se trata como no accesible/secreta.
 
 Los juegos secretos se manejan con el placeholder `Juego secreto` porque el
@@ -193,15 +194,16 @@ lectura:
 
 - el leaderboard semanal se calcula desde submissions validas y visibles;
 - las submissions ocultas no revelan puntuacion hasta que la semana esta
-  `published`;
+  `closed` o `published`;
 - el historial muestra origen (`source`), envio (`submitted_at`) y deteccion
   (`detected_at`) cuando existen;
 - si no hay submissions visibles, se muestra estado vacio;
 - si la lectura falla, se muestra un aviso discreto y no se inventan
   puntuaciones mock dentro de una semana real.
 
-`weekly_results` se lee en semanas `published` si existen filas, pero la app no
-los genera ni publica todavia.
+`weekly_results` se lee en semanas `published` si existen filas. Las semanas
+`closed` muestran leaderboard final, pero no alteran clasificación de temporada
+hasta que el admin publica resultados oficiales.
 
 `week_benchmarks` se lee en modo Supabase para mostrar referencias visuales en
 el leaderboard. No son submissions, no alteran ranks, no cuentan para

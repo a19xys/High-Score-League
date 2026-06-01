@@ -57,8 +57,10 @@ High Score League esta en fase mock avanzada.
 - Las temporadas `completed` bloquean cambios normales en sus semanas,
   benchmarks y generacion manual de resultados.
 - `POST /api/cron/process-schedule` sincroniza estados internos de semanas y
-  temporadas por fechas, reutiliza la reconciliacion de semanas, genera
-  `weekly_results` al cierre y marca semanas como `published`.
+  temporadas por fechas, reutiliza la reconciliacion de semanas, cierra semanas
+  vencidas como `closed` y revela puntuaciones sin generar `weekly_results`.
+- `published` queda reservado para la acción manual admin que genera
+  `weekly_results`; solo esas semanas cuentan para clasificación de temporada.
 - `/admin/games` permite gestionar el catálogo real de juegos: listar, buscar,
   crear, editar, definir instrucciones base y guardar un enlace externo al
   manual.

@@ -7,6 +7,10 @@ Esto significa que una puntuacion enviada durante una semana puede aparecer en
 el leaderboard semanal vivo, pero no cuenta para la temporada hasta que un admin
 genera resultados oficiales para esa semana.
 
+Una semana `closed` ya terminó y revela puntuaciones, pero no altera la
+clasificación de temporada. Solo una semana `published`, con filas en
+`weekly_results`, cuenta oficialmente.
+
 ## Datos usados
 
 Para una temporada se leen:

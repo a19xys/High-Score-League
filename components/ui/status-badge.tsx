@@ -14,9 +14,9 @@ const statusStyles: Record<StatusValue, string> = {
 const statusLabels: Record<StatusValue, string> = {
   draft: "Inactiva",
   active: "Activa",
-  frozen: "Inactiva",
+  frozen: "Activa",
   closed: "Cerrada",
-  published: "Cerrada",
+  published: "Resultados oficiales",
   completed: "Cerrada",
 };
 

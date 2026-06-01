@@ -648,7 +648,7 @@ export function getWeeklyLeaderboard(weekId = currentWeek.id): LeaderboardEntry[
     (submission) =>
       submission.weekId === weekId &&
       submission.valid &&
-      (!submission.hidden || week?.status === "published"),
+      (!submission.hidden || week?.status === "closed" || week?.status === "published"),
   );
 
   const entries = players

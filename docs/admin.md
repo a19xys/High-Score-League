@@ -79,10 +79,12 @@ por fechas:
 - antes de apertura: `draft`;
 - apertura normal: `active`;
 - tramo final: `frozen`;
-- cierre procesado: `published`.
+- cierre por fecha: `closed`;
+- publicación manual admin: `published`.
 
-El endpoint `/api/cron/process-schedule` actualiza estados y genera
-`weekly_results` al cierre. Consulta `docs/automation.md`.
+El endpoint `/api/cron/process-schedule` actualiza estados y revela
+puntuaciones al cierre, pero no genera `weekly_results`. Consulta
+`docs/automation.md`.
 
 ## Gestion de una semana
 
@@ -109,12 +111,13 @@ ni tocar capturas o Storage.
 
 `POST /api/admin/weeks/[weekId]/weekly-results` permite:
 
-- `dryRun: true`: preview sin escribir.
-- `dryRun: false`: regenerar resultados oficiales si la semana ya esta cerrada
-  por fechas o publicada.
+- `dryRun: true`: preview sin escribir para semanas `closed` o `published`.
+- `dryRun: false`: publicar o regenerar resultados oficiales si la semana ya
+  está cerrada o publicada.
 
-La publicacion normal ocurre por cron. Al llegar el cierre, el sistema genera
-`weekly_results` y marca la semana como `published`.
+La publicación oficial es manual. Al llegar el cierre, el cron deja la semana
+en `closed`; cuando el admin publica, se generan `weekly_results` y pasa a
+`published`.
 
 ## Cuentas de prueba
 

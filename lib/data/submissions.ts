@@ -123,7 +123,10 @@ export function mapSubmissionRowToSubmission(
 }
 
 function isSubmissionVisibleForLeaderboard(row: SubmissionRow, weekStatus: Week["status"]) {
-  return row.is_valid && (!row.is_hidden || weekStatus === "published");
+  return (
+    row.is_valid &&
+    (!row.is_hidden || weekStatus === "closed" || weekStatus === "published")
+  );
 }
 
 export function buildLeaderboardFromSubmissions(

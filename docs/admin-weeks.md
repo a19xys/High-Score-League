@@ -46,9 +46,10 @@ En la UI publica, `active` y `final_stretch` se muestran como competicion activa
 Durante el tramo final, el ingest acepta submissions pero guarda las nuevas
 puntuaciones ocultas hasta el cierre.
 
-`published` se mantiene como estado interno util para resultados oficiales. El
-endpoint `/api/cron/process-schedule` sincroniza estos estados por fechas y
-genera resultados al cierre.
+`closed` revela puntuaciones y deja de aceptar submissions, pero no cuenta para
+la clasificación de temporada. `published` se mantiene como estado interno útil
+para resultados oficiales. El endpoint `/api/cron/process-schedule` sincroniza
+estos estados por fechas, pero no genera resultados al cierre.
 
 ## Crear semana
 
@@ -155,7 +156,7 @@ Tras guardar, el servidor ejecuta una reconciliacion de semana:
 
 Esto es intencional: una semana reabierta vuelve a comportarse como una semana
 sin resultados oficiales para que la clasificacion de temporada deje de contarla
-hasta que el cron la cierre de nuevo.
+hasta que el admin vuelva a publicarla.
 
 La pantalla incluye una gestion basica de benchmarks visuales:
 

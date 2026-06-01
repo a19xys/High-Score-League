@@ -1,9 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import {
-  calculateWeeklyResultsForWeek,
-  replaceWeeklyResultsForWeek,
-} from "@/lib/weekly-results/calculate";
 import { reconcileWeek } from "@/lib/admin/reconcile-week";
 import { getSynchronizedSeasonStatus } from "@/lib/week-status";
 import type { SeasonRow, WeekRow } from "@/types/supabase";
@@ -69,6 +65,7 @@ export async function POST(request: NextRequest) {
     updated: 0,
     activated: 0,
     frozen: 0,
+    closed: 0,
     published: 0,
     reopened: 0,
     weeklyResultsDeleted: 0,
@@ -138,6 +135,9 @@ export async function POST(request: NextRequest) {
       if (nextStatus === "frozen") {
         weekDiagnostics.frozen += 1;
       }
+      if (nextStatus === "closed") {
+        weekDiagnostics.closed += 1;
+      }
       if (nextStatus === "published") {
         weekDiagnostics.published += 1;
       }
@@ -161,107 +161,6 @@ export async function POST(request: NextRequest) {
       reconciliation.summary.submissionsMadeVisible;
     weekDiagnostics.submissionsMadeHidden +=
       reconciliation.summary.submissionsMadeHidden;
-
-    if (nextStatus === "closed") {
-      const calculation = await calculateWeeklyResultsForWeek(supabase, week.id);
-
-      if (!calculation.ok) {
-        if (
-          calculation.status === 409 &&
-          calculation.error === "No hay miembros elegibles para esta semana."
-        ) {
-          const { error } = await supabase
-            .from("weeks")
-            .update({ status: "published" })
-            .eq("id", week.id);
-
-          if (error) {
-            weekDiagnostics.errors.push({
-              id: week.id,
-              reason: error.message,
-            });
-          } else {
-            weekDiagnostics.updated += 1;
-            weekDiagnostics.published += 1;
-          }
-
-          weekChanges.push({
-            id: week.id,
-            weekNumber: week.week_number,
-            previousStatus: nextStatus,
-            nextStatus: error ? week.status : "published",
-            generatedResults: false,
-            error: error?.message,
-          });
-          continue;
-        }
-
-        const { error } = await supabase
-          .from("weeks")
-          .update({ status: "closed" })
-          .eq("id", week.id);
-
-        weekDiagnostics.errors.push({
-          id: week.id,
-          reason: calculation.error,
-        });
-        weekChanges.push({
-          id: week.id,
-          weekNumber: week.week_number,
-          previousStatus: nextStatus,
-          nextStatus: error ? week.status : "closed",
-          generatedResults: false,
-          error: calculation.error,
-        });
-        continue;
-      }
-
-      const writeResult = await replaceWeeklyResultsForWeek(
-        supabase,
-        week.id,
-        calculation.results,
-      );
-
-      if (!writeResult.ok) {
-        weekDiagnostics.errors.push({
-          id: week.id,
-          reason: writeResult.error,
-        });
-        weekChanges.push({
-          id: week.id,
-          weekNumber: week.week_number,
-          previousStatus: week.status,
-          nextStatus: week.status,
-          generatedResults: false,
-          error: writeResult.error,
-        });
-        continue;
-      }
-
-      const { error } = await supabase
-        .from("weeks")
-        .update({ status: "published" })
-        .eq("id", week.id);
-
-      weekChanges.push({
-        id: week.id,
-        weekNumber: week.week_number,
-        previousStatus: nextStatus,
-        nextStatus: error ? week.status : "published",
-        generatedResults: !error,
-        error: error?.message,
-      });
-      if (error) {
-        weekDiagnostics.errors.push({
-          id: week.id,
-          reason: error.message,
-        });
-      } else {
-        weekDiagnostics.updated += 1;
-        weekDiagnostics.published += 1;
-      }
-      continue;
-    }
   }
 
   return NextResponse.json({

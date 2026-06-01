@@ -99,9 +99,11 @@ export async function POST(
 
   const synchronizedStatus = getSynchronizedWeekStatus(calculation.week);
 
-  if (!dryRun && !["closed", "published"].includes(synchronizedStatus)) {
+  if (!["closed", "published"].includes(synchronizedStatus)) {
     return jsonError(
-      "Solo se pueden generar resultados oficiales para semanas closed o published.",
+      dryRun
+        ? "Solo se puede previsualizar resultados para semanas closed o published."
+        : "Solo se pueden generar resultados oficiales para semanas closed o published.",
       409,
     );
   }
@@ -128,10 +130,14 @@ export async function POST(
     return jsonError(writeResult.error, writeResult.status);
   }
 
-  await supabase
+  const { error: publishError } = await supabase
     .from("weeks")
     .update({ status: "published" })
     .eq("id", weekId);
+
+  if (publishError) {
+    return jsonError("Se guardaron resultados, pero no se pudo marcar la semana como published.", 500);
+  }
 
   return NextResponse.json({
     ok: true,

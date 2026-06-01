@@ -93,6 +93,14 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
       : gameInstructions
         ? "Usando instrucciones del juego"
         : null;
+  const weekFlowNotice =
+    data.week.status === "closed"
+      ? "Semana cerrada. Puntuaciones reveladas. Resultados pendientes de publicar."
+      : data.week.status === "published"
+        ? "Resultados oficiales publicados."
+        : data.week.status === "frozen"
+          ? "Tramo final activo: las nuevas puntuaciones se guardan ocultas hasta el cierre."
+          : null;
 
   return (
     <div className="space-y-6">
@@ -119,6 +127,11 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
         >
           {data.game.title} · {dateLabel}
         </CardHeader>
+        {weekFlowNotice ? (
+          <div className="mb-4 rounded-lg border p-4 text-sm theme-border theme-surface-muted theme-text-muted">
+            {weekFlowNotice}
+          </div>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-4">
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
             <p className="text-xs font-semibold uppercase theme-text-muted">
@@ -171,9 +184,8 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
 
       <Card>
         <CardHeader title="Resultados" eyebrow="weekly_results">
-          El estado se sincroniza por fechas. Preview no escribe. Regenerar
-          resultados oficiales reemplaza los resultados existentes si la semana
-          ya está cerrada o publicada.
+          El estado se sincroniza por fechas. El cron deja la semana en closed;
+          publicar resultados oficiales es una acción manual del admin.
         </CardHeader>
         <WeeklyResultsActions weekId={data.week.id} weekStatus={data.week.status} />
       </Card>

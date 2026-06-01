@@ -146,8 +146,8 @@ Requiere:
 }
 ```
 
-Calcula y devuelve preview sin escribir en `weekly_results`. Se permite aunque
-la semana esté `active` o `frozen`.
+Calcula y devuelve preview sin escribir en `weekly_results`. Se permite si la
+semana está `closed` o `published`.
 
 La respuesta incluye `cutoffAt`, para poder auditar qué fecha se usó al calcular
 miembros elegibles.
@@ -161,7 +161,8 @@ miembros elegibles.
 ```
 
 Solo se permite si la semana está `closed` o `published`. Borra resultados
-anteriores de esa semana e inserta los nuevos de forma controlada.
+anteriores de esa semana, inserta los nuevos de forma controlada y marca la
+semana como `published`.
 
 Si no hay miembros elegibles, devuelve error. Si no hay submissions válidas,
 puede guardar una lista vacía, eliminando resultados anteriores de esa semana.
@@ -171,13 +172,12 @@ puede guardar una lista vacía, eliminando resultados anteriores de esa semana.
 `/admin/weeks/[weekId]` permite ejecutar el mismo flujo desde la interfaz:
 
 1. `Preview resultados` ejecuta `dryRun = true`.
-2. `Generar resultados oficiales` ejecuta `dryRun = false`.
-3. `Publicar semana` marca la semana como `published` si ya está cerrada o
-   publicada.
+2. `Publicar resultados oficiales` ejecuta `dryRun = false`.
+3. Si la semana ya está `published`, la acción permite regenerar resultados de
+   forma manual.
 
-La publicación queda como flujo explícito de tres pasos: cerrar semana, generar
-resultados y marcar publicada. No se generan resultados automáticamente al
-cambiar estado.
+La publicación queda como acción explícita: el cron solo cierra la semana y
+revela puntuaciones; `weekly_results` se generan cuando el admin publica.
 
 ## Pendiente
 

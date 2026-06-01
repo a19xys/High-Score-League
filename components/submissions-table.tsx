@@ -51,8 +51,12 @@ export function SubmissionsTable({
       <TableHead labels={labels} />
       <tbody className="divide-y theme-border theme-surface">
         {submissions.map((submission) => {
+          const isRevealedByWeekStatus =
+            submission.week?.status === "closed" ||
+            submission.week?.status === "published";
           const hideScore =
-            Boolean(submission.hidden) && submission.week?.status !== "published";
+            Boolean(submission.hidden) &&
+            !isRevealedByWeekStatus;
 
           return (
             <tr className="theme-hover" key={submission.id}>
@@ -77,7 +81,7 @@ export function SubmissionsTable({
               <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
                 {!submission.valid
                   ? "Inválida"
-                  : submission.hidden
+                  : submission.hidden && !isRevealedByWeekStatus
                     ? "Oculta"
                     : "Visible"}
               </td>

@@ -176,8 +176,8 @@ export function WeekDetailView({
       {showOfficialResults ? (
         <Card>
           <CardHeader title="Resultados oficiales" eyebrow="weekly_results">
-            Lectura solo lectura. Estos resultados no se generan ni publican
-            todavía desde la app.
+            Estos resultados ya fueron confirmados por administración y cuentan
+            para la clasificación de temporada.
           </CardHeader>
           {weeklyResults.length > 0 ? (
             <DataTable>
