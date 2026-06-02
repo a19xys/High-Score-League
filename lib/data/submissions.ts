@@ -53,6 +53,7 @@ export type RealWeekSubmission = Submission & {
 
 export async function getRealSubmissions(
   weekId?: string,
+  playerId?: string,
 ): Promise<DataReadResult<SubmissionRow>> {
   const supabase = await createSupabaseServerClient();
 
@@ -72,6 +73,10 @@ export async function getRealSubmissions(
 
   if (weekId) {
     query = query.eq("week_id", weekId);
+  }
+
+  if (playerId) {
+    query = query.eq("player_id", playerId);
   }
 
   const { data, error } = await query;

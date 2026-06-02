@@ -34,7 +34,9 @@ High Score League esta en fase mock avanzada.
   afectar submissions, puntos ni resultados oficiales.
 - `/seasons/[seasonId]` calcula clasificacion y podio reales desde
   `weekly_results`, incluyendo miembros activos con 0 puntos.
-- `/profile` muestra centro admin real solo para usuarios con `is_admin = true`.
+- `/profile` muestra perfil funcional con datos reales, edición de username,
+  siglas, bio, avatar URL temporal, preferencia de registro de tiempo, historial
+  real cuando existe y centro admin solo para usuarios con `is_admin = true`.
 - `/admin/weeks` y `/admin/weeks/[weekId]` permiten gestionar semanas,
   submissions y resultados oficiales sin SQL manual.
 - `/admin/weeks/new` y `/admin/weeks/[weekId]/edit` permiten crear semanas,
@@ -113,7 +115,8 @@ High Score League esta en fase mock avanzada.
   crea perfil si hay sesion inmediata.
 - `/login` inicia sesion y asegura perfil desde un unico helper idempotente.
 - `/profile` es el centro unico de perfil real: muestra sesion, email, perfil,
-  formulario inline si falta perfil y edicion de username/siglas.
+  formulario inline si falta perfil y edicion de username, siglas, bio,
+  `avatar_url` y `track_play_time`.
 - `/profile/setup` queda como ruta legacy y no forma parte del flujo normal.
 - El borrado de cuentas de prueba existe en `/profile` mediante route handler de
   servidor y `SUPABASE_SERVICE_ROLE_KEY`.
@@ -127,6 +130,7 @@ High Score League esta en fase mock avanzada.
 - Sustitucion parcial y progresiva de mock data.
 - Subida manual real desde `/submit`.
 - Panel completo de usuarios.
+- Storage para avatar y subida real de imagenes de perfil.
 - Creación avanzada de semanas con manuales, descargas y configuración MAME.
 - Storage para imágenes, manuales y descargas.
 - Medallas y bonus.

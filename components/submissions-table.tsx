@@ -16,6 +16,7 @@ type SubmissionsTableProps = {
   showSource?: boolean;
   showDetectedAt?: boolean;
   emptyTitle?: string;
+  emptyDescription?: string;
 };
 
 export function SubmissionsTable({
@@ -25,12 +26,13 @@ export function SubmissionsTable({
   showSource = false,
   showDetectedAt = false,
   emptyTitle = "Todavía no hay puntuaciones.",
+  emptyDescription = "Los envíos aparecerán aquí cuando haya datos reales o mocks para esta sección.",
 }: SubmissionsTableProps) {
   if (submissions.length === 0) {
     return (
       <EmptyState
         title={emptyTitle}
-        description="Los envíos aparecerán aquí cuando haya datos reales o mocks para esta sección."
+        description={emptyDescription}
       />
     );
   }

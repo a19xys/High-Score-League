@@ -17,11 +17,11 @@ export function DeleteAccountButton({ className }: DeleteAccountButtonProps) {
     setError(null);
 
     const confirmation = window.prompt(
-      'Esta accion borra tu cuenta de prueba. Escribe "BORRAR" para confirmar.',
+      'Esta acción borra tu cuenta de prueba. Escribe "BORRAR" para confirmar.',
     );
 
     if (confirmation !== "BORRAR") {
-      setError("Confirmacion cancelada. No se ha borrado la cuenta.");
+      setError("Confirmación cancelada. No se ha borrado la cuenta.");
       return;
     }
 

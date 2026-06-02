@@ -21,12 +21,19 @@ function applyTheme(preference: ThemePreference) {
   document.documentElement.dataset.themePreference = preference;
 }
 
+function readStoredPreference(): ThemePreference {
+  const value = localStorage.getItem(storageKey);
+
+  return value === "light" || value === "dark" || value === "system"
+    ? value
+    : "system";
+}
+
 export function ThemeSelect() {
-  const [preference, setPreference] = useState<ThemePreference>("system");
+  const [preference, setPreference] = useState<ThemePreference | null>(null);
 
   useEffect(() => {
-    const storedPreference =
-      (localStorage.getItem(storageKey) as ThemePreference | null) ?? "system";
+    const storedPreference = readStoredPreference();
 
     setPreference(storedPreference);
     applyTheme(storedPreference);
@@ -62,6 +69,7 @@ export function ThemeSelect() {
               ? "theme-surface-strong"
               : "theme-surface theme-hover"
           }`}
+          aria-pressed={preference === option.value}
           key={option.value}
           onClick={() => handleChange(option.value as ThemePreference)}
           type="button"

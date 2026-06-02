@@ -9,8 +9,8 @@ todavia no esta conectada a Supabase; el SQL vive en
 ### profiles
 
 Representa a los jugadores. Cada fila está asociada a `auth.users(id)` y guarda
-datos públicos de liga: `username`, siglas, `avatar_url` opcional e indicador
-`is_admin`.
+datos públicos de liga: `username`, siglas, `avatar_url` opcional, bio pública,
+preferencia de registro de tiempo e indicador `is_admin`.
 
 La identidad visible principal son las siglas de 3 caracteres. Debajo se muestra
 el username con `@`, por ejemplo `LVC` y `@lauravc`.
@@ -30,6 +30,16 @@ duplicados por mayúsculas/minúsculas. `username` usa `lower(trim(username))` y
 La bandera `is_admin` se usa para políticas RLS de gestión. El primer admin debe
 crearse manualmente desde SQL Dashboard o con service role, porque un usuario
 normal no puede promocionarse a si mismo mediante las politicas iniciales.
+
+Desde `0010_profile_preferences.sql` incluye:
+
+- `bio`: descripción pública opcional del jugador. Puede ser `null`, pero si
+  existe no puede quedar en blanco.
+- `track_play_time`: preferencia para permitir registrar tiempo de juego desde
+  la futura app local. Por defecto es `true`.
+
+`avatar_url` sigue siendo una URL de texto temporal. No hay Storage ni subida de
+avatar en esta fase.
 
 ### seasons
 

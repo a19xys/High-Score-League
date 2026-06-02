@@ -3,6 +3,8 @@ export type RealProfile = {
   username: string;
   initials: string;
   avatar_url: string | null;
+  bio?: string | null;
+  track_play_time?: boolean;
   is_admin: boolean;
   created_at?: string;
   updated_at?: string;

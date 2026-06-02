@@ -73,14 +73,19 @@ Nunca se redirige a `/profile/setup` desde el flujo normal.
 
 ## Perfil
 
-`/profile` es el centro unico del perfil real.
+`/profile` es el centro único del perfil real.
 
-Si hay sesion y perfil, muestra email, username, initials y permite actualizar
-username e initials. Al guardar se actualiza tambien `user_metadata` y se
-refresca la ruta para que la navegacion no requiera F5.
+Si hay sesión y perfil, muestra email, username, initials, avatar, bio pública,
+fecha de creación y estadísticas reales cuando existen. Permite actualizar
+username, initials, descripción, `avatar_url` como URL temporal y la preferencia
+`track_play_time`. Al guardar se actualiza también `user_metadata` y se refresca
+la ruta para que la navegación no requiera F5.
 
-Si hay sesion pero no hay perfil, `/profile` muestra un formulario inline para
-crearlo. Si no hay sesion, muestra enlace a `/login`.
+Si hay sesión pero no hay perfil, `/profile` muestra un formulario inline para
+crearlo. Si no hay sesión, muestra enlace a `/login`.
+
+No hay Storage de avatar todavía: `avatar_url` es texto http/https mientras se
+prepara la subida real de imágenes.
 
 `localStorage` no es fuente principal de verdad para perfiles. Solo Supabase Auth
 metadata y `public.profiles` se usan para este flujo.

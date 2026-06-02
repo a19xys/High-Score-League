@@ -56,7 +56,7 @@ http://localhost:3000
 - `/players/[username]`: perfil público provisional de jugador.
 - `/submit`: formulario provisional de subida manual con vista previa local;
   queda como fallback mientras se prepara el flujo automatico MAME/app local.
-- `/profile`: cuenta, configuración, historial y administración mock.
+- `/profile`: perfil real, ajustes, historial y centro admin para usuarios admin.
 - `/week`, `/leaderboard`, `/season` y `/admin`: rutas temporales de compatibilidad.
 
 ## Estado del MVP
@@ -73,8 +73,8 @@ La conexión inicial está preparada de forma aislada en `/supabase-test`. Consu
 probar una lectura básica sin sustituir el mockup.
 
 Auth minimo esta documentado en [docs/auth-setup.md](docs/auth-setup.md). Incluye
-`/login`, `/register`, perfil real desde `/profile` y borrado de cuentas de
-prueba desde servidor; las paginas principales siguen usando datos mock.
+`/login`, `/register`, perfil real desde `/profile`, edición de bio/avatar URL
+temporal y borrado de cuentas de prueba desde servidor.
 
 La lectura real controlada esta documentada en
 [docs/data-loading.md](docs/data-loading.md). Usa `NEXT_PUBLIC_DATA_SOURCE=mock`
@@ -121,7 +121,7 @@ La automatización por fechas de semanas y temporadas está documentada en
 - Semanas futuras con juego secreto y semanas cerradas/publicadas para probar
   estados, filtros y hover cards.
 - Juegos mock con desarrollador, género, tipo de control y dificultad aproximada.
-- Perfil mock con tema claro/oscuro/sistema guardado en navegador.
+- Perfil real con tema claro/oscuro/sistema guardado en navegador.
 - Formularios visuales preparados para conectar Supabase Auth, Database y
   Storage en fases posteriores.
 
