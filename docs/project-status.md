@@ -7,8 +7,8 @@ High Score League esta en fase mock avanzada.
 - La interfaz principal esta montada con Next.js App Router, TypeScript y
   Tailwind CSS.
 - Las paginas principales siguen usando `lib/mock-data.ts`, salvo `/seasons`,
-  `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y `/game`, que pueden leer Supabase si
-  `NEXT_PUBLIC_DATA_SOURCE=supabase`.
+  `/seasons/[seasonId]`, `/weeks` y `/weeks/[weekId]`, que pueden leer Supabase
+  si `NEXT_PUBLIC_DATA_SOURCE=supabase`. `/game` redirige a la semana activa.
 - El mockup incluye juego actual, semanas, temporadas, perfiles, leaderboards,
   tema claro/oscuro, subida provisional y administracion mock. La portada ya
   puede usar datos reales y chat real en modo Supabase.
@@ -20,10 +20,11 @@ High Score League esta en fase mock avanzada.
 - Supabase ya esta conectado mediante clientes de navegador y servidor.
 - La prueba aislada vive en `/supabase-test`.
 - La prueba de datos de dominio vive en `/real-data-test`.
-- `/seasons`, `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y `/game`
-  pueden leer datos reales con fallback mock.
-- `/weeks/[weekId]` y `/game` pueden calcular leaderboard semanal real de solo
-  lectura desde `submissions` visibles.
+- `/seasons`, `/seasons/[seasonId]`, `/weeks` y `/weeks/[weekId]` pueden leer
+  datos reales con fallback mock.
+- `/game` redirige a `/weeks/[weekId]` de la semana activa cuando existe.
+- `/weeks/[weekId]` puede calcular leaderboard semanal real de solo lectura
+  desde `submissions` visibles.
 - `POST /api/submissions/ingest` existe como endpoint mínimo autenticado para
   crear submissions automáticas sin service role.
 - `season_memberships` permite registrar jugadores por temporada.

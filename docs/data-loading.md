@@ -180,17 +180,15 @@ visibles e historial de envios.
 
 ## `/game`
 
-`/game` representa la semana activa:
+`/game` queda como alias de compatibilidad para la semana activa:
 
-- En modo mock mantiene la semana activa mock.
-- En modo Supabase busca semanas con `status = active`.
-- Si no hay semana activa, muestra `EmptyState`.
-- Si hay varias semanas activas, muestra aviso de configuracion y elige una de
-  forma estable por fecha de inicio y numero de semana.
-- Si hay error de lectura o falta sesion, usa fallback mock.
+- En modo mock redirige a `/weeks/[weekId]` de la semana activa mock.
+- En modo Supabase redirige a `/weeks/[weekId]` de la semana activa o en tramo
+  final.
+- Si no hay semana activa, muestra `EmptyState` con enlace al archivo de
+  semanas.
 
-En modo Supabase, `/game` y `/weeks/[weekId]` ya leen submissions reales de solo
-lectura:
+En modo Supabase, `/weeks/[weekId]` ya lee submissions reales de solo lectura:
 
 - el leaderboard semanal se calcula desde submissions validas y visibles;
 - las submissions ocultas no revelan puntuacion hasta que la semana esta

@@ -41,9 +41,8 @@ http://localhost:3000
 
 - `/`: portada pública de la liga; puede mostrar semana activa, top 3,
   leaderboard y chat real si `NEXT_PUBLIC_DATA_SOURCE=supabase`.
-- `/game`: semana activa; puede leer Supabase si
-  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con leaderboard e historial reales de solo
-  lectura desde submissions visibles.
+- `/game`: alias de compatibilidad; redirige a `/weeks/[weekId]` de la semana
+  activa si existe.
 - `/weeks`: archivo de semanas; puede leer Supabase si
   `NEXT_PUBLIC_DATA_SOURCE=supabase`, con enlaces reales desactivados.
 - `/weeks/[weekId]`: detalle de semana; puede leer Supabase por id real, con

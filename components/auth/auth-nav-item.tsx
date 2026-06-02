@@ -47,7 +47,7 @@ export function AuthNavItem() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id,username,initials,avatar_url,is_admin,created_at,updated_at")
+      .select("id,username,initials,avatar_url,bio,track_play_time,is_admin,created_at,updated_at")
       .eq("id", userData.user.id)
       .maybeSingle();
 
@@ -113,7 +113,15 @@ export function AuthNavItem() {
       href={href}
       title={title}
     >
-      {label}
+      {state.status === "signed-in" && state.profile?.avatar_url ? (
+        <img
+          alt={title}
+          className="h-full w-full rounded-full object-cover"
+          src={state.profile.avatar_url}
+        />
+      ) : (
+        label
+      )}
     </Link>
   );
 }
