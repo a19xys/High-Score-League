@@ -16,6 +16,11 @@ type AuthNavState =
       metadataInitials: string | null;
     };
 
+type AuthNavItemProps = {
+  variant?: "avatar" | "link";
+  onNavigate?: () => void;
+};
+
 function readMetadataInitials(value: unknown) {
   if (typeof value !== "string") {
     return null;
@@ -25,10 +30,19 @@ function readMetadataInitials(value: unknown) {
   return validateInitials(normalized) ? null : normalized;
 }
 
-export function AuthNavItem() {
+function navLinkClass(active: boolean) {
+  return `whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium transition theme-hover ${
+    active
+      ? "border-circuit bg-circuit/10 text-circuit shadow-sm"
+      : "border-transparent theme-text-muted"
+  }`;
+}
+
+export function AuthNavItem({ variant = "avatar", onNavigate }: AuthNavItemProps) {
   const pathname = usePathname();
   const [state, setState] = useState<AuthNavState>({ status: "loading" });
   const profileActive = pathname === "/profile";
+  const loginActive = pathname === "/login" || pathname === "/register";
 
   const loadAuth = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -75,14 +89,25 @@ export function AuthNavItem() {
   if (state.status === "signed-out" || state.status === "not-configured") {
     return (
       <Link
-        className={`rounded-md px-3 py-2 theme-hover ${
-          pathname === "/login" || pathname === "/register"
-            ? "bg-[var(--hover)] theme-text"
-            : ""
-        }`}
+        aria-current={loginActive ? "page" : undefined}
+        className={navLinkClass(loginActive)}
         href="/login"
+        onClick={onNavigate}
       >
         LOGIN
+      </Link>
+    );
+  }
+
+  if (variant === "link") {
+    return (
+      <Link
+        aria-current={profileActive ? "page" : undefined}
+        className={navLinkClass(profileActive)}
+        href="/profile"
+        onClick={onNavigate}
+      >
+        PERFIL
       </Link>
     );
   }
@@ -111,6 +136,7 @@ export function AuthNavItem() {
           : "theme-border theme-text"
       }`}
       href={href}
+      onClick={onNavigate}
       title={title}
     >
       {state.status === "signed-in" && state.profile?.avatar_url ? (

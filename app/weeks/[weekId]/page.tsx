@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { WeekDetailView } from "@/components/week-detail-view";
@@ -17,6 +18,21 @@ type WeekDetailPageProps = {
     weekId: string;
   }>;
 };
+
+export async function generateMetadata({
+  params,
+}: WeekDetailPageProps): Promise<Metadata> {
+  const { weekId } = await params;
+  const detail = await getWeekDetailData(weekId);
+
+  if (!detail) {
+    return { title: "Leaderboard | High Score League" };
+  }
+
+  return {
+    title: `Leaderboard · ${detail.game.title} | High Score League`,
+  };
+}
 
 export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
   const { weekId } = await params;

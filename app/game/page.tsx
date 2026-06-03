@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { getDataSource } from "@/lib/data/data-source";
@@ -8,6 +9,9 @@ import { currentWeek } from "@/lib/mock-data";
 import { getSynchronizedWeekStatus } from "@/lib/week-status";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Leaderboard | High Score League",
+};
 
 async function getActiveWeekId() {
   if (getDataSource() !== "supabase") {

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { SeasonTable } from "@/components/season-table";
 import { WeeksTable } from "@/components/weeks-table";
 import { PodiumPlaceholder } from "@/components/podium-placeholder";
@@ -26,6 +27,21 @@ type SeasonDetailPageProps = {
     seasonId: string;
   }>;
 };
+
+export async function generateMetadata({
+  params,
+}: SeasonDetailPageProps): Promise<Metadata> {
+  const { seasonId } = await params;
+  const seasonData = await getSeasonDetailData(seasonId);
+
+  if (!seasonData) {
+    return { title: "Clasificación | High Score League" };
+  }
+
+  return {
+    title: `${seasonData.season.name} | High Score League`,
+  };
+}
 
 function seasonStatusLabel(status: string) {
   if (status === "active") {

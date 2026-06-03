@@ -16,8 +16,12 @@ import { getRealWeeks, mapWeekRowToWeek } from "@/lib/data/weeks";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Game, Submission, Week } from "@/types";
 import type { RealProfile, SubmissionRow } from "@/types/supabase";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Perfil | High Score League",
+};
 
 type ProfileSubmission = Submission & {
   week?: Week;

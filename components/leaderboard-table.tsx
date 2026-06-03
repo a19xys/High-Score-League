@@ -7,7 +7,7 @@ import {
 import type { LeaderboardEntry, WeekBenchmark } from "@/types";
 import { PlayerPill } from "./player-pill";
 import { getRankRowClass, RankBadge } from "./rank-badge";
-import { DataTable, TableHead } from "./ui/table";
+import { DataTable } from "./ui/table";
 
 type LeaderboardTableProps = {
   entries: LeaderboardEntry[];
@@ -52,16 +52,28 @@ export function LeaderboardTable({
 
   return (
     <DataTable>
-      <TableHead
-        labels={[
-          "Puesto",
-          "Jugador",
-          "Puntuación",
-          "Subidas",
-          "Última",
-          "Diferencia",
-        ]}
-      />
+      <thead className="text-xs font-semibold uppercase theme-table-head">
+        <tr>
+          <th className="whitespace-nowrap px-4 py-3" scope="col">
+            Puesto
+          </th>
+          <th className="whitespace-nowrap px-4 py-3" scope="col">
+            Jugador
+          </th>
+          <th className="whitespace-nowrap px-4 py-3" scope="col">
+            Puntuación
+          </th>
+          <th className="hidden whitespace-nowrap px-4 py-3 sm:table-cell" scope="col">
+            Subidas
+          </th>
+          <th className="hidden whitespace-nowrap px-4 py-3 sm:table-cell" scope="col">
+            Última
+          </th>
+          <th className="hidden whitespace-nowrap px-4 py-3 sm:table-cell" scope="col">
+            Diferencia
+          </th>
+        </tr>
+      </thead>
       <tbody className="divide-y theme-border theme-surface">
         {rows.map((row) => {
           if (row.type === "benchmark") {
@@ -73,7 +85,7 @@ export function LeaderboardTable({
                 <td className="whitespace-nowrap px-4 py-4 text-xs font-semibold uppercase theme-text-muted">
                   Referencia
                 </td>
-                <td className="min-w-56 px-4 py-4">
+                <td className="min-w-44 px-4 py-4 sm:min-w-56">
                   <div>
                     <p className="font-semibold theme-text">{row.benchmark.label}</p>
                     {row.benchmark.description ? (
@@ -89,9 +101,15 @@ export function LeaderboardTable({
                 <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
                   {formatScore(row.benchmark.score)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-4 theme-text-muted">-</td>
-                <td className="whitespace-nowrap px-4 py-4 theme-text-muted">-</td>
-                <td className="whitespace-nowrap px-4 py-4 theme-text-muted">-</td>
+                <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted sm:table-cell">
+                  -
+                </td>
+                <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted sm:table-cell">
+                  -
+                </td>
+                <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted sm:table-cell">
+                  -
+                </td>
               </tr>
             );
           }
@@ -103,22 +121,22 @@ export function LeaderboardTable({
               <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
                 <RankBadge rank={entry.rank} />
               </td>
-              <td className="min-w-56 px-4 py-4">
+              <td className="min-w-44 px-4 py-4 sm:min-w-56">
                 <PlayerPill player={entry.player} />
               </td>
               <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
                 {formatScore(entry.bestScore)}
               </td>
-              <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+              <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted sm:table-cell">
                 {entry.uploads}
               </td>
               <td
-                className="whitespace-nowrap px-4 py-4 theme-text-muted"
+                className="hidden whitespace-nowrap px-4 py-4 theme-text-muted sm:table-cell"
                 title={formatExactDateTime(entry.lastSubmissionAt)}
               >
                 {formatRelativeTime(entry.lastSubmissionAt)}
               </td>
-              <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+              <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted sm:table-cell">
                 {formatGap(entry.gapToFirst)}
               </td>
             </tr>

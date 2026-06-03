@@ -1,10 +1,14 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminSeasonSummaries } from "@/lib/data/admin-seasons";
 import { AdminSeasonsTable } from "@/components/admin-seasons-table";
 import { Card, CardHeader } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Admin Temporadas | High Score League",
+};
 
 function AdminGateMessage({
   title,

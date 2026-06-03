@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { currentSeason, currentWeek } from "@/lib/mock-data";
 import { getDataSource } from "@/lib/data/data-source";
 import { getRealSeasons } from "@/lib/data/seasons";
@@ -39,6 +41,7 @@ async function getSupabaseNavData(): Promise<SiteNavData> {
     activeWeekId: activeWeek?.id ?? null,
     activeSeasonId: activeSeason?.id ?? null,
     activeSeasonSlug: activeSeason?.slug ?? null,
+    hasBrandLogo: hasStaticBrandLogo(),
   };
 }
 
@@ -47,7 +50,12 @@ function getMockNavData(): SiteNavData {
     activeWeekId: currentWeek.id,
     activeSeasonId: currentSeason.id,
     activeSeasonSlug: currentSeason.slug,
+    hasBrandLogo: hasStaticBrandLogo(),
   };
+}
+
+function hasStaticBrandLogo() {
+  return existsSync(join(process.cwd(), "public", "brand", "logo.png"));
 }
 
 export async function SiteNav() {

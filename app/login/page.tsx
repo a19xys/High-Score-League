@@ -1,5 +1,10 @@
 import { LoginForm } from "@/components/auth/login-form";
 import { Card, CardHeader } from "@/components/ui/card";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Login | High Score League",
+};
 
 export default function LoginPage() {
   return (

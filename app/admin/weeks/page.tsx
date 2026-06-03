@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminWeekSummaries } from "@/lib/data/admin-weeks";
 import { formatCompactDateRange } from "@/lib/format";
@@ -8,6 +9,9 @@ import { DataTable, TableHead } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Admin Semanas | High Score League",
+};
 
 function AdminGateMessage({
   title,

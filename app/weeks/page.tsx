@@ -1,8 +1,12 @@
 import { WeeksTable } from "@/components/weeks-table";
 import { Card, CardHeader } from "@/components/ui/card";
 import { getWeekPageData } from "@/lib/data/week-page";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Semanas | High Score League",
+};
 
 export default async function WeeksPage() {
   const weekData = await getWeekPageData();

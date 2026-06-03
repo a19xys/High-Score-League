@@ -1,8 +1,12 @@
 import { SeasonsTable } from "@/components/seasons-table";
 import { Card, CardHeader } from "@/components/ui/card";
 import { getSeasonPageData } from "@/lib/data/season-page";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Temporadas | High Score League",
+};
 
 export default async function SeasonsPage() {
   const seasonData = await getSeasonPageData();

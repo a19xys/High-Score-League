@@ -73,6 +73,10 @@ High Score League esta en fase mock avanzada.
   submissions ni resultados, sin borrar juegos ni usuarios.
 - `/` lee semana activa, temporada activa, leaderboard y chat real cuando
   `NEXT_PUBLIC_DATA_SOURCE=supabase`.
+- La barra superior usa datos iniciales de servidor para marcar LEADERBOARD,
+  CLASIFICACIÓN, semanas y temporadas sin parpadeo; incluye menú móvil básico.
+- El logo fijo está preparado en `public/brand/logo.png` y los iconos de pestaña
+  en `app/icon.png` y `app/apple-icon.png`.
 - `league_chat_messages` guarda el chat global real de la liga con mensajes
   `user` y `system`.
 - `POST /api/chat/messages` permite enviar mensajes autenticados sin aceptar

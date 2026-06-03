@@ -8,6 +8,11 @@ import {
   getPlayerSubmissions,
   mockUser,
 } from "@/lib/mock-data";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Subir | High Score League",
+};
 
 export default function SubmitPage() {
   const game = getCurrentGame();

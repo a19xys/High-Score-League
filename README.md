@@ -109,6 +109,13 @@ La gestión admin de temporadas está documentada en
 La automatización por fechas de semanas y temporadas está documentada en
 [docs/automation.md](docs/automation.md).
 
+## Marca estática
+
+El logo fijo de la web vive en `public/brand/logo.png`. Next.js usa
+`app/icon.png` como icono de pestaña y `app/apple-icon.png` para Apple Touch
+Icon. Estos assets se sirven como estáticos en Vercel; Supabase Storage queda
+reservado para contenido dinámico subido por usuarios o administradores.
+
 ## Plantillas preparadas
 
 - Estados reutilizables: empty, loading, error y placeholder.
