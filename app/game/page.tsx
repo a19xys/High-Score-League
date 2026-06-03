@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { AccessRequired } from "@/components/auth/access-required";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
+import { hasServerSession } from "@/lib/auth/session";
 import { getDataSource } from "@/lib/data/data-source";
 import { getRealWeeks } from "@/lib/data/weeks";
 import { currentWeek } from "@/lib/mock-data";
@@ -41,6 +43,10 @@ async function getActiveWeekId() {
 }
 
 export default async function GamePage() {
+  if (!(await hasServerSession())) {
+    return <AccessRequired />;
+  }
+
   const activeWeekId = await getActiveWeekId();
 
   if (activeWeekId) {

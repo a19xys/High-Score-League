@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { AccessRequired } from "@/components/auth/access-required";
 import { SeasonTable } from "@/components/season-table";
 import { WeeksTable } from "@/components/weeks-table";
 import { PodiumPlaceholder } from "@/components/podium-placeholder";
@@ -11,6 +12,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { SeasonJoinButton } from "@/components/season-join-button";
 import { formatCompactDateRange, formatWeekRange } from "@/lib/format";
 import { getSeasonDetailData } from "@/lib/data/season-detail";
+import { hasServerSession } from "@/lib/auth/session";
 import { seasons } from "@/lib/mock-data";
 import type { WeekSummary } from "@/types";
 
@@ -31,6 +33,10 @@ type SeasonDetailPageProps = {
 export async function generateMetadata({
   params,
 }: SeasonDetailPageProps): Promise<Metadata> {
+  if (!(await hasServerSession())) {
+    return { title: "Acceso privado | High Score League" };
+  }
+
   const { seasonId } = await params;
   const seasonData = await getSeasonDetailData(seasonId);
 
@@ -140,6 +146,10 @@ function RealSeasonWeeksTable({
 }
 
 export default async function SeasonDetailPage({ params }: SeasonDetailPageProps) {
+  if (!(await hasServerSession())) {
+    return <AccessRequired />;
+  }
+
   const { seasonId } = await params;
   const seasonData = await getSeasonDetailData(seasonId);
 

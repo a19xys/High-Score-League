@@ -1,3 +1,4 @@
+import { AccessRequired } from "@/components/auth/access-required";
 import { SubmitMockForm } from "@/components/submit-mock-form";
 import { SubmissionsTable } from "@/components/submissions-table";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -8,13 +9,18 @@ import {
   getPlayerSubmissions,
   mockUser,
 } from "@/lib/mock-data";
+import { hasServerSession } from "@/lib/auth/session";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Subir | High Score League",
 };
 
-export default function SubmitPage() {
+export default async function SubmitPage() {
+  if (!(await hasServerSession())) {
+    return <AccessRequired />;
+  }
+
   const game = getCurrentGame();
   const recentSubmissions = getPlayerSubmissions(mockUser.id, 5);
 

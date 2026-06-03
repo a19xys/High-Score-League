@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { AccessRequired } from "@/components/auth/access-required";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { WeekDetailView } from "@/components/week-detail-view";
+import { hasServerSession } from "@/lib/auth/session";
 import { getDataSource } from "@/lib/data/data-source";
 import { getMockWeekStaticParams, getWeekDetailData } from "@/lib/data/week-detail";
 
@@ -22,6 +24,10 @@ type WeekDetailPageProps = {
 export async function generateMetadata({
   params,
 }: WeekDetailPageProps): Promise<Metadata> {
+  if (!(await hasServerSession())) {
+    return { title: "Acceso privado | High Score League" };
+  }
+
   const { weekId } = await params;
   const detail = await getWeekDetailData(weekId);
 
@@ -35,6 +41,10 @@ export async function generateMetadata({
 }
 
 export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
+  if (!(await hasServerSession())) {
+    return <AccessRequired />;
+  }
+
   const { weekId } = await params;
   const detail = await getWeekDetailData(weekId);
 

@@ -39,8 +39,9 @@ http://localhost:3000
 
 ## Rutas iniciales
 
-- `/`: portada pública de la liga; puede mostrar semana activa, top 3,
-  leaderboard y chat real si `NEXT_PUBLIC_DATA_SOURCE=supabase`.
+- `/`: landing pública para visitantes sin sesión. Con sesión iniciada puede
+  mostrar semana activa, top 3, leaderboard y chat real si
+  `NEXT_PUBLIC_DATA_SOURCE=supabase`.
 - `/game`: alias de compatibilidad; redirige a `/weeks/[weekId]` de la semana
   activa si existe.
 - `/weeks`: archivo de semanas; puede leer Supabase si
@@ -111,9 +112,14 @@ La automatización por fechas de semanas y temporadas está documentada en
 
 ## Marca estática
 
-El logo fijo de la web vive en `public/brand/logo.png`. Next.js usa
-`app/icon.png` como icono de pestaña y `app/apple-icon.png` para Apple Touch
-Icon. Estos assets se sirven como estáticos en Vercel; Supabase Storage queda
+Los assets fijos de marca se sirven desde el repositorio:
+
+- `public/brand/logo-horizontal.png`: logo horizontal de la landing pública.
+- `public/brand/logo.png`: logo cuadrado de navegación.
+- `app/icon.png`: icono de pestaña.
+- `app/apple-icon.png`: Apple Touch Icon.
+
+Estos assets se sirven como estáticos en Vercel; Supabase Storage queda
 reservado para contenido dinámico subido por usuarios o administradores.
 
 ## Plantillas preparadas
@@ -121,7 +127,8 @@ reservado para contenido dinámico subido por usuarios o administradores.
 - Estados reutilizables: empty, loading, error y placeholder.
 - Tablas: leaderboard semanal, clasificación de temporada, semanas, temporadas
   e historial de submissions.
-- Chat de portada real en modo Supabase, con fallback mock en modo mock.
+- Chat de portada real en modo Supabase solo para usuarios autenticados; la
+  landing pública no muestra mensajes mock.
 - Archivo de semanas y temporadas con filtros, ordenación mock y enlaces
   desactivados para contenido futuro.
 - Semanas futuras con juego secreto y semanas cerradas/publicadas para probar

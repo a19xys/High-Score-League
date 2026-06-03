@@ -1,7 +1,30 @@
 import Link from "next/link";
+import { AccessRequired } from "@/components/auth/access-required";
 import { Card, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/state";
+import { requireAdmin } from "@/lib/auth/admin";
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  const auth = await requireAdmin();
+
+  if (!auth.ok) {
+    if (auth.status === 401) {
+      return <AccessRequired />;
+    }
+
+    return (
+      <Card>
+        <CardHeader title="Acceso denegado" eyebrow="Administración">
+          {auth.error}
+        </CardHeader>
+        <EmptyState
+          title="No tienes permisos de administración."
+          description="Esta sección está reservada para administradores de la liga."
+        />
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader title="Administración" eyebrow="Ruta legacy">

@@ -1,11 +1,15 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LeagueChat } from "@/components/league-chat";
 import { LinkButton } from "@/components/link-button";
+import { PublicLanding } from "@/components/public-landing";
 import { getRankCardClass, RankBadge } from "@/components/rank-badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getHomePageData } from "@/lib/data/home";
+import { getServerSession } from "@/lib/auth/session";
 import { formatScore, formatCompactDateRange } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +42,18 @@ function weekStatusText(status: string) {
 }
 
 export default async function HomePage() {
+  const session = await getServerSession();
+
+  if (session.status !== "signed-in") {
+    return (
+      <PublicLanding
+        hasHorizontalLogo={existsSync(
+          join(process.cwd(), "public", "brand", "logo-horizontal.png"),
+        )}
+      />
+    );
+  }
+
   const data = await getHomePageData();
   const { season, week, game, leaderboard, benchmarks } = data;
   const topThree = leaderboard.slice(0, 3);

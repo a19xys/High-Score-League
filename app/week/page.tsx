@@ -1,11 +1,17 @@
+import { AccessRequired } from "@/components/auth/access-required";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { WeekDetailView } from "@/components/week-detail-view";
+import { hasServerSession } from "@/lib/auth/session";
 import { getActiveWeekDetailData } from "@/lib/data/week-detail";
 
 export const dynamic = "force-dynamic";
 
 export default async function WeekPage() {
+  if (!(await hasServerSession())) {
+    return <AccessRequired />;
+  }
+
   const result = await getActiveWeekDetailData();
 
   if (result.status === "empty") {

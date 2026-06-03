@@ -10,6 +10,7 @@ export type SiteNavData = {
   activeSeasonId: string | null;
   activeSeasonSlug: string | null;
   hasBrandLogo: boolean;
+  isSignedIn: boolean;
 };
 
 type NavLink = {
@@ -70,21 +71,29 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
     data.activeSeasonSlug ? `/seasons/${data.activeSeasonSlug}` : null,
     data.activeSeasonId ? `/seasons/${data.activeSeasonId}` : null,
   ].filter((path): path is string => Boolean(path));
-  const links: NavLink[] = [
-    ...(activeWeekPath
-      ? [{ href: activeWeekPath, label: "LEADERBOARD", id: "leaderboard" as const }]
-      : []),
-    ...(activeSeasonPaths[0]
-      ? [
-          {
-            href: activeSeasonPaths[0],
-            label: "CLASIFICACIÓN",
-            id: "classification" as const,
-          },
-        ]
-      : []),
-    ...baseLinks,
-  ];
+  const links: NavLink[] = data.isSignedIn
+    ? [
+        ...(activeWeekPath
+          ? [
+              {
+                href: activeWeekPath,
+                label: "LEADERBOARD",
+                id: "leaderboard" as const,
+              },
+            ]
+          : []),
+        ...(activeSeasonPaths[0]
+          ? [
+              {
+                href: activeSeasonPaths[0],
+                label: "CLASIFICACIÓN",
+                id: "classification" as const,
+              },
+            ]
+          : []),
+        ...baseLinks,
+      ]
+    : [];
   const mobileLinks: Array<NavLink & { href: string; label: string }> = [
     { href: "/", label: "INICIO", id: "weeks" },
     ...links,

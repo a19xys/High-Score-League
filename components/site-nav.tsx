@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { getServerSession } from "@/lib/auth/session";
 import { currentSeason, currentWeek } from "@/lib/mock-data";
 import { getDataSource } from "@/lib/data/data-source";
 import { getRealSeasons } from "@/lib/data/seasons";
@@ -42,6 +43,7 @@ async function getSupabaseNavData(): Promise<SiteNavData> {
     activeSeasonId: activeSeason?.id ?? null,
     activeSeasonSlug: activeSeason?.slug ?? null,
     hasBrandLogo: hasStaticBrandLogo(),
+    isSignedIn: true,
   };
 }
 
@@ -51,6 +53,17 @@ function getMockNavData(): SiteNavData {
     activeSeasonId: currentSeason.id,
     activeSeasonSlug: currentSeason.slug,
     hasBrandLogo: hasStaticBrandLogo(),
+    isSignedIn: true,
+  };
+}
+
+function getSignedOutNavData(): SiteNavData {
+  return {
+    activeWeekId: null,
+    activeSeasonId: null,
+    activeSeasonSlug: null,
+    hasBrandLogo: hasStaticBrandLogo(),
+    isSignedIn: false,
   };
 }
 
@@ -59,6 +72,12 @@ function hasStaticBrandLogo() {
 }
 
 export async function SiteNav() {
+  const session = await getServerSession();
+
+  if (session.status !== "signed-in") {
+    return <SiteNavClient data={getSignedOutNavData()} />;
+  }
+
   const data =
     getDataSource() === "supabase" ? await getSupabaseNavData() : getMockNavData();
 

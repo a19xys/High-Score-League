@@ -11,7 +11,11 @@ High Score League esta en fase mock avanzada.
   si `NEXT_PUBLIC_DATA_SOURCE=supabase`. `/game` redirige a la semana activa.
 - El mockup incluye juego actual, semanas, temporadas, perfiles, leaderboards,
   tema claro/oscuro, subida provisional y administracion mock. La portada ya
-  puede usar datos reales y chat real en modo Supabase.
+  puede usar datos reales y chat real en modo Supabase para usuarios
+  autenticados.
+- Los visitantes sin sesion ven una landing publica simple y las rutas privadas
+  muestran una pantalla de acceso requerido en lugar de mock antiguo, errores
+  RLS o fallbacks tecnicos.
 - No se debe sustituir el mockup por datos reales hasta decidir el flujo de
   conexion.
 
@@ -71,11 +75,13 @@ High Score League esta en fase mock avanzada.
   editar.
 - `/admin/seasons/[seasonId]` permite borrar temporadas inactivas sin
   submissions ni resultados, sin borrar juegos ni usuarios.
-- `/` lee semana activa, temporada activa, leaderboard y chat real cuando
+- `/` muestra una landing publica si no hay sesion. Con sesion iniciada lee
+  semana activa, temporada activa, leaderboard y chat real cuando
   `NEXT_PUBLIC_DATA_SOURCE=supabase`.
 - La barra superior usa datos iniciales de servidor para marcar LEADERBOARD,
   CLASIFICACIÓN, semanas y temporadas sin parpadeo; incluye menú móvil básico.
-- El logo fijo está preparado en `public/brand/logo.png` y los iconos de pestaña
+- El logo horizontal de landing vive en `public/brand/logo-horizontal.png`, el
+  logo cuadrado de navegacion en `public/brand/logo.png` y los iconos de pestaña
   en `app/icon.png` y `app/apple-icon.png`.
 - `league_chat_messages` guarda el chat global real de la liga con mensajes
   `user` y `system`.

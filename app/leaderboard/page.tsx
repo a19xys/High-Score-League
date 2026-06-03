@@ -1,9 +1,15 @@
+import { AccessRequired } from "@/components/auth/access-required";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Card, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { hasServerSession } from "@/lib/auth/session";
 import { currentWeek, getCurrentGame, getWeeklyLeaderboard } from "@/lib/mock-data";
 
-export default function LeaderboardPage() {
+export default async function LeaderboardPage() {
+  if (!(await hasServerSession())) {
+    return <AccessRequired />;
+  }
+
   const game = getCurrentGame();
   const leaderboard = getWeeklyLeaderboard(currentWeek.id);
 

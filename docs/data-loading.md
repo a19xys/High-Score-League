@@ -13,13 +13,19 @@ NEXT_PUBLIC_DATA_SOURCE=mock
 
 Valores soportados:
 
-- `mock`: valor por defecto. `/seasons`, `/seasons/[seasonId]`, `/weeks`,
-  `/weeks/[weekId]`, `/game` y el resto de paginas usan fallback mock.
+- `mock`: valor por defecto. Para usuarios autenticados, `/seasons`,
+  `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]`, `/game` y el resto de
+  paginas pueden usar fallback mock.
 - `supabase`: `/seasons`, `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y
   `/game` intentan leer datos reales. Submit sigue siendo provisional; el
   leaderboard semanal se calcula desde submissions visibles.
 
 No se cambia automaticamente toda la aplicacion a Supabase.
+
+Las rutas privadas no muestran fallback mock a visitantes sin sesion. Si no hay
+usuario autenticado, la interfaz muestra una pantalla de acceso requerido antes
+de consultar datos de dominio. Los avisos de RLS y errores tecnicos quedan para
+rutas de diagnostico como `/supabase-test` y `/real-data-test`.
 
 ## Seed de desarrollo
 
@@ -97,8 +103,8 @@ autenticado. Si no hay sesion, `/real-data-test` muestra enlace a `/login`.
 - Con `NEXT_PUBLIC_DATA_SOURCE=mock` o sin variable, usa summaries mock.
 - Con `NEXT_PUBLIC_DATA_SOURCE=supabase`, intenta leer `public.seasons` y cuenta
   semanas desde `public.weeks` para mantener la columna de semanas.
-- Si no hay sesion o Supabase devuelve error, muestra un aviso discreto y usa
-  fallback mock.
+- Si no hay sesion, muestra acceso requerido. Si hay sesion y Supabase devuelve
+  error, puede mostrar un aviso discreto y fallback mock controlado.
 - Las temporadas `draft` se ocultan en el archivo publico.
 - `active` se muestra como "Activa".
 - `completed` se muestra como "Cerrada".
@@ -112,8 +118,8 @@ El detalle de temporada tambien usa la fuente configurable:
 
 - En modo mock acepta ids mock como `s1` y slugs mock como `temporada-i`.
 - En modo Supabase busca primero por `id` real y tambien por `slug`.
-- Si no hay sesion o Supabase devuelve error, usa fallback mock si existe una
-  temporada mock con ese id o slug.
+- Si no hay sesion, muestra acceso requerido. Si hay sesion y Supabase devuelve
+  error, usa fallback mock si existe una temporada mock con ese id o slug.
 - Si la temporada real esta en `draft`, no se muestran detalles por URL directa.
 - Las semanas incluidas pueden venir de `public.weeks`.
 - Si el juego asociado es el placeholder `Juego secreto`, se muestra como juego
@@ -133,7 +139,8 @@ queda pendiente. En modo mock se mantiene la clasificacion mock existente.
 - Con `NEXT_PUBLIC_DATA_SOURCE=mock` o sin variable, usa `getWeekSummaries()`.
 - Con `NEXT_PUBLIC_DATA_SOURCE=supabase`, lee `public.weeks`, `public.seasons` y
   `public.games`.
-- Si no hay sesion o Supabase devuelve error, muestra aviso y fallback mock.
+- Si no hay sesion, muestra acceso requerido. Si hay sesion y Supabase devuelve
+  error, muestra aviso y fallback mock controlado.
 - No muestra semanas de temporadas `draft`.
 - `active` y `frozen` se agrupan visualmente como "Activa".
 - `closed` se muestra como "Cerrada".
@@ -164,7 +171,8 @@ El detalle de semana usa fuente configurable:
 - No hay slug real de semana en el esquema actual, asi que no se busca por slug.
 - Lee la semana, temporada asociada, juego asociado, `rules_summary`,
   `games.instructions` y `games.manual_url`.
-- Si no hay sesion, RLS bloquea o Supabase falla, usa fallback mock si existe.
+- Si no hay sesion, muestra acceso requerido antes de consultar la semana. Si
+  hay sesion y Supabase falla, usa fallback mock si existe.
 
 Si una semana es futura, `draft` o usa el placeholder `Juego secreto`, se muestra
 una pantalla de juego secreto:

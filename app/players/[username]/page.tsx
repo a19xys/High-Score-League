@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
+import { AccessRequired } from "@/components/auth/access-required";
 import { SubmissionsTable } from "@/components/submissions-table";
 import { Card, CardHeader } from "@/components/ui/card";
 import { PlaceholderSection } from "@/components/ui/state";
+import { hasServerSession } from "@/lib/auth/session";
 import { formatScore } from "@/lib/format";
 import {
   getBestScoresByWeek,
@@ -26,6 +28,10 @@ type PlayerPageProps = {
 };
 
 export default async function PlayerPage({ params }: PlayerPageProps) {
+  if (!(await hasServerSession())) {
+    return <AccessRequired />;
+  }
+
   const { username } = await params;
   const player = players.find((candidate) => candidate.username === username);
 
