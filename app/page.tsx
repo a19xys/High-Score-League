@@ -8,9 +8,9 @@ import { getRankCardClass, RankBadge } from "@/components/rank-badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { getHomePageData } from "@/lib/data/home";
 import { getServerSession } from "@/lib/auth/session";
-import { formatScore, formatCompactDateRange } from "@/lib/format";
+import { getHomePageData } from "@/lib/data/home";
+import { formatCompactDateRange, formatScore } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +38,7 @@ function weekStatusText(status: string) {
     return "Resultados publicados";
   }
 
-  return "Semana en borrador";
+  return "Semana en preparación";
 }
 
 export default async function HomePage() {
@@ -68,8 +68,8 @@ export default async function HomePage() {
             HIGH SCORE LEAGUE
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-200">
-            Liga de puntuaciones arcade con clasificación
-            por temporadas y semanas temáticas
+            Liga de puntuaciones arcade con clasificación por temporadas y
+            semanas temáticas
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             {weekHref ? (
@@ -169,10 +169,7 @@ export default async function HomePage() {
       </Card>
 
       <Card>
-        <CardHeader
-          title="Leaderboard semanal"
-          eyebrow={data.mode === "supabase" ? "Competición" : "Vista rápida"}
-        />
+        <CardHeader title="Leaderboard semanal" eyebrow="Competición" />
         {leaderboard.length > 0 || benchmarks.length > 0 ? (
           <LeaderboardTable benchmarks={benchmarks} entries={leaderboard} />
         ) : (
@@ -189,16 +186,13 @@ export default async function HomePage() {
 
       <Card>
         <CardHeader title="Chat de la liga" eyebrow="Comentarios">
-          {data.mode === "supabase"
-            ? "Chat global real de la liga. Se conservan los últimos 50 mensajes."
-            : "Comentarios públicos mock. Supabase tendrá una tabla dedicada para persistirlos más adelante."}
+          Chat global real de la liga. Se conservan los últimos 50 mensajes.
         </CardHeader>
         <LeagueChat
           canPost={data.canPostChat}
           currentUserId={data.currentUserId}
           error={data.chatError}
           messages={data.chatMessages}
-          mode={data.mode}
         />
       </Card>
     </div>

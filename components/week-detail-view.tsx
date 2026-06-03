@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { GameHero } from "@/components/game-hero";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LinkButton } from "@/components/link-button";
@@ -34,7 +34,7 @@ type WeekDetailViewProps = {
   benchmarks?: WeekBenchmark[];
   submissions: WeekSubmission[];
   weeklyResults?: WeeklyResult[];
-  dataMode?: "mock" | "supabase";
+  dataMode?: "supabase";
   hideDownloads?: boolean;
   leaderboardPending?: boolean;
   submissionsPending?: boolean;
@@ -54,7 +54,7 @@ export function WeekDetailView({
   benchmarks = [],
   submissions,
   weeklyResults = [],
-  dataMode = "mock",
+  dataMode = "supabase",
   hideDownloads = false,
   leaderboardPending = false,
   submissionsPending = false,
@@ -72,7 +72,7 @@ export function WeekDetailView({
     weekInstructions.length > 0 ? weekInstructions.join("\n") : gameInstructions;
   const instructionSource =
     weekInstructions.length > 0
-      ? "Instrucciones específicas de esta semana"
+      ? "Instrucciones especÃ­ficas de esta semana"
       : gameInstructions
         ? "Instrucciones del juego"
         : null;
@@ -84,12 +84,12 @@ export function WeekDetailView({
         <div className="flex flex-wrap gap-3 text-sm font-semibold">
           {backHref ? (
             <Link className="text-circuit hover:underline" href={backHref}>
-              {backLabel ?? "← Volver"}
+              {backLabel ?? "â† Volver"}
             </Link>
           ) : null}
           {seasonBackHref ? (
             <Link className="theme-text-muted hover:underline" href={seasonBackHref}>
-              {seasonBackLabel ?? `← Volver a ${season.name}`}
+              {seasonBackLabel ?? `â† Volver a ${season.name}`}
             </Link>
           ) : null}
         </div>
@@ -98,7 +98,7 @@ export function WeekDetailView({
         <GameHero game={game} />
         <Card>
           <CardHeader
-            eyebrow={`${season.name} · Semana ${week.number}`}
+            eyebrow={`${season.name} Â· Semana ${week.number}`}
             title={game.title}
             action={<StatusBadge status={week.status} />}
           >
@@ -133,7 +133,7 @@ export function WeekDetailView({
               ) : (
                 <EmptyState
                   title="No hay instrucciones disponibles."
-                  description="Añade instrucciones al juego o un override específico en la semana."
+                  description="AÃ±ade instrucciones al juego o un override especÃ­fico en la semana."
                 />
               )}
             </div>
@@ -157,17 +157,17 @@ export function WeekDetailView({
         {leaderboardPending ? (
           <EmptyState
             title="Leaderboard pendiente de conectar."
-            description="Las puntuaciones reales se mostrarán cuando conectemos submissions y weekly_results."
+            description="Las puntuaciones reales se mostrarÃ¡n cuando conectemos submissions y weekly_results."
           />
         ) : leaderboard.length > 0 || benchmarks.length > 0 ? (
           <LeaderboardTable benchmarks={benchmarks} entries={leaderboard} />
         ) : (
           <EmptyState
-            title="Todavía no hay puntuaciones para esta semana."
+            title="TodavÃ­a no hay puntuaciones para esta semana."
             description={
               dataMode === "supabase"
-                ? "Todavía no hay envíos visibles para construir el leaderboard."
-                : "Cuando conectemos Supabase, este detalle cargará envíos reales."
+                ? "TodavÃ­a no hay envÃ­os visibles para construir el leaderboard."
+                : "Cuando conectemos Supabase, este detalle cargarÃ¡ envÃ­os reales."
             }
           />
         )}
@@ -176,12 +176,12 @@ export function WeekDetailView({
       {showOfficialResults ? (
         <Card>
           <CardHeader title="Resultados oficiales" eyebrow="weekly_results">
-            Estos resultados ya fueron confirmados por administración y cuentan
-            para la clasificación de temporada.
+            Estos resultados ya fueron confirmados por administraciÃ³n y cuentan
+            para la clasificaciÃ³n de temporada.
           </CardHeader>
           {weeklyResults.length > 0 ? (
             <DataTable>
-              <TableHead labels={["Puesto", "Jugador", "Puntuación", "Puntos"]} />
+              <TableHead labels={["Puesto", "Jugador", "PuntuaciÃ³n", "Puntos"]} />
               <tbody className="divide-y theme-border theme-surface">
                 {weeklyResults.map((result) => (
                   <tr className="theme-hover" key={result.id}>
@@ -207,7 +207,7 @@ export function WeekDetailView({
           ) : (
             <EmptyState
               title="No hay resultados oficiales publicados."
-              description="La tabla weekly_results se leerá aquí cuando exista contenido."
+              description="La tabla weekly_results se leerÃ¡ aquÃ­ cuando exista contenido."
             />
           )}
         </Card>
@@ -215,17 +215,17 @@ export function WeekDetailView({
 
       <Card>
         <CardHeader
-          title="Historial de envíos"
-          eyebrow={dataMode === "supabase" ? "Submissions reales" : "Envíos mock"}
+          title="Historial de envÃ­os"
+          eyebrow="Submissions reales"
         />
         {submissionsPending ? (
           <EmptyState
-            title="Historial de envíos pendiente."
-            description="Los envíos reales se cargarán cuando conectemos submissions."
+            title="Historial de envÃ­os pendiente."
+            description="Los envÃ­os reales se cargarÃ¡n cuando conectemos submissions."
           />
         ) : (
           <SubmissionsTable
-            emptyTitle="Todavía no hay envíos para esta semana."
+            emptyTitle="TodavÃ­a no hay envÃ­os para esta semana."
             showDetectedAt={dataMode === "supabase"}
             showSource={dataMode === "supabase"}
             showWeek={false}
@@ -236,3 +236,5 @@ export function WeekDetailView({
     </div>
   );
 }
+
+

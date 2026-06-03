@@ -11,8 +11,7 @@ export default function LoginPage() {
     <div className="mx-auto max-w-xl">
       <Card>
         <CardHeader title="Iniciar sesión" eyebrow="Auth">
-          Accede con email y contraseña. El mockup principal sigue funcionando
-          aunque no hayas iniciado sesión.
+          Accede con email y contraseña para entrar en la liga privada.
         </CardHeader>
         <LoginForm />
       </Card>

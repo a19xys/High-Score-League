@@ -51,10 +51,10 @@ export function LoginForm() {
 
     const profileResult = await ensureProfileForCurrentUser(supabase);
     setIsSubmitting(false);
-    router.refresh();
 
     if (profileResult.status === "ok") {
-      router.push("/profile");
+      router.replace("/profile");
+      router.refresh();
       return;
     }
 
@@ -63,7 +63,8 @@ export function LoginForm() {
         ? `Sesión iniciada. ${profileResult.error} Puedes completar el perfil en /profile.`
         : "Sesión iniciada. Puedes revisar el perfil en /profile.",
     );
-    router.push("/profile");
+    router.replace("/profile");
+    router.refresh();
   }
 
   return (

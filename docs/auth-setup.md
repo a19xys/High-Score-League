@@ -1,7 +1,7 @@
 # Auth setup
 
 High Score League usa Supabase Auth con email y password. Las paginas principales
-siguen usando datos mock; Auth solo gestiona sesion real y perfil real.
+usan datos reales de Supabase; Auth gestiona sesion real y perfil real.
 
 ## Variables necesarias
 
@@ -126,5 +126,6 @@ La app nunca permite a un usuario ponerse `is_admin = true`.
 
 ## Estado actual
 
-Auth minimo esta implementado y simplificado. Las paginas principales siguen
-usando `lib/mock-data.ts`; no hay Storage real ni subida real de puntuaciones.
+Auth minimo esta implementado y simplificado. Las paginas principales usan Supabase; no hay Storage real ni subida manual real de puntuaciones.
+
+

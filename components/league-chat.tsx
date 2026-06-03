@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
@@ -11,7 +11,6 @@ type LeagueChatProps = {
   canPost?: boolean;
   currentUserId?: string | null;
   error?: string | null;
-  mode?: "mock" | "supabase";
 };
 
 type ChatMessagesPayload = {
@@ -70,7 +69,6 @@ export function LeagueChat({
   canPost = false,
   currentUserId = null,
   error = null,
-  mode = "mock",
 }: LeagueChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottom = useRef(true);
@@ -113,7 +111,7 @@ export function LeagueChat({
   }, []);
 
   useEffect(() => {
-    if (mode !== "supabase" || !canPost) {
+    if (!canPost) {
       return;
     }
 
@@ -141,10 +139,10 @@ export function LeagueChat({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [canPost, mode, refreshMessages]);
+  }, [canPost, refreshMessages]);
 
   useEffect(() => {
-    if (mode !== "supabase" || !canPost) {
+    if (!canPost) {
       return;
     }
 
@@ -155,7 +153,7 @@ export function LeagueChat({
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [canPost, mode, refreshMessages]);
+  }, [canPost, refreshMessages]);
 
   useEffect(() => {
     if (!shouldStickToBottom.current) {
@@ -218,9 +216,9 @@ export function LeagueChat({
       >
         {localMessages.length === 0 ? (
           <div className="rounded-lg border border-dashed p-5 text-center theme-border theme-surface">
-            <p className="font-semibold theme-text">Todavía no hay mensajes.</p>
+            <p className="font-semibold theme-text">TodavÃ­a no hay mensajes.</p>
             <p className="mt-2 text-sm theme-text-muted">
-              El chat mostrará los últimos 50 mensajes de la liga.
+              El chat mostrarÃ¡ los Ãºltimos 50 mensajes de la liga.
             </p>
           </div>
         ) : (
@@ -312,13 +310,7 @@ export function LeagueChat({
               sendMessage();
             }
           }}
-          placeholder={
-            canPost
-              ? "Escribe un comentario..."
-              : mode === "supabase"
-                ? "Inicia sesión para escribir..."
-                : "Chat mock sin envío real..."
-          }
+          placeholder={canPost ? "Escribe un comentario..." : "Inicia sesión para escribir..."}
           value={draft}
         />
         <button
@@ -330,10 +322,10 @@ export function LeagueChat({
           {isPending ? "Enviando..." : "Enviar"}
         </button>
       </div>
-      {!canPost && mode === "supabase" ? (
+      {!canPost ? (
         <p className="text-sm theme-text-muted">
           <Link className="font-semibold text-circuit hover:underline" href="/login">
-            Inicia sesión
+            Inicia sesiÃ³n
           </Link>{" "}
           para participar en el chat.
         </p>
@@ -344,3 +336,5 @@ export function LeagueChat({
     </div>
   );
 }
+
+

@@ -21,15 +21,11 @@ export default async function SeasonsPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader
-          eyebrow={seasonData.mode === "supabase" ? "Supabase" : "Temporadas"}
+          eyebrow="Temporadas"
           title="Archivo de temporadas"
           action={
             <span className="rounded-full border px-3 py-1 text-xs font-semibold uppercase theme-border theme-surface-muted theme-text">
-              {seasonData.usingFallback
-                ? "Fallback mock"
-                : seasonData.mode === "supabase"
-                  ? "Datos reales"
-                  : "Mock"}
+              Datos reales
             </span>
           }
         >

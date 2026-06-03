@@ -62,7 +62,6 @@ export async function getRealSubmissions(
       rows: [],
       source: "supabase",
       error: "Supabase no esta configurado.",
-      usingFallback: false,
     };
   }
 
@@ -86,7 +85,6 @@ export async function getRealSubmissions(
       rows: [],
       source: "supabase",
       error: error.message,
-      usingFallback: false,
     };
   }
 
@@ -94,7 +92,6 @@ export async function getRealSubmissions(
     rows: (data ?? []) as SubmissionRow[],
     source: "supabase",
     error: null,
-    usingFallback: false,
   };
 }
 
@@ -196,3 +193,4 @@ export function countVisibleSubmissionsForLeaderboard(
 ) {
   return rows.filter((row) => isSubmissionVisibleForLeaderboard(row, weekStatus)).length;
 }
+

@@ -16,7 +16,6 @@ export async function getRealWeekBenchmarks(
       rows: [],
       source: "supabase",
       error: "Supabase no esta configurado.",
-      usingFallback: false,
     };
   }
 
@@ -34,7 +33,6 @@ export async function getRealWeekBenchmarks(
       rows: [],
       source: "supabase",
       error: error.message,
-      usingFallback: false,
     };
   }
 
@@ -42,7 +40,6 @@ export async function getRealWeekBenchmarks(
     rows: (data ?? []) as WeekBenchmarkRow[],
     source: "supabase",
     error: null,
-    usingFallback: false,
   };
 }
 
@@ -59,3 +56,4 @@ export function mapWeekBenchmarkRowToBenchmark(
     isActive: row.is_active,
   };
 }
+

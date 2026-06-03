@@ -1,36 +1,17 @@
-import { weeks as mockWeeks } from "@/lib/mock-data";
+import { getDerivedWeekStatusFromRow } from "@/lib/week-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Week } from "@/types";
 import type { WeekRow } from "@/types/supabase";
-import { getDerivedWeekStatusFromRow } from "@/lib/week-status";
 import type { DataReadOptions, DataReadResult } from "./types";
 
 const weekColumns =
   "id,season_id,game_id,week_number,status,public_start_at,public_freeze_at,final_deadline_at,reveal_at,rules_summary,created_at,updated_at";
 
-function mockWeekRows(): WeekRow[] {
-  return mockWeeks.map((week) => ({
-    id: week.id,
-    season_id: week.seasonId,
-    game_id: week.gameId,
-    week_number: week.number,
-    status: week.status,
-    public_start_at: week.startsAt,
-    public_freeze_at: null,
-    final_deadline_at: week.endsAt,
-    reveal_at: week.revealAt ?? null,
-    rules_summary: week.rules.join("\n"),
-    created_at: undefined,
-    updated_at: undefined,
-  }));
-}
-
-function fallbackResult(error: string | null): DataReadResult<WeekRow> {
+function emptyResult(error: string | null): DataReadResult<WeekRow> {
   return {
-    rows: mockWeekRows(),
-    source: "mock",
+    rows: [],
+    source: "supabase",
     error,
-    usingFallback: true,
   };
 }
 
@@ -49,19 +30,12 @@ export function mapWeekRowToWeek(row: WeekRow): Week {
 }
 
 export async function getRealWeeks(
-  options: DataReadOptions = {},
+  _options: DataReadOptions = {},
 ): Promise<DataReadResult<WeekRow>> {
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
-    return options.fallbackToMock
-      ? fallbackResult("Supabase no esta configurado.")
-      : {
-          rows: [],
-          source: "supabase",
-          error: "Supabase no esta configurado.",
-          usingFallback: false,
-        };
+    return emptyResult("Supabase no está configurado.");
   }
 
   const { data, error } = await supabase
@@ -70,16 +44,13 @@ export async function getRealWeeks(
     .order("public_start_at", { ascending: false, nullsFirst: false });
 
   if (error) {
-    return options.fallbackToMock
-      ? fallbackResult(error.message)
-      : { rows: [], source: "supabase", error: error.message, usingFallback: false };
+    return emptyResult(error.message);
   }
 
   return {
     rows: (data ?? []) as WeekRow[],
     source: "supabase",
     error: null,
-    usingFallback: false,
   };
 }
 
@@ -105,3 +76,4 @@ export async function getRealWeekById(
     rows: weeks.rows.filter((week) => week.id === weekId),
   };
 }
+

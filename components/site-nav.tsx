@@ -1,8 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getServerSession } from "@/lib/auth/session";
-import { currentSeason, currentWeek } from "@/lib/mock-data";
-import { getDataSource } from "@/lib/data/data-source";
 import { getRealSeasons } from "@/lib/data/seasons";
 import { getRealWeeks } from "@/lib/data/weeks";
 import { getSynchronizedSeasonStatus, getSynchronizedWeekStatus } from "@/lib/week-status";
@@ -47,16 +45,6 @@ async function getSupabaseNavData(): Promise<SiteNavData> {
   };
 }
 
-function getMockNavData(): SiteNavData {
-  return {
-    activeWeekId: currentWeek.id,
-    activeSeasonId: currentSeason.id,
-    activeSeasonSlug: currentSeason.slug,
-    hasBrandLogo: hasStaticBrandLogo(),
-    isSignedIn: true,
-  };
-}
-
 function getSignedOutNavData(): SiteNavData {
   return {
     activeWeekId: null,
@@ -78,8 +66,5 @@ export async function SiteNav() {
     return <SiteNavClient data={getSignedOutNavData()} />;
   }
 
-  const data =
-    getDataSource() === "supabase" ? await getSupabaseNavData() : getMockNavData();
-
-  return <SiteNavClient data={data} />;
+  return <SiteNavClient data={await getSupabaseNavData()} />;
 }

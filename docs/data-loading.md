@@ -1,310 +1,55 @@
 # Data loading
 
-High Score League sigue usando datos mock por defecto. La lectura real de
-Supabase se ha preparado de forma controlada para `seasons`, `games` y `weeks`.
+High Score League usa Supabase como fuente de datos de producto. Las paginas
+principales ya no usan `lib/mock-data.ts` ni fallback a datos locales.
 
 ## Fuente de datos
 
-Configurar en `.env.local`:
+Las rutas privadas siguen esta regla:
 
-```bash
-NEXT_PUBLIC_DATA_SOURCE=mock
-```
+1. Visitante sin sesion: landing publica o `AccessRequired`.
+2. Usuario autenticado: lectura real de Supabase.
+3. Error de Supabase/RLS: estado vacio o aviso controlado, sin inventar datos.
 
-Valores soportados:
+`NEXT_PUBLIC_DATA_SOURCE` ya no se usa.
 
-- `mock`: valor por defecto. Para usuarios autenticados, `/seasons`,
-  `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]`, `/game` y el resto de
-  paginas pueden usar fallback mock.
-- `supabase`: `/seasons`, `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y
-  `/game` intentan leer datos reales. Submit sigue siendo provisional; el
-  leaderboard semanal se calcula desde submissions visibles.
+## Rutas principales
 
-No se cambia automaticamente toda la aplicacion a Supabase.
+`/` muestra landing publica sin sesion. Con sesion iniciada lee semana activa,
+temporada activa, leaderboard y chat real.
 
-Las rutas privadas no muestran fallback mock a visitantes sin sesion. Si no hay
-usuario autenticado, la interfaz muestra una pantalla de acceso requerido antes
-de consultar datos de dominio. Los avisos de RLS y errores tecnicos quedan para
-rutas de diagnostico como `/supabase-test` y `/real-data-test`.
+`/seasons` lee `public.seasons` y cuenta semanas desde `public.weeks`.
+Las temporadas `draft` no aparecen publicamente.
 
-## Seed de desarrollo
+`/seasons/[seasonId]` acepta id o slug real. Muestra semanas reales,
+clasificacion real desde `weekly_results` y podio real cuando existen
+resultados oficiales.
 
-El archivo `supabase/seed-dev.sql` inserta datos minimos:
+`/weeks` lee `public.weeks`, `public.seasons` y `public.games`. Las semanas de
+temporadas `draft` no aparecen. Las semanas secretas o futuras no revelan juego.
 
-- Temporada I activa.
-- Pretemporada cerrada.
-- Temporada II en borrador.
-- Juegos iniciales.
-- Semana 1 activa.
-- Semanas cerradas/publicadas de pretemporada.
-- Semanas futuras con placeholder `Juego secreto`.
+`/weeks/[weekId]` lee semana, temporada, juego, submissions, benchmarks y
+`weekly_results` reales. Si la semana no existe o esta oculta, muestra estado
+limpio.
 
-Ejecutarlo manualmente en Supabase Dashboard:
+`/game` redirige a `/weeks/[weekId]` de la semana activa o en tramo final.
 
-1. Abrir `SQL Editor`.
-2. Pegar el contenido de `supabase/seed-dev.sql`.
-3. Ejecutar despues de la migracion inicial.
+`/submit` sigue siendo una pantalla provisional de respaldo, sin subida manual
+real todavia.
 
-El seed usa UUIDs fijos y `on conflict (id) do update`, por lo que puede
-ejecutarse de nuevo durante desarrollo sin duplicar filas.
+## Diagnostico
 
-No inserta perfiles ni submissions porque dependen de usuarios reales de
-Supabase Auth.
+`/supabase-test` prueba conexion tecnica, Auth y lectura basica.
 
-## Submissions y eventos MAME
-
-La migracion `supabase/migrations/0002_submission_events.sql` prepara el modelo
-para una fase basada en eventos automaticos:
-
-`MAME plugin -> JSON local -> app local High Score League -> API web`.
-
-La arquitectura esta documentada en `docs/submission-architecture.md`.
-
-Puntos importantes:
-
-- `submitted_at` representa cuando la web recibe el evento y lo fuerza el
-  servidor.
-- `detected_at` representa cuando MAME o la app local detectaron la puntuacion.
-- `screenshot_path` es opcional porque las capturas no seran requisito central.
-- `duplicate_key` preparara idempotencia para reintentos.
-- `POST /api/submissions/ingest` ya existe como endpoint mínimo autenticado.
-- Todavía no existen plugin MAME, app local, Storage ni capturas reales.
-
-## Rutas de diagnostico
-
-`/supabase-test` prueba conexion tecnica y Auth:
-
-- variables;
-- sesion;
-- user metadata;
-- perfil real;
-- lectura basica de tablas.
-
-`/real-data-test` prueba datos de dominio:
-
-- `seasons`;
-- `games`;
-- `weeks`;
-- temporada activa;
-- semana actual;
-- numero de semanas visibles;
-- semanas ocultas por temporadas draft;
-- enlaces a `/game` y a semanas reales accesibles;
-- errores de RLS;
-- si hay fallback mock.
-
-Con las politicas actuales, `seasons`, `games` y `weeks` requieren usuario
-autenticado. Si no hay sesion, `/real-data-test` muestra enlace a `/login`.
-
-## `/seasons`
-
-`/seasons` ya usa la fuente configurable:
-
-- Con `NEXT_PUBLIC_DATA_SOURCE=mock` o sin variable, usa summaries mock.
-- Con `NEXT_PUBLIC_DATA_SOURCE=supabase`, intenta leer `public.seasons` y cuenta
-  semanas desde `public.weeks` para mantener la columna de semanas.
-- Si no hay sesion, muestra acceso requerido. Si hay sesion y Supabase devuelve
-  error, puede mostrar un aviso discreto y fallback mock controlado.
-- Las temporadas `draft` se ocultan en el archivo publico.
-- `active` se muestra como "Activa".
-- `completed` se muestra como "Cerrada".
-
-Mientras no existan `weekly_results` reales, lider/campeon se muestra como
-"Pendiente" en datos reales. No se inventan ganadores.
-
-## `/seasons/[seasonId]`
-
-El detalle de temporada tambien usa la fuente configurable:
-
-- En modo mock acepta ids mock como `s1` y slugs mock como `temporada-i`.
-- En modo Supabase busca primero por `id` real y tambien por `slug`.
-- Si no hay sesion, muestra acceso requerido. Si hay sesion y Supabase devuelve
-  error, usa fallback mock si existe una temporada mock con ese id o slug.
-- Si la temporada real esta en `draft`, no se muestran detalles por URL directa.
-- Las semanas incluidas pueden venir de `public.weeks`.
-- Si el juego asociado es el placeholder `Juego secreto`, se muestra como juego
-  secreto y no se revelan metadatos.
-- Los enlaces a semanas reales accesibles apuntan a `/weeks/[id]`; las semanas
-  secretas o futuras quedan desactivadas.
-
-La clasificacion real de temporada se calcula desde `weekly_results`. Tambien
-se incluyen miembros activos de `season_memberships` con 0 puntos. Si no hay
-resultados oficiales, la tabla puede mostrar inscritos a 0 puntos y el podio
-queda pendiente. En modo mock se mantiene la clasificacion mock existente.
-
-## `/weeks`
-
-`/weeks` usa la misma fuente configurable:
-
-- Con `NEXT_PUBLIC_DATA_SOURCE=mock` o sin variable, usa `getWeekSummaries()`.
-- Con `NEXT_PUBLIC_DATA_SOURCE=supabase`, lee `public.weeks`, `public.seasons` y
-  `public.games`.
-- Si no hay sesion, muestra acceso requerido. Si hay sesion y Supabase devuelve
-  error, muestra aviso y fallback mock controlado.
-- No muestra semanas de temporadas `draft`.
-- `active` y `frozen` se agrupan visualmente como "Activa".
-- `closed` se muestra como "Cerrada".
-- `published` se muestra como "Resultados oficiales".
-- `draft` se trata como no accesible/secreta.
-
-Los juegos secretos se manejan con el placeholder `Juego secreto` porque el
-modelo actual exige `weeks.game_id not null`. Cuando una semana es futura, draft
-o usa ese placeholder:
-
-- se muestra "Juego secreto";
-- no se revelan desarrollador, genero, tipo de control ni dificultad;
-- el enlace a detalle queda desactivado.
-
-En modo Supabase los enlaces "Ver semana" se activan para semanas accesibles
-con juego revelado. Siguen desactivados para semanas futuras, `draft` o con
-placeholder `Juego secreto`.
-
-No hay lider real hasta conectar `weekly_results`, por lo que la columna Lider
-aparece como "Pendiente".
-
-## `/weeks/[weekId]`
-
-El detalle de semana usa fuente configurable:
-
-- En modo mock acepta ids mock como `w1`.
-- En modo Supabase busca por `id` real de `public.weeks`.
-- No hay slug real de semana en el esquema actual, asi que no se busca por slug.
-- Lee la semana, temporada asociada, juego asociado, `rules_summary`,
-  `games.instructions` y `games.manual_url`.
-- Si no hay sesion, muestra acceso requerido antes de consultar la semana. Si
-  hay sesion y Supabase falla, usa fallback mock si existe.
-
-Si una semana es futura, `draft` o usa el placeholder `Juego secreto`, se muestra
-una pantalla de juego secreto:
-
-- no se revela juego real;
-- no se muestran metadatos;
-- no se muestran instrucciones reales;
-- no aparecen botones de descarga.
-
-Para semanas activas, cerradas o publicadas con juego real se muestran ficha,
-estado, fechas, instrucciones efectivas, leaderboard calculado desde submissions
-visibles e historial de envios.
-
-## `/game`
-
-`/game` queda como alias de compatibilidad para la semana activa:
-
-- En modo mock redirige a `/weeks/[weekId]` de la semana activa mock.
-- En modo Supabase redirige a `/weeks/[weekId]` de la semana activa o en tramo
-  final.
-- Si no hay semana activa, muestra `EmptyState` con enlace al archivo de
-  semanas.
-
-En modo Supabase, `/weeks/[weekId]` ya lee submissions reales de solo lectura:
-
-- el leaderboard semanal se calcula desde submissions validas y visibles;
-- las submissions ocultas no revelan puntuacion hasta que la semana esta
-  `closed` o `published`;
-- el historial muestra origen (`source`), envio (`submitted_at`) y deteccion
-  (`detected_at`) cuando existen;
-- si no hay submissions visibles, se muestra estado vacio;
-- si la lectura falla, se muestra un aviso discreto y no se inventan
-  puntuaciones mock dentro de una semana real.
-
-`weekly_results` se lee en semanas `published` si existen filas. Las semanas
-`closed` muestran leaderboard final, pero no alteran clasificación de temporada
-hasta que el admin publica resultados oficiales.
-
-`week_benchmarks` se lee en modo Supabase para mostrar referencias visuales en
-el leaderboard. No son submissions, no alteran ranks, no cuentan para
-`weekly_results` y no aparecen en historial de envios.
-
-`POST /api/submissions/ingest` ya existe como endpoint mínimo autenticado para
-crear submissions automáticas. Usa RLS, deriva `player_id` del usuario
-autenticado y no acepta `submitted_at` desde cliente.
-
-`season_memberships` permite unirse a temporadas activas. `/seasons` y
-`/seasons/[seasonId]` muestran estado `Unido`, botón `Unirse` o enlace a login
-según sesión y membresía.
-
-`/` lee `league_chat_messages` en modo Supabase para mostrar el chat global real
-de la liga. El envío usa `POST /api/chat/messages` y el componente se suscribe a
-inserts con Supabase Realtime. Al recibir un insert, recarga `GET
-/api/chat/messages` para obtener los últimos 50 mensajes con perfiles.
-
-`POST /api/admin/weeks/[weekId]/weekly-results` calcula resultados oficiales
-desde submissions reales. En `dryRun` devuelve preview; con `dryRun = false`
-reemplaza `weekly_results` solo si la semana está `closed` o `published`.
-
-El panel admin mínimo vive en `/profile` para usuarios admin y en
-`/admin/weeks`. Desde `/admin/weeks/[weekId]` se cambian estados, se revisan
-submissions, se ejecuta dry run, se generan resultados oficiales y se marca la
-semana como publicada.
-
-`/admin/weeks/new` crea semanas reales y `/admin/weeks/[weekId]/edit` edita
-temporada, juego, número, fechas, instrucciones específicas opcionales y
-benchmarks básicos.
-
-`/admin/games` gestiona el catálogo real de juegos. Los metadatos `genre`,
-`control_type` y `difficulty` se leen desde Supabase cuando existe la migración
-`0005_game_metadata.sql`. Desde `0009_game_instructions.sql` también gestiona
-`instructions` y `manual_url`.
-
-`/admin/seasons` gestiona temporadas reales. Permite crear y editar `name`,
-`slug`, `version`, `status`, `starts_at` y `ends_at`; no crea semanas
-automáticamente.
-
-Para crear datos de prueba manuales, consulta `docs/test-submissions.md`.
-Para probar el endpoint, consulta `docs/ingest-api.md`.
-Para la generación oficial de resultados, consulta `docs/weekly-results.md`.
-Para referencias visuales de leaderboard, consulta `docs/week-benchmarks.md`.
-Para el chat global de la liga, consulta `docs/chat.md`.
-Para administración semanal, consulta `docs/admin.md`.
-Para creación y edición de semanas, consulta `docs/admin-weeks.md`.
-Para administración de juegos, consulta `docs/admin-games.md`.
-Para administración de temporadas, consulta `docs/admin-seasons.md`.
-
-## Pagina temporal
-
-`/seasons-real` se mantiene como comparativa temporal.
-
-- Con `NEXT_PUBLIC_DATA_SOURCE=mock`, muestra fallback mock.
-- Con `NEXT_PUBLIC_DATA_SOURCE=supabase`, intenta leer Supabase.
-- Si Supabase falla y se solicita fallback, muestra mock con aviso.
-
-No es la ruta principal; la ruta publica ya es `/seasons`.
-
-## Capa de datos
-
-La lectura real esta en:
-
-- `lib/data/seasons.ts`
-- `lib/data/games.ts`
-- `lib/data/weeks.ts`
-- `lib/data/week-page.ts`
-- `lib/data/data-source.ts`
-- `lib/data/admin-weeks.ts`
-- `lib/data/season-memberships.ts`
-- `lib/data/season-standings.ts`
-- `lib/data/week-benchmarks.ts`
-- `lib/weekly-results/calculate.ts`
-
-Las funciones devuelven resultados tipados con:
-
-- `rows`;
-- `source`;
-- `error`;
-- `usingFallback`.
-
-No lanzan errores no controlados si faltan variables o si Supabase devuelve un
-error.
+`/real-data-test` prueba datos de dominio: temporadas, juegos, semanas,
+submissions, weekly_results y enlaces utiles. Estas rutas son de desarrollo y no
+forman parte de la navegacion principal.
 
 ## Pendiente
 
-Todavia no hay:
-
-- app local y plugin MAME;
-- moderación UI del chat;
-- Storage real;
-- subida real de puntuaciones;
-- subida real de capturas;
-- panel completo de usuarios;
-- manuales, descargas y configuración MAME desde admin;
-- medallas y bonus;
-- integracion con MAME.
+- Storage real.
+- Capturas reales.
+- Subida manual real desde `/submit`.
+- App local y plugin MAME.
+- Panel completo de usuarios.
+- Medallas y bonus.

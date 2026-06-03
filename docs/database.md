@@ -235,7 +235,7 @@ generar o revisar estas filas antes de publicar una semana.
 10. La clasificación general de temporada se lee agregando `weekly_results`.
 11. La portada lee los últimos 50 mensajes desde `league_chat_messages`.
 
-Las fechas de cierre y revelación existen como datos de la semana. En la UI mock
+Las fechas de cierre y revelación existen como datos de la semana. En la UI
 principal solo se muestra el rango competitivo, por ejemplo
 `18–24 de mayo de 2026`; cierre y revelación no se muestran como tarjetas
 independientes por ahora.
@@ -267,7 +267,7 @@ Para el MVP inicial se necesitan:
 - `weekly_results` para resultados publicados y clasificación estable.
 - `league_chat_messages` para el chat global real de la liga.
 
-En la interfaz mock, `positionChange` simula el movimiento de cada jugador
+En la interfaz, `positionChange` simula el movimiento de cada jugador
 respecto a la semana anterior. Más adelante se calculará comparando resultados
 publicados en `weekly_results`.
 
@@ -320,7 +320,7 @@ si esas lecturas se resuelven desde servidor.
 
 ## Tema claro/oscuro
 
-La app soporta en fase mock tema claro, tema oscuro y preferencia del sistema.
+La app soporta tema claro, tema oscuro y preferencia del sistema.
 La preferencia visual se guarda inicialmente en el navegador con `localStorage`.
 No se añaden campos a Supabase para esto en el esquema inicial. El selector vive
 en `/profile`.
@@ -354,3 +354,6 @@ guardar el tipo y tamano del archivo resultante.
 
 Si se usa Supabase CLI mas adelante, el archivo puede aplicarse como migracion
 normal desde la carpeta `supabase/migrations`.
+
+
+

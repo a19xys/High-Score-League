@@ -69,6 +69,47 @@ textarea {
 }
 
 @layer components {
+  .public-landing-shell {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    min-height: calc(100dvh - 73px + 4rem);
+    width: 100vw;
+    margin: -2rem calc(50% - 50vw);
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 20%, rgba(34, 211, 238, 0.24), transparent 32rem),
+      radial-gradient(circle at 82% 18%, rgba(236, 72, 153, 0.22), transparent 30rem),
+      linear-gradient(135deg, #020617 0%, #07111f 45%, #12051a 100%);
+    padding: clamp(3rem, 7vw, 6rem) 1rem;
+    text-align: center;
+  }
+
+  .public-landing-aurora {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(circle at 28% 58%, rgba(6, 182, 212, 0.34), transparent 28rem),
+      radial-gradient(circle at 74% 42%, rgba(244, 114, 182, 0.3), transparent 30rem),
+      linear-gradient(115deg, rgba(14, 165, 233, 0.12), rgba(236, 72, 153, 0.1));
+    opacity: 0.72;
+    animation: public-landing-drift 18s ease-in-out infinite alternate;
+  }
+
+  .public-landing-content {
+    width: min(100%, 56rem);
+    position: relative;
+    z-index: 1;
+  }
+
+  .public-landing-content img {
+    filter: drop-shadow(0 22px 40px rgba(0, 0, 0, 0.42));
+  }
+
   .theme-surface {
     background: var(--surface);
     color: var(--text);
@@ -113,5 +154,22 @@ textarea {
 
   .theme-input::placeholder {
     color: var(--text-muted);
+  }
+}
+
+@keyframes public-landing-drift {
+  from {
+    opacity: 0.62;
+  }
+
+  to {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-landing-aurora {
+    animation: none;
+    opacity: 0.78;
   }
 }

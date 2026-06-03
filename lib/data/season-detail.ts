@@ -1,5 +1,5 @@
 import type { Season, SeasonStanding, WeekSummary } from "@/types";
-import { getDataSource } from "./data-source";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getRealGames, mapGameRowToGame } from "./games";
 import { getUserSeasonMemberships } from "./season-memberships";
 import { getRealSeasonStandings } from "./season-standings";
@@ -9,15 +9,6 @@ import {
   derivedStatusToVisibleWeekStatus,
   getDerivedWeekStatusFromRow,
 } from "@/lib/week-status";
-import {
-  currentWeek,
-  games as mockGames,
-  getSeasonById,
-  getSeasonWeeks,
-  seasonStandings,
-  seasons as mockSeasons,
-} from "@/lib/mock-data";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type SeasonDetailData = {
   season: Season;
@@ -27,42 +18,9 @@ export type SeasonDetailData = {
   hasRealStandings: boolean;
   officialResultCount: number;
   membershipStatus?: "joined" | "not_joined" | "login_required" | "closed";
-  mode: "mock" | "supabase";
+  mode: "supabase";
   warning: string | null;
-  usingFallback: boolean;
 };
-
-function getMockSeason(identifier: string) {
-  return (
-    getSeasonById(identifier) ??
-    mockSeasons.find((season) => season.slug === identifier)
-  );
-}
-
-function getMockSeasonDetail(
-  identifier: string,
-  warning: string | null,
-): SeasonDetailData | null {
-  const season = getMockSeason(identifier);
-
-  if (!season || season.status === "draft") {
-    return null;
-  }
-
-  return {
-    season,
-    weeks: getSeasonWeeks(season.id),
-    currentWeekNumber: currentWeek.number,
-    standings: season.id === "s1" ? seasonStandings : [],
-    hasRealStandings: false,
-    officialResultCount: 0,
-    membershipStatus:
-      warning && season.status === "active" ? "login_required" : undefined,
-    mode: "mock",
-    warning,
-    usingFallback: Boolean(warning),
-  };
-}
 
 function isSecretGameTitle(title: string) {
   return title.trim().toLowerCase() === "juego secreto";
@@ -71,16 +29,10 @@ function isSecretGameTitle(title: string) {
 export async function getSeasonDetailData(
   identifier: string,
 ): Promise<SeasonDetailData | null> {
-  if (getDataSource() !== "supabase") {
-    return getMockSeasonDetail(identifier, null);
-  }
-
   const supabase = await createSupabaseServerClient();
+
   if (!supabase) {
-    return getMockSeasonDetail(
-      identifier,
-      "Supabase no esta configurado. Mostrando fallback mock si existe.",
-    );
+    return null;
   }
 
   const { data: userData } = supabase
@@ -88,10 +40,7 @@ export async function getSeasonDetailData(
     : { data: { user: null } };
 
   if (!userData.user) {
-    return getMockSeasonDetail(
-      identifier,
-      "NEXT_PUBLIC_DATA_SOURCE=supabase, pero no hay sesion activa. Mostrando fallback mock si existe.",
-    );
+    return null;
   }
 
   const [seasonsResult, weeksResult, gamesResult] = await Promise.all([
@@ -104,24 +53,14 @@ export async function getSeasonDetailData(
     seasonsResult.error ?? weeksResult.error ?? gamesResult.error ?? null;
 
   if (readError) {
-    return getMockSeasonDetail(
-      identifier,
-      `${readError}. Mostrando fallback mock si existe.`,
-    );
+    return null;
   }
 
   const seasonRow = seasonsResult.rows.find(
     (season) => season.id === identifier || season.slug === identifier,
   );
 
-  if (!seasonRow) {
-    return getMockSeasonDetail(
-      identifier,
-      "No se encontro una temporada real con ese id o slug. Mostrando fallback mock si existe.",
-    );
-  }
-
-  if (seasonRow.status === "draft") {
+  if (!seasonRow || seasonRow.status === "draft") {
     return null;
   }
 
@@ -129,25 +68,35 @@ export async function getSeasonDetailData(
     .filter((week) => week.season_id === seasonRow.id)
     .sort((a, b) => a.week_number - b.week_number);
   const gameRowsById = new Map(gamesResult.rows.map((game) => [game.id, game]));
-  const fallbackGame = mockGames[0];
   const weekSummaries: WeekSummary[] = realWeekRows.map((weekRow) => {
     const gameRow = gameRowsById.get(weekRow.game_id);
-    const game = gameRow ? mapGameRowToGame(gameRow) : fallbackGame;
+    const rawGame = gameRow
+      ? mapGameRowToGame(gameRow)
+      : {
+          id: weekRow.game_id,
+          title: "Juego no disponible",
+          slug: "juego-no-disponible",
+          developer: "",
+          genre: "",
+          controlType: "",
+          difficulty: "",
+          imageAlt: "Juego no disponible",
+        };
     const derivedStatus = getDerivedWeekStatusFromRow(weekRow);
     const isSecret =
       derivedStatus === "draft" ||
       derivedStatus === "scheduled" ||
-      isSecretGameTitle(game.title);
+      isSecretGameTitle(rawGame.title);
     const publicGame = isSecret
       ? {
-          ...game,
+          ...rawGame,
           title: "Juego secreto",
           developer: "",
           genre: "",
           controlType: "",
           difficulty: "",
         }
-      : game;
+      : rawGame;
     const mappedWeek = mapWeekRowToWeek(weekRow);
 
     return {
@@ -170,7 +119,7 @@ export async function getSeasonDetailData(
     getRealSeasonStandings(seasonRow.id),
   ]);
   const standingsWarning = standingsResult.error
-    ? `No se pudo leer la clasificacion real: ${standingsResult.error}.`
+    ? `No se pudo leer la clasificación real: ${standingsResult.error}.`
     : null;
 
   return {
@@ -188,6 +137,6 @@ export async function getSeasonDetailData(
         : "closed",
     mode: "supabase",
     warning: standingsWarning,
-    usingFallback: false,
   };
 }
+

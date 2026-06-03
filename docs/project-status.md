@@ -1,157 +1,64 @@
 # Project status
 
-High Score League esta en fase mock avanzada.
+High Score League esta conectada a Supabase y usa datos reales en la experiencia
+normal.
 
 ## Estado actual
 
-- La interfaz principal esta montada con Next.js App Router, TypeScript y
-  Tailwind CSS.
-- Las paginas principales siguen usando `lib/mock-data.ts`, salvo `/seasons`,
-  `/seasons/[seasonId]`, `/weeks` y `/weeks/[weekId]`, que pueden leer Supabase
-  si `NEXT_PUBLIC_DATA_SOURCE=supabase`. `/game` redirige a la semana activa.
-- El mockup incluye juego actual, semanas, temporadas, perfiles, leaderboards,
-  tema claro/oscuro, subida provisional y administracion mock. La portada ya
-  puede usar datos reales y chat real en modo Supabase para usuarios
-  autenticados.
-- Los visitantes sin sesion ven una landing publica simple y las rutas privadas
-  muestran una pantalla de acceso requerido en lugar de mock antiguo, errores
-  RLS o fallbacks tecnicos.
-- No se debe sustituir el mockup por datos reales hasta decidir el flujo de
-  conexion.
+- Next.js App Router, TypeScript y Tailwind.
+- Landing publica para visitantes sin sesion.
+- Rutas privadas protegidas con `AccessRequired`.
+- Auth real con email/password y perfiles reales.
+- Juegos, temporadas, semanas, submissions, leaderboards, `weekly_results`,
+  clasificacion de temporada, benchmarks y chat global leen Supabase.
+- El panel admin permite gestionar juegos, temporadas, semanas, submissions,
+  benchmarks y resultados oficiales.
+- `/game` redirige a la semana activa real.
+- `/week` y `/leaderboard` redirigen a `/game`.
+- `/season` redirige a `/seasons`.
+- `lib/mock-data.ts` fue eliminado y ya no existe fallback de producto a datos
+  locales.
+- `NEXT_PUBLIC_DATA_SOURCE` ya no se usa.
 
 ## Supabase
 
-- Supabase ya esta conectado mediante clientes de navegador y servidor.
-- La prueba aislada vive en `/supabase-test`.
-- La prueba de datos de dominio vive en `/real-data-test`.
-- `/seasons`, `/seasons/[seasonId]`, `/weeks` y `/weeks/[weekId]` pueden leer
-  datos reales con fallback mock.
-- `/game` redirige a `/weeks/[weekId]` de la semana activa cuando existe.
-- `/weeks/[weekId]` puede calcular leaderboard semanal real de solo lectura
-  desde `submissions` visibles.
-- `POST /api/submissions/ingest` existe como endpoint mínimo autenticado para
-  crear submissions automáticas sin service role.
-- `season_memberships` permite registrar jugadores por temporada.
-- `POST /api/admin/weeks/[weekId]/weekly-results` permite preview y generación
-  oficial de resultados semanales para admins usando miembros elegibles por
-  fecha de corte de la semana.
-- `week_benchmarks` permite mostrar referencias visuales en leaderboards sin
-  afectar submissions, puntos ni resultados oficiales.
-- `/seasons/[seasonId]` calcula clasificacion y podio reales desde
-  `weekly_results`, incluyendo miembros activos con 0 puntos.
-- `/profile` muestra perfil funcional con datos reales, edición de username,
-  siglas, bio, avatar URL temporal, preferencia de registro de tiempo, historial
-  real cuando existe y centro admin solo para usuarios con `is_admin = true`.
-- `/admin/weeks` y `/admin/weeks/[weekId]` permiten gestionar semanas,
-  submissions y resultados oficiales sin SQL manual.
-- `/admin/weeks/new` y `/admin/weeks/[weekId]/edit` permiten crear semanas,
-  editar sus metadatos principales, definir instrucciones específicas
-  opcionales y gestionar benchmarks básicos.
-- `/admin/weeks/[weekId]/edit` permite borrar semanas inactivas sin submissions
-  ni resultados, con confirmación explícita y renumeración posterior.
-- El formulario admin de semanas usa fechas simples, selecciona temporada
-  activa por defecto si existe, no autoselecciona juego y calcula
-  `week_number` automáticamente por orden cronológico dentro de la temporada.
-- Si una semana solapa semanas posteriores, el admin puede confirmar retrasarlas
-  automáticamente; no se desplazan semanas con resultados oficiales ni se
-  extiende la temporada.
-- Las semanas usan estado derivado por fechas: apertura (`public_start_at`),
-  tramo final opcional (`public_freeze_at`) y cierre (`final_deadline_at`).
-  `reveal_at` queda como campo legacy.
-- Crear o editar una semana ejecuta una reconciliacion server-side: sincroniza
-  estado interno, recalcula `is_hidden` de submissions validas y retira
-  `weekly_results` si la semana se reabre.
-- Las temporadas `completed` bloquean cambios normales en sus semanas,
-  benchmarks y generacion manual de resultados.
-- `POST /api/cron/process-schedule` sincroniza estados internos de semanas y
-  temporadas por fechas, reutiliza la reconciliacion de semanas, cierra semanas
-  vencidas como `closed` y revela puntuaciones sin generar `weekly_results`.
-- `published` queda reservado para la acción manual admin que genera
-  `weekly_results`; solo esas semanas cuentan para clasificación de temporada.
-- `/admin/games` permite gestionar el catálogo real de juegos: listar, buscar,
-  crear, editar, definir instrucciones base y guardar un enlace externo al
-  manual.
-- `/admin/seasons` permite gestionar temporadas reales: listar, buscar, crear y
-  editar.
-- `/admin/seasons/[seasonId]` permite borrar temporadas inactivas sin
-  submissions ni resultados, sin borrar juegos ni usuarios.
-- `/` muestra una landing publica si no hay sesion. Con sesion iniciada lee
-  semana activa, temporada activa, leaderboard y chat real cuando
-  `NEXT_PUBLIC_DATA_SOURCE=supabase`.
-- La barra superior usa datos iniciales de servidor para marcar LEADERBOARD,
-  CLASIFICACIÓN, semanas y temporadas sin parpadeo; incluye menú móvil básico.
-- El logo horizontal de landing vive en `public/brand/logo-horizontal.png`, el
-  logo cuadrado de navegacion en `public/brand/logo.png` y los iconos de pestaña
-  en `app/icon.png` y `app/apple-icon.png`.
-- `league_chat_messages` guarda el chat global real de la liga con mensajes
-  `user` y `system`.
-- `POST /api/chat/messages` permite enviar mensajes autenticados sin aceptar
-  `authorId` ni `messageType` desde cliente.
-- El chat usa Supabase Realtime para recibir inserts sin recargar la página y
-  polling de respaldo cada 10 segundos.
-- La pagina temporal `/seasons-real` queda como comparativa visual.
-- La migracion principal esta en
-  `supabase/migrations/0001_initial_schema.sql`.
-- La migracion `supabase/migrations/0002_submission_events.sql` prepara
-  `submissions` para eventos automaticos desde MAME/app local.
-- La migracion `supabase/migrations/0009_game_instructions.sql` añade
-  `games.instructions` y `games.manual_url`.
-- El seed de desarrollo esta en `supabase/seed-dev.sql`.
-- La documentacion del modelo esta en `docs/database.md`.
-- La documentacion de Storage esta en `docs/supabase-storage.md`.
-- La documentacion de carga de datos esta en `docs/data-loading.md`.
-- La documentacion de arquitectura de submissions esta en
-  `docs/submission-architecture.md`.
-- La guia para insertar submissions de prueba esta en
-  `docs/test-submissions.md`.
-- La documentacion del endpoint de ingestion esta en `docs/ingest-api.md`.
-- La documentacion de resultados oficiales esta en `docs/weekly-results.md`.
-- La documentacion de benchmarks visuales esta en `docs/week-benchmarks.md`.
-- La documentacion de clasificacion de temporada esta en
-  `docs/season-standings.md`.
-- La documentacion del panel admin minimo esta en `docs/admin.md`.
-- La documentacion de administracion de semanas esta en
-  `docs/admin-weeks.md`.
-- La documentacion de administracion de juegos esta en `docs/admin-games.md`.
-- La documentacion de administracion de temporadas esta en
+- La migracion principal esta en `supabase/migrations/0001_initial_schema.sql`.
+- Las migraciones posteriores preparan submissions automaticas, memberships,
+  benchmarks, chat, Realtime y preferencias de perfil.
+- `POST /api/submissions/ingest` crea submissions autenticadas.
+- `POST /api/cron/process-schedule` sincroniza calendario por fechas.
+- `POST /api/admin/weeks/[weekId]/weekly-results` genera resultados oficiales
+  para admins.
+- `/supabase-test` y `/real-data-test` siguen como rutas de diagnostico de
+  desarrollo.
+
+## Documentacion principal
+
+- Conexion Supabase: `docs/supabase-setup.md`.
+- Auth: `docs/auth-setup.md`.
+- Carga de datos: `docs/data-loading.md`.
+- Submissions automaticas: `docs/submission-architecture.md`.
+- API de ingest: `docs/ingest-api.md`.
+- Resultados semanales: `docs/weekly-results.md`.
+- Clasificacion de temporada: `docs/season-standings.md`.
+- Chat: `docs/chat.md`.
+- Admin: `docs/admin.md`, `docs/admin-weeks.md`, `docs/admin-games.md`,
   `docs/admin-seasons.md`.
-- La documentacion de automatizacion de calendario esta en
-  `docs/automation.md`.
-- La documentacion del chat global esta en `docs/chat.md`.
-
-## Auth
-
-- Auth minimo esta implementado con email y password.
-- `/register` crea cuenta, guarda `username` e `initials` en `user_metadata` y
-  crea perfil si hay sesion inmediata.
-- `/login` inicia sesion y asegura perfil desde un unico helper idempotente.
-- `/profile` es el centro unico de perfil real: muestra sesion, email, perfil,
-  formulario inline si falta perfil y edicion de username, siglas, bio,
-  `avatar_url` y `track_play_time`.
-- `/profile/setup` queda como ruta legacy y no forma parte del flujo normal.
-- El borrado de cuentas de prueba existe en `/profile` mediante route handler de
-  servidor y `SUPABASE_SERVICE_ROLE_KEY`.
-- El primer admin se crea manualmente en Supabase SQL Editor.
+- Automatizacion: `docs/automation.md`.
 
 ## Sigue pendiente
 
-- Implementar plugin MAME y app local.
-- Conectar capturas reales a Storage.
-- Decidir politicas publicas o flujo autenticado para lectura.
-- Sustitucion parcial y progresiva de mock data.
+- App local y plugin MAME.
+- Storage real.
+- Capturas reales.
 - Subida manual real desde `/submit`.
 - Panel completo de usuarios.
-- Storage para avatar y subida real de imagenes de perfil.
-- Creación avanzada de semanas con manuales, descargas y configuración MAME.
-- Storage para imágenes, manuales y descargas.
 - Medallas y bonus.
-- Moderación UI del chat.
-- Integracion con MAME.
+- Moderacion UI del chat.
 - Configuracion de Vercel Cron o equivalente para ejecutar
   `/api/cron/process-schedule`.
 
 ## Proximo objetivo recomendado
 
-El siguiente paso sera probar el flujo admin completo con datos reales: crear
-temporada, crear juego, crear semana, recibir submissions, cerrar semana,
-generar resultados y publicar.
+Hacer una pasada de limpieza de textos debug/redundantes en UI y documentacion,
+sin cambiar logica competitiva.

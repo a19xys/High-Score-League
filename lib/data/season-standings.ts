@@ -56,7 +56,6 @@ function emptyResult(error: string | null): SeasonStandingsResult {
     rows: [],
     source: "supabase",
     error,
-    usingFallback: false,
     officialResultCount: 0,
     memberCount: 0,
     resultWeekCount: 0,
@@ -255,9 +254,9 @@ export async function getRealSeasonStandings(
     rows: standings,
     source: "supabase",
     error: null,
-    usingFallback: false,
     officialResultCount: resultRows.length,
     memberCount: memberships.length,
     resultWeekCount: resultWeekIds.size,
   };
 }
+

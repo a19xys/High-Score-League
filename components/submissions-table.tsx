@@ -1,4 +1,4 @@
-import { formatExactDateTime, formatRelativeTime, formatScore } from "@/lib/format";
+﻿import { formatExactDateTime, formatRelativeTime, formatScore } from "@/lib/format";
 import type { Game, Player, Submission, Week } from "@/types";
 import { EmptyState } from "./ui/state";
 import { DataTable, TableHead } from "./ui/table";
@@ -25,8 +25,8 @@ export function SubmissionsTable({
   showWeek = true,
   showSource = false,
   showDetectedAt = false,
-  emptyTitle = "Todavía no hay puntuaciones.",
-  emptyDescription = "Los envíos aparecerán aquí cuando haya datos reales o mocks para esta sección.",
+  emptyTitle = "TodavÃ­a no hay puntuaciones.",
+  emptyDescription = "Los envíos aparecerán aquí cuando haya datos reales para esta sección.",
 }: SubmissionsTableProps) {
   if (submissions.length === 0) {
     return (
@@ -40,7 +40,7 @@ export function SubmissionsTable({
   const labels = [
     ...(showPlayer ? ["Jugador"] : []),
     ...(showWeek ? ["Semana"] : []),
-    "Puntuación",
+    "PuntuaciÃ³n",
     "Estado",
     ...(showSource ? ["Origen"] : []),
     "Enviada",
@@ -73,16 +73,16 @@ export function SubmissionsTable({
               {showWeek ? (
                 <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
                   {submission.week
-                    ? `Semana ${submission.week.number}${submission.game ? ` · ${submission.game.title}` : ""}`
+                    ? `Semana ${submission.week.number}${submission.game ? ` Â· ${submission.game.title}` : ""}`
                     : "Semana desconocida"}
                 </td>
               ) : null}
               <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
-                {hideScore ? "Puntuación oculta" : formatScore(submission.score)}
+                {hideScore ? "PuntuaciÃ³n oculta" : formatScore(submission.score)}
               </td>
               <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
                 {!submission.valid
-                  ? "Inválida"
+                  ? "InvÃ¡lida"
                   : submission.hidden && !isRevealedByWeekStatus
                     ? "Oculta"
                     : "Visible"}
@@ -122,3 +122,5 @@ export function SubmissionsTable({
     </DataTable>
   );
 }
+
+

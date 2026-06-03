@@ -1,21 +1,22 @@
 # High Score League
 
 High Score League es una aplicacion web para organizar una liga privada de
-puntuaciones arcade entre amigos. Este es el esqueleto inicial del MVP: una
-interfaz navegable con datos mock y una arquitectura preparada para conectar
-Supabase mas adelante.
+puntuaciones arcade. La app usa Supabase para Auth, perfiles, temporadas,
+semanas, juegos, submissions, leaderboards, resultados oficiales, clasificacion
+de temporada, chat y administracion basica.
 
 ## Stack
 
 - Next.js con App Router
 - TypeScript
 - Tailwind CSS
-- Datos mock locales
+- Supabase
 
 ## Requisitos
 
 - Node.js 20 o superior recomendado
 - npm
+- Proyecto Supabase configurado
 
 ## Ejecutar en local
 
@@ -24,6 +25,9 @@ Instala dependencias:
 ```bash
 npm install
 ```
+
+Crea `.env.local` a partir de `.env.example` y configura las claves publicas de
+Supabase. No uses `service_role` en frontend.
 
 Arranca el servidor de desarrollo:
 
@@ -37,129 +41,55 @@ Abre la aplicacion en:
 http://localhost:3000
 ```
 
-## Rutas iniciales
+## Rutas principales
 
-- `/`: landing pública para visitantes sin sesión. Con sesión iniciada puede
-  mostrar semana activa, top 3, leaderboard y chat real si
-  `NEXT_PUBLIC_DATA_SOURCE=supabase`.
-- `/game`: alias de compatibilidad; redirige a `/weeks/[weekId]` de la semana
-  activa si existe.
-- `/weeks`: archivo de semanas; puede leer Supabase si
-  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con enlaces reales desactivados.
-- `/weeks/[weekId]`: detalle de semana; puede leer Supabase por id real, con
-  leaderboard e historial reales de solo lectura desde submissions visibles.
-- `/seasons`: archivo de temporadas; puede leer Supabase si
-  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con fallback mock.
-- `/seasons/[seasonId]`: detalle de temporada; puede leer Supabase si
-  `NEXT_PUBLIC_DATA_SOURCE=supabase`, con clasificacion y podio reales desde
-  `weekly_results`.
-- `/players/[username]`: perfil público provisional de jugador.
-- `/submit`: formulario provisional de subida manual con vista previa local;
-  queda como fallback mientras se prepara el flujo automatico MAME/app local.
-- `/profile`: perfil real, ajustes, historial y centro admin para usuarios admin.
-- `/week`, `/leaderboard`, `/season` y `/admin`: rutas temporales de compatibilidad.
+- `/`: landing publica sin sesion; home real con sesion.
+- `/game`: redirige a la semana activa real.
+- `/weeks`: archivo real de semanas.
+- `/weeks/[weekId]`: detalle real de semana con leaderboard, submissions,
+  benchmarks y resultados oficiales cuando existen.
+- `/seasons`: archivo real de temporadas.
+- `/seasons/[seasonId]`: detalle real de temporada con clasificacion y podio.
+- `/players/[username]`: perfil publico real.
+- `/submit`: pantalla provisional de respaldo para subida manual.
+- `/profile`: perfil real, ajustes y centro admin para administradores.
+- `/admin/weeks`, `/admin/games`, `/admin/seasons`: panel admin minimo.
+- `/supabase-test` y `/real-data-test`: diagnostico de desarrollo.
 
-## Estado del MVP
-
-Funciona como interfaz navegable con datos temporales. Supabase y Auth minimo ya
-estan preparados de forma aislada, pero las paginas principales siguen usando
-mock data. Todavia no incluye subida real de capturas, puntuaciones persistentes
-ni panel admin funcional.
-
-## Supabase
-
-La conexión inicial está preparada de forma aislada en `/supabase-test`. Consulta
-[docs/supabase-setup.md](docs/supabase-setup.md) para configurar `.env.local` y
-probar una lectura básica sin sustituir el mockup.
-
-Auth minimo esta documentado en [docs/auth-setup.md](docs/auth-setup.md). Incluye
-`/login`, `/register`, perfil real desde `/profile`, edición de bio/avatar URL
-temporal y borrado de cuentas de prueba desde servidor.
-
-La lectura real controlada esta documentada en
-[docs/data-loading.md](docs/data-loading.md). Usa `NEXT_PUBLIC_DATA_SOURCE=mock`
-por defecto; `/seasons`, `/seasons/[seasonId]`, `/weeks`, `/weeks/[weekId]` y
-`/game` pueden leer datos reales con fallback, y `/real-data-test` sigue como
-diagnostico de dominio.
-
-La arquitectura futura de submissions automaticas esta documentada en
-[docs/submission-architecture.md](docs/submission-architecture.md). El endpoint
-mínimo `POST /api/submissions/ingest` está documentado en
-[docs/ingest-api.md](docs/ingest-api.md). Todavia no existe plugin MAME, app
-local, Storage real ni subida manual real.
-
-Para probar leaderboards reales sin implementar subida, consulta
-[docs/test-submissions.md](docs/test-submissions.md).
-
-Las membresías de temporada y la generación oficial de `weekly_results` están
-documentadas en [docs/weekly-results.md](docs/weekly-results.md).
-La clasificación real de temporada está documentada en
-[docs/season-standings.md](docs/season-standings.md).
-Los benchmarks visuales de semana están documentados en
-[docs/week-benchmarks.md](docs/week-benchmarks.md).
-El chat global de la liga, incluyendo Supabase Realtime, está documentado en
-[docs/chat.md](docs/chat.md).
-El panel admin mínimo de semanas está documentado en
-[docs/admin.md](docs/admin.md).
-La creación y edición admin de semanas está documentada en
-[docs/admin-weeks.md](docs/admin-weeks.md).
-La gestión admin del catálogo de juegos está documentada en
-[docs/admin-games.md](docs/admin-games.md).
-La gestión admin de temporadas está documentada en
-[docs/admin-seasons.md](docs/admin-seasons.md).
-La automatización por fechas de semanas y temporadas está documentada en
-[docs/automation.md](docs/automation.md).
-
-## Marca estática
+## Marca estatica
 
 Los assets fijos de marca se sirven desde el repositorio:
 
-- `public/brand/logo-horizontal.png`: logo horizontal de la landing pública.
-- `public/brand/logo.png`: logo cuadrado de navegación.
-- `app/icon.png`: icono de pestaña.
+- `public/brand/logo-horizontal.png`: logo horizontal de la landing publica.
+- `public/brand/logo.png`: logo cuadrado de navegacion.
+- `app/icon.png`: icono de pestana.
 - `app/apple-icon.png`: Apple Touch Icon.
 
-Estos assets se sirven como estáticos en Vercel; Supabase Storage queda
-reservado para contenido dinámico subido por usuarios o administradores.
+Supabase Storage queda reservado para contenido dinamico futuro.
 
-## Plantillas preparadas
+## Documentacion
 
-- Estados reutilizables: empty, loading, error y placeholder.
-- Tablas: leaderboard semanal, clasificación de temporada, semanas, temporadas
-  e historial de submissions.
-- Chat de portada real en modo Supabase solo para usuarios autenticados; la
-  landing pública no muestra mensajes mock.
-- Archivo de semanas y temporadas con filtros, ordenación mock y enlaces
-  desactivados para contenido futuro.
-- Semanas futuras con juego secreto y semanas cerradas/publicadas para probar
-  estados, filtros y hover cards.
-- Juegos mock con desarrollador, género, tipo de control y dificultad aproximada.
-- Perfil real con tema claro/oscuro/sistema guardado en navegador.
-- Formularios visuales preparados para conectar Supabase Auth, Database y
-  Storage en fases posteriores.
+- [Supabase setup](docs/supabase-setup.md)
+- [Auth setup](docs/auth-setup.md)
+- [Carga de datos](docs/data-loading.md)
+- [Arquitectura de submissions](docs/submission-architecture.md)
+- [Ingest API](docs/ingest-api.md)
+- [Resultados semanales](docs/weekly-results.md)
+- [Clasificacion de temporada](docs/season-standings.md)
+- [Chat](docs/chat.md)
+- [Admin](docs/admin.md)
+- [Admin semanas](docs/admin-weeks.md)
+- [Admin juegos](docs/admin-games.md)
+- [Admin temporadas](docs/admin-seasons.md)
+- [Automatizacion](docs/automation.md)
+- [Estado del proyecto](docs/project-status.md)
 
-Todo sigue usando `lib/mock-data.ts`. La siguiente fase podrá sustituir esos
-mocks por consultas reales sin rediseñar las páginas principales.
+## Pendiente
 
-## Modelo inicial
-
-Los tipos principales viven en `types/index.ts`:
-
-- `Player`
-- `Game`
-- `Season`
-- `Week`
-- `Submission`
-- `LeaderboardEntry`
-- `SeasonStanding`
-- `ChatMessage`
-- `LeagueChatMessage`
-
-Los datos mock y calculos temporales estan en `lib/mock-data.ts`.
-
-## Siguiente fase sugerida
-
-Probar el flujo admin completo con datos reales y configurar un cron real para
-`/api/cron/process-schedule`. Siguen pendientes plugin MAME, Storage, capturas,
-subida manual real desde `/submit`, panel completo de usuarios, manuales,
-descargas/configuración MAME, moderación del chat, medallas y bonus.
+- App local y plugin MAME.
+- Storage real.
+- Capturas reales.
+- Subida manual real desde `/submit`.
+- Panel completo de usuarios.
+- Medallas y bonus.
+- Moderacion UI del chat.

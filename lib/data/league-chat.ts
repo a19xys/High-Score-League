@@ -50,7 +50,6 @@ export async function getRealLeagueChatMessages(): Promise<
       rows: [],
       source: "supabase",
       error: "Supabase no está configurado.",
-      usingFallback: false,
     };
   }
 
@@ -66,7 +65,6 @@ export async function getRealLeagueChatMessages(): Promise<
       rows: [],
       source: "supabase",
       error: error.message,
-      usingFallback: false,
     };
   }
 
@@ -76,6 +74,6 @@ export async function getRealLeagueChatMessages(): Promise<
       .reverse(),
     source: "supabase",
     error: null,
-    usingFallback: false,
   };
 }
+

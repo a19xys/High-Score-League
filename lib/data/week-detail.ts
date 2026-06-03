@@ -1,26 +1,14 @@
 import type {
   Game,
   LeaderboardEntry,
+  Player,
   Season,
   Submission,
   Week,
-  Player,
   WeekBenchmark,
   WeeklyResult,
 } from "@/types";
-import {
-  currentSeason,
-  currentWeek,
-  getCurrentGame,
-  getGameById,
-  getSeasonById,
-  getSubmissionsForWeek,
-  getWeekById,
-  getWeeklyLeaderboard,
-  weeks as mockWeeks,
-} from "@/lib/mock-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getDataSource } from "./data-source";
 import { getRealGames, mapGameRowToGame } from "./games";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
 import {
@@ -54,9 +42,8 @@ export type WeekDetailData = {
   benchmarks: WeekBenchmark[];
   submissions: WeekSubmission[];
   weeklyResults: WeeklyResult[];
-  mode: "mock" | "supabase";
+  mode: "supabase";
   warning: string | null;
-  usingFallback: boolean;
   isSecret: boolean;
   hideDownloads: boolean;
   leaderboardPending: boolean;
@@ -67,10 +54,6 @@ export type WeekDetailData = {
 export type ActiveWeekResult =
   | { status: "ok"; data: WeekDetailData }
   | { status: "empty"; message: string; warning?: string | null };
-
-type ActiveWeekOptions = {
-  fallbackToMock?: boolean;
-};
 
 function secretGame(): Game {
   return {
@@ -85,61 +68,16 @@ function secretGame(): Game {
   };
 }
 
-function mockWeekDetail(weekId: string, warning: string | null): WeekDetailData | null {
-  const week = getWeekById(weekId);
-
-  if (!week) {
-    return null;
-  }
-
-  const season = getSeasonById(week.seasonId);
-  const game = getGameById(week.gameId);
-
-  if (!season || !game) {
-    return null;
-  }
-
-  const isFutureActiveSeasonWeek =
-    season.status === "active" &&
-    week.number > currentWeek.number &&
-    week.status !== "published";
-
+function unavailableGame(gameId: string): Game {
   return {
-    season,
-    week,
-    game: isFutureActiveSeasonWeek ? secretGame() : game,
-    leaderboard: isFutureActiveSeasonWeek ? [] : getWeeklyLeaderboard(week.id),
-    benchmarks: [],
-    submissions: isFutureActiveSeasonWeek ? [] : getSubmissionsForWeek(week.id),
-    weeklyResults: [],
-    mode: "mock",
-    warning,
-    usingFallback: Boolean(warning),
-    isSecret: isFutureActiveSeasonWeek,
-    hideDownloads: isFutureActiveSeasonWeek,
-    leaderboardPending: false,
-    submissionsPending: false,
-    statusHelp: null,
-  };
-}
-
-function mockCurrentWeekDetail(warning: string | null): WeekDetailData {
-  return {
-    season: currentSeason,
-    week: currentWeek,
-    game: getCurrentGame(),
-    leaderboard: getWeeklyLeaderboard(currentWeek.id),
-    benchmarks: [],
-    submissions: getSubmissionsForWeek(currentWeek.id),
-    weeklyResults: [],
-    mode: "mock",
-    warning,
-    usingFallback: Boolean(warning),
-    isSecret: false,
-    hideDownloads: false,
-    leaderboardPending: false,
-    submissionsPending: false,
-    statusHelp: null,
+    id: gameId,
+    title: "Juego no disponible",
+    slug: "juego-no-disponible",
+    developer: "",
+    genre: "",
+    controlType: "",
+    difficulty: "",
+    imageAlt: "Juego no disponible",
   };
 }
 
@@ -199,7 +137,7 @@ async function buildRealWeekDetail(
     })
     .sort((a, b) => a.week_number - b.week_number)[0];
   const gameRow = context.games.find((game) => game.id === weekRow.game_id);
-  const rawGame = gameRow ? mapGameRowToGame(gameRow) : secretGame();
+  const rawGame = gameRow ? mapGameRowToGame(gameRow) : unavailableGame(weekRow.game_id);
   const preliminaryDerivedStatus = getDerivedWeekStatusFromRow(weekRow);
   const isFuture =
     seasonRow.status === "active" &&
@@ -263,7 +201,6 @@ async function buildRealWeekDetail(
     weeklyResults: realWeeklyResultRows.map(mapWeeklyResultRowToWeeklyResult),
     mode: "supabase",
     warning: warningParts.length > 0 ? warningParts.join(" ") : null,
-    usingFallback: Boolean(warning),
     isSecret,
     hideDownloads: isSecret,
     leaderboardPending: false,
@@ -273,72 +210,66 @@ async function buildRealWeekDetail(
 }
 
 export async function getWeekDetailData(weekId: string): Promise<WeekDetailData | null> {
-  if (getDataSource() !== "supabase") {
-    return mockWeekDetail(weekId, null);
-  }
-
   if (!(await requireSession())) {
-    return mockWeekDetail(
-      weekId,
-      "NEXT_PUBLIC_DATA_SOURCE=supabase, pero no hay sesión activa. Mostrando fallback mock si existe.",
-    );
+    return null;
   }
 
   const context = await readRealWeekContext();
 
   if (context.error) {
-    return mockWeekDetail(
-      weekId,
-      `${context.error}. Mostrando fallback mock si existe.`,
-    );
+    return {
+      season: {
+        id: "error",
+        name: "Temporada no disponible",
+        slug: "temporada-no-disponible",
+        status: "draft",
+        startsAt: "",
+        endsAt: "",
+        weekCount: 0,
+      },
+      week: {
+        id: weekId,
+        seasonId: "error",
+        gameId: "error",
+        number: 0,
+        startsAt: "",
+        endsAt: "",
+        status: "draft",
+        rules: [],
+      },
+      game: unavailableGame("error"),
+      leaderboard: [],
+      benchmarks: [],
+      submissions: [],
+      weeklyResults: [],
+      mode: "supabase",
+      warning: context.error,
+      isSecret: false,
+      hideDownloads: true,
+      leaderboardPending: true,
+      submissionsPending: true,
+      statusHelp: null,
+    };
   }
 
-  return (await buildRealWeekDetail(weekId, context, null)) ?? mockWeekDetail(
-    weekId,
-    "No se encontró una semana real con ese id. Mostrando fallback mock si existe.",
-  );
+  return buildRealWeekDetail(weekId, context, null);
 }
 
-export async function getActiveWeekDetailData(
-  options: ActiveWeekOptions = {},
-): Promise<ActiveWeekResult> {
-  const fallbackToMock = options.fallbackToMock ?? true;
-
-  if (getDataSource() !== "supabase") {
-    return { status: "ok", data: mockCurrentWeekDetail(null) };
-  }
-
+export async function getActiveWeekDetailData(): Promise<ActiveWeekResult> {
   if (!(await requireSession())) {
-    if (!fallbackToMock) {
-      return {
-        status: "empty",
-        message:
-          "Inicia sesión para leer la semana activa real. RLS puede ocultar los datos sin sesión.",
-      };
-    }
-
     return {
-      status: "ok",
-      data: mockCurrentWeekDetail(
-        "NEXT_PUBLIC_DATA_SOURCE=supabase, pero no hay sesión activa. Mostrando fallback mock porque RLS puede ocultar la semana activa.",
-      ),
+      status: "empty",
+      message: "Inicia sesión para leer la semana activa.",
     };
   }
 
   const context = await readRealWeekContext();
 
   if (context.error) {
-    if (!fallbackToMock) {
-      return {
-        status: "empty",
-        message: "No se pudieron cargar los datos reales de la semana activa.",
-        warning: context.error,
-      };
-    }
-
     return {
-      status: "ok",
-      data: mockCurrentWeekDetail(`${context.error}. Mostrando fallback mock.`),
+      status: "empty",
+      message: "No se pudieron cargar los datos reales de la semana activa.",
+      warning: context.error,
     };
   }
 
@@ -376,6 +307,3 @@ export async function getActiveWeekDetailData(
   return { status: "ok", data: detail };
 }
 
-export function getMockWeekStaticParams() {
-  return mockWeeks.map((week) => ({ weekId: week.id }));
-}

@@ -21,15 +21,11 @@ export default async function WeeksPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader
-          eyebrow={weekData.mode === "supabase" ? "Supabase" : "Archivo semanal"}
+          eyebrow="Archivo semanal"
           title="Semanas"
           action={
             <span className="rounded-full border px-3 py-1 text-xs font-semibold uppercase theme-border theme-surface-muted theme-text">
-              {weekData.usingFallback
-                ? "Fallback mock"
-                : weekData.mode === "supabase"
-                  ? "Datos reales"
-                  : "Mock"}
+              Datos reales
             </span>
           }
         >

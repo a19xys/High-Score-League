@@ -78,17 +78,18 @@ export function RegisterForm() {
     if (data.session) {
       const profileResult = await ensureProfileForCurrentUser(supabase);
       setIsSubmitting(false);
-      router.refresh();
 
       if (profileResult.status === "ok") {
-        router.push("/profile");
+        router.replace("/profile");
+        router.refresh();
         return;
       }
 
       setError(
         `${profileResult.error ?? "No se pudo crear el perfil automáticamente."} Puedes completarlo desde /profile.`,
       );
-      router.push("/profile");
+      router.replace("/profile");
+      router.refresh();
       return;
     }
 

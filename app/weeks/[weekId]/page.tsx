@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { AccessRequired } from "@/components/auth/access-required";
@@ -6,14 +5,9 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { WeekDetailView } from "@/components/week-detail-view";
 import { hasServerSession } from "@/lib/auth/session";
-import { getDataSource } from "@/lib/data/data-source";
-import { getMockWeekStaticParams, getWeekDetailData } from "@/lib/data/week-detail";
+import { getWeekDetailData } from "@/lib/data/week-detail";
 
 export const dynamic = "force-dynamic";
-
-export function generateStaticParams() {
-  return getMockWeekStaticParams();
-}
 
 type WeekDetailPageProps = {
   params: Promise<{
@@ -49,27 +43,22 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
   const detail = await getWeekDetailData(weekId);
 
   if (!detail) {
-    if (getDataSource() === "supabase") {
-      return (
-        <div className="space-y-6">
-          <Link className="text-sm font-semibold text-circuit hover:underline" href="/weeks">
-            ← Volver a semanas
-          </Link>
-          <Card>
-            <CardHeader title="Semana no disponible" eyebrow="Supabase">
-              No se pudo cargar una semana real con ese id. Si RLS bloquea la
-              lectura, inicia sesión y vuelve a intentarlo.
-            </CardHeader>
-            <EmptyState
-              title="Detalle no disponible."
-              description="La semana puede no existir, estar oculta o requerir sesión."
-            />
-          </Card>
-        </div>
-      );
-    }
-
-    notFound();
+    return (
+      <div className="space-y-6">
+        <Link className="text-sm font-semibold text-circuit hover:underline" href="/weeks">
+          ← Volver a semanas
+        </Link>
+        <Card>
+          <CardHeader title="Semana no disponible" eyebrow="Semana">
+            No se pudo cargar una semana real con ese id.
+          </CardHeader>
+          <EmptyState
+            title="Detalle no disponible."
+            description="La semana puede no existir o estar oculta."
+          />
+        </Card>
+      </div>
+    );
   }
 
   return (

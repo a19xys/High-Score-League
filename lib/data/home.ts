@@ -1,20 +1,12 @@
 import type { Game, LeaderboardEntry, Season, Week, WeekBenchmark } from "@/types";
-import {
-  currentSeason,
-  currentWeek,
-  getChatMessages,
-  getCurrentGame,
-  getWeeklyLeaderboard,
-} from "@/lib/mock-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getRealLeagueChatMessages } from "./league-chat";
 import { getActiveRealSeason, mapSeasonRowToSeason } from "./seasons";
-import { getDataSource } from "./data-source";
 import { getActiveWeekDetailData } from "./week-detail";
 import type { LeagueChatMessage } from "@/types";
 
 export type HomePageData = {
-  mode: "mock" | "supabase";
+  mode: "supabase";
   season: Season | null;
   week: Week | null;
   game: Game | null;
@@ -30,36 +22,6 @@ export type HomePageData = {
   activeSeasonMessage: string | null;
 };
 
-function getMockLeagueChatMessages(): LeagueChatMessage[] {
-  return getChatMessages().map((message) => ({
-    id: message.id,
-    messageType: "user",
-    authorId: message.playerId,
-    content: message.body,
-    createdAt: message.createdAt,
-    author: message.player,
-  }));
-}
-
-function mockHomeData(warning: string | null = null): HomePageData {
-  return {
-    mode: "mock",
-    season: currentSeason,
-    week: currentWeek,
-    game: getCurrentGame(),
-    leaderboard: getWeeklyLeaderboard(currentWeek.id),
-    benchmarks: [],
-    chatMessages: getMockLeagueChatMessages(),
-    canPostChat: false,
-    currentUserId: null,
-    chatError: null,
-    warning,
-    statusHelp: null,
-    activeWeekMessage: null,
-    activeSeasonMessage: null,
-  };
-}
-
 async function getCurrentUserId() {
   const supabase = await createSupabaseServerClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
@@ -68,10 +30,6 @@ async function getCurrentUserId() {
 }
 
 export async function getHomePageData(): Promise<HomePageData> {
-  if (getDataSource() !== "supabase") {
-    return mockHomeData();
-  }
-
   const currentUserId = await getCurrentUserId();
 
   if (!currentUserId) {
@@ -85,16 +43,16 @@ export async function getHomePageData(): Promise<HomePageData> {
       chatMessages: [],
       canPostChat: false,
       currentUserId: null,
-      chatError: "Inicia sesión para leer y escribir en el chat.",
-      warning: "Inicia sesión para leer datos reales. RLS puede ocultar temporadas, semanas y puntuaciones sin sesión.",
+      chatError: null,
+      warning: null,
       statusHelp: null,
-      activeWeekMessage: "No se puede detectar la semana activa sin sesión.",
-      activeSeasonMessage: "No se puede detectar la temporada activa sin sesión.",
+      activeWeekMessage: "Inicia sesión para ver la semana activa.",
+      activeSeasonMessage: "Inicia sesión para ver la temporada activa.",
     };
   }
 
   const [activeWeekResult, activeSeasonRow, chatResult] = await Promise.all([
-    getActiveWeekDetailData({ fallbackToMock: false }),
+    getActiveWeekDetailData(),
     getActiveRealSeason(),
     getRealLeagueChatMessages(),
   ]);
@@ -117,7 +75,7 @@ export async function getHomePageData(): Promise<HomePageData> {
       activeWeekMessage: null,
       activeSeasonMessage: activeSeason
         ? null
-        : "No hay temporada activa configurada en Supabase.",
+        : "No hay temporada activa configurada.",
     };
   }
 
@@ -137,6 +95,6 @@ export async function getHomePageData(): Promise<HomePageData> {
     activeWeekMessage: activeWeekResult.message,
     activeSeasonMessage: activeSeason
       ? null
-      : "No hay temporada activa configurada en Supabase.",
+      : "No hay temporada activa configurada.",
   };
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -9,21 +8,26 @@ type LogoutButtonProps = {
 };
 
 export function LogoutButton({ className }: LogoutButtonProps) {
-  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleLogout() {
     const supabase = createSupabaseBrowserClient();
 
-    if (!supabase) {
+    if (!supabase || isSubmitting) {
       return;
     }
 
     setIsSubmitting(true);
-    await supabase.auth.signOut();
-    setIsSubmitting(false);
-    router.refresh();
-    router.push("/login");
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("No se pudo cerrar sesión:", error.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    window.location.replace("/");
   }
 
   return (

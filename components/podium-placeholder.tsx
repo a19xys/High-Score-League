@@ -1,5 +1,4 @@
 import { formatScore } from "@/lib/format";
-import { seasonStandings } from "@/lib/mock-data";
 import type { SeasonStanding } from "@/types";
 
 function podiumHeight(rank: number) {
@@ -32,8 +31,8 @@ type PodiumPlaceholderProps = {
 };
 
 export function PodiumPlaceholder({
-  standings = seasonStandings,
-  description = "Placeholder preparado para empates en resultados oficiales.",
+  standings = [],
+  description = "Podio preparado para empates en resultados oficiales.",
 }: PodiumPlaceholderProps) {
   const podiumStandings = standings
     .filter((standing) => standing.rank <= 3)

@@ -13,16 +13,9 @@ import { SeasonJoinButton } from "@/components/season-join-button";
 import { formatCompactDateRange, formatWeekRange } from "@/lib/format";
 import { getSeasonDetailData } from "@/lib/data/season-detail";
 import { hasServerSession } from "@/lib/auth/session";
-import { seasons } from "@/lib/mock-data";
 import type { WeekSummary } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-export function generateStaticParams() {
-  return seasons
-    .filter((season) => season.status !== "draft")
-    .flatMap((season) => [{ seasonId: season.id }, { seasonId: season.slug }]);
-}
 
 type SeasonDetailPageProps = {
   params: Promise<{
@@ -83,7 +76,7 @@ function RealSeasonWeeksTable({
     return (
       <EmptyState
         title="No hay semanas visibles."
-        description="La temporada real existe, pero todavia no tiene semanas asociadas."
+        description="La temporada existe, pero todavía no tiene semanas asociadas."
       />
     );
   }
@@ -124,7 +117,7 @@ function RealSeasonWeeksTable({
                 {secret ? (
                   <span
                     className="cursor-not-allowed font-semibold theme-text-muted"
-                    title="Semana no disponible todavia."
+                    title="Semana no disponible todavía."
                   >
                     No disponible
                   </span>
@@ -170,15 +163,11 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
       </Link>
       <Card>
         <CardHeader
-          eyebrow={seasonData.mode === "supabase" ? "Supabase" : "Detalle de temporada"}
+          eyebrow="Detalle de temporada"
           title={season.name}
           action={
             <span className="rounded-full border px-3 py-1 text-xs font-semibold uppercase theme-border theme-surface-muted theme-text">
-              {seasonData.usingFallback
-                ? "Fallback mock"
-                : seasonData.mode === "supabase"
-                  ? "Datos reales"
-                  : "Mock"}
+              Datos reales
             </span>
           }
         >
@@ -207,44 +196,29 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
           <SeasonTable standings={seasonData.standings} />
         ) : (
           <EmptyState
-            title="No hay clasificacion publicada."
-            description={
-              seasonData.mode === "supabase"
-                ? "La temporada real no tiene miembros ni weekly_results oficiales todavia."
-                : "Esta temporada todavia no tiene resultados mock asociados."
-            }
+            title="No hay clasificación publicada."
+            description="La temporada no tiene miembros ni weekly_results oficiales todavía."
           />
         )}
       </Card>
 
       <Card>
         <CardHeader title="Semanas incluidas" eyebrow="Calendario" />
-        {seasonData.mode === "supabase" ? (
-          <RealSeasonWeeksTable
-            weeks={seasonData.weeks}
-            currentWeekNumber={seasonData.currentWeekNumber}
-          />
-        ) : (
-          <WeeksTable
-            weeks={seasonData.weeks}
-            currentWeekNumber={seasonData.currentWeekNumber}
-          />
-        )}
+        <RealSeasonWeeksTable
+          weeks={seasonData.weeks}
+          currentWeekNumber={seasonData.currentWeekNumber}
+        />
       </Card>
 
-      {seasonData.mode === "supabase" && !seasonData.hasRealStandings ? (
+      {!seasonData.hasRealStandings ? (
         <EmptyState
           title="Podio pendiente."
-          description="El podio real se mostrara cuando existan weekly_results oficiales."
+          description="El podio real se mostrará cuando existan weekly_results oficiales."
         />
       ) : seasonData.standings.length > 0 ? (
         <PodiumPlaceholder
           standings={seasonData.standings}
-          description={
-            seasonData.mode === "supabase"
-              ? "Podio real calculado desde weekly_results oficiales."
-              : "Placeholder preparado para empates en resultados oficiales."
-          }
+          description="Podio real calculado desde weekly_results oficiales."
         />
       ) : null}
     </div>

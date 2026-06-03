@@ -3,7 +3,7 @@
 import type { ChangeEvent } from "react";
 import { useEffect, useState } from "react";
 
-export function SubmitMockForm() {
+export function SubmitFallbackForm() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export function SubmitMockForm() {
         ) : (
           <p className="mt-2 text-sm theme-text-muted">
             Puedes seleccionar una imagen para ver una vista previa local. El
-            flujo futuro podrá registrar eventos automáticos sin captura.
+            flujo automático puede registrar partidas sin captura.
           </p>
         )}
       </div>
@@ -76,7 +76,7 @@ export function SubmitMockForm() {
         disabled
         type="button"
       >
-        Envío mock desactivado
+        Subida manual pendiente
       </button>
     </form>
   );

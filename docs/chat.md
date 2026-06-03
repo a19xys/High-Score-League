@@ -91,7 +91,7 @@ El endpoint:
 En modo Supabase, `/` lee `league_chat_messages` y muestra los últimos 50
 mensajes en orden cronológico, con los más nuevos abajo.
 
-En modo mock, la home puede seguir mostrando mensajes mock locales.
+La home muestra chat real para usuarios autenticados; no hay mensajes locales de producto.
 
 ## Realtime
 
@@ -126,3 +126,4 @@ Todavía no hay:
 - moderación UI;
 - borrado desde UI;
 - edición de mensajes.
+

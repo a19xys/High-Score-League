@@ -26,16 +26,10 @@ function ErrorNotice({ message }: { message: string }) {
   );
 }
 
-function SourceBadge({
-  source,
-  usingFallback,
-}: {
-  source: string;
-  usingFallback: boolean;
-}) {
+function SourceBadge({ source }: { source: string }) {
   return (
     <span className="rounded-full border px-3 py-1 text-xs font-semibold uppercase theme-border theme-surface-muted theme-text">
-      {usingFallback ? "Fallback mock" : source}
+      {source}
     </span>
   );
 }
@@ -233,11 +227,10 @@ export default async function RealDataTestPage() {
         <CardHeader
           title="Datos reales"
           eyebrow="Diagnostico"
-          action={<SourceBadge source="supabase" usingFallback={false} />}
+          action={<SourceBadge source="supabase" />}
         >
-          Lectura de dominio aislada. `/seasons` ya puede usar esta fuente con
-          fallback mock; `/weeks/[weekId]` y `/game` calculan leaderboard real
-          de solo lectura desde submissions visibles.
+          Lectura de dominio aislada. Las rutas principales leen datos reales
+          de Supabase y los diagnósticos ayudan a revisar RLS y contenido.
         </CardHeader>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
@@ -358,10 +351,7 @@ export default async function RealDataTestPage() {
           title="Seasons"
           eyebrow={`${seasons.rows.length} filas`}
           action={
-            <SourceBadge
-              source={seasons.source}
-              usingFallback={seasons.usingFallback}
-            />
+            <SourceBadge source={seasons.source} />
           }
         />
         {seasons.error ? <ErrorNotice message={seasons.error} /> : null}
@@ -373,7 +363,7 @@ export default async function RealDataTestPage() {
           title="Games"
           eyebrow={`${games.rows.length} filas`}
           action={
-            <SourceBadge source={games.source} usingFallback={games.usingFallback} />
+            <SourceBadge source={games.source} />
           }
         />
         {games.error ? <ErrorNotice message={games.error} /> : null}
@@ -385,7 +375,7 @@ export default async function RealDataTestPage() {
           title="Weeks"
           eyebrow={`${weeks.rows.length} filas`}
           action={
-            <SourceBadge source={weeks.source} usingFallback={weeks.usingFallback} />
+            <SourceBadge source={weeks.source} />
           }
         />
         {weeks.error ? <ErrorNotice message={weeks.error} /> : null}

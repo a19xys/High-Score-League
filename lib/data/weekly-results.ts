@@ -40,7 +40,6 @@ export async function getRealWeeklyResults(
       rows: [],
       source: "supabase",
       error: "Supabase no esta configurado.",
-      usingFallback: false,
     };
   }
 
@@ -60,7 +59,6 @@ export async function getRealWeeklyResults(
       rows: [],
       source: "supabase",
       error: error.message,
-      usingFallback: false,
     };
   }
 
@@ -68,7 +66,6 @@ export async function getRealWeeklyResults(
     rows: (data ?? []) as WeeklyResultRow[],
     source: "supabase",
     error: null,
-    usingFallback: false,
   };
 }
 
@@ -89,3 +86,4 @@ export function mapWeeklyResultRowToWeeklyResult(row: WeeklyResultRow): WeeklyRe
     player: profile ? mapRealProfileToPlayer(profile) : undefined,
   };
 }
+

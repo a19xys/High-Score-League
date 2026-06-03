@@ -5,9 +5,7 @@ import { AccessRequired } from "@/components/auth/access-required";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { hasServerSession } from "@/lib/auth/session";
-import { getDataSource } from "@/lib/data/data-source";
 import { getRealWeeks } from "@/lib/data/weeks";
-import { currentWeek } from "@/lib/mock-data";
 import { getSynchronizedWeekStatus } from "@/lib/week-status";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +14,6 @@ export const metadata: Metadata = {
 };
 
 async function getActiveWeekId() {
-  if (getDataSource() !== "supabase") {
-    return currentWeek.id;
-  }
-
   const weeksResult = await getRealWeeks();
 
   if (weeksResult.error) {

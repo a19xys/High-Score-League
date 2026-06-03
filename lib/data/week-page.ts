@@ -1,11 +1,4 @@
 import type { WeekSummary } from "@/types";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import {
-  currentWeek,
-  getWeekSummaries,
-  games as mockGames,
-} from "@/lib/mock-data";
-import { getDataSource } from "./data-source";
 import { getRealGames, mapGameRowToGame } from "./games";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
 import { getRealWeeks, mapWeekRowToWeek } from "./weeks";
@@ -17,43 +10,16 @@ import {
 export type WeekPageData = {
   weeks: WeekSummary[];
   currentWeekNumber?: number;
-  mode: "mock" | "supabase";
+  mode: "supabase";
   warning: string | null;
-  usingFallback: boolean;
   disableWeekLinks: boolean;
 };
-
-function fallbackToMock(warning: string | null): WeekPageData {
-  return {
-    weeks: getWeekSummaries(),
-    currentWeekNumber: currentWeek.number,
-    mode: "mock",
-    warning,
-    usingFallback: Boolean(warning),
-    disableWeekLinks: false,
-  };
-}
 
 function isSecretGameTitle(title: string) {
   return title.trim().toLowerCase() === "juego secreto";
 }
 
 export async function getWeekPageData(): Promise<WeekPageData> {
-  if (getDataSource() !== "supabase") {
-    return fallbackToMock(null);
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const { data: userData } = supabase
-    ? await supabase.auth.getUser()
-    : { data: { user: null } };
-
-  if (!userData.user) {
-    return fallbackToMock(
-      "NEXT_PUBLIC_DATA_SOURCE=supabase, pero no hay sesion activa. Mostrando fallback mock porque RLS puede ocultar weeks.",
-    );
-  }
-
   const [seasonsResult, weeksResult, gamesResult] = await Promise.all([
     getRealSeasons(),
     getRealWeeks(),
@@ -63,9 +29,12 @@ export async function getWeekPageData(): Promise<WeekPageData> {
     seasonsResult.error ?? weeksResult.error ?? gamesResult.error ?? null;
 
   if (readError) {
-    return fallbackToMock(
-      `${readError}. Mostrando fallback mock para no romper el archivo semanal.`,
-    );
+    return {
+      weeks: [],
+      mode: "supabase",
+      warning: readError,
+      disableWeekLinks: false,
+    };
   }
 
   const visibleSeasons = seasonsResult.rows.filter(
@@ -80,13 +49,23 @@ export async function getWeekPageData(): Promise<WeekPageData> {
 
     return counts;
   }, {});
-  const fallbackGame = mockGames[0];
   const weekSummaries = weeksResult.rows
     .filter((week) => seasonsById.has(week.season_id))
     .map((week) => {
       const seasonRow = seasonsById.get(week.season_id);
       const gameRow = gamesById.get(week.game_id);
-      const rawGame = gameRow ? mapGameRowToGame(gameRow) : fallbackGame;
+      const rawGame = gameRow
+        ? mapGameRowToGame(gameRow)
+        : {
+            id: week.game_id,
+            title: "Juego no disponible",
+            slug: "juego-no-disponible",
+            developer: "",
+            genre: "",
+            controlType: "",
+            difficulty: "",
+            imageAlt: "Juego no disponible",
+          };
       const derivedStatus = getDerivedWeekStatusFromRow(week);
       const isSecret =
         derivedStatus === "draft" ||
@@ -129,7 +108,7 @@ export async function getWeekPageData(): Promise<WeekPageData> {
     currentWeekNumber: activeWeek?.week_number,
     mode: "supabase",
     warning: null,
-    usingFallback: false,
     disableWeekLinks: false,
   };
 }
+
