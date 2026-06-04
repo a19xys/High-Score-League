@@ -32,7 +32,7 @@ async function readTable(
 
   const columnsByTable: Record<TestResult["table"], string> = {
     seasons: "id,name,slug,status",
-    games: "id,title,developer,year",
+    games: "id,title,developers,publishers,genres,year",
     weeks: "id,week_number,status,public_start_at,final_deadline_at",
   };
 
@@ -292,5 +292,4 @@ export default async function SupabaseTestPage() {
     </div>
   );
 }
-
 

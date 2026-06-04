@@ -80,9 +80,7 @@ export function WeeksTable({
   const [status, setStatus] = useState("all");
   const [developer, setDeveloper] = useState("all");
   const [genre, setGenre] = useState("all");
-  const [controlType, setControlType] = useState("all");
   const [leader, setLeader] = useState("all");
-  const [difficulty, setDifficulty] = useState("all");
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("dates");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -94,10 +92,8 @@ export function WeeksTable({
 
     return {
       seasons: [...new Set(weeks.map((summary) => summary.season.name))].sort(),
-      developers: compactOptions(publicRows.map((summary) => summary.game.developer)),
-      genres: compactOptions(publicRows.map((summary) => summary.game.genre)),
-      controlTypes: compactOptions(publicRows.map((summary) => summary.game.controlType)),
-      difficulties: compactOptions(publicRows.map((summary) => summary.game.difficulty)),
+      developers: compactOptions(publicRows.flatMap((summary) => summary.game.developers)),
+      genres: compactOptions(publicRows.flatMap((summary) => summary.game.taxonomyTags)),
       leaders: [
         ...new Map(
           publicRows
@@ -120,7 +116,8 @@ export function WeeksTable({
           `Semana ${summary.week.number}`,
           String(summary.week.number),
           secret ? "Juego secreto" : summary.game.title,
-          secret ? "" : summary.game.developer,
+          secret ? "" : summary.game.developers.join(" "),
+          secret ? "" : summary.game.taxonomyTags.join(" "),
           secret ? "" : summary.winner?.username,
           secret ? "" : summary.winner?.initials,
         ];
@@ -133,14 +130,11 @@ export function WeeksTable({
         const matchesSeason = season === "all" || summary.season.name === season;
         const matchesStatus = status === "all" || status === publicStatus;
         const matchesDeveloper =
-          developer === "all" || (!secret && summary.game.developer === developer);
-        const matchesGenre = genre === "all" || (!secret && summary.game.genre === genre);
-        const matchesControl =
-          controlType === "all" || (!secret && summary.game.controlType === controlType);
+          developer === "all" || (!secret && summary.game.developers.includes(developer));
+        const matchesGenre =
+          genre === "all" || (!secret && summary.game.taxonomyTags.includes(genre));
         const matchesLeader =
           leader === "all" || (!secret && summary.winner?.username === leader);
-        const matchesDifficulty =
-          difficulty === "all" || (!secret && summary.game.difficulty === difficulty);
 
         return (
           matchesQuery &&
@@ -148,9 +142,7 @@ export function WeeksTable({
           matchesStatus &&
           matchesDeveloper &&
           matchesGenre &&
-          matchesControl &&
-          matchesLeader &&
-          matchesDifficulty
+          matchesLeader
         );
       })
       .map((summary, index) => ({ summary, index }))
@@ -185,10 +177,8 @@ export function WeeksTable({
       })
       .map(({ summary }) => summary);
   }, [
-    controlType,
     currentWeekNumber,
     developer,
-    difficulty,
     genre,
     leader,
     query,
@@ -280,7 +270,7 @@ export function WeeksTable({
             </label>
           </div>
           {showMoreFilters ? (
-            <div className="grid gap-3 border-t pt-4 theme-border md:grid-cols-5">
+            <div className="grid gap-3 border-t pt-4 theme-border md:grid-cols-3">
               <label className="block">
                 <span className="text-xs font-semibold uppercase theme-text-muted">
                   Desarrollador
@@ -317,23 +307,6 @@ export function WeeksTable({
               </label>
               <label className="block">
                 <span className="text-xs font-semibold uppercase theme-text-muted">
-                  Tipo de control
-                </span>
-                <select
-                  className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-                  onChange={(event) => setControlType(event.target.value)}
-                  value={controlType}
-                >
-                  <option value="all">Todos</option>
-                  {filterOptions.controlTypes.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-xs font-semibold uppercase theme-text-muted">
                   Líder/Ganador
                 </span>
                 <select
@@ -349,23 +322,6 @@ export function WeeksTable({
                       </option>
                     ) : null,
                   )}
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-xs font-semibold uppercase theme-text-muted">
-                  Dificultad
-                </span>
-                <select
-                  className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-                  onChange={(event) => setDifficulty(event.target.value)}
-                  value={difficulty}
-                >
-                  <option value="all">Todas</option>
-                  {filterOptions.difficulties.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
                 </select>
               </label>
             </div>

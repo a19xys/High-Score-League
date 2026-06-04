@@ -1,18 +1,25 @@
 import type { GameRow } from "@/types/supabase";
+import {
+  GAME_GENRES,
+  GAME_PERSPECTIVES,
+  GAME_THEMES,
+} from "./game-taxonomy";
 
 export type GameFormPayload = {
   title?: unknown;
   year?: unknown;
-  developer?: unknown;
-  publisher?: unknown;
+  developers?: unknown;
+  publishers?: unknown;
   romName?: unknown;
-  genre?: unknown;
-  controlType?: unknown;
-  difficulty?: unknown;
+  perspectives?: unknown;
+  themes?: unknown;
+  genres?: unknown;
   imageUrl?: unknown;
   instructions?: unknown;
   manualUrl?: unknown;
   notes?: unknown;
+  controlType?: unknown;
+  difficulty?: unknown;
 };
 
 export type ValidatedGamePayload =
@@ -21,12 +28,12 @@ export type ValidatedGamePayload =
       data: {
         title: string;
         year: number | null;
-        developer: string | null;
-        publisher: string | null;
+        developers: string[];
+        publishers: string[];
         rom_name: string | null;
-        genre: string | null;
-        control_type: string | null;
-        difficulty: string | null;
+        perspectives: string[];
+        themes: string[];
+        genres: string[];
         image_url: string | null;
         instructions: string | null;
         manual_url: string | null;
@@ -36,7 +43,7 @@ export type ValidatedGamePayload =
   | { ok: false; error: string };
 
 export const adminGameColumns =
-  "id,title,year,developer,publisher,rom_name,genre,control_type,difficulty,image_url,instructions,manual_url,notes,created_at,updated_at";
+  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,instructions,manual_url,notes,created_at,updated_at";
 
 function optionalText(value: unknown, label: string) {
   if (value === undefined || value === null) {
@@ -74,12 +81,86 @@ function validateOptionalUrl(value: string | null, label: string) {
   }
 }
 
+function validateStringArray(value: unknown, label: string) {
+  if (value === undefined || value === null) {
+    return { ok: true as const, value: [] };
+  }
+
+  if (!Array.isArray(value)) {
+    return { ok: false as const, error: `${label} debe ser una lista.` };
+  }
+
+  const values: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of value) {
+    if (typeof item !== "string") {
+      return { ok: false as const, error: `${label} solo acepta texto.` };
+    }
+
+    const trimmed = item.trim();
+
+    if (!trimmed) {
+      return { ok: false as const, error: `${label} no puede contener valores vacíos.` };
+    }
+
+    const duplicateKey = trimmed.toLocaleLowerCase("es");
+
+    if (seen.has(duplicateKey)) {
+      return { ok: false as const, error: `${label} no puede contener duplicados.` };
+    }
+
+    seen.add(duplicateKey);
+    values.push(trimmed);
+  }
+
+  return { ok: true as const, value: values };
+}
+
+function validateTaxonomyArray(
+  value: unknown,
+  label: string,
+  allowedValues: readonly string[],
+) {
+  const normalized = validateStringArray(value, label);
+
+  if (!normalized.ok) {
+    return normalized;
+  }
+
+  const allowed = new Set(allowedValues);
+  const invalid = normalized.value.find((item) => !allowed.has(item));
+
+  if (invalid) {
+    return { ok: false as const, error: `${label} contiene un valor no permitido: ${invalid}.` };
+  }
+
+  return normalized;
+}
+
+function hasNonEmptyLegacyValue(value: unknown) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  return typeof value !== "string" || value.trim().length > 0;
+}
+
 export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayload {
+  if (hasNonEmptyLegacyValue(payload.controlType)) {
+    return { ok: false, error: "Tipo de control ya no se usa en el catálogo." };
+  }
+
+  if (hasNonEmptyLegacyValue(payload.difficulty)) {
+    return { ok: false, error: "Dificultad ya no se usa en el catálogo." };
+  }
+
   if (typeof payload.title !== "string" || !payload.title.trim()) {
-    return { ok: false, error: "title es obligatorio." };
+    return { ok: false, error: "El título es obligatorio." };
   }
 
   let year: number | null = null;
+  const currentYear = new Date().getFullYear();
 
   if (payload.year !== undefined && payload.year !== null && payload.year !== "") {
     const parsedYear =
@@ -89,41 +170,45 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
           ? Number(payload.year)
           : Number.NaN;
 
-    if (!Number.isInteger(parsedYear) || parsedYear < 1970 || parsedYear > 2100) {
-      return { ok: false, error: "year debe estar entre 1970 y 2100." };
+    if (!Number.isInteger(parsedYear) || parsedYear < 1971 || parsedYear > currentYear) {
+      return { ok: false, error: `El año debe estar entre 1971 y ${currentYear}.` };
     }
 
     year = parsedYear;
   }
 
-  const developer = optionalText(payload.developer, "developer");
-  if (!developer.ok) return { ok: false, error: developer.error };
-  const publisher = optionalText(payload.publisher, "publisher");
-  if (!publisher.ok) return { ok: false, error: publisher.error };
-  const romName = optionalText(payload.romName, "rom_name");
+  const developers = validateStringArray(payload.developers, "Desarrollador");
+  if (!developers.ok) return { ok: false, error: developers.error };
+  const publishers = validateStringArray(payload.publishers, "Editor");
+  if (!publishers.ok) return { ok: false, error: publishers.error };
+  const romName = optionalText(payload.romName, "ROM");
   if (!romName.ok) return { ok: false, error: romName.error };
-  const genre = optionalText(payload.genre, "genre");
-  if (!genre.ok) return { ok: false, error: genre.error };
-  const controlType = optionalText(payload.controlType, "control_type");
-  if (!controlType.ok) return { ok: false, error: controlType.error };
-  const difficulty = optionalText(payload.difficulty, "difficulty");
-  if (!difficulty.ok) return { ok: false, error: difficulty.error };
-  const rawImageUrl = optionalText(payload.imageUrl, "image_url");
+  const perspectives = validateTaxonomyArray(
+    payload.perspectives,
+    "Perspectiva",
+    GAME_PERSPECTIVES,
+  );
+  if (!perspectives.ok) return { ok: false, error: perspectives.error };
+  const themes = validateTaxonomyArray(payload.themes, "Tema", GAME_THEMES);
+  if (!themes.ok) return { ok: false, error: themes.error };
+  const genres = validateTaxonomyArray(payload.genres, "Género", GAME_GENRES);
+  if (!genres.ok) return { ok: false, error: genres.error };
+  const rawImageUrl = optionalText(payload.imageUrl, "URL de imagen");
   if (!rawImageUrl.ok) return { ok: false, error: rawImageUrl.error };
-  const instructions = optionalText(payload.instructions, "instructions");
+  const instructions = optionalText(payload.instructions, "Instrucciones");
   if (!instructions.ok) return { ok: false, error: instructions.error };
-  const rawManualUrl = optionalText(payload.manualUrl, "manual_url");
+  const rawManualUrl = optionalText(payload.manualUrl, "URL del manual");
   if (!rawManualUrl.ok) return { ok: false, error: rawManualUrl.error };
-  const notes = optionalText(payload.notes, "notes");
+  const notes = optionalText(payload.notes, "Notas");
   if (!notes.ok) return { ok: false, error: notes.error };
 
-  const imageUrl = validateOptionalUrl(rawImageUrl.value, "image_url");
+  const imageUrl = validateOptionalUrl(rawImageUrl.value, "URL de imagen");
 
   if (!imageUrl.ok) {
     return { ok: false, error: imageUrl.error };
   }
 
-  const manualUrl = validateOptionalUrl(rawManualUrl.value, "manual_url");
+  const manualUrl = validateOptionalUrl(rawManualUrl.value, "URL del manual");
 
   if (!manualUrl.ok) {
     return { ok: false, error: manualUrl.error };
@@ -134,12 +219,12 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
     data: {
       title: payload.title.trim(),
       year,
-      developer: developer.value,
-      publisher: publisher.value,
+      developers: developers.value,
+      publishers: publishers.value,
       rom_name: romName.value,
-      genre: genre.value,
-      control_type: controlType.value,
-      difficulty: difficulty.value,
+      perspectives: perspectives.value,
+      themes: themes.value,
+      genres: genres.value,
       image_url: imageUrl.value,
       instructions: instructions.value,
       manual_url: manualUrl.value,

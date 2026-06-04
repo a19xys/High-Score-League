@@ -76,10 +76,15 @@ export async function getSeasonDetailData(
           id: weekRow.game_id,
           title: "Juego no disponible",
           slug: "juego-no-disponible",
+          developers: [],
+          publishers: [],
+          perspectives: [],
+          themes: [],
+          genres: [],
+          taxonomyTags: [],
           developer: "",
+          publisher: "",
           genre: "",
-          controlType: "",
-          difficulty: "",
           imageAlt: "Juego no disponible",
         };
     const derivedStatus = getDerivedWeekStatusFromRow(weekRow);
@@ -91,10 +96,15 @@ export async function getSeasonDetailData(
       ? {
           ...rawGame,
           title: "Juego secreto",
+          developers: [],
+          publishers: [],
+          perspectives: [],
+          themes: [],
+          genres: [],
+          taxonomyTags: [],
           developer: "",
+          publisher: "",
           genre: "",
-          controlType: "",
-          difficulty: "",
         }
       : rawGame;
     const mappedWeek = mapWeekRowToWeek(weekRow);

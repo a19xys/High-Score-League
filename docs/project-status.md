@@ -12,7 +12,8 @@ normal.
 - Juegos, temporadas, semanas, submissions, leaderboards, `weekly_results`,
   clasificacion de temporada, benchmarks y chat global leen Supabase.
 - El panel admin permite gestionar juegos, temporadas, semanas, submissions,
-  benchmarks y resultados oficiales.
+  benchmarks y resultados oficiales. El catálogo de juegos usa metadatos
+  múltiples para desarrolladores, editores, perspectivas, temas y géneros.
 - `/game` redirige a la semana activa real.
 - `/week` y `/leaderboard` redirigen a `/game`.
 - `/season` redirige a `/seasons`.
@@ -24,7 +25,8 @@ normal.
 
 - La migracion principal esta en `supabase/migrations/0001_initial_schema.sql`.
 - Las migraciones posteriores preparan submissions automaticas, memberships,
-  benchmarks, chat, Realtime y preferencias de perfil.
+  benchmarks, chat, Realtime, preferencias de perfil y metadatos múltiples de
+  juegos.
 - `POST /api/submissions/ingest` crea submissions autenticadas.
 - `POST /api/cron/process-schedule` sincroniza calendario por fechas.
 - `POST /api/admin/weeks/[weekId]/weekly-results` genera resultados oficiales

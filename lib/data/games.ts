@@ -4,7 +4,7 @@ import type { GameRow } from "@/types/supabase";
 import type { DataReadOptions, DataReadResult } from "./types";
 
 const gameColumns =
-  "id,title,year,developer,publisher,rom_name,genre,control_type,difficulty,image_url,instructions,manual_url,notes,created_at,updated_at";
+  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,instructions,manual_url,notes,created_at,updated_at";
 
 function emptyResult(error: string | null): DataReadResult<GameRow> {
   return {
@@ -40,14 +40,26 @@ export async function getRealGames(
 }
 
 export function mapGameRowToGame(row: GameRow): Game {
+  const developers = row.developers ?? [];
+  const publishers = row.publishers ?? [];
+  const perspectives = row.perspectives ?? [];
+  const themes = row.themes ?? [];
+  const genres = row.genres ?? [];
+  const taxonomyTags = [...perspectives, ...themes, ...genres];
+
   return {
     id: row.id,
     title: row.title,
     slug: row.rom_name ?? row.title.toLowerCase().replaceAll(" ", "-"),
-    developer: row.developer ?? "Desconocido",
-    genre: row.genre ?? "Arcade",
-    controlType: row.control_type ?? "estandar",
-    difficulty: row.difficulty ?? "pendiente",
+    developers,
+    publishers,
+    perspectives,
+    themes,
+    genres,
+    taxonomyTags,
+    developer: developers.length > 0 ? developers.join(" · ") : "Desconocido",
+    publisher: publishers.length > 0 ? publishers.join(" · ") : "Sin editor",
+    genre: taxonomyTags.length > 0 ? taxonomyTags.join(" · ") : "Arcade",
     imageAlt: `Imagen de ${row.title}`,
     imageUrl: row.image_url ?? undefined,
     instructions: row.instructions ?? undefined,

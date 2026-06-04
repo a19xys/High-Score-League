@@ -68,7 +68,7 @@ export type AdminWeekEditData = {
 const seasonColumns =
   "id,name,slug,version,status,starts_at,ends_at,created_at,updated_at";
 const gameColumns =
-  "id,title,year,developer,publisher,rom_name,genre,control_type,difficulty,image_url,instructions,manual_url,notes,created_at,updated_at";
+  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,instructions,manual_url,notes,created_at,updated_at";
 const weekColumns =
   "id,season_id,game_id,week_number,status,public_start_at,public_freeze_at,final_deadline_at,reveal_at,rules_summary,created_at,updated_at";
 const submissionColumns = `
@@ -128,10 +128,15 @@ function secretGame(): Game {
     id: "secret",
     title: "Juego secreto",
     slug: "juego-secreto",
+    developers: [],
+    publishers: [],
+    perspectives: [],
+    themes: [],
+    genres: [],
+    taxonomyTags: [],
     developer: "",
+    publisher: "",
     genre: "",
-    controlType: "",
-    difficulty: "",
     imageAlt: "Juego secreto",
   };
 }

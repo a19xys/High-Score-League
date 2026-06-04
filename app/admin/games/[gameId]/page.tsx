@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { AdminGameForm } from "@/components/admin-game-form";
+import { AdminGameDeleteButton } from "@/components/admin-game-delete-button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminGameById } from "@/lib/data/admin-games";
@@ -32,7 +33,7 @@ export default async function AdminGamePage({ params }: AdminGamePageProps) {
   }
 
   const { gameId } = await params;
-  const { row, error } = await getAdminGameById(auth.supabase, gameId);
+  const { row, usageCount, error } = await getAdminGameById(auth.supabase, gameId);
 
   if (!row) {
     if (!error) {
@@ -61,6 +62,18 @@ export default async function AdminGamePage({ params }: AdminGamePageProps) {
           se conservan para mantener el historial de la liga.
         </CardHeader>
         <AdminGameForm game={row} mode="edit" />
+      </Card>
+      <Card>
+        <CardHeader title="Zona peligrosa" eyebrow="Borrado seguro">
+          {usageCount > 0
+            ? `Este juego está protegido porque aparece en ${usageCount} semanas.`
+            : "Este juego no está asociado a ninguna semana."}
+        </CardHeader>
+        <AdminGameDeleteButton
+          disabled={usageCount > 0}
+          gameId={row.id}
+          gameTitle={row.title}
+        />
       </Card>
     </div>
   );

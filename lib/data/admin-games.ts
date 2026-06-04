@@ -19,15 +19,23 @@ export async function getAdminGameById(
   supabase: SupabaseClient,
   gameId: string,
 ) {
-  const { data, error } = await supabase
-    .from("games")
-    .select(adminGameColumns)
-    .eq("id", gameId)
-    .maybeSingle<GameRow>();
+  const [game, weeks] = await Promise.all([
+    supabase
+      .from("games")
+      .select(adminGameColumns)
+      .eq("id", gameId)
+      .maybeSingle<GameRow>(),
+    supabase
+      .from("weeks")
+      .select("id", { count: "exact", head: true })
+      .eq("game_id", gameId),
+  ]);
+
+  const error = game.error ?? weeks.error;
 
   if (error) {
-    return { row: null, error: error.message };
+    return { row: null, usageCount: 0, error: error.message };
   }
 
-  return { row: data, error: null };
+  return { row: game.data, usageCount: weeks.count ?? 0, error: null };
 }

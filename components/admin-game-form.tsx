@@ -1,7 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import {
+  GAME_GENRES,
+  GAME_PERSPECTIVES,
+  GAME_THEMES,
+} from "@/lib/admin/game-taxonomy";
 import type { GameRow } from "@/types/supabase";
 
 type AdminGameFormProps = {
@@ -12,12 +17,12 @@ type AdminGameFormProps = {
 type FormState = {
   title: string;
   year: string;
-  developer: string;
-  publisher: string;
+  developers: string[];
+  publishers: string[];
   romName: string;
-  genre: string;
-  controlType: string;
-  difficulty: string;
+  perspectives: string[];
+  themes: string[];
+  genres: string[];
   imageUrl: string;
   instructions: string;
   manualUrl: string;
@@ -28,17 +33,21 @@ function initialState(game?: GameRow): FormState {
   return {
     title: game?.title ?? "",
     year: game?.year ? String(game.year) : "",
-    developer: game?.developer ?? "",
-    publisher: game?.publisher ?? "",
+    developers: game?.developers ?? [],
+    publishers: game?.publishers ?? [],
     romName: game?.rom_name ?? "",
-    genre: game?.genre ?? "",
-    controlType: game?.control_type ?? "",
-    difficulty: game?.difficulty ?? "",
+    perspectives: game?.perspectives ?? [],
+    themes: game?.themes ?? [],
+    genres: game?.genres ?? [],
     imageUrl: game?.image_url ?? "",
     instructions: game?.instructions ?? "",
     manualUrl: game?.manual_url ?? "",
     notes: game?.notes ?? "",
   };
+}
+
+function normalizeChip(value: string) {
+  return value.trim().replace(/\s+/g, " ");
 }
 
 function TextInput({
@@ -50,7 +59,7 @@ function TextInput({
   help,
 }: {
   label: string;
-  name: keyof FormState;
+  name: keyof Pick<FormState, "title" | "romName" | "imageUrl" | "manualUrl">;
   value: string;
   onChange: (name: keyof FormState, value: string) => void;
   required?: boolean;
@@ -71,14 +80,149 @@ function TextInput({
   );
 }
 
+function ChipInput({
+  label,
+  values,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder: string;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function addDraft() {
+    const normalized = normalizeChip(draft);
+
+    if (!normalized) {
+      setDraft("");
+      return;
+    }
+
+    if (!values.some((value) => value.toLocaleLowerCase("es") === normalized.toLocaleLowerCase("es"))) {
+      onChange([...values, normalized]);
+    }
+
+    setDraft("");
+  }
+
+  return (
+    <div>
+      <span className="text-sm font-semibold theme-text">{label}</span>
+      <div className="mt-2 flex gap-2">
+        <input
+          className="min-w-0 flex-1 rounded-md border px-3 py-2 theme-input"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addDraft();
+            }
+          }}
+          placeholder={placeholder}
+          value={draft}
+        />
+        <button
+          className="rounded-md border px-3 py-2 text-sm font-semibold theme-border theme-hover theme-text"
+          onClick={addDraft}
+          type="button"
+        >
+          Añadir
+        </button>
+      </div>
+      {values.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {values.map((value) => (
+            <span
+              className="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-sm theme-border theme-surface-muted theme-text"
+              key={value}
+            >
+              <span className="max-w-56 truncate">{value}</span>
+              <button
+                className="font-semibold theme-text-muted hover:text-red-500"
+                onClick={() => onChange(values.filter((item) => item !== value))}
+                type="button"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TaxonomySelector({
+  label,
+  options,
+  values,
+  onChange,
+}: {
+  label: string;
+  options: readonly string[];
+  values: string[];
+  onChange: (values: string[]) => void;
+}) {
+  function toggle(option: string) {
+    if (values.includes(option)) {
+      onChange(values.filter((value) => value !== option));
+      return;
+    }
+
+    onChange([...values, option]);
+  }
+
+  return (
+    <fieldset>
+      <legend className="text-sm font-semibold theme-text">{label}</legend>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((option) => {
+          const selected = values.includes(option);
+
+          return (
+            <button
+              aria-pressed={selected}
+              className={
+                selected
+                  ? "rounded-full border border-circuit bg-circuit px-3 py-1.5 text-sm font-semibold text-white"
+                  : "rounded-full border px-3 py-1.5 text-sm font-semibold theme-border theme-hover theme-text"
+              }
+              key={option}
+              onClick={() => toggle(option)}
+              type="button"
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
 export function AdminGameForm({ mode, game }: AdminGameFormProps) {
   const router = useRouter();
+  const currentYear = new Date().getFullYear();
+  const yearOptions = useMemo(
+    () =>
+      Array.from({ length: currentYear - 1971 + 1 }, (_, index) =>
+        String(1971 + index),
+      ),
+    [currentYear],
+  );
   const [state, setState] = useState<FormState>(() => initialState(game));
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function updateField(name: keyof FormState, value: string) {
     setState((current) => ({ ...current, [name]: value }));
+  }
+
+  function updateList(name: keyof Pick<FormState, "developers" | "publishers" | "perspectives" | "themes" | "genres">, values: string[]) {
+    setState((current) => ({ ...current, [name]: values }));
   }
 
   function submit() {
@@ -92,12 +236,12 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
           body: JSON.stringify({
             title: state.title,
             year: state.year,
-            developer: state.developer,
-            publisher: state.publisher,
+            developers: state.developers,
+            publishers: state.publishers,
             romName: state.romName,
-            genre: state.genre,
-            controlType: state.controlType,
-            difficulty: state.difficulty,
+            perspectives: state.perspectives,
+            themes: state.themes,
+            genres: state.genres,
             imageUrl: state.imageUrl,
             instructions: state.instructions,
             manualUrl: state.manualUrl,
@@ -141,63 +285,69 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
           required
           value={state.title}
         />
-        <TextInput
-          help="Opcional. Entre 1970 y 2100."
-          label="Año"
-          name="year"
-          onChange={updateField}
-          value={state.year}
+        <label className="block">
+          <span className="text-sm font-semibold theme-text">Año</span>
+          <select
+            className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
+            onChange={(event) => updateField("year", event.target.value)}
+            value={state.year}
+          >
+            <option value="">Sin año</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </label>
+        <ChipInput
+          label="Desarrollador"
+          onChange={(values) => updateList("developers", values)}
+          placeholder="Añadir desarrollador"
+          values={state.developers}
+        />
+        <ChipInput
+          label="Editor"
+          onChange={(values) => updateList("publishers", values)}
+          placeholder="Añadir editor"
+          values={state.publishers}
         />
         <TextInput
-          label="Developer"
-          name="developer"
-          onChange={updateField}
-          value={state.developer}
-        />
-        <TextInput
-          label="Publisher"
-          name="publisher"
-          onChange={updateField}
-          value={state.publisher}
-        />
-        <TextInput
-          label="ROM name"
+          label="ROM"
           name="romName"
           onChange={updateField}
           value={state.romName}
         />
         <TextInput
-          label="Género"
-          name="genre"
+          label="URL de imagen"
+          name="imageUrl"
           onChange={updateField}
-          value={state.genre}
+          value={state.imageUrl}
         />
-        <TextInput
-          help="Ejemplos: estándar, doble stick, trackball, spinner."
-          label="Tipo de control"
-          name="controlType"
-          onChange={updateField}
-          value={state.controlType}
-        />
-        <TextInput
-          label="Dificultad aproximada"
-          name="difficulty"
-          onChange={updateField}
-          value={state.difficulty}
-        />
-        <label className="block md:col-span-2">
-          <span className="text-sm font-semibold theme-text">Image URL</span>
-          <input
-            className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-            name="imageUrl"
-            onChange={(event) => updateField("imageUrl", event.target.value)}
-            placeholder="https://..."
-            value={state.imageUrl}
+        <div className="md:col-span-2">
+          <TaxonomySelector
+            label="Perspectiva"
+            onChange={(values) => updateList("perspectives", values)}
+            options={GAME_PERSPECTIVES}
+            values={state.perspectives}
           />
-          <span className="mt-1 block text-xs theme-text-muted">
-            Solo texto por ahora. No hay subida real de imágenes.
-          </span>
-        </label>
+        </div>
+        <div className="md:col-span-2">
+          <TaxonomySelector
+            label="Tema"
+            onChange={(values) => updateList("themes", values)}
+            options={GAME_THEMES}
+            values={state.themes}
+          />
+        </div>
+        <div className="md:col-span-2">
+          <TaxonomySelector
+            label="Género"
+            onChange={(values) => updateList("genres", values)}
+            options={GAME_GENRES}
+            values={state.genres}
+          />
+        </div>
         <label className="block md:col-span-2">
           <span className="text-sm font-semibold theme-text">
             Instrucciones del juego
@@ -209,22 +359,16 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
             value={state.instructions}
           />
           <span className="mt-1 block text-xs theme-text-muted">
-            Instrucciones base: cómo jugar, controles, ROM recomendada y normas de puntuación.
+            Cómo jugar, controles, ROM recomendada y normas de puntuación.
           </span>
         </label>
-        <label className="block md:col-span-2">
-          <span className="text-sm font-semibold theme-text">URL del manual</span>
-          <input
-            className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-            name="manualUrl"
-            onChange={(event) => updateField("manualUrl", event.target.value)}
-            placeholder="https://..."
-            value={state.manualUrl}
-          />
-          <span className="mt-1 block text-xs theme-text-muted">
-            Enlace externo por ahora. No hay subida real de manuales ni Storage.
-          </span>
-        </label>
+        <TextInput
+          help="Enlace externo al manual."
+          label="URL del manual"
+          name="manualUrl"
+          onChange={updateField}
+          value={state.manualUrl}
+        />
         <label className="block md:col-span-2">
           <span className="text-sm font-semibold theme-text">Notas</span>
           <textarea

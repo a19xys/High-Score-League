@@ -60,10 +60,15 @@ export async function getWeekPageData(): Promise<WeekPageData> {
             id: week.game_id,
             title: "Juego no disponible",
             slug: "juego-no-disponible",
+            developers: [],
+            publishers: [],
+            perspectives: [],
+            themes: [],
+            genres: [],
+            taxonomyTags: [],
             developer: "",
+            publisher: "",
             genre: "",
-            controlType: "",
-            difficulty: "",
             imageAlt: "Juego no disponible",
           };
       const derivedStatus = getDerivedWeekStatusFromRow(week);
@@ -75,10 +80,15 @@ export async function getWeekPageData(): Promise<WeekPageData> {
         ? {
             ...rawGame,
             title: "Juego secreto",
+            developers: [],
+            publishers: [],
+            perspectives: [],
+            themes: [],
+            genres: [],
+            taxonomyTags: [],
             developer: "",
+            publisher: "",
             genre: "",
-            controlType: "",
-            difficulty: "",
           }
         : rawGame;
       const mappedWeek = mapWeekRowToWeek(week);

@@ -54,6 +54,8 @@ http://localhost:3000
 - `/submit`: pantalla provisional de respaldo para subida manual.
 - `/profile`: perfil real, ajustes y centro admin para administradores.
 - `/admin/weeks`, `/admin/games`, `/admin/seasons`: panel admin minimo.
+  Juegos permite metadatos múltiples y borrado seguro si no hay semanas
+  asociadas.
 - `/supabase-test` y `/real-data-test`: diagnostico de desarrollo.
 
 ## Marca estatica

@@ -52,7 +52,14 @@ function getUniqueOptions(games: GameRow[], key: FilterKey): string[] {
   const options = new Set<string>();
 
   for (const game of games) {
-    const value = key === "year" ? game.year : game[key];
+    const value =
+      key === "year"
+        ? game.year
+        : key === "developer"
+          ? game.developers
+          : key === "publisher"
+            ? game.publishers
+            : [...game.perspectives, ...game.themes, ...game.genres];
 
     for (const option of getFilterValues(value)) {
       options.add(option);
@@ -74,9 +81,11 @@ function matchesSearch(game: GameRow, search: string) {
   const haystack = [
     game.title,
     game.year,
-    game.developer,
-    game.publisher,
-    game.genre,
+    game.developers,
+    game.publishers,
+    game.perspectives,
+    game.themes,
+    game.genres,
     game.rom_name,
     game.notes,
     game.instructions,
@@ -93,7 +102,14 @@ function matchesFilter(game: GameRow, key: FilterKey, selected: string) {
     return true;
   }
 
-  const value = key === "year" ? game.year : game[key];
+  const value =
+    key === "year"
+      ? game.year
+      : key === "developer"
+        ? game.developers
+        : key === "publisher"
+          ? game.publishers
+          : [...game.perspectives, ...game.themes, ...game.genres];
   return getFilterValues(value).some((option) => option === selected);
 }
 
@@ -324,11 +340,15 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
                   {game.year ?? "-"}
                 </td>
                 <td className="hidden px-4 py-4 md:table-cell">
-                  {renderListValue(game.developer)}
+                  {renderListValue(game.developers)}
                 </td>
-                <td className="px-4 py-4">{renderListValue(game.publisher)}</td>
+                <td className="px-4 py-4">{renderListValue(game.publishers)}</td>
                 <td className="hidden px-4 py-4 md:table-cell">
-                  {renderListValue(game.genre)}
+                  {renderListValue([
+                    ...game.perspectives,
+                    ...game.themes,
+                    ...game.genres,
+                  ])}
                 </td>
                 <td className="hidden px-4 py-4 md:table-cell">
                   {renderListValue(game.rom_name)}

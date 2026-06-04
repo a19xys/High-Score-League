@@ -51,17 +51,23 @@ crea semanas automáticamente.
 
 ### games
 
-Catalogo de juegos arcade. No depende de una temporada concreta, de forma que un
+Catálogo de juegos arcade. No depende de una temporada concreta, de forma que un
 juego pueda reutilizarse en futuras temporadas.
 
-Desde `0005_game_metadata.sql` incluye metadatos opcionales de UI:
+Desde `0011_game_metadata_arrays.sql`, los metadatos visibles principales son:
 
-- `genre`;
-- `control_type`;
-- `difficulty`.
+- `developers text[]`;
+- `publishers text[]`;
+- `perspectives text[]`;
+- `themes text[]`;
+- `genres text[]`.
 
-Son campos `text` flexibles. Pueden ser `null`, pero si existen no pueden ser
-texto vacío. No se usan enums todavía.
+La migración hace backfill desde las columnas legacy `developer`, `publisher` y
+`genre` si tenían valor. Las columnas legacy se conservan por compatibilidad,
+pero la UI y las lecturas de runtime usan las columnas nuevas como fuente de
+verdad.
+
+`control_type` y `difficulty` dejan de usarse en la UI.
 
 Desde `0009_game_instructions.sql` incluye instrucciones base y manual externo:
 

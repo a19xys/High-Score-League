@@ -1,9 +1,8 @@
 # Administración de juegos
 
-`/admin/games` gestiona el catálogo real de juegos arcade.
-
-Esta sección es solo para admins y usa las políticas RLS existentes de
-`public.games`. No usa `service_role`.
+`/admin/games` gestiona el catálogo real de juegos arcade. Esta sección es
+solo para admins y usa las políticas RLS existentes de `public.games`; no usa
+`service_role`.
 
 ## Juego vs semana
 
@@ -11,46 +10,47 @@ Un juego es una entrada reutilizable del catálogo:
 
 - título;
 - año;
-- developer;
-- publisher;
+- desarrolladores;
+- editores;
 - ROM;
+- perspectiva, tema y género;
 - imagen de referencia;
-- metadatos básicos.
+- instrucciones base;
+- enlace externo al manual.
 
-Una semana es una competición concreta que referencia a un juego y añade:
+Una semana es una competición concreta que referencia a un juego y añade
+temporada, número de semana, fechas, estado, instrucciones específicas si hacen
+falta y resultados.
 
-- temporada;
-- número de semana;
-- fechas;
-- estado;
-- instrucciones específicas opcionales;
-- resultados.
+## Metadatos múltiples
 
-Las instrucciones base del juego y el enlace externo al manual viven en
-`/admin/games`. Una semana solo debe rellenar instrucciones si necesita
-sobrescribir algo para esa competición concreta.
+La migración `supabase/migrations/0011_game_metadata_arrays.sql` añade:
 
-## Metadatos flexibles
+- `developers text[] not null default '{}'`;
+- `publishers text[] not null default '{}'`;
+- `perspectives text[] not null default '{}'`;
+- `themes text[] not null default '{}'`;
+- `genres text[] not null default '{}'`.
 
-La migración `supabase/migrations/0005_game_metadata.sql` añade campos
-opcionales:
+La migración hace backfill desde `developer`, `publisher` y `genre` si tenían
+valor. Las columnas legacy se conservan en base de datos por compatibilidad,
+pero la UI y el runtime usan las columnas nuevas como fuente de verdad.
 
-- `genre`;
-- `control_type`;
-- `difficulty`.
+`control_type` y `difficulty` dejan de usarse en la UI y en el payload admin.
 
-Son `text` flexibles con checks de no vacío si se informan. No se usan enums
-rígidos todavía para no bloquear cambios futuros.
+## Taxonomía
 
-## Instrucciones y manual
+Perspectiva, tema y género se validan contra listas cerradas en
+`lib/admin/game-taxonomy.ts`. Desarrolladores y editores siguen siendo texto
+libre, pero admiten múltiples entradas sin vacíos ni duplicados.
 
-La migración `supabase/migrations/0009_game_instructions.sql` añade:
+En listados, la columna `Género` muestra una combinación compacta de:
 
-- `instructions`: instrucciones base del juego;
-- `manual_url`: enlace externo opcional al manual.
+- perspectivas;
+- temas;
+- géneros.
 
-`manual_url` debe ser `http` o `https` si se informa. No hay subida real de
-manuales ni Storage en esta fase.
+Ejemplo: `Lateral · Acción · Plataformas`.
 
 ## Listado
 
@@ -58,48 +58,59 @@ manuales ni Storage en esta fase.
 
 - título;
 - año;
-- developer;
-- publisher;
-- `rom_name`;
-- género;
-- tipo de control;
-- dificultad;
-- si tiene `image_url`;
+- desarrolladores;
+- editores;
+- género combinado;
+- ROM;
 - enlace de edición.
 
-Incluye buscador simple por título, ROM, developer y publisher.
+Incluye buscador general y filtros avanzados por año, desarrollador, editor y
+género combinado. En móvil se priorizan título, año y editor; el título enlaza a
+la edición.
 
-## Crear juego
+## Crear y editar juego
 
-`/admin/games/new` permite crear:
+`/admin/games/new` y `/admin/games/[gameId]` permiten gestionar:
 
-- `title` obligatorio;
-- `year` opcional;
-- `developer` opcional;
-- `publisher` opcional;
-- `rom_name` opcional;
-- `genre` opcional;
-- `control_type` opcional;
-- `difficulty` opcional;
-- `image_url` opcional;
-- `instructions` opcional;
-- `manual_url` opcional;
-- `notes` opcional.
+- título obligatorio;
+- año opcional desde desplegable entre 1971 y el año actual;
+- desarrolladores múltiples;
+- editores múltiples;
+- ROM opcional;
+- perspectivas múltiples;
+- temas múltiples;
+- géneros múltiples;
+- URL de imagen opcional;
+- instrucciones opcionales;
+- URL del manual opcional;
+- notas opcionales.
 
 Validaciones principales:
 
-- `title` no vacío;
-- `year` entre 1970 y 2100 si existe;
-- textos opcionales se guardan como `null` si están vacíos;
-- `image_url` debe ser `http` o `https` si se informa;
-- `manual_url` debe ser `http` o `https` si se informa.
+- título no vacío;
+- año entre 1971 y el año actual si existe;
+- arrays sin vacíos ni duplicados;
+- taxonomía solo con valores permitidos;
+- `image_url` y `manual_url` deben ser `http` o `https` si se informan.
 
-## Editar juego
+## Borrado seguro
 
-`/admin/games/[gameId]` permite editar los mismos campos.
+`DELETE /api/admin/games/[gameId]` permite borrar un juego solo si no aparece en
+ninguna semana.
 
-No se permite borrar juegos en esta fase para evitar romper semanas existentes
-que referencian `games.id`.
+Si existe alguna fila en `weeks` con ese `game_id`, el endpoint devuelve:
+
+```json
+{
+  "ok": false,
+  "code": "GAME_IN_USE",
+  "error": "No se puede borrar un juego usado por una semana."
+}
+```
+
+La pantalla de edición muestra una zona peligrosa. Si el juego está usado, el
+borrado queda desactivado. Si no está usado, exige escribir `BORRAR` y luego
+redirige a `/admin/games`.
 
 ## Pendiente
 
@@ -107,5 +118,5 @@ que referencian `games.id`.
 - Subida real de manuales a Storage.
 - Gestión de ZIPs o packs MAME.
 - Configuraciones MAME.
-- Borrado o archivado seguro de juegos.
+- Borrado de assets asociados cuando exista Storage.
 - Editor rico o Markdown avanzado.

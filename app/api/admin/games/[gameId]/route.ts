@@ -52,3 +52,40 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   return NextResponse.json({ ok: true, game: data });
 }
+
+export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+  const auth = await requireAdmin();
+
+  if (!auth.ok) {
+    return jsonError(auth.error, auth.status);
+  }
+
+  const { gameId } = await params;
+  const { count, error: countError } = await auth.supabase
+    .from("weeks")
+    .select("id", { count: "exact", head: true })
+    .eq("game_id", gameId);
+
+  if (countError) {
+    return jsonError("No se pudo comprobar si el juego está en uso.", 500);
+  }
+
+  if ((count ?? 0) > 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "GAME_IN_USE",
+        error: "No se puede borrar un juego usado por una semana.",
+      },
+      { status: 409 },
+    );
+  }
+
+  const { error } = await auth.supabase.from("games").delete().eq("id", gameId);
+
+  if (error) {
+    return jsonError("No se pudo borrar el juego.", 500);
+  }
+
+  return NextResponse.json({ ok: true });
+}

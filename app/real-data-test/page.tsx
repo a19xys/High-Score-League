@@ -79,6 +79,7 @@ function GamesRows({ games }: { games: GameRow[] }) {
           <th className="px-4 py-3">Juego</th>
           <th className="px-4 py-3">Año</th>
           <th className="px-4 py-3">Desarrollador</th>
+          <th className="px-4 py-3">Género</th>
           <th className="px-4 py-3">ROM</th>
         </tr>
       </thead>
@@ -87,7 +88,12 @@ function GamesRows({ games }: { games: GameRow[] }) {
           <tr className="theme-hover" key={game.id}>
             <td className="px-4 py-3 font-semibold theme-text">{game.title}</td>
             <td className="px-4 py-3 theme-text-muted">{game.year ?? "-"}</td>
-            <td className="px-4 py-3 theme-text-muted">{game.developer ?? "-"}</td>
+            <td className="px-4 py-3 theme-text-muted">
+              {game.developers.length > 0 ? game.developers.join(" · ") : "-"}
+            </td>
+            <td className="px-4 py-3 theme-text-muted">
+              {[...game.perspectives, ...game.themes, ...game.genres].join(" · ") || "-"}
+            </td>
             <td className="px-4 py-3 theme-text-muted">{game.rom_name ?? "-"}</td>
           </tr>
         ))}

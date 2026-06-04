@@ -20,10 +20,15 @@ export type Game = {
   id: string;
   title: string;
   slug: string;
+  developers: string[];
+  publishers: string[];
+  perspectives: string[];
+  themes: string[];
+  genres: string[];
+  taxonomyTags: string[];
   developer: string;
+  publisher: string;
   genre: string;
-  controlType: string;
-  difficulty: string;
   imageAlt: string;
   imageUrl?: string;
   instructions?: string;
