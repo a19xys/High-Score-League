@@ -80,8 +80,15 @@ Desde `0009_game_instructions.sql` incluye instrucciones base y manual externo:
 ### weeks
 
 Representa una semana competitiva dentro de una temporada. Relaciona
-`season_id` con `game_id`, define `week_number`, fechas de apertura/cierre y
-estado `draft`, `active`, `frozen`, `closed` o `published`.
+`season_id` con `game_id` cuando el juego ya está asignado, define
+`week_number`, fechas de apertura/cierre y estado `draft`, `active`, `frozen`,
+`closed` o `published`.
+
+Desde `0012_optional_week_game.sql`, `game_id` puede ser `null`. Esto permite
+crear semanas futuras sin revelar ni inventar un juego real placeholder. La UI
+pública muestra esas semanas como `Por anunciar`; el panel admin las muestra
+como `Sin juego asignado`. Una semana no debe abrirse ni aceptar submissions si
+no tiene juego asignado.
 
 La restricción `unique(season_id, week_number)` evita dos semanas con el mismo
 número dentro de una misma temporada.
@@ -210,7 +217,8 @@ generar o revisar estas filas antes de publicar una semana.
 
 - `profiles.id` referencia `auth.users.id`.
 - `weeks.season_id` referencia `seasons.id`.
-- `weeks.game_id` referencia `games.id`.
+- `weeks.game_id` referencia `games.id` cuando tiene valor; puede ser `null`
+  para semanas futuras o todavía no anunciadas.
 - `submissions.week_id` referencia `weeks.id`.
 - `submissions.player_id` referencia `profiles.id`.
 - `weekly_results.week_id` referencia `weeks.id`.

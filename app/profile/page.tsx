@@ -70,7 +70,7 @@ function buildBestScores(
 
     byWeek.set(row.week_id, {
       week,
-      game: gamesById.get(week.gameId),
+      game: week.gameId ? gamesById.get(week.gameId) : undefined,
       bestScore: Math.max(existing?.bestScore ?? 0, row.score),
       uploads: (existing?.uploads ?? 0) + 1,
       latestAt,
@@ -145,7 +145,7 @@ async function getSignedInProfileData(
 
     return {
       ...submission,
-      game: week ? gamesById.get(week.gameId) : undefined,
+      game: week?.gameId ? gamesById.get(week.gameId) : undefined,
     };
   });
   const userWeeklyResults = weeklyResultsResult.rows.filter(

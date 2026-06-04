@@ -304,13 +304,13 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
               <th className="whitespace-nowrap px-4 py-3" scope="col">
                 Título
               </th>
-              <th className="whitespace-nowrap px-4 py-3" scope="col">
+              <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
                 Año
               </th>
               <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
                 Desarrollador
               </th>
-              <th className="whitespace-nowrap px-4 py-3" scope="col">
+              <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
                 Editor
               </th>
               <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
@@ -319,7 +319,7 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
               <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
                 ROM
               </th>
-              <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
+              <th className="whitespace-nowrap px-4 py-3" scope="col">
                 Acciones
               </th>
             </tr>
@@ -328,21 +328,22 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
             {visibleGames.map((game) => (
               <tr className="theme-hover" key={game.id}>
                 <td className="px-4 py-4 font-semibold theme-text">
-                  <Link
-                    className="block max-w-[14rem] truncate text-circuit hover:underline sm:max-w-xs"
-                    href={`/admin/games/${game.id}`}
+                  <span
+                    className="block max-w-[14rem] truncate sm:max-w-xs"
                     title={game.title}
                   >
                     {game.title}
-                  </Link>
+                  </span>
                 </td>
-                <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+                <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted md:table-cell">
                   {game.year ?? "-"}
                 </td>
                 <td className="hidden px-4 py-4 md:table-cell">
                   {renderListValue(game.developers)}
                 </td>
-                <td className="px-4 py-4">{renderListValue(game.publishers)}</td>
+                <td className="hidden px-4 py-4 md:table-cell">
+                  {renderListValue(game.publishers)}
+                </td>
                 <td className="hidden px-4 py-4 md:table-cell">
                   {renderListValue([
                     ...game.perspectives,
@@ -353,7 +354,7 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
                 <td className="hidden px-4 py-4 md:table-cell">
                   {renderListValue(game.rom_name)}
                 </td>
-                <td className="hidden whitespace-nowrap px-4 py-4 md:table-cell">
+                <td className="whitespace-nowrap px-4 py-4">
                   <Link
                     className="font-semibold text-circuit hover:underline"
                     href={`/admin/games/${game.id}`}

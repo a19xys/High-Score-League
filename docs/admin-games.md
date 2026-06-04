@@ -65,8 +65,9 @@ Ejemplo: `Lateral · Acción · Plataformas`.
 - enlace de edición.
 
 Incluye buscador general y filtros avanzados por año, desarrollador, editor y
-género combinado. En móvil se priorizan título, año y editor; el título enlaza a
-la edición.
+género combinado. En móvil se priorizan solo título y acción de edición; el
+título ya no es enlace para evitar una tabla demasiado cargada en pantallas
+pequeñas.
 
 ## Crear y editar juego
 
@@ -97,6 +98,10 @@ Validaciones principales:
 
 `DELETE /api/admin/games/[gameId]` permite borrar un juego solo si no aparece en
 ninguna semana.
+
+Las semanas futuras o todavía no anunciadas no usan un juego real placeholder.
+En base de datos pueden quedar con `weeks.game_id = null`; la UI pública las
+muestra como `Por anunciar` y el panel admin como `Sin juego asignado`.
 
 Si existe alguna fila en `weeks` con ese `game_id`, el endpoint devuelve:
 

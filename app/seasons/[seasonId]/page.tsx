@@ -57,7 +57,7 @@ function seasonStatusLabel(status: string) {
 function isSecretWeek(summary: WeekSummary, currentWeekNumber?: number) {
   return (
     summary.week.status === "draft" ||
-    summary.game.title.trim().toLowerCase() === "juego secreto" ||
+    summary.week.gameId === null ||
     (summary.season.status === "active" &&
       typeof currentWeekNumber === "number" &&
       summary.week.number > currentWeekNumber &&
@@ -111,7 +111,7 @@ function RealSeasonWeeksTable({
                 <StatusBadge status={summary.week.status} />
               </td>
               <td className="whitespace-nowrap px-4 py-4 theme-text">
-                {secret ? "Juego secreto" : summary.game.title}
+                {secret ? "Por anunciar" : summary.game.title}
               </td>
               <td className="whitespace-nowrap px-4 py-4">
                 {secret ? (

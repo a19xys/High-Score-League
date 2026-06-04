@@ -51,7 +51,7 @@ export type Season = {
 export type Week = {
   id: string;
   seasonId: string;
-  gameId: string;
+  gameId: string | null;
   number: number;
   startsAt: string;
   endsAt: string;

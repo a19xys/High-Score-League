@@ -56,7 +56,7 @@ estos estados por fechas, pero no genera resultados al cierre.
 `/admin/weeks/new` permite definir:
 
 - temporada (`season_id`);
-- juego (`game_id`);
+- juego (`game_id`), opcional mientras la semana no haya llegado a apertura;
 - apertura;
 - tramo final mediante selector;
 - cierre;
@@ -70,7 +70,13 @@ Tambien puede abrirse con una temporada precargada:
 
 Si no llega `seasonId`, el formulario selecciona la temporada activa si existe.
 El selector incluye siempre la opción `Selecciona una`. El juego no se autoselecciona:
-el selector empieza en `Elige uno`.
+el selector empieza en `Sin juego asignado`.
+
+Una semana sin juego asignado se puede guardar solo si por fechas sigue siendo
+`draft` o programada. Antes de que llegue la apertura, el admin debe asignar un
+juego real. La app publica muestra estas semanas como `Por anunciar`; el panel
+admin las muestra como `Sin juego asignado`. Ya no existe un juego real
+placeholder para ocultar semanas futuras.
 
 El `week_number` no se pide al admin al crear. El servidor lo calcula segun la
 posicion cronologica de la semana dentro de su temporada. Si una semana nueva o
@@ -125,6 +131,8 @@ formularios admin actuales.
 Validaciones server-side:
 
 - `week_number` no debe duplicarse dentro de una temporada.
+- Una semana sin `game_id` solo puede guardarse si todavia no ha llegado su
+  apertura.
 - Si una semana tiene apertura y cierre, no puede solaparse con otra semana de
   la misma temporada que tambien tenga apertura y cierre.
 - Si la temporada tiene `starts_at` y `ends_at`, la semana debe quedar dentro de

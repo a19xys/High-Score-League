@@ -309,6 +309,14 @@ export async function POST(request: NextRequest) {
     return jsonError("La semana indicada no existe o no es visible.", 404);
   }
 
+  if (!week.game_id) {
+    return jsonCodeError(
+      "WEEK_GAME_NOT_ASSIGNED",
+      "La semana no tiene juego asignado.",
+      409,
+    );
+  }
+
   const { data: membership, error: membershipError } = await supabase
     .from("season_memberships")
     .select("id")

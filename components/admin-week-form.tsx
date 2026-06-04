@@ -139,7 +139,7 @@ function initialState(
 
     return {
       seasonId: week.season_id,
-      gameId: week.game_id,
+      gameId: week.game_id ?? "",
       openDate: dateOnly(week.public_start_at),
       closeDate: dateOnly(week.final_deadline_at),
       finalStretchMode: finalStretch.mode,
@@ -335,10 +335,9 @@ export function AdminWeekForm({
           <select
             className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
             onChange={(event) => updateField("gameId", event.target.value)}
-            required
             value={state.gameId}
           >
-            <option value="">Elige uno</option>
+            <option value="">Sin juego asignado</option>
             {games.map((game) => (
               <option key={game.id} value={game.id}>
                 {game.title}
@@ -430,7 +429,7 @@ export function AdminWeekForm({
       <div className="flex flex-wrap items-center gap-3">
         <button
           className="rounded-md bg-circuit px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isPending || seasons.length === 0 || games.length === 0}
+          disabled={isPending || seasons.length === 0}
           type="submit"
         >
           {mode === "create" ? "Crear semana" : "Guardar cambios"}

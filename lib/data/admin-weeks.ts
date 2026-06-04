@@ -123,11 +123,11 @@ const weeklyResultColumns = `
 const benchmarkColumns =
   "id,week_id,label,score,description,sort_order,is_active,created_at,updated_at";
 
-function secretGame(): Game {
+function unassignedGame(): Game {
   return {
-    id: "secret",
-    title: "Juego secreto",
-    slug: "juego-secreto",
+    id: "unassigned",
+    title: "Sin juego asignado",
+    slug: "sin-juego-asignado",
     developers: [],
     publishers: [],
     perspectives: [],
@@ -137,7 +137,7 @@ function secretGame(): Game {
     developer: "",
     publisher: "",
     genre: "",
-    imageAlt: "Juego secreto",
+    imageAlt: "Sin juego asignado",
   };
 }
 
@@ -226,7 +226,7 @@ export async function getAdminWeekSummaries(supabase: SupabaseClient) {
         const weekSubmissions = submissionRows.filter(
           (submission) => submission.week_id === weekRow.id,
         );
-        const gameRow = gamesById.get(weekRow.game_id);
+        const gameRow = weekRow.game_id ? gamesById.get(weekRow.game_id) : null;
         const hasWeeklyResults = resultRows.some(
           (result) => result.week_id === weekRow.id,
         );
@@ -238,7 +238,7 @@ export async function getAdminWeekSummaries(supabase: SupabaseClient) {
             ...week,
             status: getSynchronizedWeekStatus(weekRow, new Date(), hasWeeklyResults),
           },
-          game: gameRow ? mapGameRowToGame(gameRow) : secretGame(),
+          game: gameRow ? mapGameRowToGame(gameRow) : unassignedGame(),
           submissionCount: weekSubmissions.length,
           invalidSubmissionCount: weekSubmissions.filter(
             (submission) => !submission.is_valid,
@@ -407,9 +407,11 @@ export async function getAdminWeekDetail(
     return { data: null, error: "La temporada de la semana no es visible." };
   }
 
-  const gameRow = context.gamesById.get(week.data.game_id);
+  const gameRow = week.data.game_id
+    ? context.gamesById.get(week.data.game_id)
+    : null;
   const mappedWeek = mapWeekRowToWeek(week.data as WeekRow);
-  const mappedGame = gameRow ? mapGameRowToGame(gameRow) : secretGame();
+  const mappedGame = gameRow ? mapGameRowToGame(gameRow) : unassignedGame();
   const weekSubmissions = context.submissionsByWeek.get(weekId) ?? [];
   const weekResults = context.resultsByWeek.get(weekId) ?? [];
   const synchronizedStatus = getSynchronizedWeekStatus(

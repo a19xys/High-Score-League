@@ -26,11 +26,16 @@ clasificacion real desde `weekly_results` y podio real cuando existen
 resultados oficiales.
 
 `/weeks` lee `public.weeks`, `public.seasons` y `public.games`. Las semanas de
-temporadas `draft` no aparecen. Las semanas secretas o futuras no revelan juego.
+temporadas `draft` no aparecen. Las semanas secretas, futuras o sin `game_id`
+no revelan juego y se muestran como `Por anunciar`.
 
 `/weeks/[weekId]` lee semana, temporada, juego, submissions, benchmarks y
 `weekly_results` reales. Si la semana no existe o esta oculta, muestra estado
 limpio.
+
+Una semana real sin juego asignado queda como configuracion incompleta si ya ha
+llegado a apertura. El cron no la publica ni genera resultados y el ingest no
+acepta submissions hasta que el admin asigne un juego real.
 
 `/game` redirige a `/weeks/[weekId]` de la semana activa o en tramo final.
 

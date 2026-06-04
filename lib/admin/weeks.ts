@@ -1,3 +1,5 @@
+import { getSynchronizedWeekStatus } from "@/lib/week-status";
+
 export type WeekFormPayload = {
   seasonId?: unknown;
   gameId?: unknown;
@@ -22,7 +24,7 @@ export type ValidatedWeekPayload =
       ok: true;
       data: {
         season_id: string;
-        game_id: string;
+        game_id: string | null;
         public_start_at: string | null;
         public_freeze_at: string | null;
         final_deadline_at: string | null;
@@ -265,7 +267,7 @@ function validateOrderedDates(
 export function validateWeekPayload(payload: WeekFormPayload): ValidatedWeekPayload {
   const seasonId = requiredText(payload.seasonId, "season_id");
   if (!seasonId.ok) return { ok: false, error: seasonId.error };
-  const gameId = requiredText(payload.gameId, "game_id");
+  const gameId = optionalText(payload.gameId, "game_id");
   if (!gameId.ok) return { ok: false, error: gameId.error };
 
   const openDate = requiredDateOnly(payload.openDate, "openDate");
@@ -312,6 +314,20 @@ export function validateWeekPayload(payload: WeekFormPayload): ValidatedWeekPayl
     ? madridTimestamp(finalStretchDate.value, "00:00:00")
     : null;
   const finalDeadlineAt = madridTimestamp(closeDate.value, "23:59:59");
+  const synchronizedStatus = getSynchronizedWeekStatus({
+    status: "draft",
+    public_start_at: publicStartAt,
+    public_freeze_at: publicFreezeAt,
+    final_deadline_at: finalDeadlineAt,
+  });
+
+  if (!gameId.value && synchronizedStatus !== "draft") {
+    return {
+      ok: false,
+      error:
+        "Una semana sin juego asignado solo puede guardarse si todavía no ha llegado su apertura.",
+    };
+  }
 
   const dateError = validateOrderedDates([
     { label: "public_start_at", value: publicStartAt },

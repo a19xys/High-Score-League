@@ -40,7 +40,7 @@ function isFutureWeek(summary: WeekSummary, currentWeekNumber?: number) {
 function isSecretWeek(summary: WeekSummary, currentWeekNumber?: number) {
   return (
     isFutureWeek(summary, currentWeekNumber) ||
-    summary.game.title.trim().toLowerCase() === "juego secreto" ||
+    summary.week.gameId === null ||
     summary.week.status === "draft"
   );
 }
@@ -115,7 +115,7 @@ export function WeeksTable({
           summary.season.name,
           `Semana ${summary.week.number}`,
           String(summary.week.number),
-          secret ? "Juego secreto" : summary.game.title,
+          secret ? "Por anunciar" : summary.game.title,
           secret ? "" : summary.game.developers.join(" "),
           secret ? "" : summary.game.taxonomyTags.join(" "),
           secret ? "" : summary.winner?.username,
@@ -157,7 +157,7 @@ export function WeeksTable({
             case "week":
               return row.week.number;
             case "game":
-              return secret ? "Juego secreto" : row.game.title;
+              return secret ? "Por anunciar" : row.game.title;
             case "dates":
               return row.week.startsAt;
             case "status":
@@ -370,7 +370,7 @@ export function WeeksTable({
                     Semana {summary.week.number}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 theme-text">
-                    {secret ? "Juego secreto" : summary.game.title}
+                    {secret ? "Por anunciar" : summary.game.title}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
                     {formatCompactDateRange(summary.week.startsAt, summary.week.endsAt)}

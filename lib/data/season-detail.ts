@@ -22,10 +22,6 @@ export type SeasonDetailData = {
   warning: string | null;
 };
 
-function isSecretGameTitle(title: string) {
-  return title.trim().toLowerCase() === "juego secreto";
-}
-
 export async function getSeasonDetailData(
   identifier: string,
 ): Promise<SeasonDetailData | null> {
@@ -69,13 +65,13 @@ export async function getSeasonDetailData(
     .sort((a, b) => a.week_number - b.week_number);
   const gameRowsById = new Map(gamesResult.rows.map((game) => [game.id, game]));
   const weekSummaries: WeekSummary[] = realWeekRows.map((weekRow) => {
-    const gameRow = gameRowsById.get(weekRow.game_id);
+    const gameRow = weekRow.game_id ? gameRowsById.get(weekRow.game_id) : null;
     const rawGame = gameRow
       ? mapGameRowToGame(gameRow)
       : {
-          id: weekRow.game_id,
-          title: "Juego no disponible",
-          slug: "juego-no-disponible",
+          id: weekRow.game_id ?? "unassigned",
+          title: "Por anunciar",
+          slug: "por-anunciar",
           developers: [],
           publishers: [],
           perspectives: [],
@@ -91,11 +87,11 @@ export async function getSeasonDetailData(
     const isSecret =
       derivedStatus === "draft" ||
       derivedStatus === "scheduled" ||
-      isSecretGameTitle(rawGame.title);
+      weekRow.game_id === null;
     const publicGame = isSecret
       ? {
           ...rawGame,
-          title: "Juego secreto",
+          title: "Por anunciar",
           developers: [],
           publishers: [],
           perspectives: [],

@@ -106,6 +106,15 @@ export async function POST(request: NextRequest) {
   for (const week of (weeksResult.data ?? []) as WeekRow[]) {
     weekDiagnostics.checked += 1;
 
+    if (week.status === "published") {
+      weekDiagnostics.skipped += 1;
+      weekDiagnostics.skippedDetails.push({
+        id: week.id,
+        reason: "already_published",
+      });
+      continue;
+    }
+
     if (!week.public_start_at || !week.final_deadline_at) {
       weekDiagnostics.skipped += 1;
       weekDiagnostics.skippedDetails.push({

@@ -291,6 +291,16 @@ export async function reconcileWeek(
 
   const officialResultCount = (officialResults ?? []).length;
   const dateDrivenStatus = resolveDateDrivenStatus(week, now);
+
+  if (!week.game_id && dateDrivenStatus !== "draft") {
+    return {
+      ok: false,
+      status: 409,
+      code: "WEEK_GAME_NOT_ASSIGNED",
+      error: "La semana no tiene juego asignado.",
+    };
+  }
+
   const reopened =
     (officialResultCount > 0 || week.status === "published") &&
     dateDrivenStatus !== "closed";

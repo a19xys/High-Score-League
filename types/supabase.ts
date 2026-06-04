@@ -48,7 +48,7 @@ export type GameRow = {
 export type WeekRow = {
   id: string;
   season_id: string;
-  game_id: string;
+  game_id: string | null;
   week_number: number;
   status: "draft" | "active" | "frozen" | "closed" | "published";
   public_start_at: string | null;

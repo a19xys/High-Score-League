@@ -55,11 +55,11 @@ export type ActiveWeekResult =
   | { status: "ok"; data: WeekDetailData }
   | { status: "empty"; message: string; warning?: string | null };
 
-function secretGame(): Game {
+function unannouncedGame(): Game {
   return {
-    id: "secret",
-    title: "Juego secreto",
-    slug: "juego-secreto",
+    id: "unassigned",
+    title: "Por anunciar",
+    slug: "por-anunciar",
     developers: [],
     publishers: [],
     perspectives: [],
@@ -69,7 +69,7 @@ function secretGame(): Game {
     developer: "",
     publisher: "",
     genre: "",
-    imageAlt: "Juego secreto",
+    imageAlt: "Juego por anunciar",
   };
 }
 
@@ -89,10 +89,6 @@ function unavailableGame(gameId: string): Game {
     genre: "",
     imageAlt: "Juego no disponible",
   };
-}
-
-function isSecretGameTitle(title: string) {
-  return title.trim().toLowerCase() === "juego secreto";
 }
 
 async function readRealWeekContext() {
@@ -146,8 +142,12 @@ async function buildRealWeekDetail(
       );
     })
     .sort((a, b) => a.week_number - b.week_number)[0];
-  const gameRow = context.games.find((game) => game.id === weekRow.game_id);
-  const rawGame = gameRow ? mapGameRowToGame(gameRow) : unavailableGame(weekRow.game_id);
+  const gameRow = weekRow.game_id
+    ? context.games.find((game) => game.id === weekRow.game_id)
+    : null;
+  const rawGame = gameRow
+    ? mapGameRowToGame(gameRow)
+    : unavailableGame(weekRow.game_id ?? "unassigned");
   const preliminaryDerivedStatus = getDerivedWeekStatusFromRow(weekRow);
   const isFuture =
     seasonRow.status === "active" &&
@@ -158,16 +158,21 @@ async function buildRealWeekDetail(
     preliminaryDerivedStatus === "draft" ||
     preliminaryDerivedStatus === "scheduled" ||
     Boolean(isFuture) ||
-    isSecretGameTitle(rawGame.title);
+    weekRow.game_id === null;
   const week = mapWeekRowToWeek(weekRow);
   const rules = isSecret
-    ? ["El juego, instrucciones y descargas permanecerán ocultos hasta que se active la semana."]
+    ? ["El juego, instrucciones y descargas permanecerán ocultos hasta que se anuncie la semana."]
     : week.rules;
   const submissionsResult = isSecret ? null : await getRealSubmissions(weekRow.id);
   const benchmarksResult = isSecret ? null : await getRealWeekBenchmarks(weekRow.id);
   const weeklyResultsResult = isSecret ? null : await getRealWeeklyResults(weekRow.id);
   const warningParts = [
     warning,
+    weekRow.game_id === null &&
+    preliminaryDerivedStatus !== "draft" &&
+    preliminaryDerivedStatus !== "scheduled"
+      ? "Configuración incompleta: la semana no tiene juego asignado."
+      : null,
     submissionsResult?.error
       ? `No se pudieron cargar submissions reales: ${submissionsResult.error}.`
       : null,
@@ -198,7 +203,7 @@ async function buildRealWeekDetail(
       context.weeks.filter((row) => row.season_id === seasonRow.id).length,
     ),
     week: visibleWeek,
-    game: isSecret ? secretGame() : rawGame,
+    game: isSecret ? unannouncedGame() : rawGame,
     leaderboard: isSecret
       ? []
       : buildLeaderboardFromSubmissions(realSubmissionRows, visibleWeek.status),
