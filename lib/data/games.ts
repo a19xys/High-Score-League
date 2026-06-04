@@ -45,7 +45,7 @@ export function mapGameRowToGame(row: GameRow): Game {
   const perspectives = row.perspectives ?? [];
   const themes = row.themes ?? [];
   const genres = row.genres ?? [];
-  const taxonomyTags = [...perspectives, ...themes, ...genres];
+  const taxonomyTags = [...genres, ...themes, ...perspectives];
 
   return {
     id: row.id,

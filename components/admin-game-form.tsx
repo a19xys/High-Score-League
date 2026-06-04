@@ -326,10 +326,10 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
         />
         <div className="md:col-span-2">
           <TaxonomySelector
-            label="Perspectiva"
-            onChange={(values) => updateList("perspectives", values)}
-            options={GAME_PERSPECTIVES}
-            values={state.perspectives}
+            label="Género"
+            onChange={(values) => updateList("genres", values)}
+            options={GAME_GENRES}
+            values={state.genres}
           />
         </div>
         <div className="md:col-span-2">
@@ -342,10 +342,10 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
         </div>
         <div className="md:col-span-2">
           <TaxonomySelector
-            label="Género"
-            onChange={(values) => updateList("genres", values)}
-            options={GAME_GENRES}
-            values={state.genres}
+            label="Perspectiva"
+            onChange={(values) => updateList("perspectives", values)}
+            options={GAME_PERSPECTIVES}
+            values={state.perspectives}
           />
         </div>
         <label className="block md:col-span-2">

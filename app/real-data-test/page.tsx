@@ -92,7 +92,7 @@ function GamesRows({ games }: { games: GameRow[] }) {
               {game.developers.length > 0 ? game.developers.join(" · ") : "-"}
             </td>
             <td className="px-4 py-3 theme-text-muted">
-              {[...game.perspectives, ...game.themes, ...game.genres].join(" · ") || "-"}
+              {[...game.genres, ...game.themes, ...game.perspectives].join(" · ") || "-"}
             </td>
             <td className="px-4 py-3 theme-text-muted">{game.rom_name ?? "-"}</td>
           </tr>

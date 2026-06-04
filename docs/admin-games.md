@@ -46,11 +46,15 @@ libre, pero admiten múltiples entradas sin vacíos ni duplicados.
 
 En listados, la columna `Género` muestra una combinación compacta de:
 
-- perspectivas;
-- temas;
 - géneros.
+- temas;
+- perspectivas.
 
-Ejemplo: `Lateral · Acción · Plataformas`.
+Ejemplo: `Plataformas · Acción · Lateral`.
+
+El orden visual de etiquetas combinadas es siempre: género, tema y perspectiva.
+En la tabla se muestran como chips compactos de una sola línea; si no caben
+todos, aparece un chip `+N` y el listado completo queda disponible en `title`.
 
 ## Listado
 
@@ -64,10 +68,12 @@ Ejemplo: `Lateral · Acción · Plataformas`.
 - ROM;
 - enlace de edición.
 
-Incluye buscador general y filtros avanzados por año, desarrollador, editor y
-género combinado. En móvil se priorizan solo título y acción de edición; el
-título ya no es enlace para evitar una tabla demasiado cargada en pantallas
-pequeñas.
+Incluye buscador general y filtros avanzados en este orden: año, género,
+desarrollador y editor. La tabla se ordena por defecto por año ascendente, con
+los juegos sin año al final, y por título como desempate. La cabecera de título
+permite alternar orden ascendente y descendente. En móvil se priorizan solo
+título y acción de edición; el título ya no es enlace para evitar una tabla
+demasiado cargada en pantallas pequeñas.
 
 ## Crear y editar juego
 
@@ -78,9 +84,9 @@ pequeñas.
 - desarrolladores múltiples;
 - editores múltiples;
 - ROM opcional;
-- perspectivas múltiples;
-- temas múltiples;
 - géneros múltiples;
+- temas múltiples;
+- perspectivas múltiples;
 - URL de imagen opcional;
 - instrucciones opcionales;
 - URL del manual opcional;

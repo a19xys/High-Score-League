@@ -60,7 +60,7 @@ export const GAME_GENRES = [
 ] as const;
 
 export const GAME_TAXONOMY = {
-  perspectives: GAME_PERSPECTIVES,
-  themes: GAME_THEMES,
   genres: GAME_GENRES,
+  themes: GAME_THEMES,
+  perspectives: GAME_PERSPECTIVES,
 } as const;

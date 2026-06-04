@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { GameRow } from "@/types/supabase";
-import { DataTable } from "./ui/table";
 import { EmptyState } from "./ui/state";
 
 type AdminGamesTableProps = {
@@ -11,6 +10,12 @@ type AdminGamesTableProps = {
 };
 
 type FilterKey = "year" | "developer" | "publisher" | "genre";
+type SortKey = "year" | "title";
+type SortDirection = "asc" | "desc";
+type SortState = {
+  key: SortKey;
+  direction: SortDirection;
+};
 
 type Filters = Record<FilterKey, string>;
 
@@ -39,9 +44,7 @@ function normalizeText(value: unknown): string {
 
 function getFilterValues(value: unknown): string[] {
   if (Array.isArray(value)) {
-    return value
-      .map((item) => normalizeText(item).trim())
-      .filter(Boolean);
+    return value.map((item) => normalizeText(item).trim()).filter(Boolean);
   }
 
   const normalized = normalizeText(value).trim();
@@ -59,7 +62,7 @@ function getUniqueOptions(games: GameRow[], key: FilterKey): string[] {
           ? game.developers
           : key === "publisher"
             ? game.publishers
-            : [...game.perspectives, ...game.themes, ...game.genres];
+            : [...game.genres, ...game.themes, ...game.perspectives];
 
     for (const option of getFilterValues(value)) {
       options.add(option);
@@ -109,7 +112,7 @@ function matchesFilter(game: GameRow, key: FilterKey, selected: string) {
         ? game.developers
         : key === "publisher"
           ? game.publishers
-          : [...game.perspectives, ...game.themes, ...game.genres];
+          : [...game.genres, ...game.themes, ...game.perspectives];
   return getFilterValues(value).some((option) => option === selected);
 }
 
@@ -117,40 +120,213 @@ function hasActiveFilters(filters: Filters) {
   return Object.values(filters).some(Boolean);
 }
 
-function renderListValue(value: string | string[] | number | null | undefined) {
+function compareTitles(a: GameRow, b: GameRow, direction: SortDirection) {
+  const result = a.title.localeCompare(b.title, "es", {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+  return direction === "asc" ? result : -result;
+}
+
+function compareYears(a: GameRow, b: GameRow, direction: SortDirection) {
+  const aYear = typeof a.year === "number" ? a.year : null;
+  const bYear = typeof b.year === "number" ? b.year : null;
+  const aHasYear = aYear !== null;
+  const bHasYear = bYear !== null;
+
+  if (!aHasYear && !bHasYear) {
+    return compareTitles(a, b, "asc");
+  }
+
+  if (!aHasYear) {
+    return 1;
+  }
+
+  if (!bHasYear) {
+    return -1;
+  }
+
+  const result = aYear - bYear;
+
+  if (result !== 0) {
+    return direction === "asc" ? result : -result;
+  }
+
+  return compareTitles(a, b, "asc");
+}
+
+function sortGames(games: GameRow[], sort: SortState) {
+  return [...games].sort((a, b) => {
+    if (sort.key === "title") {
+      return compareTitles(a, b, sort.direction);
+    }
+
+    return compareYears(a, b, sort.direction);
+  });
+}
+
+function rowGridClass() {
+  return "grid grid-cols-[minmax(0,1fr)_4.25rem] md:grid-cols-[minmax(0,1.3fr)_4.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.45fr)_minmax(0,0.75fr)_4.25rem]";
+}
+
+function cellClass(extra = "") {
+  return `min-w-0 overflow-hidden px-3 py-3 ${extra}`;
+}
+
+function MeasuredTagList({
+  values,
+  emptyLabel = "-",
+}: {
+  values: string[];
+  emptyLabel?: string;
+}) {
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const measureRef = useRef<HTMLSpanElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(0);
+  const normalizedValues = values.map((value) => value.trim()).filter(Boolean);
+
+  useEffect(() => {
+    const element = containerRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const updateWidth = () => setContainerWidth(element.clientWidth);
+    updateWidth();
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    if (normalizedValues.length === 0) {
+      setVisibleCount(0);
+      return;
+    }
+
+    const measurer = measureRef.current;
+
+    if (!measurer || containerWidth <= 0) {
+      setVisibleCount(Math.min(normalizedValues.length, 1));
+      return;
+    }
+
+    const gap = 4;
+    const chipWidths = normalizedValues.map((_, index) => {
+      const chip = measurer.querySelector<HTMLElement>(
+        `[data-chip-index="${index}"]`,
+      );
+      return chip?.offsetWidth ?? 0;
+    });
+    const moreChipWidth =
+      measurer.querySelector<HTMLElement>("[data-more-chip]")?.offsetWidth ?? 0;
+
+    let nextVisibleCount = 0;
+
+    for (let count = normalizedValues.length; count >= 0; count -= 1) {
+      const hiddenCount = normalizedValues.length - count;
+      const visibleWidth = chipWidths
+        .slice(0, count)
+        .reduce((total, width) => total + width, 0);
+      const chipCount = count + (hiddenCount > 0 ? 1 : 0);
+      const totalWidth =
+        visibleWidth +
+        Math.max(0, chipCount - 1) * gap +
+        (hiddenCount > 0 ? moreChipWidth : 0);
+
+      if (totalWidth <= containerWidth) {
+        nextVisibleCount = count;
+        break;
+      }
+    }
+
+    setVisibleCount(nextVisibleCount);
+  }, [containerWidth, normalizedValues.join("\u0000"), normalizedValues.length]);
+
+  if (normalizedValues.length === 0) {
+    return <span className="theme-text-muted">{emptyLabel}</span>;
+  }
+
+  const fullTitle = normalizedValues.join(" · ");
+  const safeVisibleCount =
+    visibleCount === 0 && containerWidth > 0
+      ? 0
+      : Math.min(visibleCount || 1, normalizedValues.length);
+  const visibleValues = normalizedValues.slice(0, safeVisibleCount);
+  const hiddenCount = normalizedValues.length - safeVisibleCount;
+
+  return (
+    <span
+      className="relative block min-w-0 overflow-hidden whitespace-nowrap"
+      ref={containerRef}
+      title={fullTitle}
+    >
+      <span className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-hidden whitespace-nowrap">
+        {visibleValues.map((item) => (
+          <span
+            className="inline-block max-w-[8rem] shrink-0 truncate rounded-full border px-2 py-0.5 text-xs theme-border theme-surface-muted theme-text-muted"
+            key={item}
+            title={item}
+          >
+            {item}
+          </span>
+        ))}
+        {hiddenCount > 0 ? (
+          <span
+            className="inline-block shrink-0 rounded-full border px-2 py-0.5 text-xs theme-border theme-text-muted"
+            title={fullTitle}
+          >
+            +{hiddenCount}
+          </span>
+        ) : null}
+      </span>
+      <span
+        aria-hidden
+        className="pointer-events-none fixed -left-[9999px] top-0 flex flex-nowrap gap-1 whitespace-nowrap opacity-0"
+        ref={measureRef}
+      >
+        {normalizedValues.map((item, index) => (
+          <span
+            className="inline-block max-w-[8rem] shrink-0 truncate rounded-full border px-2 py-0.5 text-xs theme-border theme-surface-muted theme-text-muted"
+            data-chip-index={index}
+            key={item}
+          >
+            {item}
+          </span>
+        ))}
+        <span
+          className="inline-block shrink-0 rounded-full border px-2 py-0.5 text-xs theme-border theme-text-muted"
+          data-more-chip
+        >
+          +99
+        </span>
+      </span>
+    </span>
+  );
+}
+
+function renderTagValue(value: string | string[] | number | null | undefined) {
+  return <MeasuredTagList values={getFilterValues(value)} />;
+}
+
+function renderTextValue(value: string | number | null | undefined) {
   const values = getFilterValues(value);
 
   if (values.length === 0) {
     return <span className="theme-text-muted">-</span>;
   }
 
-  if (values.length === 1) {
-    return (
-      <span className="block max-w-[14rem] truncate theme-text-muted" title={values[0]}>
-        {values[0]}
-      </span>
-    );
-  }
-
-  const visibleValues = values.slice(0, 2);
-  const hiddenCount = values.length - visibleValues.length;
-
   return (
-    <span className="flex max-w-[16rem] flex-wrap gap-1">
-      {visibleValues.map((item) => (
-        <span
-          className="max-w-[8rem] truncate rounded-full border px-2 py-0.5 text-xs theme-border theme-surface-muted theme-text-muted"
-          key={item}
-          title={item}
-        >
-          {item}
-        </span>
-      ))}
-      {hiddenCount > 0 ? (
-        <span className="rounded-full border px-2 py-0.5 text-xs theme-border theme-text-muted">
-          +{hiddenCount}
-        </span>
-      ) : null}
+    <span
+      className="block max-w-[8rem] truncate theme-text-muted"
+      title={values[0]}
+    >
+      {values[0]}
     </span>
   );
 }
@@ -189,6 +365,10 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
   const [search, setSearch] = useState("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [sort, setSort] = useState<SortState>({
+    key: "year",
+    direction: "asc",
+  });
 
   const filterOptions = useMemo(
     () => ({
@@ -202,19 +382,43 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
 
   const visibleGames = useMemo(
     () =>
-      games.filter(
-        (game) =>
-          matchesSearch(game, search) &&
-          matchesFilter(game, "year", filters.year) &&
-          matchesFilter(game, "developer", filters.developer) &&
-          matchesFilter(game, "publisher", filters.publisher) &&
-          matchesFilter(game, "genre", filters.genre),
+      sortGames(
+        games.filter(
+          (game) =>
+            matchesSearch(game, search) &&
+            matchesFilter(game, "year", filters.year) &&
+            matchesFilter(game, "developer", filters.developer) &&
+            matchesFilter(game, "publisher", filters.publisher) &&
+            matchesFilter(game, "genre", filters.genre),
+        ),
+        sort,
       ),
-    [filters, games, search],
+    [filters, games, search, sort],
   );
 
   function updateFilter(key: FilterKey, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  function toggleSort(key: SortKey) {
+    setSort((current) => {
+      if (current.key !== key) {
+        return { key, direction: "asc" };
+      }
+
+      return {
+        key,
+        direction: current.direction === "asc" ? "desc" : "asc",
+      };
+    });
+  }
+
+  function sortIndicator(key: SortKey) {
+    if (sort.key !== key) {
+      return "";
+    }
+
+    return sort.direction === "asc" ? " ↑" : " ↓";
   }
 
   return (
@@ -231,7 +435,7 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
         </label>
         <div className="flex flex-wrap gap-2">
           <button
-            className="rounded-md border px-4 py-3 text-sm font-semibold theme-border theme-hover theme-text"
+            className="rounded-md border px-3 py-3 text-sm font-semibold theme-border theme-hover theme-text"
             onClick={() => setShowAdvancedFilters((current) => !current)}
             type="button"
           >
@@ -239,15 +443,15 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
           </button>
           {hasActiveFilters(filters) ? (
             <button
-              className="rounded-md border px-4 py-3 text-sm font-semibold theme-border theme-hover theme-text-muted"
+              className="rounded-md border px-3 py-3 text-sm font-semibold theme-border theme-hover theme-text"
               onClick={() => setFilters(emptyFilters)}
               type="button"
             >
-              Limpiar filtros
+              Borrar filtros
             </button>
           ) : null}
           <Link
-            className="rounded-md bg-circuit px-4 py-3 text-sm font-semibold text-white"
+            className="rounded-md bg-circuit px-3 py-3 text-sm font-semibold text-white"
             href="/admin/games/new"
           >
             Crear juego
@@ -264,6 +468,12 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
             value={filters.year}
           />
           <FilterSelect
+            label="Género"
+            onChange={(value) => updateFilter("genre", value)}
+            options={filterOptions.genre}
+            value={filters.genre}
+          />
+          <FilterSelect
             label="Desarrollador"
             onChange={(value) => updateFilter("developer", value)}
             options={filterOptions.developer}
@@ -274,12 +484,6 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
             onChange={(value) => updateFilter("publisher", value)}
             options={filterOptions.publisher}
             value={filters.publisher}
-          />
-          <FilterSelect
-            label="Género"
-            onChange={(value) => updateFilter("genre", value)}
-            options={filterOptions.genre}
-            value={filters.genre}
           />
         </div>
       ) : null}
@@ -298,74 +502,134 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
           }
         />
       ) : (
-        <DataTable>
-          <thead className="text-xs font-semibold uppercase theme-table-head">
-            <tr>
-              <th className="whitespace-nowrap px-4 py-3" scope="col">
-                Título
-              </th>
-              <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
-                Año
-              </th>
-              <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
-                Desarrollador
-              </th>
-              <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
-                Editor
-              </th>
-              <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
-                Género
-              </th>
-              <th className="hidden whitespace-nowrap px-4 py-3 md:table-cell" scope="col">
-                ROM
-              </th>
-              <th className="whitespace-nowrap px-4 py-3" scope="col">
-                Acciones
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y theme-border theme-surface">
-            {visibleGames.map((game) => (
-              <tr className="theme-hover" key={game.id}>
-                <td className="px-4 py-4 font-semibold theme-text">
-                  <span
-                    className="block max-w-[14rem] truncate sm:max-w-xs"
-                    title={game.title}
+        <div className="rounded-lg border theme-border theme-surface">
+          <div className="w-full text-left text-sm" role="table">
+            <div
+              className="text-xs font-semibold uppercase theme-table-head"
+              role="rowgroup"
+            >
+                <div className={rowGridClass()} role="row">
+                  <div
+                    aria-sort={
+                      sort.key === "title"
+                        ? sort.direction === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                    className={cellClass("whitespace-nowrap")}
+                    role="columnheader"
                   >
-                    {game.title}
-                  </span>
-                </td>
-                <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted md:table-cell">
-                  {game.year ?? "-"}
-                </td>
-                <td className="hidden px-4 py-4 md:table-cell">
-                  {renderListValue(game.developers)}
-                </td>
-                <td className="hidden px-4 py-4 md:table-cell">
-                  {renderListValue(game.publishers)}
-                </td>
-                <td className="hidden px-4 py-4 md:table-cell">
-                  {renderListValue([
-                    ...game.perspectives,
-                    ...game.themes,
-                    ...game.genres,
-                  ])}
-                </td>
-                <td className="hidden px-4 py-4 md:table-cell">
-                  {renderListValue(game.rom_name)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-4">
-                  <Link
-                    className="font-semibold text-circuit hover:underline"
-                    href={`/admin/games/${game.id}`}
+                    <button
+                      className="font-semibold uppercase theme-hover theme-text"
+                      onClick={() => toggleSort("title")}
+                      type="button"
+                    >
+                      Título{sortIndicator("title")}
+                    </button>
+                  </div>
+                  <div
+                    aria-sort={
+                      sort.key === "year"
+                        ? sort.direction === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                    className={cellClass("hidden whitespace-nowrap md:block")}
+                    role="columnheader"
                   >
-                    Editar
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </DataTable>
+                    <button
+                      className="font-semibold uppercase theme-hover theme-text"
+                      onClick={() => toggleSort("year")}
+                      type="button"
+                    >
+                      Año{sortIndicator("year")}
+                    </button>
+                  </div>
+                  <div
+                    className={cellClass("hidden whitespace-nowrap md:block")}
+                    role="columnheader"
+                  >
+                    Desarrollador
+                  </div>
+                  <div
+                    className={cellClass("hidden whitespace-nowrap md:block")}
+                    role="columnheader"
+                  >
+                    Editor
+                  </div>
+                  <div
+                    className={cellClass("hidden whitespace-nowrap md:block")}
+                    role="columnheader"
+                  >
+                    Género
+                  </div>
+                  <div
+                    className={cellClass("hidden whitespace-nowrap md:block")}
+                    role="columnheader"
+                  >
+                    ROM
+                  </div>
+                  <div
+                    className={cellClass("whitespace-nowrap")}
+                    role="columnheader"
+                  >
+                  </div>
+                </div>
+              </div>
+              <div className="divide-y theme-border theme-surface" role="rowgroup">
+                {visibleGames.map((game) => (
+                  <div
+                    className={`${rowGridClass()} theme-hover`}
+                    key={game.id}
+                    role="row"
+                  >
+                    <div className={cellClass("font-semibold theme-text")} role="cell">
+                      <span
+                        className="block max-w-[16rem] truncate md:max-w-[18rem]"
+                        title={game.title}
+                      >
+                        {game.title}
+                      </span>
+                    </div>
+                    <div
+                      className={cellClass(
+                        "hidden whitespace-nowrap theme-text-muted md:block",
+                      )}
+                      role="cell"
+                    >
+                      {game.year ?? "-"}
+                    </div>
+                    <div className={cellClass("hidden md:block")} role="cell">
+                      {renderTagValue(game.developers)}
+                    </div>
+                    <div className={cellClass("hidden md:block")} role="cell">
+                      {renderTagValue(game.publishers)}
+                    </div>
+                    <div className={cellClass("hidden md:block")} role="cell">
+                      {renderTagValue([
+                        ...game.genres,
+                        ...game.themes,
+                        ...game.perspectives,
+                      ])}
+                    </div>
+                    <div className={cellClass("hidden md:block")} role="cell">
+                      {renderTextValue(game.rom_name)}
+                    </div>
+                    <div className={cellClass("whitespace-nowrap")} role="cell">
+                      <Link
+                        className="font-semibold text-circuit hover:underline"
+                        href={`/admin/games/${game.id}`}
+                      >
+                        Editar
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+          </div>
+        </div>
       )}
     </div>
   );
