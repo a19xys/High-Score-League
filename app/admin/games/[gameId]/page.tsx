@@ -1,40 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { AdminGameForm } from "@/components/admin-game-form";
 import { Card, CardHeader } from "@/components/ui/card";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminGameById } from "@/lib/data/admin-games";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Editar juego | High Score League",
+};
 
 type AdminGamePageProps = {
   params: Promise<{
     gameId: string;
   }>;
 };
-
-function AdminGateMessage({
-  title,
-  description,
-  showLogin,
-}: {
-  title: string;
-  description: string;
-  showLogin?: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader title={title} eyebrow="Administración">
-        {description}
-      </CardHeader>
-      {showLogin ? (
-        <Link className="font-semibold text-circuit hover:underline" href="/login">
-          Iniciar sesión
-        </Link>
-      ) : null}
-    </Card>
-  );
-}
 
 export default async function AdminGamePage({ params }: AdminGamePageProps) {
   const auth = await requireAdmin();
@@ -75,8 +57,8 @@ export default async function AdminGamePage({ params }: AdminGamePageProps) {
       </Link>
       <Card>
         <CardHeader title={row.title} eyebrow="Editar juego">
-          No se permite borrar juegos en esta fase para no romper semanas
-          existentes.
+          Edita los datos del juego. Los juegos asociados a semanas existentes
+          se conservan para mantener el historial de la liga.
         </CardHeader>
         <AdminGameForm game={row} mode="edit" />
       </Card>

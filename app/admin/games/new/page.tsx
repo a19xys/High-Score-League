@@ -1,32 +1,14 @@
 import Link from "next/link";
+import type { Metadata } from "next";
+import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { AdminGameForm } from "@/components/admin-game-form";
 import { Card, CardHeader } from "@/components/ui/card";
 import { requireAdmin } from "@/lib/auth/admin";
 
 export const dynamic = "force-dynamic";
-
-function AdminGateMessage({
-  title,
-  description,
-  showLogin,
-}: {
-  title: string;
-  description: string;
-  showLogin?: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader title={title} eyebrow="Administración">
-        {description}
-      </CardHeader>
-      {showLogin ? (
-        <Link className="font-semibold text-circuit hover:underline" href="/login">
-          Iniciar sesión
-        </Link>
-      ) : null}
-    </Card>
-  );
-}
+export const metadata: Metadata = {
+  title: "Crear juego | High Score League",
+};
 
 export default async function NewAdminGamePage() {
   const auth = await requireAdmin();
@@ -51,8 +33,8 @@ export default async function NewAdminGamePage() {
       </Link>
       <Card>
         <CardHeader title="Crear juego" eyebrow="Catálogo">
-          image_url y manual_url son texto por ahora. No hay Storage ni subida
-          de imágenes o manuales.
+          Añade un juego al catálogo de la liga. Completa sus datos básicos,
+          instrucciones y enlaces externos.
         </CardHeader>
         <AdminGameForm mode="create" />
       </Card>

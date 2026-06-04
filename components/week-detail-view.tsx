@@ -72,7 +72,7 @@ export function WeekDetailView({
     weekInstructions.length > 0 ? weekInstructions.join("\n") : gameInstructions;
   const instructionSource =
     weekInstructions.length > 0
-      ? "Instrucciones especÃ­ficas de esta semana"
+      ? "Instrucciones específicas de esta semana"
       : gameInstructions
         ? "Instrucciones del juego"
         : null;
@@ -84,12 +84,12 @@ export function WeekDetailView({
         <div className="flex flex-wrap gap-3 text-sm font-semibold">
           {backHref ? (
             <Link className="text-circuit hover:underline" href={backHref}>
-              {backLabel ?? "â† Volver"}
+              {backLabel ?? "← Volver"}
             </Link>
           ) : null}
           {seasonBackHref ? (
             <Link className="theme-text-muted hover:underline" href={seasonBackHref}>
-              {seasonBackLabel ?? `â† Volver a ${season.name}`}
+              {seasonBackLabel ?? `← Volver a ${season.name}`}
             </Link>
           ) : null}
         </div>
@@ -98,7 +98,7 @@ export function WeekDetailView({
         <GameHero game={game} />
         <Card>
           <CardHeader
-            eyebrow={`${season.name} Â· Semana ${week.number}`}
+            eyebrow={`${season.name} · Semana ${week.number}`}
             title={game.title}
             action={<StatusBadge status={week.status} />}
           >
@@ -133,7 +133,7 @@ export function WeekDetailView({
               ) : (
                 <EmptyState
                   title="No hay instrucciones disponibles."
-                  description="AÃ±ade instrucciones al juego o un override especÃ­fico en la semana."
+                  description="Añade instrucciones al juego o un override específico en la semana."
                 />
               )}
             </div>
@@ -157,17 +157,17 @@ export function WeekDetailView({
         {leaderboardPending ? (
           <EmptyState
             title="Leaderboard pendiente de conectar."
-            description="Las puntuaciones reales se mostrarÃ¡n cuando conectemos submissions y weekly_results."
+            description="Las puntuaciones reales se mostrarán cuando conectemos submissions y weekly_results."
           />
         ) : leaderboard.length > 0 || benchmarks.length > 0 ? (
           <LeaderboardTable benchmarks={benchmarks} entries={leaderboard} />
         ) : (
           <EmptyState
-            title="TodavÃ­a no hay puntuaciones para esta semana."
+            title="Todaví­a no hay puntuaciones para esta semana."
             description={
               dataMode === "supabase"
-                ? "TodavÃ­a no hay envÃ­os visibles para construir el leaderboard."
-                : "Cuando conectemos Supabase, este detalle cargarÃ¡ envÃ­os reales."
+                ? "Todaví­a no hay enví­os visibles para construir el leaderboard."
+                : "Cuando conectemos Supabase, este detalle cargará enví­os reales."
             }
           />
         )}
@@ -176,12 +176,12 @@ export function WeekDetailView({
       {showOfficialResults ? (
         <Card>
           <CardHeader title="Resultados oficiales" eyebrow="weekly_results">
-            Estos resultados ya fueron confirmados por administraciÃ³n y cuentan
-            para la clasificaciÃ³n de temporada.
+            Estos resultados ya fueron confirmados por administración y cuentan
+            para la clasificación de temporada.
           </CardHeader>
           {weeklyResults.length > 0 ? (
             <DataTable>
-              <TableHead labels={["Puesto", "Jugador", "PuntuaciÃ³n", "Puntos"]} />
+              <TableHead labels={["Puesto", "Jugador", "Puntuación", "Puntos"]} />
               <tbody className="divide-y theme-border theme-surface">
                 {weeklyResults.map((result) => (
                   <tr className="theme-hover" key={result.id}>
@@ -207,7 +207,7 @@ export function WeekDetailView({
           ) : (
             <EmptyState
               title="No hay resultados oficiales publicados."
-              description="La tabla weekly_results se leerÃ¡ aquÃ­ cuando exista contenido."
+              description="La tabla weekly_results se leerá aquí­ cuando exista contenido."
             />
           )}
         </Card>
@@ -215,17 +215,17 @@ export function WeekDetailView({
 
       <Card>
         <CardHeader
-          title="Historial de envÃ­os"
+          title="Historial de enví­os"
           eyebrow="Submissions reales"
         />
         {submissionsPending ? (
           <EmptyState
-            title="Historial de envÃ­os pendiente."
-            description="Los envÃ­os reales se cargarÃ¡n cuando conectemos submissions."
+            title="Historial de enví­os pendiente."
+            description="Los enví­os reales se cargarán cuando conectemos submissions."
           />
         ) : (
           <SubmissionsTable
-            emptyTitle="TodavÃ­a no hay envÃ­os para esta semana."
+            emptyTitle="Todavía no hay envíos para esta semana."
             showDetectedAt={dataMode === "supabase"}
             showSource={dataMode === "supabase"}
             showWeek={false}

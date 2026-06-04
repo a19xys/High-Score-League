@@ -25,7 +25,7 @@ export function SubmissionsTable({
   showWeek = true,
   showSource = false,
   showDetectedAt = false,
-  emptyTitle = "TodavÃ­a no hay puntuaciones.",
+  emptyTitle = "Todavía no hay puntuaciones.",
   emptyDescription = "Los envíos aparecerán aquí cuando haya datos reales para esta sección.",
 }: SubmissionsTableProps) {
   if (submissions.length === 0) {
@@ -40,7 +40,7 @@ export function SubmissionsTable({
   const labels = [
     ...(showPlayer ? ["Jugador"] : []),
     ...(showWeek ? ["Semana"] : []),
-    "PuntuaciÃ³n",
+    "Puntuación",
     "Estado",
     ...(showSource ? ["Origen"] : []),
     "Enviada",
@@ -73,16 +73,16 @@ export function SubmissionsTable({
               {showWeek ? (
                 <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
                   {submission.week
-                    ? `Semana ${submission.week.number}${submission.game ? ` Â· ${submission.game.title}` : ""}`
+                    ? `Semana ${submission.week.number}${submission.game ? ` · ${submission.game.title}` : ""}`
                     : "Semana desconocida"}
                 </td>
               ) : null}
               <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
-                {hideScore ? "PuntuaciÃ³n oculta" : formatScore(submission.score)}
+                {hideScore ? "Puntuación oculta" : formatScore(submission.score)}
               </td>
               <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
                 {!submission.valid
-                  ? "InvÃ¡lida"
+                  ? "Inválida"
                   : submission.hidden && !isRevealedByWeekStatus
                     ? "Oculta"
                     : "Visible"}

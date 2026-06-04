@@ -216,9 +216,9 @@ export function LeagueChat({
       >
         {localMessages.length === 0 ? (
           <div className="rounded-lg border border-dashed p-5 text-center theme-border theme-surface">
-            <p className="font-semibold theme-text">TodavÃ­a no hay mensajes.</p>
+            <p className="font-semibold theme-text">Todavía no hay mensajes.</p>
             <p className="mt-2 text-sm theme-text-muted">
-              El chat mostrarÃ¡ los Ãºltimos 50 mensajes de la liga.
+              El chat mostrará los últimos 50 mensajes de la liga.
             </p>
           </div>
         ) : (
@@ -325,7 +325,7 @@ export function LeagueChat({
       {!canPost ? (
         <p className="text-sm theme-text-muted">
           <Link className="font-semibold text-circuit hover:underline" href="/login">
-            Inicia sesiÃ³n
+            Inicia sesión
           </Link>{" "}
           para participar en el chat.
         </p>

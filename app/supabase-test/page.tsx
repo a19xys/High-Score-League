@@ -26,7 +26,7 @@ async function readTable(
       table,
       count: null,
       rows: [],
-      error: "Supabase no estÃ¡ configurado.",
+      error: "Supabase no está configurado.",
     };
   }
 
@@ -57,11 +57,11 @@ export default async function SupabaseTestPage() {
     return (
       <div className="space-y-6">
         <Card>
-          <CardHeader title="Supabase test" eyebrow="ConexiÃ³n">
+          <CardHeader title="Supabase test" eyebrow="Conexión">
             Faltan variables de entorno para conectar con Supabase.
           </CardHeader>
           <EmptyState
-            title="Supabase no estÃ¡ configurado."
+            title="Supabase no está configurado."
             description={`Configura .env.local con: ${env.missing.join(", ")}.`}
           />
           <div className="mt-5 rounded-lg border p-4 text-sm theme-border theme-surface-muted">
@@ -116,7 +116,7 @@ export default async function SupabaseTestPage() {
       <Card>
         <CardHeader
           title="Supabase test"
-          eyebrow="ConexiÃ³n"
+          eyebrow="Conexión"
           action={
             <span
               className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase ${
@@ -154,14 +154,14 @@ export default async function SupabaseTestPage() {
         </p>
         {hasZeroVisibleRows ? (
           <p className="mt-2 text-sm theme-text-muted">
-            Hay conexiÃ³n, pero no hay filas visibles. Puede ser normal si las tablas no
-            tienen seed o si RLS no expone datos para esta sesiÃ³n.
+            Hay conexión, pero no hay filas visibles. Puede ser normal si las tablas no
+            tienen seed o si RLS no expone datos para esta sesión.
           </p>
         ) : null}
       </Card>
 
       <Card>
-        <CardHeader title="SesiÃ³n" eyebrow="Auth" />
+        <CardHeader title="Sesión" eyebrow="Auth" />
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
             <p className="text-xs font-semibold uppercase theme-text-muted">
@@ -176,10 +176,10 @@ export default async function SupabaseTestPage() {
           </div>
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
             <p className="text-xs font-semibold uppercase theme-text-muted">
-              SesiÃ³n
+              Sesión
             </p>
             <p className="mt-2 font-semibold theme-text">
-              {userData.user ? "Activa" : "Sin sesiÃ³n"}
+              {userData.user ? "Activa" : "Sin sesión"}
             </p>
             <p className="mt-1 text-sm theme-text-muted">
               {userData.user?.email ?? "No autenticado"}
@@ -210,7 +210,7 @@ export default async function SupabaseTestPage() {
             </p>
             <p className="mt-2 font-semibold theme-text">
               {realProfile
-                ? `${realProfile.initials} Â· @${realProfile.username}`
+                ? `${realProfile.initials} · @${realProfile.username}`
                 : "No visible"}
             </p>
             <p className="mt-1 text-sm theme-text-muted">
@@ -222,7 +222,7 @@ export default async function SupabaseTestPage() {
                     : "Jugador"
                   : userData.user
                     ? "Falta perfil o RLS lo oculta"
-                    : "Inicia sesiÃ³n para comprobar perfil"}
+                    : "Inicia sesión para comprobar perfil"}
             </p>
           </div>
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
@@ -243,8 +243,8 @@ export default async function SupabaseTestPage() {
         </div>
         {!userData.user && (hasErrors || hasZeroVisibleRows) ? (
           <p className="mt-4 text-sm theme-text-muted">
-            Si RLS bloquea lecturas sin sesiÃ³n, es esperable hasta iniciar sesiÃ³n o
-            definir polÃ­ticas pÃºblicas de lectura.
+            Si RLS bloquea lecturas sin sesión, es esperable hasta iniciar sesión o
+            definir políticas públicas de lectura.
           </p>
         ) : null}
       </Card>
@@ -254,7 +254,7 @@ export default async function SupabaseTestPage() {
           <CardHeader title={result.table} eyebrow="Resultado" />
           {result.error ? (
             <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">
-              Error de lectura: {result.error}. Si no hay sesiÃ³n, puede ser RLS.
+              Error de lectura: {result.error}. Si no hay sesión, puede ser RLS.
             </div>
           ) : result.rows.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border theme-border">
@@ -284,7 +284,7 @@ export default async function SupabaseTestPage() {
           ) : (
             <EmptyState
               title="Sin filas visibles."
-              description="La conexiÃ³n funciona, pero esta tabla no tiene datos visibles para la sesiÃ³n actual."
+              description="La conexión funciona, pero esta tabla no tiene datos visibles para la sesión actual."
             />
           )}
         </Card>

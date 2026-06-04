@@ -50,7 +50,7 @@ function BrandMark({ hasBrandLogo }: { hasBrandLogo: boolean }) {
     return (
       <img
         alt=""
-        className="h-10 w-10 rounded-md object-cover theme-surface-strong"
+        className="h-10 w-10 rounded-md object-contain bg-transparent"
         src="/brand/logo.png"
       />
     );
