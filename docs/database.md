@@ -181,7 +181,7 @@ Campos principales:
 - `message_type`: `user` o `system`.
 - `author_id`: perfil autor para mensajes `user`; `null` para mensajes
   `system`.
-- `content`: texto del mensaje, máximo 500 caracteres.
+- `content`: texto del mensaje, máximo 2000 caracteres en la validación de app y endpoint.
 - `created_at`.
 
 El chat conserva solo los 50 mensajes más nuevos mediante trigger. Al crear un

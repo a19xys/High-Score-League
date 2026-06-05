@@ -6,6 +6,8 @@ import {
 } from "@/lib/data/league-chat";
 import type { LeagueChatMessageRow } from "@/types/supabase";
 
+const chatMessageMaxLength = 2000;
+
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
 }
@@ -21,10 +23,10 @@ function validateContent(value: unknown) {
     return { ok: false as const, error: "El mensaje no puede estar vacío." };
   }
 
-  if (content.length > 500) {
+  if (content.length > chatMessageMaxLength) {
     return {
       ok: false as const,
-      error: "El mensaje no puede superar 500 caracteres.",
+      error: "El mensaje no puede superar 2000 caracteres.",
     };
   }
 
@@ -35,7 +37,7 @@ export async function GET() {
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
-    return jsonError("Supabase no está configurado.", 500);
+    return jsonError("No se pudo cargar el chat. Prueba a recargar la página.", 500);
   }
 
   const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -47,7 +49,8 @@ export async function GET() {
   const result = await getRealLeagueChatMessages();
 
   if (result.error) {
-    return jsonError(result.error, 500);
+    console.error("Chat read failed", result.error);
+    return jsonError("No se pudo cargar el chat. Prueba a recargar la página.", 500);
   }
 
   return NextResponse.json({ ok: true, messages: result.rows });
@@ -57,7 +60,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
-    return jsonError("Supabase no está configurado.", 500);
+    return jsonError("No se pudo enviar el mensaje. Inténtalo de nuevo.", 500);
   }
 
   let payload: unknown;
@@ -122,7 +125,8 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return jsonError("No se pudo guardar el mensaje.", 500);
+    console.error("Chat insert failed", error);
+    return jsonError("No se pudo enviar el mensaje. Inténtalo de nuevo.", 500);
   }
 
   return NextResponse.json(

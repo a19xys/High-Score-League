@@ -1,10 +1,19 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatExactDateTime, formatRelativeTime } from "@/lib/format";
 import type { LeagueChatMessage } from "@/types";
+
+const messageLimit = 2000;
 
 type LeagueChatProps = {
   messages: LeagueChatMessage[];
@@ -44,23 +53,22 @@ function isNearBottom(element: HTMLDivElement | null) {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 80;
 }
 
-function MessageAvatar({
-  message,
-  isOwn,
-}: {
-  message: LeagueChatMessage;
-  isOwn: boolean;
-}) {
+function SendIcon() {
   return (
-    <div
-      className={
-        isOwn
-          ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-circuit text-xs font-bold text-white"
-          : "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold theme-surface-strong"
-      }
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5"
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
     >
-      {message.author?.initials ?? "???"}
-    </div>
+      <path
+        d="M4.5 19.5 20 12 4.5 4.5l2.1 6.3L13 12l-6.4 1.2-2.1 6.3Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
   );
 }
 
@@ -71,28 +79,53 @@ export function LeagueChat({
   error = null,
 }: LeagueChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const shouldStickToBottom = useRef(true);
   const [draft, setDraft] = useState("");
   const [localMessages, setLocalMessages] = useState(() => normalizeMessages(messages));
   const [messageError, setMessageError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
-  const [isPending, startTransition] = useTransition();
+  const [isSending, setIsSending] = useState(false);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const element = scrollRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    element.scrollTo({
+      top: element.scrollHeight,
+      behavior,
+    });
+  }, []);
 
   const refreshMessages = useCallback(async () => {
     shouldStickToBottom.current = isNearBottom(scrollRef.current);
 
-    const response = await fetch("/api/chat/messages", {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-    const payload = (await response.json()) as ChatMessagesPayload;
+    try {
+      const response = await fetch("/api/chat/messages", {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
 
-    if (!response.ok || !payload.ok || !payload.messages) {
-      setMessageError(payload.error ?? "No se pudo actualizar el chat.");
-      return;
+      if (response.status === 401) {
+        return;
+      }
+
+      const payload = (await response.json()) as ChatMessagesPayload;
+
+      if (!response.ok || !payload.ok || !payload.messages) {
+        console.error("Chat refresh failed", payload.error);
+        setMessageError("No se pudo cargar el chat. Prueba a recargar la página.");
+        return;
+      }
+
+      setLocalMessages(normalizeMessages(payload.messages));
+    } catch (refreshError) {
+      console.error("Chat refresh failed", refreshError);
+      setMessageError("No se pudo cargar el chat. Prueba a recargar la página.");
     }
-
-    setLocalMessages(normalizeMessages(payload.messages));
   }, []);
 
   useEffect(() => {
@@ -155,28 +188,44 @@ export function LeagueChat({
     };
   }, [canPost, refreshMessages]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!shouldStickToBottom.current) {
       return;
     }
 
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "auto",
+    const frameId = window.requestAnimationFrame(() => {
+      scrollToBottom("auto");
     });
-  }, [localMessages.length]);
 
-  function sendMessage() {
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [localMessages.length, scrollToBottom]);
+
+  async function sendMessage() {
     const content = draft.trim();
+
+    if (isSending || !canPost) {
+      return;
+    }
 
     if (!content) {
       setMessageError("Escribe un mensaje antes de enviar.");
+      textareaRef.current?.focus();
+      return;
+    }
+
+    if (content.length > messageLimit) {
+      setMessageError("El mensaje no puede superar 2000 caracteres.");
+      textareaRef.current?.focus();
       return;
     }
 
     shouldStickToBottom.current = true;
     setMessageError(null);
-    startTransition(async () => {
+    setIsSending(true);
+
+    try {
       const response = await fetch("/api/chat/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -189,7 +238,12 @@ export function LeagueChat({
       };
 
       if (!response.ok || !payload.ok || !payload.message) {
-        setMessageError(payload.error ?? "No se pudo enviar el mensaje.");
+        console.error("Chat send failed", payload.error);
+        setMessageError(
+          payload.error === "El mensaje no puede superar 2000 caracteres."
+            ? payload.error
+            : "No se pudo enviar el mensaje. Inténtalo de nuevo.",
+        );
         return;
       }
 
@@ -197,14 +251,32 @@ export function LeagueChat({
       setLocalMessages((current) =>
         normalizeMessages([...current, payload.message as LeagueChatMessage]),
       );
-    });
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        scrollToBottom("auto");
+      });
+    } catch (sendError) {
+      console.error("Chat send failed", sendError);
+      setMessageError("No se pudo enviar el mensaje. Inténtalo de nuevo.");
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+
+    event.preventDefault();
+    void sendMessage();
   }
 
   return (
     <div className="space-y-4">
       {error ? (
         <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm text-[var(--warning-text)]">
-          {error}
+          No se pudo cargar el chat. Prueba a recargar la página.
         </div>
       ) : null}
       <div
@@ -241,41 +313,37 @@ export function LeagueChat({
 
             return (
               <article
-                className={isOwn ? "flex flex-row-reverse gap-3" : "flex gap-3"}
+                className={isOwn ? "flex justify-end" : "flex justify-start"}
                 key={message.id}
               >
-                <MessageAvatar isOwn={isOwn} message={message} />
                 <div
                   className={
                     isOwn
-                      ? "min-w-0 max-w-[82%] flex-1 rounded-lg border border-circuit/40 bg-circuit p-3 text-white"
-                      : "min-w-0 max-w-[82%] flex-1 rounded-lg border p-3 theme-border theme-surface"
+                      ? "min-w-0 max-w-[88%] rounded-lg border border-circuit/40 bg-circuit px-3 py-2 text-white"
+                      : "min-w-0 max-w-[88%] rounded-lg border px-3 py-2 theme-border theme-surface"
                   }
                 >
                   <div
                     className={
                       isOwn
-                        ? "flex flex-wrap items-baseline gap-2 text-white"
-                        : "flex flex-wrap items-baseline gap-2"
+                        ? "flex items-baseline justify-between gap-4 text-white"
+                        : "flex items-baseline justify-between gap-4"
                     }
                   >
                     <p
                       className={
-                        isOwn ? "font-semibold text-white" : "font-semibold theme-text"
+                        isOwn
+                          ? "text-xs font-black uppercase text-white"
+                          : "text-xs font-black uppercase theme-text"
                       }
                     >
                       {message.author?.initials ?? "???"}
                     </p>
-                    <p
-                      className={
-                        isOwn ? "text-xs text-white/75" : "text-xs theme-text-muted"
-                      }
-                    >
-                      @{message.author?.username ?? "desconocido"}
-                    </p>
                     <time
                       className={
-                        isOwn ? "text-xs text-white/75" : "text-xs theme-text-muted"
+                        isOwn
+                          ? "shrink-0 text-xs text-white/75"
+                          : "shrink-0 text-xs theme-text-muted"
                       }
                       dateTime={message.createdAt}
                       title={formatExactDateTime(message.createdAt)}
@@ -286,8 +354,8 @@ export function LeagueChat({
                   <p
                     className={
                       isOwn
-                        ? "mt-1 text-sm leading-6 text-white"
-                        : "mt-1 text-sm leading-6 theme-text"
+                        ? "mt-1 whitespace-pre-wrap break-words text-sm leading-5 text-white"
+                        : "mt-1 whitespace-pre-wrap break-words text-sm leading-5 theme-text"
                     }
                   >
                     {message.content}
@@ -298,28 +366,27 @@ export function LeagueChat({
           })
         )}
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <input
-          className="min-w-0 flex-1 rounded-md border px-3 py-2 theme-input disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={!canPost || isPending}
-          maxLength={500}
+      <div className="flex items-end gap-2">
+        <textarea
+          className="max-h-40 min-h-11 min-w-0 flex-1 resize-y rounded-md border px-3 py-2 text-sm leading-5 theme-input disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={!canPost}
+          maxLength={messageLimit}
           onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey && canPost && !isPending) {
-              event.preventDefault();
-              sendMessage();
-            }
-          }}
+          onKeyDown={handleKeyDown}
           placeholder={canPost ? "Escribe un comentario..." : "Inicia sesión para escribir..."}
+          ref={textareaRef}
+          rows={2}
           value={draft}
         />
         <button
-          className="rounded-md px-4 py-2 text-sm font-semibold theme-surface-strong disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={!canPost || isPending}
-          onClick={sendMessage}
+          aria-label="Enviar"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-circuit text-ink transition hover:bg-circuit/90 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={!canPost || isSending || draft.trim().length === 0}
+          onClick={() => void sendMessage()}
           type="button"
         >
-          {isPending ? "Enviando..." : "Enviar"}
+          <SendIcon />
+          <span className="sr-only">Enviar</span>
         </button>
       </div>
       {!canPost ? (
@@ -336,5 +403,3 @@ export function LeagueChat({
     </div>
   );
 }
-
-
