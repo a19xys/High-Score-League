@@ -61,10 +61,10 @@ export function SeasonTable({ standings }: SeasonTableProps) {
           </th>
           <th
             aria-label="Cambio de posición"
-            className="hidden w-12 whitespace-nowrap px-2 py-3 text-center sm:table-cell"
+            className="w-12 whitespace-nowrap px-2 py-3 text-center"
             scope="col"
           >
-            <span aria-hidden="true">Δ</span>
+            <span className="sr-only">Cambio de posición</span>
           </th>
           <th className="whitespace-nowrap px-2 py-3 text-left sm:px-3" scope="col">
             Jugador
@@ -73,19 +73,19 @@ export function SeasonTable({ standings }: SeasonTableProps) {
             Puntos
           </th>
           <th
-            className="hidden whitespace-nowrap px-2 py-3 text-right lg:table-cell"
+            className="hidden whitespace-nowrap px-2 py-3 text-right md:table-cell"
             scope="col"
           >
             1º
           </th>
           <th
-            className="hidden whitespace-nowrap px-2 py-3 text-right lg:table-cell"
+            className="hidden whitespace-nowrap px-2 py-3 text-right md:table-cell"
             scope="col"
           >
             2º
           </th>
           <th
-            className="hidden whitespace-nowrap px-2 py-3 text-right lg:table-cell"
+            className="hidden whitespace-nowrap px-2 py-3 text-right md:table-cell"
             scope="col"
           >
             3º
@@ -98,7 +98,7 @@ export function SeasonTable({ standings }: SeasonTableProps) {
             <td className="w-14 whitespace-nowrap px-2 py-4 text-center font-semibold theme-text sm:w-16 sm:px-3">
               <RankBadge rank={standing.rank} />
             </td>
-            <td className="hidden w-12 whitespace-nowrap px-2 py-4 text-center sm:table-cell">
+            <td className="w-12 whitespace-nowrap px-2 py-4 text-center">
               <PositionChange value={standing.positionChange} />
             </td>
             <td className="min-w-0 px-2 py-4 text-left sm:px-3">
@@ -107,13 +107,13 @@ export function SeasonTable({ standings }: SeasonTableProps) {
             <td className="whitespace-nowrap px-2 py-4 text-right font-semibold theme-text sm:px-3">
               {formatScore(standing.totalPoints)}
             </td>
-            <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted lg:table-cell">
+            <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted md:table-cell">
               {standing.firstPlaces}
             </td>
-            <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted lg:table-cell">
+            <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted md:table-cell">
               {standing.secondPlaces}
             </td>
-            <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted lg:table-cell">
+            <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted md:table-cell">
               {standing.thirdPlaces}
             </td>
           </tr>

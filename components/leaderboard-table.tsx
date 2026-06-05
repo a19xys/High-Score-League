@@ -53,12 +53,12 @@ function MaskedIcon({ label, src }: MaskedIconProps) {
   return (
     <span
       aria-label={label}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-full border theme-border theme-surface-muted theme-text"
+      className="inline-flex h-8 w-8 items-center justify-center theme-text"
       role="img"
     >
       <span
         aria-hidden="true"
-        className="h-4 w-4 bg-current"
+        className="h-7 w-7 bg-current"
         style={{
           WebkitMask: `url('${src}') center / contain no-repeat`,
           mask: `url('${src}') center / contain no-repeat`,
@@ -90,7 +90,7 @@ export function LeaderboardTable({
             Jugador
           </th>
           <th className="whitespace-nowrap px-2 py-3 text-right sm:px-3" scope="col">
-            Puntuación
+            Score
           </th>
           <th className="hidden whitespace-nowrap px-2 py-3 text-right md:table-cell lg:px-3" scope="col">
             Subidas
