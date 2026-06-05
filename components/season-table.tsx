@@ -2,7 +2,7 @@ import { formatScore } from "@/lib/format";
 import type { SeasonStanding } from "@/types";
 import { PlayerPill } from "./player-pill";
 import { getRankRowClass, RankBadge } from "./rank-badge";
-import { DataTable, TableHead } from "./ui/table";
+import { DataTable } from "./ui/table";
 
 type SeasonTableProps = {
   standings: SeasonStanding[];
@@ -11,59 +11,109 @@ type SeasonTableProps = {
 function PositionChange({ value }: { value: number }) {
   if (value > 0) {
     return (
-      <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
-        ▲ {value}
+      <span
+        aria-label={`Sube ${value} puestos`}
+        className="inline-flex min-w-10 items-center justify-center gap-1 font-semibold text-emerald-700"
+        title={`Sube ${value} puestos`}
+      >
+        <span aria-hidden="true">▲</span>
+        <span>{value}</span>
       </span>
     );
   }
 
   if (value < 0) {
+    const absoluteValue = Math.abs(value);
+
     return (
-      <span className="inline-flex items-center gap-1 font-semibold text-red-700">
-        ▼ {Math.abs(value)}
+      <span
+        aria-label={`Baja ${absoluteValue} puestos`}
+        className="inline-flex min-w-10 items-center justify-center gap-1 font-semibold text-red-700"
+        title={`Baja ${absoluteValue} puestos`}
+      >
+        <span aria-hidden="true">▼</span>
+        <span>{absoluteValue}</span>
       </span>
     );
   }
 
-  return <span className="font-semibold theme-text-muted">—</span>;
+  return (
+    <span
+      aria-label="Sin cambio de posición"
+      className="inline-flex min-w-10 justify-center font-semibold theme-text-muted"
+      title="Sin cambio de posición"
+    >
+      —
+    </span>
+  );
 }
 
 export function SeasonTable({ standings }: SeasonTableProps) {
   return (
     <DataTable>
-      <TableHead
-        labels={[
-          "Posición",
-          "▲",
-          "Jugador",
-          "Puntos",
-          "Primeros",
-          "Segundos",
-          "Terceros",
-        ]}
-      />
+      <thead className="text-xs font-semibold uppercase theme-table-head">
+        <tr>
+          <th
+            className="w-14 whitespace-nowrap px-2 py-3 text-center sm:w-16 sm:px-3"
+            scope="col"
+          >
+            Puesto
+          </th>
+          <th
+            aria-label="Cambio de posición"
+            className="hidden w-12 whitespace-nowrap px-2 py-3 text-center sm:table-cell"
+            scope="col"
+          >
+            <span aria-hidden="true">Δ</span>
+          </th>
+          <th className="whitespace-nowrap px-2 py-3 text-left sm:px-3" scope="col">
+            Jugador
+          </th>
+          <th className="whitespace-nowrap px-2 py-3 text-right sm:px-3" scope="col">
+            Puntos
+          </th>
+          <th
+            className="hidden whitespace-nowrap px-2 py-3 text-right lg:table-cell"
+            scope="col"
+          >
+            1º
+          </th>
+          <th
+            className="hidden whitespace-nowrap px-2 py-3 text-right lg:table-cell"
+            scope="col"
+          >
+            2º
+          </th>
+          <th
+            className="hidden whitespace-nowrap px-2 py-3 text-right lg:table-cell"
+            scope="col"
+          >
+            3º
+          </th>
+        </tr>
+      </thead>
       <tbody className="divide-y theme-border theme-surface">
         {standings.map((standing) => (
           <tr className={getRankRowClass(standing.rank)} key={standing.player.id}>
-            <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
+            <td className="w-14 whitespace-nowrap px-2 py-4 text-center font-semibold theme-text sm:w-16 sm:px-3">
               <RankBadge rank={standing.rank} />
             </td>
-            <td className="whitespace-nowrap px-4 py-4">
+            <td className="hidden w-12 whitespace-nowrap px-2 py-4 text-center sm:table-cell">
               <PositionChange value={standing.positionChange} />
             </td>
-            <td className="min-w-56 px-4 py-4">
-              <PlayerPill player={standing.player} />
+            <td className="min-w-0 px-2 py-4 text-left sm:px-3">
+              <PlayerPill compactOnMobile player={standing.player} />
             </td>
-            <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
+            <td className="whitespace-nowrap px-2 py-4 text-right font-semibold theme-text sm:px-3">
               {formatScore(standing.totalPoints)}
             </td>
-            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+            <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted lg:table-cell">
               {standing.firstPlaces}
             </td>
-            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+            <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted lg:table-cell">
               {standing.secondPlaces}
             </td>
-            <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+            <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted lg:table-cell">
               {standing.thirdPlaces}
             </td>
           </tr>
