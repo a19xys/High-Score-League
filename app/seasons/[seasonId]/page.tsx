@@ -3,14 +3,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { AccessRequired } from "@/components/auth/access-required";
 import { SeasonTable } from "@/components/season-table";
-import { WeeksTable } from "@/components/weeks-table";
 import { PodiumPlaceholder } from "@/components/podium-placeholder";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SeasonJoinButton } from "@/components/season-join-button";
-import { formatCompactDateRange, formatWeekRange } from "@/lib/format";
+import { formatCompactDateRange, formatWeekCount, formatWeekRange } from "@/lib/format";
 import { getSeasonDetailData } from "@/lib/data/season-detail";
 import { hasServerSession } from "@/lib/auth/session";
 import type { WeekSummary } from "@/types";
@@ -50,7 +49,7 @@ function seasonStatusLabel(status: string) {
   if (status === "completed") {
     return "Cerrada";
   }
-
+  
   return "Inactiva";
 }
 
@@ -171,7 +170,7 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
             </span>
           }
         >
-          {seasonStatusLabel(season.status)} · {dateLabel} · {season.weekCount} semanas
+          {seasonStatusLabel(season.status)} · {dateLabel} · {formatWeekCount(season.weekCount)}
         </CardHeader>
         {seasonData.warning ? (
           <div className="mb-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">

@@ -14,7 +14,7 @@ export function LinkButton({
 }: LinkButtonProps) {
   const classes =
     variant === "primary"
-      ? "theme-surface-strong"
+      ? "bg-circuit text-ink shadow-panel hover:bg-circuit/90"
       : "border theme-border theme-surface theme-text theme-hover";
 
   return (

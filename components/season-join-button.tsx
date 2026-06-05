@@ -9,15 +9,24 @@ type SeasonJoinButtonProps = {
   seasonId: string;
   seasonStatus: SeasonSummary["season"]["status"];
   membershipStatus?: SeasonSummary["membershipStatus"];
+  label?: string;
+  pendingLabel?: string;
+  refreshOnSuccess?: boolean;
+  successLabel?: string;
 };
 
 export function SeasonJoinButton({
   seasonId,
   seasonStatus,
   membershipStatus,
+  label = "Unirse",
+  pendingLabel = "Uniendo...",
+  refreshOnSuccess = true,
+  successLabel = "Unido",
 }: SeasonJoinButtonProps) {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
+  const [hasSucceeded, setHasSucceeded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (seasonStatus !== "active") {
@@ -55,7 +64,11 @@ export function SeasonJoinButton({
         return;
       }
 
-      router.refresh();
+      setHasSucceeded(true);
+
+      if (refreshOnSuccess) {
+        router.refresh();
+      }
     } catch {
       setError("No se pudo unir a la temporada.");
     } finally {
@@ -66,12 +79,16 @@ export function SeasonJoinButton({
   return (
     <div className="space-y-1">
       <button
-        className="rounded-md bg-circuit px-3 py-2 text-sm font-semibold text-ink disabled:cursor-wait disabled:opacity-60"
-        disabled={isPending}
+        className={`rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-80 ${
+          hasSucceeded
+            ? "cursor-default border theme-border theme-surface-muted theme-text"
+            : "bg-circuit text-ink disabled:cursor-wait"
+        }`}
+        disabled={isPending || hasSucceeded}
         onClick={joinSeason}
         type="button"
       >
-        {isPending ? "Uniendo..." : "Unirse"}
+        {hasSucceeded ? successLabel : isPending ? pendingLabel : label}
       </button>
       {error ? (
         <p className="max-w-48 text-xs text-[var(--warning-text)]">{error}</p>

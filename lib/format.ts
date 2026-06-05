@@ -30,6 +30,13 @@ const weekdayDateFormatter = new Intl.DateTimeFormat("es-ES", {
   timeZone: competitionTimeZone,
 });
 
+const weekdayDateWithoutYearFormatter = new Intl.DateTimeFormat("es-ES", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  timeZone: competitionTimeZone,
+});
+
 const exactDateTimeFormatter = new Intl.DateTimeFormat("es-ES", {
   day: "numeric",
   month: "long",
@@ -56,6 +63,10 @@ export function formatDateTime(value: string) {
 
 export function formatLongDate(value: string) {
   return weekdayDateFormatter.format(new Date(value));
+}
+
+export function formatLongDateWithoutYear(value: string) {
+  return weekdayDateWithoutYearFormatter.format(new Date(value));
 }
 
 function getMadridDateParts(value: string) {
@@ -93,6 +104,10 @@ export function formatWeekRange(startsAt: string, endsAt: string) {
   }
 
   return `${start.day} de ${monthFormatter.format(startDate)} de ${start.year} – ${end.day} de ${monthFormatter.format(endDate)} de ${end.year}`;
+}
+
+export function formatWeekCount(count: number) {
+  return `${count} ${count === 1 ? "semana" : "semanas"}`;
 }
 
 export function formatCompactDateRange(startsAt: string, endsAt: string) {
