@@ -1,4 +1,4 @@
-# High Score League database model
+﻿# High Score League database model
 
 Este documento describe el esquema inicial de Supabase para el MVP. La app
 todavia no esta conectada a Supabase; el SQL vive en
@@ -181,10 +181,10 @@ Campos principales:
 - `message_type`: `user` o `system`.
 - `author_id`: perfil autor para mensajes `user`; `null` para mensajes
   `system`.
-- `content`: texto del mensaje, máximo 2000 caracteres en la validación de app y endpoint.
+- `content`: texto del mensaje, máximo 65.536 caracteres.
 - `created_at`.
 
-El chat conserva solo los 50 mensajes más nuevos mediante trigger. Al crear un
+El chat conserva solo los 75 mensajes más nuevos mediante trigger. Al crear un
 perfil nuevo, otro trigger inserta un mensaje `system` con el username.
 
 La tabla inicial `chat_messages` queda como preparación histórica anterior; el
@@ -247,7 +247,7 @@ generar o revisar estas filas antes de publicar una semana.
    `is_valid = false`.
 9. Al publicar, el admin crea filas en `weekly_results`.
 10. La clasificación general de temporada se lee agregando `weekly_results`.
-11. La portada lee los últimos 50 mensajes desde `league_chat_messages`.
+11. La portada lee los últimos 75 mensajes desde `league_chat_messages`.
 
 Las fechas de cierre y revelación existen como datos de la semana. En la UI
 principal solo se muestra el rango competitivo, por ejemplo
@@ -368,6 +368,8 @@ guardar el tipo y tamano del archivo resultante.
 
 Si se usa Supabase CLI mas adelante, el archivo puede aplicarse como migracion
 normal desde la carpeta `supabase/migrations`.
+
+
 
 
 

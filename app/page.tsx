@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+﻿import { existsSync } from "node:fs";
 import { formatWeekCount, formatWeekRange } from "@/lib/format";
 import { join } from "node:path";
 import { LeaderboardTable } from "@/components/leaderboard-table";
@@ -297,7 +297,7 @@ export default async function HomePage() {
 
       <Card>
         <CardHeader title="Chat de la liga" eyebrow="Comentarios">
-          Chat global real de la liga. Se conservan los últimos 50 mensajes.
+          Chat global real de la liga. Se conservan los últimos 75 mensajes.
         </CardHeader>
         <LeagueChat
           canPost={data.canPostChat}

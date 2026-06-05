@@ -1,11 +1,11 @@
 ﻿# Chat de la liga
 
-El chat de la liga es un chat global ligero para la portada. No estÃ¡ separado
+El chat de la liga es un chat global ligero para la portada. No está separado
 por temporada ni por semana.
 
 ## Tabla
 
-La migraciÃ³n `supabase/migrations/0006_league_chat.sql` crea:
+La migración `supabase/migrations/0006_league_chat.sql` crea:
 
 ```text
 public.league_chat_messages
@@ -21,20 +21,20 @@ Campos principales:
 
 Reglas:
 
-- `content` no puede estar vacÃ­o.
-- `content` tiene mÃ¡ximo 2000 caracteres en la validaciÃ³n de app y endpoint.
+- `content` no puede estar vacío.
+- `content` tiene máximo 65.536 caracteres.
 - si `message_type = 'user'`, `author_id` es obligatorio.
 - si `message_type = 'system'`, `author_id` debe ser `null`.
 
-## LÃ­mite de 50 mensajes
+## Límite de 75 mensajes
 
-El chat solo conserva los 50 mensajes mÃ¡s nuevos en base de datos.
+El chat solo conserva los 75 mensajes más nuevos en base de datos.
 
 Un trigger `after insert` ejecuta `public.trim_league_chat_messages()` y elimina
-cualquier mensaje que quede fuera de los 50 mÃ¡s recientes, ordenando por
+cualquier mensaje que quede fuera de los 75 más recientes, ordenando por
 `created_at desc, id desc`.
 
-Esto estÃ¡ pensado como chat ligero, no como histÃ³rico permanente.
+Esto está pensado como chat ligero, no como histórico permanente.
 
 ## Mensajes de sistema
 
@@ -42,7 +42,7 @@ Cuando se crea un perfil nuevo en `public.profiles`, un trigger `after insert`
 crea un mensaje de sistema:
 
 ```text
-username se uniÃ³ al chat.
+username se unió al chat.
 ```
 
 El mensaje usa `message_type = 'system'` y `author_id = null`.
@@ -51,7 +51,7 @@ No se crean mensajes retroactivos para perfiles existentes.
 
 ## RLS
 
-PolÃ­ticas iniciales:
+Políticas iniciales:
 
 - usuarios autenticados pueden leer mensajes;
 - usuarios autenticados pueden insertar mensajes `user` solo como ellos mismos;
@@ -63,7 +63,7 @@ No se usa `service_role` en frontend.
 
 ## Endpoint
 
-La app envÃ­a mensajes con:
+La app envía mensajes con:
 
 ```text
 POST /api/chat/messages
@@ -79,24 +79,35 @@ Payload:
 
 El endpoint:
 
-- requiere sesiÃ³n Supabase;
+- requiere sesión Supabase;
 - recorta espacios;
-- valida mÃ¡ximo 2000 caracteres;
+- valida máximo 65.536 caracteres;
 - rechaza `authorId` y `messageType` desde cliente;
 - inserta siempre `message_type = 'user'`;
 - deriva `author_id` desde el usuario autenticado.
 
 ## Home
 
-En modo Supabase, `/` lee `league_chat_messages` y muestra los Ãºltimos 50
-mensajes en orden cronolÃ³gico, con los mÃ¡s nuevos abajo.
+En modo Supabase, `/` lee `league_chat_messages` y muestra los últimos 75
+mensajes en orden cronológico, con los más nuevos abajo.
 
 La home muestra chat real para usuarios autenticados; no hay mensajes locales de producto.
 
+Los mensajes de usuario se renderizan como texto seguro, sin HTML crudo. El
+cliente soporta solo formato básico:
+
+- líneas que empiezan por `>` como cita;
+- `_texto_` como cursiva;
+- `*texto*` como negrita.
+
+No se usa Markdown completo, autolinks, imágenes ni `dangerouslySetInnerHTML`.
+Los mensajes de otros usuarios muestran un avatar pequeño fuera del bocadillo;
+los mensajes propios no muestran avatar externo.
+
 ## Realtime
 
-La migraciÃ³n `0007_league_chat_realtime.sql` aÃ±ade
-`public.league_chat_messages` a la publicaciÃ³n `supabase_realtime` de forma
+La migración `0007_league_chat_realtime.sql` añade
+`public.league_chat_messages` a la publicación `supabase_realtime` de forma
 idempotente.
 
 El componente de chat se suscribe a inserts de esa tabla. Cuando llega un insert,
@@ -107,24 +118,25 @@ payload no trae el perfil unido. En su lugar llama a:
 GET /api/chat/messages
 ```
 
-Ese endpoint devuelve los Ãºltimos 50 mensajes con autor normalizado. La lista se
-deduplica por `id`, se ordena de mÃ¡s antiguos a mÃ¡s nuevos y se recorta a 50.
+Ese endpoint devuelve los últimos 75 mensajes con autor normalizado. La lista se
+deduplica por `id`, se ordena de más antiguos a más nuevos y se recorta a 75.
 
 Los tiempos relativos se recalculan en cliente cada 60 segundos. Los mensajes de
 menos de un minuto se muestran como `ahora mismo`.
 
-Como respaldo, el componente tambiÃ©n hace polling cada 10 segundos mientras hay
-sesiÃ³n activa. Usa el mismo `GET /api/chat/messages`, normaliza por `id` y
-mantiene solo los Ãºltimos 50 mensajes.
+Como respaldo, el componente también hace polling cada 10 segundos mientras hay
+sesión activa. Usa el mismo `GET /api/chat/messages`, normaliza por `id` y
+mantiene solo los últimos 75 mensajes.
 
 ## Pendiente
 
-TodavÃ­a no hay:
+Todavía no hay:
 
 - chat por temporada;
 - chat por semana;
-- moderaciÃ³n UI;
+- moderación UI;
 - borrado desde UI;
-- ediciÃ³n de mensajes.
+- edición de mensajes.
+
 
 

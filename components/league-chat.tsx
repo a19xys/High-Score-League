@@ -13,7 +13,9 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatExactDateTime, formatRelativeTime } from "@/lib/format";
 import type { LeagueChatMessage } from "@/types";
 
-const messageLimit = 2000;
+const messageLimit = 65_536;
+const visibleMessageLimit = 75;
+const textareaMaxHeight = 168;
 
 type LeagueChatProps = {
   messages: LeagueChatMessage[];
@@ -27,6 +29,10 @@ type ChatMessagesPayload = {
   error?: string;
   messages?: LeagueChatMessage[];
 };
+
+type InlineToken =
+  | { type: "text"; value: string }
+  | { type: "strong" | "em"; value: string };
 
 function normalizeMessages(messages: LeagueChatMessage[]) {
   const byId = new Map<string, LeagueChatMessage>();
@@ -42,7 +48,7 @@ function normalizeMessages(messages: LeagueChatMessage[]) {
 
       return dateOrder || a.id.localeCompare(b.id);
     })
-    .slice(-50);
+    .slice(-visibleMessageLimit);
 }
 
 function isNearBottom(element: HTMLDivElement | null) {
@@ -53,22 +59,112 @@ function isNearBottom(element: HTMLDivElement | null) {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 80;
 }
 
-function SendIcon() {
+function parseInline(text: string): InlineToken[] {
+  const tokens: InlineToken[] = [];
+  let index = 0;
+
+  while (index < text.length) {
+    const markerIndex = text.slice(index).search(/[*_]/);
+
+    if (markerIndex === -1) {
+      tokens.push({ type: "text", value: text.slice(index) });
+      break;
+    }
+
+    const absoluteMarkerIndex = index + markerIndex;
+    const marker = text[absoluteMarkerIndex];
+    const closingIndex = text.indexOf(marker, absoluteMarkerIndex + 1);
+
+    if (closingIndex === -1) {
+      tokens.push({ type: "text", value: text.slice(index) });
+      break;
+    }
+
+    if (absoluteMarkerIndex > index) {
+      tokens.push({ type: "text", value: text.slice(index, absoluteMarkerIndex) });
+    }
+
+    const value = text.slice(absoluteMarkerIndex + 1, closingIndex);
+
+    if (value.trim()) {
+      tokens.push({ type: marker === "*" ? "strong" : "em", value });
+    } else {
+      tokens.push({ type: "text", value: text.slice(absoluteMarkerIndex, closingIndex + 1) });
+    }
+
+    index = closingIndex + 1;
+  }
+
+  return tokens;
+}
+
+function FormattedLine({ text }: { text: string }) {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M4.5 19.5 20 12 4.5 4.5l2.1 6.3L13 12l-6.4 1.2-2.1 6.3Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
+    <>
+      {parseInline(text).map((token, index) => {
+        const key = `${token.type}-${index}`;
+
+        if (token.type === "strong") {
+          return <strong key={key}>{token.value}</strong>;
+        }
+
+        if (token.type === "em") {
+          return <em key={key}>{token.value}</em>;
+        }
+
+        return <span key={key}>{token.value}</span>;
+      })}
+    </>
+  );
+}
+
+function FormattedMessage({ content, isOwn }: { content: string; isOwn: boolean }) {
+  return (
+    <div className="mt-1 space-y-1 break-words text-sm leading-5">
+      {content.split(/\r?\n/).map((line, index) => {
+        const key = `${index}-${line}`;
+        const quoteMatch = line.match(/^>\s?(.*)$/);
+
+        if (quoteMatch) {
+          return (
+            <blockquote
+              className={
+                isOwn
+                  ? "border-l-2 border-white/55 pl-2 text-white/80"
+                  : "border-l-2 border-[var(--muted-border)] pl-2 theme-text-muted"
+              }
+              key={key}
+            >
+              <FormattedLine text={quoteMatch[1]} />
+            </blockquote>
+          );
+        }
+
+        return (
+          <p className={isOwn ? "text-white" : "theme-text"} key={key}>
+            {line ? <FormattedLine text={line} /> : <br />}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function ExternalAvatar({ message }: { message: LeagueChatMessage }) {
+  if (message.author?.avatarUrl) {
+    return (
+      <img
+        alt=""
+        className="mt-1 h-7 w-7 shrink-0 rounded-full border object-cover theme-border"
+        src={message.author.avatarUrl}
       />
-    </svg>
+    );
+  }
+
+  return (
+    <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[10px] font-black theme-border theme-surface theme-text">
+      {message.author?.initials ?? "???"}
+    </div>
   );
 }
 
@@ -80,6 +176,7 @@ export function LeagueChat({
 }: LeagueChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottom = useRef(true);
   const [draft, setDraft] = useState("");
   const [localMessages, setLocalMessages] = useState(() => normalizeMessages(messages));
@@ -97,6 +194,26 @@ export function LeagueChat({
     element.scrollTo({
       top: element.scrollHeight,
       behavior,
+    });
+  }, []);
+
+  const resizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "auto";
+    const nextHeight = Math.min(textarea.scrollHeight, textareaMaxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > textareaMaxHeight ? "auto" : "hidden";
+  }, []);
+
+  const keepChatBottomVisible = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      chatEndRef.current?.scrollIntoView({ block: "end" });
     });
   }, []);
 
@@ -202,6 +319,14 @@ export function LeagueChat({
     };
   }, [localMessages.length, scrollToBottom]);
 
+  useLayoutEffect(() => {
+    resizeTextarea();
+
+    if (document.activeElement === textareaRef.current) {
+      keepChatBottomVisible();
+    }
+  }, [draft, keepChatBottomVisible, resizeTextarea]);
+
   async function sendMessage() {
     const content = draft.trim();
 
@@ -216,7 +341,7 @@ export function LeagueChat({
     }
 
     if (content.length > messageLimit) {
-      setMessageError("El mensaje no puede superar 2000 caracteres.");
+      setMessageError("El mensaje no puede superar 65.536 caracteres.");
       textareaRef.current?.focus();
       return;
     }
@@ -240,7 +365,7 @@ export function LeagueChat({
       if (!response.ok || !payload.ok || !payload.message) {
         console.error("Chat send failed", payload.error);
         setMessageError(
-          payload.error === "El mensaje no puede superar 2000 caracteres."
+          payload.error === "El mensaje no puede superar 65.536 caracteres."
             ? payload.error
             : "No se pudo enviar el mensaje. Inténtalo de nuevo.",
         );
@@ -252,8 +377,10 @@ export function LeagueChat({
         normalizeMessages([...current, payload.message as LeagueChatMessage]),
       );
       window.requestAnimationFrame(() => {
+        resizeTextarea();
         textareaRef.current?.focus();
         scrollToBottom("auto");
+        keepChatBottomVisible();
       });
     } catch (sendError) {
       console.error("Chat send failed", sendError);
@@ -290,7 +417,7 @@ export function LeagueChat({
           <div className="rounded-lg border border-dashed p-5 text-center theme-border theme-surface">
             <p className="font-semibold theme-text">Todavía no hay mensajes.</p>
             <p className="mt-2 text-sm theme-text-muted">
-              El chat mostrará los últimos 50 mensajes de la liga.
+              El chat mostrará los últimos 75 mensajes de la liga.
             </p>
           </div>
         ) : (
@@ -313,14 +440,15 @@ export function LeagueChat({
 
             return (
               <article
-                className={isOwn ? "flex justify-end" : "flex justify-start"}
+                className={isOwn ? "flex justify-end" : "flex justify-start gap-2"}
                 key={message.id}
               >
+                {!isOwn ? <ExternalAvatar message={message} /> : null}
                 <div
                   className={
                     isOwn
                       ? "min-w-0 max-w-[88%] rounded-lg border border-circuit/40 bg-circuit px-3 py-2 text-white"
-                      : "min-w-0 max-w-[88%] rounded-lg border px-3 py-2 theme-border theme-surface"
+                      : "min-w-0 max-w-[82%] rounded-lg border px-3 py-2 theme-border theme-surface"
                   }
                 >
                   <div
@@ -351,15 +479,7 @@ export function LeagueChat({
                       {formatRelativeTime(message.createdAt, now)}
                     </time>
                   </div>
-                  <p
-                    className={
-                      isOwn
-                        ? "mt-1 whitespace-pre-wrap break-words text-sm leading-5 text-white"
-                        : "mt-1 whitespace-pre-wrap break-words text-sm leading-5 theme-text"
-                    }
-                  >
-                    {message.content}
-                  </p>
+                  <FormattedMessage content={message.content} isOwn={isOwn} />
                 </div>
               </article>
             );
@@ -368,14 +488,16 @@ export function LeagueChat({
       </div>
       <div className="flex items-end gap-2">
         <textarea
-          className="max-h-40 min-h-11 min-w-0 flex-1 resize-y rounded-md border px-3 py-2 text-sm leading-5 theme-input disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-11 min-w-0 flex-1 resize-none rounded-md border px-3 py-2 text-sm leading-5 theme-input disabled:cursor-not-allowed disabled:opacity-60"
           disabled={!canPost}
           maxLength={messageLimit}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+          }}
           onKeyDown={handleKeyDown}
-          placeholder={canPost ? "Escribe un comentario..." : "Inicia sesión para escribir..."}
+          placeholder={canPost ? "Escribe un mensaje..." : "Inicia sesión para escribir..."}
           ref={textareaRef}
-          rows={2}
+          rows={1}
           value={draft}
         />
         <button
@@ -385,7 +507,7 @@ export function LeagueChat({
           onClick={() => void sendMessage()}
           type="button"
         >
-          <SendIcon />
+          <img alt="" className="h-5 w-5 object-contain" src="/icons/send.png" />
           <span className="sr-only">Enviar</span>
         </button>
       </div>
@@ -400,6 +522,7 @@ export function LeagueChat({
       {messageError ? (
         <p className="text-sm text-[var(--warning-text)]">{messageError}</p>
       ) : null}
+      <div aria-hidden="true" ref={chatEndRef} />
     </div>
   );
 }

@@ -58,7 +58,7 @@ export async function getRealLeagueChatMessages(): Promise<
     .select(chatMessageColumns)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
-    .limit(50);
+    .limit(75);
 
   if (error) {
     return {

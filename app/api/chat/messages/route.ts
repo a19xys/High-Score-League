@@ -6,7 +6,7 @@ import {
 } from "@/lib/data/league-chat";
 import type { LeagueChatMessageRow } from "@/types/supabase";
 
-const chatMessageMaxLength = 2000;
+const chatMessageMaxLength = 65_536;
 
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
@@ -26,7 +26,7 @@ function validateContent(value: unknown) {
   if (content.length > chatMessageMaxLength) {
     return {
       ok: false as const,
-      error: "El mensaje no puede superar 2000 caracteres.",
+      error: "El mensaje no puede superar 65.536 caracteres.",
     };
   }
 
