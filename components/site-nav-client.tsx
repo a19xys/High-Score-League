@@ -194,38 +194,38 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
           </div>
         ) : null}
 
-        <div className="hidden items-center gap-5 lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto]">
-        <Link
-          aria-label="High Score League"
-          className="flex min-w-0 items-center gap-3"
-          href="/"
-        >
-          <BrandMark hasBrandLogo={data.hasBrandLogo} />
-          <span className="hidden whitespace-nowrap text-lg font-bold uppercase theme-text xl:inline">
-            High Score League
-          </span>
-        </Link>
+        <div className="hidden items-center gap-5 lg:flex">
+          <Link
+            aria-label="High Score League"
+            className="flex min-w-0 shrink items-center gap-3"
+            href="/"
+          >
+            <BrandMark hasBrandLogo={data.hasBrandLogo} />
+            <span className="hidden whitespace-nowrap text-lg font-bold uppercase theme-text lg:inline">
+              High Score League
+            </span>
+          </Link>
 
-        <div className="flex min-w-0 items-center justify-center gap-2 overflow-x-auto">
-          {links.map((link) => {
-            const active = isActive(link);
+          <div className="ml-auto flex min-w-0 items-center justify-end gap-2">
+            {links.map((link) => {
+              const active = isActive(link);
 
-            return (
-              <Link
-                aria-current={active ? "page" : undefined}
-                className={navLinkClass(active)}
-                href={link.href}
-                key={link.id}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-        </div>
+              return (
+                <Link
+                  aria-current={active ? "page" : undefined}
+                  className={navLinkClass(active)}
+                  href={link.href}
+                  key={link.id}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
 
-        <div className="flex justify-end border-l pl-4 theme-border">
-          <AuthNavItem isSignedIn={data.isSignedIn} profile={data.profile} />
-        </div>
+          <div className="flex shrink-0 justify-end border-l pl-4 theme-border">
+            <AuthNavItem isSignedIn={data.isSignedIn} profile={data.profile} />
+          </div>
         </div>
       </nav>
     </header>

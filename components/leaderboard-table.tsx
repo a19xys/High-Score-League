@@ -44,35 +44,33 @@ function getVisualRows(entries: LeaderboardEntry[], benchmarks: WeekBenchmark[])
   });
 }
 
-function BenchmarkReferenceIcon() {
+type MaskedIconProps = {
+  label: string;
+  src: string;
+};
+
+function MaskedIcon({ label, src }: MaskedIconProps) {
   return (
     <span
-      aria-label="Referencia"
-      className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-[url('/icons/benchmark-reference.png')] bg-contain bg-center bg-no-repeat theme-border theme-surface-muted theme-text-muted"
+      aria-label={label}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-full border theme-border theme-surface-muted theme-text"
       role="img"
     >
-      <svg
+      <span
         aria-hidden="true"
-        className="h-4 w-4"
-        fill="none"
-        viewBox="0 0 24 24"
-      >
-        <path
-          d="M12 4.5 18.5 12 12 19.5 5.5 12 12 4.5Z"
-          stroke="currentColor"
-          strokeLinejoin="round"
-          strokeWidth="1.8"
-        />
-        <path
-          d="M9.5 12h5"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeWidth="1.8"
-        />
-      </svg>
-      <span className="sr-only">Referencia</span>
+        className="h-4 w-4 bg-current"
+        style={{
+          WebkitMask: `url('${src}') center / contain no-repeat`,
+          mask: `url('${src}') center / contain no-repeat`,
+        }}
+      />
+      <span className="sr-only">{label}</span>
     </span>
   );
+}
+
+function BenchmarkReferenceIcon() {
+  return <MaskedIcon label="Referencia" src="/icons/benchmark-reference.png" />;
 }
 
 export function LeaderboardTable({
@@ -85,22 +83,22 @@ export function LeaderboardTable({
     <DataTable>
       <thead className="text-xs font-semibold uppercase theme-table-head">
         <tr>
-          <th className="w-14 whitespace-nowrap px-3 py-3 sm:w-20 sm:px-4" scope="col">
+          <th className="w-14 whitespace-nowrap px-2 py-3 text-center sm:w-16 sm:px-3" scope="col">
             Puesto
           </th>
-          <th className="whitespace-nowrap px-3 py-3 sm:px-4" scope="col">
+          <th className="whitespace-nowrap px-2 py-3 text-left sm:px-3" scope="col">
             Jugador
           </th>
-          <th className="whitespace-nowrap px-3 py-3 text-right sm:px-4" scope="col">
+          <th className="whitespace-nowrap px-2 py-3 text-right sm:px-3" scope="col">
             Puntuación
           </th>
-          <th className="hidden whitespace-nowrap px-4 py-3 text-right lg:table-cell" scope="col">
+          <th className="hidden whitespace-nowrap px-2 py-3 text-right md:table-cell lg:px-3" scope="col">
             Subidas
           </th>
-          <th className="hidden whitespace-nowrap px-4 py-3 lg:table-cell" scope="col">
+          <th className="hidden whitespace-nowrap px-2 py-3 text-right md:table-cell lg:px-3" scope="col">
             Última
           </th>
-          <th className="hidden whitespace-nowrap px-4 py-3 xl:table-cell" scope="col">
+          <th className="hidden whitespace-nowrap px-2 py-3 text-right lg:table-cell lg:px-3" scope="col">
             Diferencia
           </th>
         </tr>
@@ -113,10 +111,10 @@ export function LeaderboardTable({
                 className="bg-[var(--benchmark-row)] hover:bg-[var(--benchmark-row-hover)]"
                 key={`benchmark-${row.benchmark.id}`}
               >
-                <td className="w-14 whitespace-nowrap px-3 py-4 text-center sm:w-20 sm:px-4">
+                <td className="w-14 whitespace-nowrap px-2 py-4 text-center sm:w-16 sm:px-3">
                   <BenchmarkReferenceIcon />
                 </td>
-                <td className="min-w-0 px-3 py-4 sm:px-4">
+                <td className="min-w-0 px-2 py-4 text-left sm:px-3">
                   <div className="min-w-0">
                     <p className="truncate font-semibold theme-text">
                       {row.benchmark.label}
@@ -131,16 +129,16 @@ export function LeaderboardTable({
                     ) : null}
                   </div>
                 </td>
-                <td className="whitespace-nowrap px-3 py-4 text-right font-semibold theme-text sm:px-4">
+                <td className="whitespace-nowrap px-2 py-4 text-right font-semibold theme-text sm:px-3">
                   {formatScore(row.benchmark.score)}
                 </td>
-                <td className="hidden whitespace-nowrap px-4 py-4 text-right theme-text-muted lg:table-cell">
+                <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted md:table-cell lg:px-3">
                   -
                 </td>
-                <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted lg:table-cell">
+                <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted md:table-cell lg:px-3">
                   -
                 </td>
-                <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted xl:table-cell">
+                <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted lg:table-cell lg:px-3">
                   -
                 </td>
               </tr>
@@ -151,25 +149,25 @@ export function LeaderboardTable({
 
           return (
             <tr className={getRankRowClass(entry.rank)} key={entry.player.id}>
-              <td className="w-14 whitespace-nowrap px-3 py-4 font-semibold theme-text sm:w-20 sm:px-4">
+              <td className="w-14 whitespace-nowrap px-2 py-4 text-center font-semibold theme-text sm:w-16 sm:px-3">
                 <RankBadge rank={entry.rank} />
               </td>
-              <td className="min-w-0 px-3 py-4 sm:px-4">
+              <td className="min-w-0 px-2 py-4 text-left sm:px-3">
                 <PlayerPill compactOnMobile player={entry.player} />
               </td>
-              <td className="whitespace-nowrap px-3 py-4 text-right font-semibold theme-text sm:px-4">
+              <td className="whitespace-nowrap px-2 py-4 text-right font-semibold theme-text sm:px-3">
                 {formatScore(entry.bestScore)}
               </td>
-              <td className="hidden whitespace-nowrap px-4 py-4 text-right theme-text-muted lg:table-cell">
+              <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted md:table-cell lg:px-3">
                 {entry.uploads}
               </td>
               <td
-                className="hidden whitespace-nowrap px-4 py-4 theme-text-muted lg:table-cell"
+                className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted md:table-cell lg:px-3"
                 title={formatExactDateTime(entry.lastSubmissionAt)}
               >
                 {formatRelativeTime(entry.lastSubmissionAt)}
               </td>
-              <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted xl:table-cell">
+              <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted lg:table-cell lg:px-3">
                 {formatGap(entry.gapToFirst)}
               </td>
             </tr>
