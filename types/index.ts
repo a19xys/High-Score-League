@@ -159,5 +159,6 @@ export type LeagueChatMessage = {
   authorId?: string | null;
   content: string;
   createdAt: string;
+  editedAt?: string | null;
   author?: Player | null;
 };

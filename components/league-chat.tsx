@@ -30,6 +30,13 @@ type ChatMessagesPayload = {
   messages?: LeagueChatMessage[];
 };
 
+type ChatMessageWritePayload = {
+  ok: boolean;
+  code?: string;
+  error?: string;
+  message?: LeagueChatMessage;
+};
+
 type InlineToken =
   | { type: "text"; value: string }
   | { type: "strong" | "em"; value: string };
@@ -168,6 +175,25 @@ function ExternalAvatar({ message }: { message: LeagueChatMessage }) {
   );
 }
 
+function MaskIcon({
+  className,
+  src,
+}: {
+  className: string;
+  src: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-block shrink-0 ${className}`}
+      style={{
+        WebkitMask: `url('${src}') center / contain no-repeat`,
+        mask: `url('${src}') center / contain no-repeat`,
+      }}
+    />
+  );
+}
+
 export function LeagueChat({
   messages,
   canPost = false,
@@ -183,6 +209,32 @@ export function LeagueChat({
   const [messageError, setMessageError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [isSending, setIsSending] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [draftBeforeEdit, setDraftBeforeEdit] = useState<string | null>(null);
+
+  const editableMessageId = (() => {
+    if (!currentUserId) {
+      return null;
+    }
+
+    const editCutoff = now.getTime() - 15 * 60 * 1000;
+
+    for (let index = localMessages.length - 1; index >= 0; index -= 1) {
+      const message = localMessages[index];
+
+      if (message.messageType !== "user" || message.authorId !== currentUserId) {
+        continue;
+      }
+
+      const createdAt = new Date(message.createdAt).getTime();
+
+      return Number.isFinite(createdAt) && createdAt >= editCutoff
+        ? message.id
+        : null;
+    }
+
+    return null;
+  })();
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const element = scrollRef.current;
@@ -276,7 +328,7 @@ export function LeagueChat({
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "league_chat_messages",
         },
@@ -327,8 +379,37 @@ export function LeagueChat({
     }
   }, [draft, keepChatBottomVisible, resizeTextarea]);
 
+  function focusComposer() {
+    window.requestAnimationFrame(() => {
+      resizeTextarea();
+      textareaRef.current?.focus();
+      keepChatBottomVisible();
+    });
+  }
+
+  function startEditing(message: LeagueChatMessage) {
+    if (message.id !== editableMessageId || isSending) {
+      return;
+    }
+
+    setDraftBeforeEdit(draft);
+    setEditingMessageId(message.id);
+    setDraft(message.content);
+    setMessageError(null);
+    focusComposer();
+  }
+
+  function cancelEditing() {
+    setEditingMessageId(null);
+    setDraft(draftBeforeEdit ?? "");
+    setDraftBeforeEdit(null);
+    setMessageError(null);
+    focusComposer();
+  }
+
   async function sendMessage() {
     const content = draft.trim();
+    const isEditing = Boolean(editingMessageId);
 
     if (isSending || !canPost) {
       return;
@@ -351,19 +432,35 @@ export function LeagueChat({
     setIsSending(true);
 
     try {
-      const response = await fetch("/api/chat/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      });
-      const payload = (await response.json()) as {
-        ok: boolean;
-        error?: string;
-        message?: LeagueChatMessage;
-      };
+      const response = await fetch(
+        isEditing
+          ? `/api/chat/messages/${encodeURIComponent(editingMessageId as string)}`
+          : "/api/chat/messages",
+        {
+          method: isEditing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        },
+      );
+      const payload = (await response.json()) as ChatMessageWritePayload;
 
       if (!response.ok || !payload.ok || !payload.message) {
         console.error("Chat send failed", payload.error);
+
+        if (payload.code === "MESSAGE_NOT_EDITABLE") {
+          setMessageError("Solo puedes editar tu ultimo mensaje durante 15 minutos.");
+          return;
+        }
+
+        if (isEditing) {
+          setMessageError(
+            payload.error === "El mensaje no puede superar 65.536 caracteres."
+              ? payload.error
+              : "No se pudo editar el mensaje. Intentalo de nuevo.",
+          );
+          return;
+        }
+
         setMessageError(
           payload.error === "El mensaje no puede superar 65.536 caracteres."
             ? payload.error
@@ -373,8 +470,18 @@ export function LeagueChat({
       }
 
       setDraft("");
+      setEditingMessageId(null);
+      setDraftBeforeEdit(null);
       setLocalMessages((current) =>
-        normalizeMessages([...current, payload.message as LeagueChatMessage]),
+        normalizeMessages(
+          isEditing
+            ? current.map((message) =>
+                message.id === payload.message?.id
+                  ? (payload.message as LeagueChatMessage)
+                  : message,
+              )
+            : [...current, payload.message as LeagueChatMessage],
+        ),
       );
       window.requestAnimationFrame(() => {
         resizeTextarea();
@@ -391,6 +498,12 @@ export function LeagueChat({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Escape" && editingMessageId) {
+      event.preventDefault();
+      cancelEditing();
+      return;
+    }
+
     if (event.key !== "Enter" || event.shiftKey) {
       return;
     }
@@ -407,7 +520,7 @@ export function LeagueChat({
         </div>
       ) : null}
       <div
-        className="h-96 space-y-3 overflow-y-auto rounded-lg border p-4 theme-border theme-surface-muted"
+        className="h-96 space-y-3 overflow-x-hidden overflow-y-auto rounded-lg border p-4 theme-border theme-surface-muted"
         onScroll={() => {
           shouldStickToBottom.current = isNearBottom(scrollRef.current);
         }}
@@ -437,6 +550,62 @@ export function LeagueChat({
             }
 
             const isOwn = Boolean(currentUserId && message.authorId === currentUserId);
+            const canEditMessage =
+              !editingMessageId && isOwn && message.id === editableMessageId;
+            const bubble = (
+              <div
+                className={
+                  isOwn
+                    ? `min-w-0 max-w-[88%] rounded-lg border border-circuit/40 bg-circuit px-3 py-2 text-white ${
+                        message.editedAt ? "min-w-[10rem]" : ""
+                      }`
+                    : "min-w-0 max-w-[82%] rounded-lg border px-3 py-2 theme-border theme-surface"
+                }
+              >
+                <div
+                  className={
+                    isOwn
+                      ? "flex min-w-0 items-center justify-between gap-3 text-white"
+                      : "flex min-w-0 items-center justify-between gap-3"
+                  }
+                >
+                  <p
+                    className={
+                      isOwn
+                        ? "min-w-0 truncate text-xs font-black uppercase leading-none text-white"
+                        : "min-w-0 truncate text-xs font-black uppercase leading-none theme-text"
+                    }
+                  >
+                    {isOwn ? "YOU" : (message.author?.initials ?? "???")}
+                  </p>
+                  <div
+                    className={
+                      isOwn
+                        ? "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs leading-none text-white/75"
+                        : "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs leading-none theme-text-muted"
+                    }
+                  >
+                    {message.editedAt ? (
+                      <span aria-label="Editado" role="img" title="Editado">
+                        <MaskIcon
+                          className={
+                            isOwn ? "h-3.5 w-3.5 bg-white" : "h-3.5 w-3.5 bg-current"
+                          }
+                          src="/icons/chat-edited.png"
+                        />
+                      </span>
+                    ) : null}
+                    <time
+                      dateTime={message.createdAt}
+                      title={formatExactDateTime(message.createdAt)}
+                    >
+                      {formatRelativeTime(message.createdAt, now)}
+                    </time>
+                  </div>
+                </div>
+                <FormattedMessage content={message.content} isOwn={isOwn} />
+              </div>
+            );
 
             return (
               <article
@@ -444,48 +613,35 @@ export function LeagueChat({
                 key={message.id}
               >
                 {!isOwn ? <ExternalAvatar message={message} /> : null}
-                <div
-                  className={
-                    isOwn
-                      ? "min-w-0 max-w-[88%] rounded-lg border border-circuit/40 bg-circuit px-3 py-2 text-white"
-                      : "min-w-0 max-w-[82%] rounded-lg border px-3 py-2 theme-border theme-surface"
-                  }
-                >
-                  <div
-                    className={
-                      isOwn
-                        ? "flex items-baseline justify-between gap-4 text-white"
-                        : "flex items-baseline justify-between gap-4"
-                    }
-                  >
-                    <p
-                      className={
-                        isOwn
-                          ? "text-xs font-black uppercase text-white"
-                          : "text-xs font-black uppercase theme-text"
-                      }
-                    >
-                      {message.author?.initials ?? "???"}
-                    </p>
-                    <time
-                      className={
-                        isOwn
-                          ? "shrink-0 text-xs text-white/75"
-                          : "shrink-0 text-xs theme-text-muted"
-                      }
-                      dateTime={message.createdAt}
-                      title={formatExactDateTime(message.createdAt)}
-                    >
-                      {formatRelativeTime(message.createdAt, now)}
-                    </time>
+                {isOwn ? (
+                  <div className="group/message flex w-full max-w-full min-w-0 items-end justify-end gap-2">
+                    {canEditMessage ? (
+                      <button
+                        aria-label="Editar mensaje"
+                        className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full border border-circuit/30 bg-circuit/95 text-ink opacity-0 shadow-sm transition hover:bg-circuit focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit md:inline-flex md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100"
+                        onClick={() => {
+                          startEditing(message);
+                        }}
+                        type="button"
+                      >
+                        <MaskIcon className="h-4 w-4 bg-white" src="/icons/chat-edit.png" />
+                      </button>
+                    ) : null}
+                    {bubble}
                   </div>
-                  <FormattedMessage content={message.content} isOwn={isOwn} />
-                </div>
+                ) : (
+                  bubble
+                )}
               </article>
             );
           })
         )}
       </div>
+      {editingMessageId ? (
+        <p className="text-xs font-medium theme-text-muted">
+          Edita el mensaje (Esc para cancelar)...
+        </p>
+      ) : null}
       <div className="flex items-end gap-2">
         <textarea
           className="min-h-11 min-w-0 flex-1 resize-none rounded-md border px-3 py-2 text-sm leading-5 theme-input disabled:cursor-not-allowed disabled:opacity-60"
@@ -500,15 +656,27 @@ export function LeagueChat({
           rows={1}
           value={draft}
         />
+        {editingMessageId ? (
+          <button
+            aria-label="Cancelar edicion"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border transition theme-border theme-surface theme-text hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isSending}
+            onClick={cancelEditing}
+            type="button"
+          >
+            <MaskIcon className="h-6 w-6 bg-current" src="/icons/chat-cancel.png" />
+            <span className="sr-only">Cancelar edicion</span>
+          </button>
+        ) : null}
         <button
-          aria-label="Enviar"
+          aria-label={editingMessageId ? "Guardar edicion" : "Enviar"}
           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-circuit text-ink transition hover:bg-circuit/90 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={!canPost || isSending || draft.trim().length === 0}
           onClick={() => void sendMessage()}
           type="button"
         >
           <img alt="" className="h-5 w-5 object-contain" src="/icons/send.png" />
-          <span className="sr-only">Enviar</span>
+          <span className="sr-only">{editingMessageId ? "Guardar edicion" : "Enviar"}</span>
         </button>
       </div>
       {!canPost ? (

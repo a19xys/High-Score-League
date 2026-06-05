@@ -5,9 +5,9 @@ import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LeagueChat } from "@/components/league-chat";
 import { LinkButton } from "@/components/link-button";
 import { PublicLanding } from "@/components/public-landing";
-import { getRankCardClass, RankBadge } from "@/components/rank-badge";
 import { SeasonTable } from "@/components/season-table";
 import { SeasonJoinButton } from "@/components/season-join-button";
+import { TopThreeSummary } from "@/components/top-three-summary";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -16,7 +16,6 @@ import { getHomePageData } from "@/lib/data/home";
 import {
   formatCompactDateRange,
   formatLongDateWithoutYear,
-  formatScore,
 } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -210,46 +209,7 @@ export default async function HomePage() {
           <Card>
             <CardHeader title="Top 3 semanal" eyebrow="Resumen" />
             {topThree.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-3">
-                {topThree.map((entry) => (
-                  <div
-                    className={`flex min-h-44 flex-col justify-between rounded-lg border p-5 ${
-                      entry.rank === 1 ? "md:min-h-52 md:p-6" : ""
-                    } ${getRankCardClass(entry.rank)}`}
-                    key={entry.player.id}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        {entry.player.avatarUrl ? (
-                          <img
-                            alt=""
-                            className="h-12 w-12 rounded-full border object-cover theme-border"
-                            src={entry.player.avatarUrl}
-                          />
-                        ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-full border text-base font-black theme-border theme-surface theme-text">
-                            {entry.player.initials}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-base font-black theme-text">
-                            {entry.player.initials}
-                          </p>
-                          <p className="truncate text-sm theme-text-muted">
-                            @{entry.player.username}
-                          </p>
-                        </div>
-                      </div>
-                      <RankBadge rank={entry.rank} />
-                    </div>
-                    <div className="mt-8 text-right">
-                      <p className="text-4xl font-black theme-text">
-                        {formatScore(entry.bestScore)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <TopThreeSummary entries={topThree} />
             ) : (
               <EmptyState
                 title="Todavía no hay top 3."

@@ -10,6 +10,7 @@ const chatMessageColumns = `
   author_id,
   content,
   created_at,
+  edited_at,
   profiles:author_id (
     id,
     username,
@@ -36,6 +37,7 @@ export function mapLeagueChatRowToMessage(
     authorId: row.author_id,
     content: row.content,
     createdAt: row.created_at,
+    editedAt: row.edited_at,
     author: profile ? mapRealProfileToPlayer(profile) : null,
   };
 }

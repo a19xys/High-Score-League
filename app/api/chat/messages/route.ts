@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
         author_id,
         content,
         created_at,
+        edited_at,
         profiles:author_id (
           id,
           username,

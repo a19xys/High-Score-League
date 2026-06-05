@@ -10,7 +10,8 @@ normal.
 - Rutas privadas protegidas con `AccessRequired`.
 - Auth real con email/password y perfiles reales.
 - Juegos, temporadas, semanas, submissions, leaderboards, `weekly_results`,
-  clasificacion de temporada, benchmarks y chat global leen Supabase.
+  clasificacion de temporada, benchmarks y chat global leen Supabase. El chat
+  permite editar el último mensaje propio durante 15 minutos.
 - El panel admin permite gestionar juegos, temporadas, semanas, submissions,
   benchmarks y resultados oficiales. El catálogo de juegos usa metadatos
   múltiples para desarrolladores, editores, perspectivas, temas y géneros.

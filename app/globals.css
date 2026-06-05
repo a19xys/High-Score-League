@@ -170,6 +170,37 @@ textarea {
   .theme-input::placeholder {
     color: var(--text-muted);
   }
+
+  .top-three-rank-shine-bar {
+    pointer-events: none;
+    position: absolute;
+    inset-block: -35%;
+    left: -80%;
+    width: 44%;
+    transform: rotate(24deg);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.72),
+      transparent
+    );
+    animation: top-three-rank-shine 5.6s ease-in-out infinite;
+  }
+
+  .top-three-score-gold {
+    background: color-mix(in srgb, var(--gold-row) 78%, #000);
+    border-color: color-mix(in srgb, var(--gold-row) 58%, #92400e);
+  }
+
+  .top-three-score-silver {
+    background: color-mix(in srgb, var(--silver-row) 78%, #000);
+    border-color: color-mix(in srgb, var(--silver-row) 58%, #475569);
+  }
+
+  .top-three-score-bronze {
+    background: color-mix(in srgb, var(--bronze-row) 78%, #000);
+    border-color: color-mix(in srgb, var(--bronze-row) 58%, #9a3412);
+  }
 }
 
 @keyframes public-landing-drift {
@@ -193,6 +224,28 @@ textarea {
   }
 }
 
+@keyframes top-three-rank-shine {
+  0%,
+  72% {
+    left: -80%;
+    opacity: 0;
+  }
+
+  78% {
+    opacity: 0.9;
+  }
+
+  90% {
+    left: 136%;
+    opacity: 0;
+  }
+
+  100% {
+    left: 136%;
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .public-landing-aurora {
     animation: none;
@@ -203,5 +256,10 @@ textarea {
     animation: none;
     transform: none;
     will-change: auto;
+  }
+
+  .top-three-rank-shine-bar {
+    animation: none;
+    opacity: 0;
   }
 }

@@ -183,9 +183,13 @@ Campos principales:
   `system`.
 - `content`: texto del mensaje, máximo 65.536 caracteres.
 - `created_at`.
+- `edited_at`: fecha de última edición, `null` si el mensaje no se ha editado.
 
 El chat conserva solo los 75 mensajes más nuevos mediante trigger. Al crear un
 perfil nuevo, otro trigger inserta un mensaje `system` con el username.
+Los usuarios autenticados pueden editar únicamente su último mensaje propio de
+tipo `user` durante 15 minutos; la base de datos marca `edited_at` al actualizar
+el contenido.
 
 La tabla inicial `chat_messages` queda como preparación histórica anterior; el
 chat conectado de la home usa `league_chat_messages`.
@@ -311,8 +315,9 @@ Todas las tablas principales tienen Row Level Security activado.
   insertar mensajes propios; admins pueden gestionar todos. El borrado propio se
   deja como decisión futura para no abrir permisos antes de definir moderación.
 - `league_chat_messages`: usuarios autenticados pueden leer mensajes; pueden
-  insertar mensajes `user` solo como ellos mismos; no pueden insertar mensajes
-  `system`; admins pueden gestionar todo.
+  insertar mensajes `user` solo como ellos mismos; pueden editar solo su último
+  mensaje propio durante 15 minutos; no pueden insertar mensajes `system`;
+  admins pueden gestionar todo.
 
 Nota: si la home pública debe leer datos directamente desde Supabase sin sesión,
 habrá que decidir más adelante si se añaden políticas `anon` de solo lectura o
@@ -330,7 +335,6 @@ si esas lecturas se resuelven desde servidor.
 - Auditoría de cambios administrativos.
 - Metadatos adicionales de capturas como `original_file_name`, si se necesitan
   para moderacion u optimizacion.
-- Realtime para el chat de portada.
 
 ## Tema claro/oscuro
 
@@ -368,8 +372,6 @@ guardar el tipo y tamano del archivo resultante.
 
 Si se usa Supabase CLI mas adelante, el archivo puede aplicarse como migracion
 normal desde la carpeta `supabase/migrations`.
-
-
 
 
 

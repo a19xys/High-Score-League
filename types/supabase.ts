@@ -129,5 +129,6 @@ export type LeagueChatMessageRow = {
   author_id: string | null;
   content: string;
   created_at: string;
+  edited_at: string | null;
   profiles?: RealProfile | RealProfile[] | null;
 };

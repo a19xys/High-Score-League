@@ -11,6 +11,9 @@ La migración `supabase/migrations/0006_league_chat.sql` crea:
 public.league_chat_messages
 ```
 
+La migración `0014_league_chat_message_editing.sql` añade `edited_at` y la
+política de edición del último mensaje propio durante 15 minutos.
+
 Campos principales:
 
 - `id`
@@ -18,6 +21,7 @@ Campos principales:
 - `author_id`: referencia a `profiles.id` para mensajes de usuario
 - `content`
 - `created_at`
+- `edited_at`: fecha de última edición, `null` si no se ha editado
 
 Reglas:
 
@@ -55,8 +59,10 @@ Políticas iniciales:
 
 - usuarios autenticados pueden leer mensajes;
 - usuarios autenticados pueden insertar mensajes `user` solo como ellos mismos;
+- usuarios autenticados pueden editar solo su último mensaje propio de tipo
+  `user` durante los 15 minutos posteriores a `created_at`;
 - usuarios normales no pueden insertar mensajes `system`;
-- usuarios normales no pueden editar ni borrar mensajes;
+- usuarios normales no pueden borrar mensajes;
 - admins pueden gestionar mensajes desde SQL o futuras herramientas.
 
 No se usa `service_role` en frontend.
@@ -86,6 +92,29 @@ El endpoint:
 - inserta siempre `message_type = 'user'`;
 - deriva `author_id` desde el usuario autenticado.
 
+La edición usa:
+
+```text
+PATCH /api/chat/messages/[messageId]
+```
+
+Payload:
+
+```json
+{
+  "content": "mensaje editado"
+}
+```
+
+El endpoint:
+
+- requiere sesión Supabase;
+- rechaza `authorId`, `messageType`, `createdAt` y `editedAt` desde cliente;
+- permite editar solo el último mensaje propio de tipo `user`;
+- limita la edición a 15 minutos desde `created_at`;
+- actualiza `edited_at` en servidor/base de datos;
+- devuelve `MESSAGE_NOT_EDITABLE` si el mensaje ya no puede editarse.
+
 ## Home
 
 En modo Supabase, `/` lee `league_chat_messages` y muestra los últimos 75
@@ -110,9 +139,9 @@ La migración `0007_league_chat_realtime.sql` añade
 `public.league_chat_messages` a la publicación `supabase_realtime` de forma
 idempotente.
 
-El componente de chat se suscribe a inserts de esa tabla. Cuando llega un insert,
-no usa directamente el payload realtime para pintar el mensaje, porque ese
-payload no trae el perfil unido. En su lugar llama a:
+El componente de chat se suscribe a inserts y updates de esa tabla. Cuando llega
+un cambio, no usa directamente el payload realtime para pintar el mensaje,
+porque ese payload no trae el perfil unido. En su lugar llama a:
 
 ```text
 GET /api/chat/messages
@@ -136,7 +165,5 @@ Todavía no hay:
 - chat por semana;
 - moderación UI;
 - borrado desde UI;
-- edición de mensajes.
-
-
+- historial de ediciones.
 
