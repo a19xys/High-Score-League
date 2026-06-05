@@ -51,7 +51,8 @@ http://localhost:3000
 - `/seasons`: archivo real de temporadas.
 - `/seasons/[seasonId]`: detalle real de temporada con clasificacion y podio.
 - `/players/[username]`: perfil publico real.
-- `/submit`: pantalla provisional de respaldo para subida manual.
+- `/submit`: herramienta legacy/interna para admins; el flujo normal de
+  puntuaciones va por app local/MAME.
 - `/profile`: perfil real, ajustes y centro admin para administradores.
 - `/admin/weeks`, `/admin/games`, `/admin/seasons`: panel admin minimo.
   Juegos permite metadatos múltiples y borrado seguro si no hay semanas
@@ -91,7 +92,7 @@ Supabase Storage queda reservado para contenido dinamico futuro.
 - App local y plugin MAME.
 - Storage real.
 - Capturas reales.
-- Subida manual real desde `/submit`.
+- App local y plugin MAME como flujo principal de envios.
 - Panel completo de usuarios.
 - Medallas y bonus.
 - Moderacion UI del chat.

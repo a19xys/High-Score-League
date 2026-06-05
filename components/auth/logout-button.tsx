@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -8,6 +9,7 @@ type LogoutButtonProps = {
 };
 
 export function LogoutButton({ className }: LogoutButtonProps) {
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleLogout() {
@@ -27,7 +29,8 @@ export function LogoutButton({ className }: LogoutButtonProps) {
       return;
     }
 
-    window.location.replace("/");
+    router.replace("/");
+    router.refresh();
   }
 
   return (

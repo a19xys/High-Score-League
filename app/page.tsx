@@ -14,17 +14,6 @@ import { formatCompactDateRange, formatScore } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-function DisabledAction({ children }: { children: string }) {
-  return (
-    <span
-      aria-disabled="true"
-      className="inline-flex cursor-not-allowed items-center justify-center rounded-md border px-4 py-2 text-sm font-semibold opacity-60 theme-border theme-surface theme-text"
-    >
-      {children}
-    </span>
-  );
-}
-
 function weekStatusText(status: string) {
   if (status === "active") {
     return "Competición abierta";
@@ -76,15 +65,10 @@ export default async function HomePage() {
               <LinkButton href={weekHref} variant="primary">
                 Leaderboard
               </LinkButton>
-            ) : (
-              <DisabledAction>Leaderboard</DisabledAction>
-            )}
+            ) : null}
             {seasonHref ? (
               <LinkButton href={seasonHref}>Clasificación</LinkButton>
-            ) : (
-              <DisabledAction>Clasificación</DisabledAction>
-            )}
-            <LinkButton href="/submit">Subir</LinkButton>
+            ) : null}
           </div>
           {data.warning ? (
             <div className="mt-5 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">

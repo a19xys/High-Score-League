@@ -12,7 +12,7 @@ export function PublicLanding({ hasHorizontalLogo }: PublicLandingProps) {
         {hasHorizontalLogo ? (
           <img
             alt="High Score League"
-            className="mx-auto h-auto w-full max-w-[22rem] sm:max-w-lg"
+            className="public-landing-logo mx-auto h-auto max-h-[28vh] w-auto max-w-[22rem] object-contain sm:max-w-lg"
             src="/brand/logo-horizontal.png"
           />
         ) : (
@@ -26,7 +26,7 @@ export function PublicLanding({ hasHorizontalLogo }: PublicLandingProps) {
           </div>
         )}
 
-        <div className="mt-10 rounded-lg border border-white/15 bg-slate-950/70 p-6 text-white shadow-panel backdrop-blur-sm sm:p-8">
+        <div className="mt-6 rounded-lg border border-white/15 bg-slate-950/70 p-6 text-white shadow-panel backdrop-blur-sm sm:p-8">
           <p className="text-xs font-semibold uppercase text-cyan-100/80">
             Liga privada
           </p>

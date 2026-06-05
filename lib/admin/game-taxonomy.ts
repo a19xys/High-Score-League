@@ -3,9 +3,7 @@ export const GAME_PERSPECTIVES = [
   "Isométrica",
   "Lateral",
   "Primera persona",
-  "Realidad virtual",
   "Tercera persona",
-  "Texto",
 ] as const;
 
 export const GAME_THEMES = [
@@ -16,7 +14,6 @@ export const GAME_THEMES = [
   "Comedia",
   "Drama",
   "Educación",
-  "Erotismo",
   "Fantasía",
   "Fiesta",
   "Guerra",
@@ -36,6 +33,7 @@ export const GAME_THEMES = [
 export const GAME_GENRES = [
   "Aventura",
   "Beat 'em up",
+  "Breakout",
   "Conducción",
   "Concurso",
   "Deporte",
@@ -44,6 +42,7 @@ export const GAME_GENRES = [
   "Hack and Slash",
   "Indie",
   "Juego de mesa",
+  "Laberinto",
   "Lucha",
   "MOBA",
   "Musical",
@@ -53,10 +52,8 @@ export const GAME_GENRES = [
   "Point-and-click",
   "Puzles",
   "Rol",
-  "RTS",
   "Simulación",
   "Táctica",
-  "TBS",
 ] as const;
 
 export const GAME_TAXONOMY = {

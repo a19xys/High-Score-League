@@ -1,8 +1,8 @@
-import { AccessRequired } from "@/components/auth/access-required";
+import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { SubmitFallbackForm } from "@/components/submit-fallback-form";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState, PlaceholderSection } from "@/components/ui/state";
-import { hasServerSession } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/admin";
 import { getActiveWeekDetailData } from "@/lib/data/week-detail";
 import type { Metadata } from "next";
 
@@ -12,8 +12,20 @@ export const metadata: Metadata = {
 };
 
 export default async function SubmitPage() {
-  if (!(await hasServerSession())) {
-    return <AccessRequired />;
+  const auth = await requireAdmin();
+
+  if (!auth.ok) {
+    return (
+      <AdminGateMessage
+        description={
+          auth.status === 403
+            ? "La subida manual web queda como herramienta interna. El flujo normal de puntuaciones va por la app local/MAME."
+            : auth.error
+        }
+        showLogin={auth.status === 401}
+        title={auth.status === 403 ? "Subida manual no disponible" : "Sesión requerida"}
+      />
+    );
   }
 
   const activeWeek = await getActiveWeekDetailData();

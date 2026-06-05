@@ -11,12 +11,20 @@ export type SiteNavData = {
   activeSeasonSlug: string | null;
   hasBrandLogo: boolean;
   isSignedIn: boolean;
+  profile: NavProfile | null;
+};
+
+export type NavProfile = {
+  username: string | null;
+  initials: string | null;
+  avatarUrl: string | null;
+  email: string | null;
 };
 
 type NavLink = {
   href: string;
   label: string;
-  id: "leaderboard" | "classification" | "weeks" | "seasons" | "submit";
+  id: "home" | "leaderboard" | "classification" | "weeks" | "seasons";
 };
 
 type SiteNavClientProps = {
@@ -24,9 +32,9 @@ type SiteNavClientProps = {
 };
 
 const baseLinks: NavLink[] = [
+  { href: "/", label: "INICIO", id: "home" },
   { href: "/weeks", label: "SEMANAS", id: "weeks" },
   { href: "/seasons", label: "TEMPORADAS", id: "seasons" },
-  { href: "/submit", label: "SUBIR", id: "submit" },
 ];
 
 function navLinkClass(active: boolean) {
@@ -73,6 +81,7 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
   ].filter((path): path is string => Boolean(path));
   const links: NavLink[] = data.isSignedIn
     ? [
+        baseLinks[0],
         ...(activeWeekPath
           ? [
               {
@@ -91,13 +100,10 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
               },
             ]
           : []),
-        ...baseLinks,
+        ...baseLinks.slice(1),
       ]
     : [];
-  const mobileLinks: Array<NavLink & { href: string; label: string }> = [
-    { href: "/", label: "INICIO", id: "weeks" },
-    ...links,
-  ];
+  const mobileLinks: NavLink[] = links;
 
   function isActive(link: NavLink) {
     if (link.href === "/") {
@@ -140,12 +146,12 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
             onClick={() => setMobileOpen(false)}
           >
             <BrandMark hasBrandLogo={data.hasBrandLogo} />
-            <span className="truncate whitespace-nowrap text-lg font-bold uppercase theme-text">
+            <span className="hidden whitespace-nowrap text-lg font-bold uppercase theme-text md:inline">
               High Score League
             </span>
           </Link>
           <div className="shrink-0">
-            <AuthNavItem />
+            <AuthNavItem isSignedIn={data.isSignedIn} profile={data.profile} />
           </div>
           <button
             aria-expanded={mobileOpen}
@@ -180,7 +186,9 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
               );
             })}
             <AuthNavItem
+              isSignedIn={data.isSignedIn}
               onNavigate={() => setMobileOpen(false)}
+              profile={data.profile}
               variant="link"
             />
           </div>
@@ -193,7 +201,7 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
           href="/"
         >
           <BrandMark hasBrandLogo={data.hasBrandLogo} />
-          <span className="truncate whitespace-nowrap text-lg font-bold uppercase theme-text">
+          <span className="hidden whitespace-nowrap text-lg font-bold uppercase theme-text xl:inline">
             High Score League
           </span>
         </Link>
@@ -216,7 +224,7 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
         </div>
 
         <div className="flex justify-end border-l pl-4 theme-border">
-          <AuthNavItem />
+          <AuthNavItem isSignedIn={data.isSignedIn} profile={data.profile} />
         </div>
         </div>
       </nav>

@@ -20,6 +20,8 @@ normal.
 - `/game` redirige a la semana activa real.
 - `/week` y `/leaderboard` redirigen a `/game`.
 - `/season` redirige a `/seasons`.
+- `/submit` se conserva como herramienta legacy/interna para admins. El flujo
+  normal de puntuaciones sera la app local/MAME.
 - `lib/mock-data.ts` fue eliminado y ya no existe fallback de producto a datos
   locales.
 - `NEXT_PUBLIC_DATA_SOURCE` ya no se usa.
@@ -57,7 +59,7 @@ normal.
 - App local y plugin MAME.
 - Storage real.
 - Capturas reales.
-- Subida manual real desde `/submit`.
+- App local y plugin MAME como flujo principal de envios.
 - Panel completo de usuarios.
 - Medallas y bonus.
 - Moderacion UI del chat.

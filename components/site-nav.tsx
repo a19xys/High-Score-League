@@ -1,12 +1,12 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { getServerSession } from "@/lib/auth/session";
 import { getRealSeasons } from "@/lib/data/seasons";
 import { getRealWeeks } from "@/lib/data/weeks";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSynchronizedSeasonStatus, getSynchronizedWeekStatus } from "@/lib/week-status";
-import { SiteNavClient, type SiteNavData } from "./site-nav-client";
+import { SiteNavClient, type NavProfile, type SiteNavData } from "./site-nav-client";
 
-async function getSupabaseNavData(): Promise<SiteNavData> {
+async function getSupabaseNavData(profile: NavProfile): Promise<SiteNavData> {
   const [weeksResult, seasonsResult] = await Promise.all([
     getRealWeeks(),
     getRealSeasons(),
@@ -42,6 +42,7 @@ async function getSupabaseNavData(): Promise<SiteNavData> {
     activeSeasonSlug: activeSeason?.slug ?? null,
     hasBrandLogo: hasStaticBrandLogo(),
     isSignedIn: true,
+    profile,
   };
 }
 
@@ -52,6 +53,7 @@ function getSignedOutNavData(): SiteNavData {
     activeSeasonSlug: null,
     hasBrandLogo: hasStaticBrandLogo(),
     isSignedIn: false,
+    profile: null,
   };
 }
 
@@ -60,11 +62,34 @@ function hasStaticBrandLogo() {
 }
 
 export async function SiteNav() {
-  const session = await getServerSession();
+  const supabase = await createSupabaseServerClient();
 
-  if (session.status !== "signed-in") {
+  if (!supabase) {
     return <SiteNavClient data={getSignedOutNavData()} />;
   }
 
-  return <SiteNavClient data={await getSupabaseNavData()} />;
+  const { data: userData } = await supabase.auth.getUser();
+
+  if (!userData.user) {
+    return <SiteNavClient data={getSignedOutNavData()} />;
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("username,initials,avatar_url")
+    .eq("id", userData.user.id)
+    .maybeSingle<{
+      username: string | null;
+      initials: string | null;
+      avatar_url: string | null;
+    }>();
+
+  const navProfile: NavProfile = {
+    username: profile?.username ?? null,
+    initials: profile?.initials ?? null,
+    avatarUrl: profile?.avatar_url ?? null,
+    email: userData.user.email ?? null,
+  };
+
+  return <SiteNavClient data={await getSupabaseNavData(navProfile)} />;
 }
