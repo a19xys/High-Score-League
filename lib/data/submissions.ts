@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { LeaderboardEntry, Player, Submission, Week } from "@/types";
-import type { RealProfile, SubmissionRow } from "@/types/supabase";
+import type { RealProfile, SubmissionRow, SubmissionSource } from "@/types/supabase";
 import type { DataReadResult } from "./types";
 
 const submissionColumns = `
@@ -35,6 +35,21 @@ const submissionColumns = `
 function normalizeProfile(profile: RealProfile | RealProfile[] | null | undefined) {
   return Array.isArray(profile) ? profile[0] : profile;
 }
+
+type HiddenSubmissionActivityRow = {
+  id: string;
+  week_id: string;
+  player_id: string;
+  submitted_at: string;
+  is_hidden: boolean;
+  is_valid: boolean;
+  source: SubmissionSource;
+  detected_at: string | null;
+  profile_id: string;
+  profile_username: string;
+  profile_initials: string;
+  profile_avatar_url: string | null;
+};
 
 export function mapRealProfileToPlayer(profile: RealProfile): Player {
   return {
@@ -90,6 +105,66 @@ export async function getRealSubmissions(
 
   return {
     rows: (data ?? []) as SubmissionRow[],
+    source: "supabase",
+    error: null,
+  };
+}
+
+export async function getHiddenSubmissionActivity(
+  weekId: string,
+): Promise<DataReadResult<SubmissionRow>> {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return {
+      rows: [],
+      source: "supabase",
+      error: "Supabase no esta configurado.",
+    };
+  }
+
+  const { data, error } = await supabase.rpc(
+    "get_week_hidden_submission_activity",
+    { p_week_id: weekId },
+  );
+
+  if (error) {
+    return {
+      rows: [],
+      source: "supabase",
+      error: error.message,
+    };
+  }
+
+  const rows = ((data ?? []) as HiddenSubmissionActivityRow[]).map((row) => ({
+    id: row.id,
+    week_id: row.week_id,
+    player_id: row.player_id,
+    score: 0,
+    screenshot_path: null,
+    screenshot_mime_type: null,
+    screenshot_size_bytes: null,
+    comment: null,
+    is_hidden: row.is_hidden,
+    is_valid: row.is_valid,
+    submitted_at: row.submitted_at,
+    source: row.source,
+    detected_at: row.detected_at,
+    rom_name: null,
+    mame_version: null,
+    client_version: null,
+    duplicate_key: null,
+    profiles: {
+      id: row.profile_id,
+      username: row.profile_username,
+      initials: row.profile_initials,
+      avatar_url: row.profile_avatar_url,
+      is_admin: false,
+    },
+  }));
+
+  return {
+    rows,
     source: "supabase",
     error: null,
   };

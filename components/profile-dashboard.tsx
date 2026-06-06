@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
@@ -370,11 +370,11 @@ function ProfileForm({
           <textarea
             className="mt-2 min-h-28 w-full rounded-md border px-3 py-2 theme-input"
             onChange={(event) => setBio(event.target.value)}
-            placeholder="Sin descripción todavía."
+            placeholder="Sin descripción todaví­a."
             value={bio}
           />
           <span className="mt-1 block text-xs theme-text-muted">
-            Bio pública del jugador. Puede quedar vacía.
+            Bio pública del jugador. Puede quedar vací­a.
           </span>
         </label>
         <label className="block md:col-span-2">
@@ -473,13 +473,13 @@ export function ProfileDashboard({
       {
         label: "Medallas",
         value: "Pendiente",
-        help: "Sistema de medallas todavía no implementado.",
+        help: "Sistema de medallas todaví­a no implementado.",
         provisional: true,
       },
       {
         label: "Tiempo jugado",
         value: "Pendiente",
-        help: "La app local aún no envía tiempo de juego.",
+        help: "La app local aún no enví­a tiempo de juego.",
         provisional: true,
       },
     ],
@@ -527,7 +527,7 @@ export function ProfileDashboard({
                   <p className="mt-1 theme-text-muted">{profileUsername(profile)}</p>
                   <p className="mt-1 text-sm theme-text-muted">{auth.email}</p>
                   <p className="mt-4 leading-7 theme-text">
-                    {profile?.bio ?? "Sin descripción todavía."}
+                    {profile?.bio ?? "Sin descripción todaví­a."}
                   </p>
                   {profile?.created_at ? (
                     <p
@@ -569,7 +569,7 @@ export function ProfileDashboard({
             <div className="rounded-lg border p-5 theme-border theme-surface">
               <p className="font-semibold theme-text">Medallas</p>
               <p className="mt-2 text-sm theme-text-muted">
-                Las medallas personalizadas aparecerán aquí.
+                Las medallas personalizadas aparecerán aquí­.
               </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {["Campeón", "Primer podio", "Racha"].map((label) => (
@@ -619,7 +619,7 @@ export function ProfileDashboard({
               <p className="font-semibold">Zona peligrosa</p>
               <p className="mt-1 text-sm">
                 Acción de desarrollo para borrar cuentas de prueba. En producción
-                debería sustituirse por desactivación o anonimización.
+                deberí­a sustituirse por desactivación o anonimización.
               </p>
               <div className="mt-3">
                 <DeleteAccountButton />
@@ -641,15 +641,21 @@ export function ProfileDashboard({
         {activeSection === "history" ? (
           <>
             <div className="rounded-lg border p-5 theme-border theme-surface">
-              <p className="mb-4 font-semibold theme-text">Historial de envíos</p>
               <SubmissionsTable
-                emptyDescription="Tus envíos reales aparecerán aquí cuando existan."
-                emptyTitle="Todavía no hay envíos para este perfil."
+                currentUserId={auth.status === "signed-in" ? auth.profile?.id : null}
+                currentUserInitials={
+                  auth.status === "signed-in"
+                    ? auth.profile?.initials ?? auth.metadataInitials
+                    : null
+                }
+                emptyDescription="Tus enví­os reales aparecerán aquí­ cuando existan."
+                emptyTitle="Todaví­a no hay enví­os para este perfil."
                 showDetectedAt
                 showPlayer={false}
                 showSource
                 showWeek
                 submissions={recentSubmissions}
+                title="Historial de envíos"
               />
             </div>
             <div className="rounded-lg border p-5 theme-border theme-surface">
@@ -674,15 +680,15 @@ export function ProfileDashboard({
                         className="mt-1 text-sm theme-text-muted"
                         title={formatExactDateTime(score.latestAt)}
                       >
-                        {score.uploads} envíos válidos
+                        {score.uploads} enví­os válidos
                       </p>
                     </div>
                   ))}
                 </div>
               ) : (
                 <PlaceholderSection
-                  title="Sin mejores puntuaciones todavía"
-                  description="Cuando tengas envíos válidos, se resumirá aquí tu mejor puntuación por semana."
+                  title="Sin mejores puntuaciones todaví­a"
+                  description="Cuando tengas enví­os válidos, se resumirá aquí­ tu mejor puntuación por semana."
                 />
               )}
             </div>

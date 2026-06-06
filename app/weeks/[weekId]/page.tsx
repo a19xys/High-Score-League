@@ -4,7 +4,7 @@ import { AccessRequired } from "@/components/auth/access-required";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { WeekDetailView } from "@/components/week-detail-view";
-import { hasServerSession } from "@/lib/auth/session";
+import { getServerSession, hasServerSession } from "@/lib/auth/session";
 import { getWeekDetailData } from "@/lib/data/week-detail";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +40,7 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
   }
 
   const { weekId } = await params;
+  const session = await getServerSession();
   const detail = await getWeekDetailData(weekId);
 
   if (!detail) {
@@ -66,6 +67,7 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
       backHref="/weeks"
       backLabel="← Volver a semanas"
       benchmarks={detail.benchmarks}
+      currentUserId={session.userId}
       dataMode={detail.mode}
       game={detail.game}
       hideDownloads={detail.hideDownloads}

@@ -33,6 +33,7 @@ type WeekDetailViewProps = {
   leaderboard: LeaderboardEntry[];
   benchmarks?: WeekBenchmark[];
   submissions: WeekSubmission[];
+  currentUserId?: string | null;
   weeklyResults?: WeeklyResult[];
   dataMode?: "supabase";
   hideDownloads?: boolean;
@@ -53,6 +54,7 @@ export function WeekDetailView({
   leaderboard,
   benchmarks = [],
   submissions,
+  currentUserId = null,
   weeklyResults = [],
   dataMode = "supabase",
   hideDownloads = false,
@@ -214,27 +216,30 @@ export function WeekDetailView({
       ) : null}
 
       <Card>
-        <CardHeader
-          title="Historial de enví­os"
-          eyebrow="Submissions reales"
-        />
         {submissionsPending ? (
+          <>
+            <CardHeader
+              title="Historial de enví­os"
+              eyebrow="Submissions reales"
+            />
           <EmptyState
             title="Historial de enví­os pendiente."
             description="Los enví­os reales se cargarán cuando conectemos submissions."
           />
+          </>
         ) : (
           <SubmissionsTable
+            currentUserId={currentUserId}
+            eyebrow="Submissions reales"
             emptyTitle="Todavía no hay envíos para esta semana."
             showDetectedAt={dataMode === "supabase"}
             showSource={dataMode === "supabase"}
             showWeek={false}
             submissions={submissions}
+            title="Historial de envíos"
           />
         )}
       </Card>
     </div>
   );
 }
-
-

@@ -13,6 +13,7 @@ import { getRealGames, mapGameRowToGame } from "./games";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
 import {
   buildLeaderboardFromSubmissions,
+  getHiddenSubmissionActivity,
   getRealSubmissions,
   mapSubmissionRowToSubmission,
 } from "./submissions";
@@ -27,6 +28,7 @@ import {
   getDerivedWeekStatusFromRow,
   getWeekStatusHelp,
 } from "@/lib/week-status";
+import type { SubmissionRow } from "@/types/supabase";
 
 type WeekSubmission = Submission & {
   player?: Player;
@@ -107,19 +109,37 @@ async function readRealWeekContext() {
   };
 }
 
-async function requireSession() {
+async function getCurrentUserId() {
   const supabase = await createSupabaseServerClient();
   const { data: userData } = supabase
     ? await supabase.auth.getUser()
     : { data: { user: null } };
 
-  return Boolean(userData.user);
+  return userData.user?.id ?? null;
+}
+
+function mergeSubmissionRows(
+  submissionRows: SubmissionRow[],
+  activityRows: SubmissionRow[],
+) {
+  const byId = new Map<string, SubmissionRow>();
+
+  for (const row of activityRows) {
+    byId.set(row.id, row);
+  }
+
+  for (const row of submissionRows) {
+    byId.set(row.id, row);
+  }
+
+  return Array.from(byId.values());
 }
 
 async function buildRealWeekDetail(
   weekId: string,
   context: Awaited<ReturnType<typeof readRealWeekContext>>,
   warning: string | null,
+  currentUserId: string | null,
 ): Promise<WeekDetailData | null> {
   const weekRow = context.weeks.find((week) => week.id === weekId);
 
@@ -191,11 +211,36 @@ async function buildRealWeekDetail(
     new Date(),
     realWeeklyResultRows.length > 0,
   );
+  const visibleWeekStatus =
+    derivedStatus === "final_stretch"
+      ? "frozen"
+      : derivedStatusToVisibleWeekStatus(derivedStatus);
   const visibleWeek = {
     ...week,
-    status: derivedStatusToVisibleWeekStatus(derivedStatus),
+    status: visibleWeekStatus,
     rules,
   };
+  const hiddenActivityResult =
+    !isSecret && visibleWeek.status === "frozen"
+      ? await getHiddenSubmissionActivity(weekRow.id)
+      : null;
+  const tableSubmissionRows = mergeSubmissionRows(
+    realSubmissionRows,
+    hiddenActivityResult?.rows ?? [],
+  ).map((row) =>
+    row.is_hidden &&
+    row.player_id !== currentUserId &&
+    visibleWeek.status !== "closed" &&
+    visibleWeek.status !== "published"
+      ? { ...row, score: 0 }
+      : row,
+  );
+  const detailWarningParts = [
+    ...warningParts,
+    hiddenActivityResult?.error
+      ? `No se pudo cargar actividad oculta de tramo final: ${hiddenActivityResult.error}.`
+      : null,
+  ].filter(Boolean);
 
   return {
     season: mapSeasonRowToSeason(
@@ -212,10 +257,10 @@ async function buildRealWeekDetail(
       : realBenchmarkRows.map(mapWeekBenchmarkRowToBenchmark),
     submissions: isSecret
       ? []
-      : realSubmissionRows.map((row) => mapSubmissionRowToSubmission(row, visibleWeek)),
+      : tableSubmissionRows.map((row) => mapSubmissionRowToSubmission(row, visibleWeek)),
     weeklyResults: realWeeklyResultRows.map(mapWeeklyResultRowToWeeklyResult),
     mode: "supabase",
-    warning: warningParts.length > 0 ? warningParts.join(" ") : null,
+    warning: detailWarningParts.length > 0 ? detailWarningParts.join(" ") : null,
     isSecret,
     hideDownloads: isSecret,
     leaderboardPending: false,
@@ -225,7 +270,9 @@ async function buildRealWeekDetail(
 }
 
 export async function getWeekDetailData(weekId: string): Promise<WeekDetailData | null> {
-  if (!(await requireSession())) {
+  const currentUserId = await getCurrentUserId();
+
+  if (!currentUserId) {
     return null;
   }
 
@@ -267,11 +314,13 @@ export async function getWeekDetailData(weekId: string): Promise<WeekDetailData 
     };
   }
 
-  return buildRealWeekDetail(weekId, context, null);
+  return buildRealWeekDetail(weekId, context, null, currentUserId);
 }
 
 export async function getActiveWeekDetailData(): Promise<ActiveWeekResult> {
-  if (!(await requireSession())) {
+  const currentUserId = await getCurrentUserId();
+
+  if (!currentUserId) {
     return {
       status: "empty",
       message: "Inicia sesión para leer la semana activa.",
@@ -309,7 +358,7 @@ export async function getActiveWeekDetailData(): Promise<ActiveWeekResult> {
     activeWeeks.length > 1
       ? `Hay ${activeWeeks.length} semanas activas en Supabase. Se muestra la primera por fecha de inicio.`
       : null;
-  const detail = await buildRealWeekDetail(activeWeeks[0].id, context, warning);
+  const detail = await buildRealWeekDetail(activeWeeks[0].id, context, warning, currentUserId);
 
   if (!detail) {
     return {
