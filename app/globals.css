@@ -187,6 +187,42 @@ textarea {
     animation: top-three-rank-shine 5.6s ease-in-out infinite;
   }
 
+  .top-three-card-shine {
+    inset-block: -55%;
+    left: -92%;
+    width: 34%;
+    transform: rotate(24deg);
+    opacity: 0;
+    animation: top-three-rank-shine 5.6s ease-in-out infinite;
+  }
+
+  .top-three-card-shine-gold {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(254, 240, 138, 0.34),
+      transparent
+    );
+  }
+
+  .top-three-card-shine-silver {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(226, 232, 240, 0.34),
+      transparent
+    );
+  }
+
+  .top-three-card-shine-bronze {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(253, 186, 116, 0.32),
+      transparent
+    );
+  }
+
   .top-three-score-gold {
     background: color-mix(in srgb, var(--gold-row) 78%, #000);
     border-color: color-mix(in srgb, var(--gold-row) 58%, #92400e);
@@ -259,6 +295,11 @@ textarea {
   }
 
   .top-three-rank-shine-bar {
+    animation: none;
+    opacity: 0;
+  }
+
+  .top-three-card-shine {
     animation: none;
     opacity: 0;
   }

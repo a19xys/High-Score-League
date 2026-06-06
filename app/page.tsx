@@ -94,7 +94,7 @@ export default async function HomePage() {
 			  HIGH SCORE LEAGUE
 			</h1>
 			<p className="mt-4 max-w-2xl text-base leading-7 theme-text-muted">
-			  Liga de puntuaciones arcade con clasificación por temporadas y
+			  Liga de arcade con clasificación por temporadas y
 			  semanas temáticas
 			</p>
 			<div className="mt-6 flex flex-wrap gap-3">
@@ -257,7 +257,7 @@ export default async function HomePage() {
 
       <Card>
         <CardHeader title="Chat de la liga" eyebrow="Comentarios">
-          Chat global real de la liga. Se conservan los últimos 75 mensajes.
+          Se conservan los últimos 75 mensajes.
         </CardHeader>
         <LeagueChat
           canPost={data.canPostChat}

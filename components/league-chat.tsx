@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   type KeyboardEvent,
+  type PointerEvent,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -16,6 +17,10 @@ import type { LeagueChatMessage } from "@/types";
 const messageLimit = 65_536;
 const visibleMessageLimit = 75;
 const textareaMaxHeight = 168;
+const composerViewportOffset = 56;
+const mobileEditLongPressMs = 520;
+const mobileEditActionVisibleMs = 3500;
+const mobileEditMoveTolerance = 10;
 
 type LeagueChatProps = {
   messages: LeagueChatMessage[];
@@ -40,6 +45,17 @@ type ChatMessageWritePayload = {
 type InlineToken =
   | { type: "text"; value: string }
   | { type: "strong" | "em"; value: string };
+
+type TouchPressState = {
+  messageId: string;
+  x: number;
+  y: number;
+  startedAt: number;
+  moved: boolean;
+  longPressFired: boolean;
+};
+
+type MobileEditPlacement = "above" | "below";
 
 function normalizeMessages(messages: LeagueChatMessage[]) {
   const byId = new Map<string, LeagueChatMessage>();
@@ -201,9 +217,13 @@ export function LeagueChat({
   error = null,
 }: LeagueChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const chatShellRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottom = useRef(true);
+  const longPressTimerRef = useRef<number | null>(null);
+  const mobileEditHideTimerRef = useRef<number | null>(null);
+  const touchPressRef = useRef<TouchPressState | null>(null);
+  const mobileEditMessageIdRef = useRef<string | null>(null);
   const [draft, setDraft] = useState("");
   const [localMessages, setLocalMessages] = useState(() => normalizeMessages(messages));
   const [messageError, setMessageError] = useState<string | null>(null);
@@ -211,6 +231,10 @@ export function LeagueChat({
   const [isSending, setIsSending] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [draftBeforeEdit, setDraftBeforeEdit] = useState<string | null>(null);
+  const [mobileEditMessageId, setMobileEditMessageId] = useState<string | null>(null);
+  const [mobileEditPlacement, setMobileEditPlacement] =
+    useState<MobileEditPlacement>("above");
+  const [hasFineHover, setHasFineHover] = useState(false);
 
   const editableMessageId = (() => {
     if (!currentUserId) {
@@ -235,6 +259,55 @@ export function LeagueChat({
 
     return null;
   })();
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  }, []);
+
+  const clearMobileEditHideTimer = useCallback(() => {
+    if (mobileEditHideTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(mobileEditHideTimerRef.current);
+    mobileEditHideTimerRef.current = null;
+  }, []);
+
+  const closeMobileEditAction = useCallback(() => {
+    clearMobileEditHideTimer();
+    setMobileEditMessageId(null);
+  }, [clearMobileEditHideTimer]);
+
+  const getMobileEditPlacement = useCallback((element: HTMLElement) => {
+    const scrollElement = scrollRef.current;
+
+    if (!scrollElement) {
+      return "above";
+    }
+
+    const elementRect = element.getBoundingClientRect();
+    const scrollRect = scrollElement.getBoundingClientRect();
+
+    return elementRect.top - scrollRect.top < 48 ? "below" : "above";
+  }, []);
+
+  const showMobileEditAction = useCallback(
+    (messageId: string, placement: MobileEditPlacement = "above") => {
+      clearMobileEditHideTimer();
+      setMobileEditPlacement(placement);
+      setMobileEditMessageId(messageId);
+      mobileEditHideTimerRef.current = window.setTimeout(() => {
+        setMobileEditMessageId(null);
+        mobileEditHideTimerRef.current = null;
+      }, mobileEditActionVisibleMs);
+    },
+    [clearMobileEditHideTimer],
+  );
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const element = scrollRef.current;
@@ -265,7 +338,21 @@ export function LeagueChat({
 
   const keepChatBottomVisible = useCallback(() => {
     window.requestAnimationFrame(() => {
-      chatEndRef.current?.scrollIntoView({ block: "end" });
+      const shell = chatShellRef.current;
+
+      if (!shell) {
+        return;
+      }
+
+      const shellRect = shell.getBoundingClientRect();
+      const comfortableBottom = window.innerHeight - composerViewportOffset;
+      const overflow = shellRect.bottom - comfortableBottom;
+
+      if (overflow <= 0) {
+        return;
+      }
+
+      window.scrollBy({ top: overflow, behavior: "auto" });
     });
   }, []);
 
@@ -301,6 +388,86 @@ export function LeagueChat({
     shouldStickToBottom.current = isNearBottom(scrollRef.current);
     setLocalMessages(normalizeMessages(messages));
   }, [messages]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const updateInteractionMode = () => {
+      setHasFineHover(mediaQuery.matches);
+    };
+
+    updateInteractionMode();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateInteractionMode);
+
+      return () => {
+        mediaQuery.removeEventListener("change", updateInteractionMode);
+      };
+    }
+
+    mediaQuery.addListener(updateInteractionMode);
+
+    return () => {
+      mediaQuery.removeListener(updateInteractionMode);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mobileEditMessageId) {
+      return;
+    }
+
+    if (editingMessageId || mobileEditMessageId !== editableMessageId) {
+      closeMobileEditAction();
+    }
+  }, [closeMobileEditAction, editableMessageId, editingMessageId, mobileEditMessageId]);
+
+  useEffect(() => {
+    mobileEditMessageIdRef.current = mobileEditMessageId;
+  }, [mobileEditMessageId]);
+
+  useEffect(() => {
+    if (mobileEditMessageIdRef.current) {
+      closeMobileEditAction();
+    }
+  }, [closeMobileEditAction, localMessages]);
+
+  useEffect(() => {
+    if (!mobileEditMessageId) {
+      return;
+    }
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        closeMobileEditAction();
+        return;
+      }
+
+      if (
+        target.closest(`[data-chat-context-owner="${mobileEditMessageId}"]`) ||
+        target.closest(`[data-chat-context-menu="${mobileEditMessageId}"]`)
+      ) {
+        return;
+      }
+
+      closeMobileEditAction();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [closeMobileEditAction, mobileEditMessageId]);
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimer();
+      clearMobileEditHideTimer();
+    };
+  }, [clearLongPressTimer, clearMobileEditHideTimer]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -379,6 +546,89 @@ export function LeagueChat({
     }
   }, [draft, keepChatBottomVisible, resizeTextarea]);
 
+  function handleEditableMessagePointerDown(
+    event: PointerEvent<HTMLDivElement>,
+    message: LeagueChatMessage,
+  ) {
+    if (
+      event.pointerType !== "touch" ||
+      editingMessageId ||
+      message.id !== editableMessageId
+    ) {
+      return;
+    }
+
+    const ownerElement = event.currentTarget;
+    const placement = getMobileEditPlacement(ownerElement);
+
+    clearLongPressTimer();
+    touchPressRef.current = {
+      messageId: message.id,
+      x: event.clientX,
+      y: event.clientY,
+      startedAt: Date.now(),
+      moved: false,
+      longPressFired: false,
+    };
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      const press = touchPressRef.current;
+
+      if (!press || press.messageId !== message.id || press.moved) {
+        return;
+      }
+
+      press.longPressFired = true;
+      showMobileEditAction(message.id, placement);
+    }, mobileEditLongPressMs);
+  }
+
+  function handleEditableMessagePointerMove(event: PointerEvent<HTMLDivElement>) {
+    const press = touchPressRef.current;
+
+    if (!press || event.pointerType !== "touch") {
+      return;
+    }
+
+    const distanceX = Math.abs(event.clientX - press.x);
+    const distanceY = Math.abs(event.clientY - press.y);
+
+    if (distanceX > mobileEditMoveTolerance || distanceY > mobileEditMoveTolerance) {
+      press.moved = true;
+      clearLongPressTimer();
+    }
+  }
+
+  function handleEditableMessagePointerUp(event: PointerEvent<HTMLDivElement>) {
+    const press = touchPressRef.current;
+
+    if (!press || event.pointerType !== "touch") {
+      return;
+    }
+
+    clearLongPressTimer();
+    touchPressRef.current = null;
+
+    if (
+      press.moved ||
+      press.longPressFired ||
+      editingMessageId ||
+      press.messageId !== editableMessageId
+    ) {
+      return;
+    }
+
+    showMobileEditAction(
+      press.messageId,
+      getMobileEditPlacement(event.currentTarget),
+    );
+  }
+
+  function handleEditableMessagePointerCancel() {
+    clearLongPressTimer();
+    touchPressRef.current = null;
+  }
+
   function focusComposer() {
     window.requestAnimationFrame(() => {
       resizeTextarea();
@@ -392,6 +642,7 @@ export function LeagueChat({
       return;
     }
 
+    closeMobileEditAction();
     setDraftBeforeEdit(draft);
     setEditingMessageId(message.id);
     setDraft(message.content);
@@ -400,6 +651,7 @@ export function LeagueChat({
   }
 
   function cancelEditing() {
+    closeMobileEditAction();
     setEditingMessageId(null);
     setDraft(draftBeforeEdit ?? "");
     setDraftBeforeEdit(null);
@@ -429,6 +681,7 @@ export function LeagueChat({
 
     shouldStickToBottom.current = true;
     setMessageError(null);
+    closeMobileEditAction();
     setIsSending(true);
 
     try {
@@ -448,7 +701,7 @@ export function LeagueChat({
         console.error("Chat send failed", payload.error);
 
         if (payload.code === "MESSAGE_NOT_EDITABLE") {
-          setMessageError("Solo puedes editar tu ultimo mensaje durante 15 minutos.");
+          setMessageError("Solo puedes editar tu último mensaje durante 15 minutos.");
           return;
         }
 
@@ -456,7 +709,7 @@ export function LeagueChat({
           setMessageError(
             payload.error === "El mensaje no puede superar 65.536 caracteres."
               ? payload.error
-              : "No se pudo editar el mensaje. Intentalo de nuevo.",
+              : "No se pudo editar el mensaje. Inténtalo de nuevo.",
           );
           return;
         }
@@ -513,7 +766,7 @@ export function LeagueChat({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={chatShellRef}>
       {error ? (
         <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm text-[var(--warning-text)]">
           No se pudo cargar el chat. Prueba a recargar la página.
@@ -523,6 +776,9 @@ export function LeagueChat({
         className="h-96 space-y-3 overflow-x-hidden overflow-y-auto rounded-lg border p-4 theme-border theme-surface-muted"
         onScroll={() => {
           shouldStickToBottom.current = isNearBottom(scrollRef.current);
+          if (mobileEditMessageIdRef.current) {
+            closeMobileEditAction();
+          }
         }}
         ref={scrollRef}
       >
@@ -552,13 +808,13 @@ export function LeagueChat({
             const isOwn = Boolean(currentUserId && message.authorId === currentUserId);
             const canEditMessage =
               !editingMessageId && isOwn && message.id === editableMessageId;
+            const isMobileEditActionOpen =
+              canEditMessage && mobileEditMessageId === message.id;
             const bubble = (
               <div
                 className={
                   isOwn
-                    ? `min-w-0 max-w-[88%] rounded-lg border border-circuit/40 bg-circuit px-3 py-2 text-white ${
-                        message.editedAt ? "min-w-[10rem]" : ""
-                      }`
+                    ? "w-fit min-w-0 max-w-full rounded-lg border border-circuit/40 bg-circuit px-3 py-2 text-white"
                     : "min-w-0 max-w-[82%] rounded-lg border px-3 py-2 theme-border theme-surface"
                 }
               >
@@ -572,7 +828,7 @@ export function LeagueChat({
                   <p
                     className={
                       isOwn
-                        ? "min-w-0 truncate text-xs font-black uppercase leading-none text-white"
+                        ? "shrink-0 text-xs font-black uppercase leading-none text-white"
                         : "min-w-0 truncate text-xs font-black uppercase leading-none theme-text"
                     }
                   >
@@ -614,20 +870,54 @@ export function LeagueChat({
               >
                 {!isOwn ? <ExternalAvatar message={message} /> : null}
                 {isOwn ? (
-                  <div className="group/message flex w-full max-w-full min-w-0 items-end justify-end gap-2">
-                    {canEditMessage ? (
-                      <button
-                        aria-label="Editar mensaje"
-                        className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full border border-circuit/30 bg-circuit/95 text-ink opacity-0 shadow-sm transition hover:bg-circuit focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit md:inline-flex md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100"
-                        onClick={() => {
-                          startEditing(message);
-                        }}
-                        type="button"
-                      >
-                        <MaskIcon className="h-4 w-4 bg-white" src="/icons/chat-edit.png" />
-                      </button>
-                    ) : null}
-                    {bubble}
+                  <div
+                    className="group/message flex w-full max-w-full min-w-0 flex-col items-end"
+                    data-chat-context-owner={message.id}
+                    onPointerCancel={handleEditableMessagePointerCancel}
+                    onPointerDown={(event) => {
+                      handleEditableMessagePointerDown(event, message);
+                    }}
+                    onPointerMove={handleEditableMessagePointerMove}
+                    onPointerUp={handleEditableMessagePointerUp}
+                  >
+                    <div className="flex w-full max-w-full min-w-0 items-end justify-end gap-2">
+                      {canEditMessage && hasFineHover ? (
+                        <button
+                          aria-label="Editar mensaje"
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-circuit/30 bg-circuit/95 text-ink opacity-0 shadow-sm transition hover:bg-circuit focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit group-hover/message:opacity-100 group-focus-within/message:opacity-100"
+                          onClick={() => {
+                            startEditing(message);
+                          }}
+                          type="button"
+                        >
+                          <MaskIcon className="h-4 w-4 bg-white" src="/icons/chat-edit.png" />
+                        </button>
+                      ) : null}
+                      <div className="relative w-fit max-w-[82%]">
+                        {bubble}
+                        {isMobileEditActionOpen ? (
+                          <button
+                            aria-label="Editar mensaje"
+                            className={`absolute right-2 z-20 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-ink/95 px-3 py-1.5 text-xs font-bold text-white shadow-lg shadow-black/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit ${
+                              mobileEditPlacement === "below"
+                                ? "top-[calc(100%+0.35rem)]"
+                                : "bottom-[calc(100%+0.35rem)]"
+                            }`}
+                            data-chat-context-menu={message.id}
+                            onClick={() => {
+                              startEditing(message);
+                            }}
+                            onPointerDown={(event) => {
+                              event.stopPropagation();
+                            }}
+                            type="button"
+                          >
+                            <MaskIcon className="h-3.5 w-3.5 bg-white" src="/icons/chat-edit.png" />
+                            Editar
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   bubble
@@ -639,7 +929,9 @@ export function LeagueChat({
       </div>
       {editingMessageId ? (
         <p className="text-xs font-medium theme-text-muted">
-          Edita el mensaje (Esc para cancelar)...
+          {hasFineHover
+            ? "Edita tu mensaje (Esc para cancelar)..."
+            : "Edita tu mensaje..."}
         </p>
       ) : null}
       <div className="flex items-end gap-2">
@@ -648,6 +940,7 @@ export function LeagueChat({
           disabled={!canPost}
           maxLength={messageLimit}
           onChange={(event) => {
+            closeMobileEditAction();
             setDraft(event.target.value);
           }}
           onKeyDown={handleKeyDown}
@@ -658,25 +951,28 @@ export function LeagueChat({
         />
         {editingMessageId ? (
           <button
-            aria-label="Cancelar edicion"
+            aria-label="Cancelar edición"
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border transition theme-border theme-surface theme-text hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSending}
             onClick={cancelEditing}
+            onMouseDown={(event) => {
+              event.preventDefault();
+            }}
             type="button"
           >
             <MaskIcon className="h-6 w-6 bg-current" src="/icons/chat-cancel.png" />
-            <span className="sr-only">Cancelar edicion</span>
+            <span className="sr-only">Cancelar edición</span>
           </button>
         ) : null}
         <button
-          aria-label={editingMessageId ? "Guardar edicion" : "Enviar"}
+          aria-label={editingMessageId ? "Guardar edición" : "Enviar"}
           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-circuit text-ink transition hover:bg-circuit/90 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={!canPost || isSending || draft.trim().length === 0}
           onClick={() => void sendMessage()}
           type="button"
         >
           <img alt="" className="h-5 w-5 object-contain" src="/icons/send.png" />
-          <span className="sr-only">{editingMessageId ? "Guardar edicion" : "Enviar"}</span>
+          <span className="sr-only">{editingMessageId ? "Guardar edición" : "Enviar"}</span>
         </button>
       </div>
       {!canPost ? (
@@ -690,7 +986,6 @@ export function LeagueChat({
       {messageError ? (
         <p className="text-sm text-[var(--warning-text)]">{messageError}</p>
       ) : null}
-      <div aria-hidden="true" ref={chatEndRef} />
     </div>
   );
 }
