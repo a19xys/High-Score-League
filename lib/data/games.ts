@@ -4,7 +4,7 @@ import type { GameRow } from "@/types/supabase";
 import type { DataReadOptions, DataReadResult } from "./types";
 
 const gameColumns =
-  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,accent_color_primary,accent_color_secondary,instructions,manual_url,notes,created_at,updated_at";
+  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,accent_color_primary,accent_color_secondary,instructions,manual_url,download_url,notes,created_at,updated_at";
 
 function emptyResult(error: string | null): DataReadResult<GameRow> {
   return {
@@ -69,6 +69,7 @@ export function mapGameRowToGame(row: GameRow): Game {
     accentColorSecondary: row.accent_color_secondary ?? null,
     instructions: row.instructions ?? undefined,
     manualUrl: row.manual_url ?? undefined,
+    downloadUrl: row.download_url ?? null,
   };
 }
 

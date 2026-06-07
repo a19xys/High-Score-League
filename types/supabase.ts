@@ -44,6 +44,7 @@ export type GameRow = {
   accent_color_secondary?: string | null;
   instructions: string | null;
   manual_url: string | null;
+  download_url?: string | null;
   notes: string | null;
   created_at?: string;
   updated_at?: string;

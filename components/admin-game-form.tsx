@@ -30,6 +30,7 @@ type FormState = {
   accentColorSecondary: string;
   instructions: string;
   manualUrl: string;
+  downloadUrl: string;
   notes: string;
 };
 
@@ -50,6 +51,7 @@ function initialState(game?: GameRow): FormState {
     accentColorSecondary: game?.accent_color_secondary ?? "",
     instructions: game?.instructions ?? "",
     manualUrl: game?.manual_url ?? "",
+    downloadUrl: game?.download_url ?? "",
     notes: game?.notes ?? "",
   };
 }
@@ -69,7 +71,7 @@ function TextInput({
   label: string;
   name: keyof Pick<
     FormState,
-    "title" | "headerImageUrl" | "logoImageUrl" | "manualUrl"
+    "title" | "headerImageUrl" | "logoImageUrl" | "manualUrl" | "downloadUrl"
   >;
   value: string;
   onChange: (name: keyof FormState, value: string) => void;
@@ -297,6 +299,7 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
             accentColorSecondary: state.accentColorSecondary,
             instructions: state.instructions,
             manualUrl: state.manualUrl,
+            downloadUrl: state.downloadUrl,
             notes: state.notes,
           }),
         },
@@ -436,6 +439,13 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
           name="manualUrl"
           onChange={updateField}
           value={state.manualUrl}
+        />
+        <TextInput
+          help="Enlace externo al ZIP, carpeta, descarga o recurso que el jugador necesita para jugar."
+          label="URL de descarga del juego"
+          name="downloadUrl"
+          onChange={updateField}
+          value={state.downloadUrl}
         />
         <label className="block md:col-span-2">
           <span className="text-sm font-semibold theme-text">Notas</span>

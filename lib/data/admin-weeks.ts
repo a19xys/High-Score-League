@@ -68,7 +68,7 @@ export type AdminWeekEditData = {
 const seasonColumns =
   "id,name,slug,version,status,starts_at,ends_at,created_at,updated_at";
 const gameColumns =
-  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,accent_color_primary,accent_color_secondary,instructions,manual_url,notes,created_at,updated_at";
+  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,accent_color_primary,accent_color_secondary,instructions,manual_url,download_url,notes,created_at,updated_at";
 const weekColumns =
   "id,season_id,game_id,week_number,status,public_start_at,public_freeze_at,final_deadline_at,reveal_at,rules_summary,created_at,updated_at";
 const submissionColumns = `

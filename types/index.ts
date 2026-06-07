@@ -38,6 +38,7 @@ export type Game = {
   accentColorSecondary?: string | null;
   instructions?: string;
   manualUrl?: string;
+  downloadUrl?: string | null;
 };
 
 export type Season = {

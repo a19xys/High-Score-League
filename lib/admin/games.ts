@@ -21,6 +21,7 @@ export type GameFormPayload = {
   accentColorSecondary?: unknown;
   instructions?: unknown;
   manualUrl?: unknown;
+  downloadUrl?: unknown;
   notes?: unknown;
   controlType?: unknown;
   difficulty?: unknown;
@@ -45,13 +46,14 @@ export type ValidatedGamePayload =
         accent_color_secondary: string | null;
         instructions: string | null;
         manual_url: string | null;
+        download_url: string | null;
         notes: string | null;
       };
     }
   | { ok: false; error: string };
 
 export const adminGameColumns =
-  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,accent_color_primary,accent_color_secondary,instructions,manual_url,notes,created_at,updated_at";
+  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,accent_color_primary,accent_color_secondary,instructions,manual_url,download_url,notes,created_at,updated_at";
 
 function optionalText(value: unknown, label: string) {
   if (value === undefined || value === null) {
@@ -237,6 +239,13 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
   if (!instructions.ok) return { ok: false, error: instructions.error };
   const rawManualUrl = optionalText(payload.manualUrl, "URL del manual");
   if (!rawManualUrl.ok) return { ok: false, error: rawManualUrl.error };
+  const rawDownloadUrl = optionalText(
+    payload.downloadUrl,
+    "URL de descarga del juego",
+  );
+  if (!rawDownloadUrl.ok) {
+    return { ok: false, error: rawDownloadUrl.error };
+  }
   const notes = optionalText(payload.notes, "Notas");
   if (!notes.ok) return { ok: false, error: notes.error };
 
@@ -282,6 +291,15 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
     return { ok: false, error: manualUrl.error };
   }
 
+  const downloadUrl = validateOptionalUrl(
+    rawDownloadUrl.value,
+    "URL de descarga del juego",
+  );
+
+  if (!downloadUrl.ok) {
+    return { ok: false, error: downloadUrl.error };
+  }
+
   return {
     ok: true,
     data: {
@@ -300,6 +318,7 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
       accent_color_secondary: accentColorSecondary.value,
       instructions: instructions.value,
       manual_url: manualUrl.value,
+      download_url: downloadUrl.value,
       notes: notes.value,
     },
   };

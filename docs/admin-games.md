@@ -17,7 +17,8 @@ Un juego es una entrada reutilizable del catálogo:
 - logo externo del juego;
 - colores manuales de acento del logo;
 - instrucciones base;
-- enlace externo al manual.
+- enlace externo al manual;
+- enlace externo opcional de descarga del juego.
 
 Una semana es una competición concreta que referencia a un juego y añade
 temporada, número de semana, fechas, reglas específicas si hacen falta,
@@ -40,6 +41,12 @@ borde y glow; si faltan, conserva el fallback circuit/cian.
 `image_url` y `rom_name` se conservan en base de datos como campos legacy o
 internos. No se muestran en el formulario normal de crear/editar juego y no se
 deben borrar desde esta UI.
+
+La migración `supabase/migrations/0018_game_download_url.sql` añade
+`download_url` como enlace externo opcional. Es independiente de `manual_url`:
+el manual documenta cómo jugar y `download_url` apunta al ZIP, carpeta,
+descarga o recurso que el jugador necesita para jugar. No hay subida ni proxy
+de archivos desde la web.
 
 ## Metadatos múltiples
 
@@ -74,6 +81,7 @@ columnas nuevas como fuente normal.
 - color secundario del logo opcional;
 - instrucciones opcionales;
 - URL del manual opcional;
+- URL de descarga del juego opcional;
 - notas opcionales.
 
 Validaciones principales:
@@ -82,8 +90,8 @@ Validaciones principales:
 - año entre 1971 y el año actual si existe;
 - arrays sin vacíos ni duplicados;
 - taxonomía solo con valores permitidos;
-- `header_image_url`, `logo_image_url` y `manual_url` deben ser `http` o
-  `https` si se informan;
+- `header_image_url`, `logo_image_url`, `manual_url` y `download_url` deben ser
+  `http` o `https` si se informan;
 - `accent_color_primary` y `accent_color_secondary` deben ser `#RRGGBB` si se
   informan.
 

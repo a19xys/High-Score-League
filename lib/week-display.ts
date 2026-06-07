@@ -70,6 +70,18 @@ function formatShortDate(value?: string | null) {
   return formatLongDateWithoutYear(value);
 }
 
+function formatRevealDateWithoutYear(value?: string | null) {
+  const time = parseTime(value);
+
+  if (time === null) {
+    return null;
+  }
+
+  return formatLongDateWithoutYear(
+    new Date(time + 24 * 60 * 60 * 1000).toISOString(),
+  );
+}
+
 function exactDate(value?: string | null) {
   if (!value || parseTime(value) === null) {
     return undefined;
@@ -106,7 +118,7 @@ export function getWeekStatusDisplay(
   }
 
   if (week.status === "frozen") {
-    const closeDate = formatShortDate(week.endsAt);
+    const closeDate = formatRevealDateWithoutYear(week.endsAt);
 
     return {
       label: "TRAMO FINAL",

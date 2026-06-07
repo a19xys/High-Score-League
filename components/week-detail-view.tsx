@@ -43,11 +43,14 @@ const statusToneClasses: Record<WeekDisplayTone, string> = {
 function WeekStatusPanel({ display }: { display: WeekStatusDisplay }) {
   return (
     <div
-      className={`inline-flex max-w-full flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left sm:items-end sm:text-right ${statusToneClasses[display.tone]}`}
+      className={`inline-flex max-w-full flex-row flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-left sm:flex-col sm:items-end sm:gap-x-0 sm:text-right ${statusToneClasses[display.tone]}`}
     >
-      <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.12em]">
+      <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.08em]">
         <MaskIcon className="h-3.5 w-3.5 bg-current" src="/icons/clock.png" />
         {display.label}
+      </span>
+      <span aria-hidden="true" className="text-xs font-semibold opacity-70 sm:hidden">
+        ·
       </span>
       <WeekCountdown
         className="max-w-full whitespace-nowrap text-xs font-semibold opacity-90"
@@ -158,6 +161,7 @@ export function WeekDetailView({
   const showOfficialResults = dataMode === "supabase" && week.status === "published";
   const instructionLines = getInstructionLines(week, game);
   const manualHref = week.manualUrl ?? game.manualUrl;
+  const downloadHref = game.downloadUrl;
   const statusDisplay = getWeekStatusDisplay(week);
 
   return (
@@ -181,10 +185,10 @@ export function WeekDetailView({
         <Card>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <p className="mb-1 text-xs font-bold uppercase tracking-[0.12em] text-circuit">
+              <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-circuit">
                 {season.name} · Semana {week.number}
               </p>
-              <h2 className="text-xl font-black uppercase tracking-[0.02em] theme-text">
+              <h2 className="text-xl font-bold uppercase tracking-normal theme-text">
                 {game.title}
               </h2>
               <div className="mt-2 inline-flex max-w-full items-center gap-2 text-sm theme-text-muted">
@@ -204,13 +208,13 @@ export function WeekDetailView({
           <WeekStatusNotice display={statusDisplay} />
           <div className="space-y-5">
             <div>
-              <h2 className="text-sm font-black uppercase tracking-[0.12em] text-circuit">
+              <h2 className="text-sm font-bold uppercase tracking-[0.08em] text-circuit">
                 Instrucciones
               </h2>
               <div className="mt-3 rounded-lg border p-4 theme-border theme-surface-muted">
                 {instructionLines.length > 0 ? (
-                  <div className="max-h-36 overflow-y-auto overflow-x-hidden pr-1">
-                    <ul className="list-disc space-y-2 pl-5 text-sm leading-6 marker:text-lg marker:font-black marker:text-circuit theme-text-muted">
+                  <div className="max-h-[4.75rem] overflow-y-auto overflow-x-hidden pr-1">
+                    <ul className="list-disc space-y-1 pl-5 text-sm leading-5 marker:text-lg marker:font-bold marker:text-circuit theme-text-muted">
                       {instructionLines.map((instruction, index) => (
                         <li className="break-words" key={`${index}-${instruction}`}>
                           {instruction}
@@ -219,14 +223,26 @@ export function WeekDetailView({
                     </ul>
                   </div>
                 ) : (
-                  <p className="text-sm leading-6 theme-text-muted">
+                  <p className="text-sm leading-5 theme-text-muted">
                     Todavía no hay instrucciones publicadas para esta semana.
                   </p>
                 )}
               </div>
             </div>
-            {!hideDownloads && manualHref ? (
+            {!hideDownloads && (downloadHref || manualHref) ? (
               <div className="flex flex-col gap-3 sm:flex-row">
+                {downloadHref ? (
+                  <a
+                    className="inline-flex items-center justify-center rounded-md bg-circuit px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+                    href={downloadHref}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <MaskIcon className="mr-2 h-4 w-4 bg-current" src="/icons/download.png" />
+                    Descargar juego
+                  </a>
+                ) : null}
+                {manualHref ? (
                 <a
                   className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-semibold transition theme-border theme-surface theme-text theme-hover"
                   href={manualHref}
@@ -236,6 +252,7 @@ export function WeekDetailView({
                   <MaskIcon className="mr-2 h-4 w-4 bg-current" src="/icons/book-open.png" />
                   Ver manual
                 </a>
+                ) : null}
               </div>
             ) : null}
           </div>
