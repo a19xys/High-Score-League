@@ -154,7 +154,7 @@ export function WeekDetailView({
       <Card>
         <CardHeader
           title="Leaderboard semanal"
-          eyebrow={dataMode === "supabase" ? "Submissions reales" : "Ranking"}
+          eyebrow={dataMode === "supabase" ? "Submissions" : "Ranking"}
         />
         {leaderboardPending ? (
           <EmptyState
@@ -220,7 +220,7 @@ export function WeekDetailView({
           <>
             <CardHeader
               title="Historial de enví­os"
-              eyebrow="Submissions reales"
+              eyebrow="Submissions"
             />
           <EmptyState
             title="Historial de enví­os pendiente."
@@ -230,7 +230,7 @@ export function WeekDetailView({
         ) : (
           <SubmissionsTable
             currentUserId={currentUserId}
-            eyebrow="Submissions reales"
+            eyebrow="Submissions"
             emptyTitle="Todavía no hay envíos para esta semana."
             showDetectedAt={dataMode === "supabase"}
             showSource={dataMode === "supabase"}

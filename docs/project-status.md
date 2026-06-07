@@ -15,6 +15,8 @@ normal.
 - El panel admin permite gestionar juegos, temporadas, semanas, submissions,
   benchmarks y resultados oficiales. El catálogo de juegos usa metadatos
   múltiples para desarrolladores, editores, perspectivas, temas y géneros.
+- Los juegos pueden guardar URLs externas opcionales de header y logo; `image_url`
+  sigue como fallback visual.
 - Las semanas futuras pueden existir sin juego asignado (`weeks.game_id = null`).
   La UI pública las muestra como `Por anunciar` y el admin como
   `Sin juego asignado`; ya no se usa un juego placeholder real.
@@ -34,6 +36,8 @@ normal.
   benchmarks, chat, Realtime, preferencias de perfil y metadatos múltiples de
   juegos. `0012_optional_week_game.sql` hace opcional `weeks.game_id` para
   semanas futuras no anunciadas.
+- `0016_game_week_assets.sql` añade `header_image_url` y `logo_image_url` a
+  `games` para preparar la cabecera visual de semana.
 - `POST /api/submissions/ingest` crea submissions autenticadas.
 - `POST /api/cron/process-schedule` sincroniza calendario por fechas.
 - `POST /api/admin/weeks/[weekId]/weekly-results` genera resultados oficiales

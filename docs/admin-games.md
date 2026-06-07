@@ -15,6 +15,7 @@ Un juego es una entrada reutilizable del catálogo:
 - ROM;
 - perspectiva, tema y género;
 - imagen de referencia;
+- header y logo externos opcionales para la cabecera de semana;
 - instrucciones base;
 - enlace externo al manual.
 
@@ -88,6 +89,8 @@ demasiado cargada en pantallas pequeñas.
 - temas múltiples;
 - perspectivas múltiples;
 - URL de imagen opcional;
+- header del juego opcional;
+- logo del juego opcional;
 - instrucciones opcionales;
 - URL del manual opcional;
 - notas opcionales.
@@ -98,7 +101,14 @@ Validaciones principales:
 - año entre 1971 y el año actual si existe;
 - arrays sin vacíos ni duplicados;
 - taxonomía solo con valores permitidos;
-- `image_url` y `manual_url` deben ser `http` o `https` si se informan.
+- `image_url`, `header_image_url`, `logo_image_url` y `manual_url` deben ser
+  `http` o `https` si se informan.
+
+`header_image_url` tiene prioridad como imagen principal de la tarjeta de
+semana. Si falta, la app conserva `image_url` como fallback. `logo_image_url`
+se usa como logo visual cuando existe; si falta, se muestra el título del juego
+como texto. Ambos campos son URLs externas de texto por ahora: no hay subida a
+Storage ni integración con APIs externas.
 
 ## Borrado seguro
 

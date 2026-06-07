@@ -31,6 +31,8 @@ export type Game = {
   genre: string;
   imageAlt: string;
   imageUrl?: string;
+  headerImageUrl?: string;
+  logoImageUrl?: string;
   instructions?: string;
   manualUrl?: string;
 };

@@ -24,6 +24,8 @@ type FormState = {
   themes: string[];
   genres: string[];
   imageUrl: string;
+  headerImageUrl: string;
+  logoImageUrl: string;
   instructions: string;
   manualUrl: string;
   notes: string;
@@ -40,6 +42,8 @@ function initialState(game?: GameRow): FormState {
     themes: game?.themes ?? [],
     genres: game?.genres ?? [],
     imageUrl: game?.image_url ?? "",
+    headerImageUrl: game?.header_image_url ?? "",
+    logoImageUrl: game?.logo_image_url ?? "",
     instructions: game?.instructions ?? "",
     manualUrl: game?.manual_url ?? "",
     notes: game?.notes ?? "",
@@ -59,7 +63,10 @@ function TextInput({
   help,
 }: {
   label: string;
-  name: keyof Pick<FormState, "title" | "romName" | "imageUrl" | "manualUrl">;
+  name: keyof Pick<
+    FormState,
+    "title" | "romName" | "imageUrl" | "headerImageUrl" | "logoImageUrl" | "manualUrl"
+  >;
   value: string;
   onChange: (name: keyof FormState, value: string) => void;
   required?: boolean;
@@ -243,6 +250,8 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
             themes: state.themes,
             genres: state.genres,
             imageUrl: state.imageUrl,
+            headerImageUrl: state.headerImageUrl,
+            logoImageUrl: state.logoImageUrl,
             instructions: state.instructions,
             manualUrl: state.manualUrl,
             notes: state.notes,
@@ -323,6 +332,20 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
           name="imageUrl"
           onChange={updateField}
           value={state.imageUrl}
+        />
+        <TextInput
+          help="Imagen panorámica para la futura cabecera de semana."
+          label="Header del juego"
+          name="headerImageUrl"
+          onChange={updateField}
+          value={state.headerImageUrl}
+        />
+        <TextInput
+          help="Logo externo opcional para superponer sobre el header."
+          label="Logo del juego"
+          name="logoImageUrl"
+          onChange={updateField}
+          value={state.logoImageUrl}
         />
         <div className="md:col-span-2">
           <TaxonomySelector

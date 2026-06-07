@@ -15,6 +15,8 @@ export type GameFormPayload = {
   themes?: unknown;
   genres?: unknown;
   imageUrl?: unknown;
+  headerImageUrl?: unknown;
+  logoImageUrl?: unknown;
   instructions?: unknown;
   manualUrl?: unknown;
   notes?: unknown;
@@ -35,6 +37,8 @@ export type ValidatedGamePayload =
         themes: string[];
         genres: string[];
         image_url: string | null;
+        header_image_url: string | null;
+        logo_image_url: string | null;
         instructions: string | null;
         manual_url: string | null;
         notes: string | null;
@@ -43,7 +47,7 @@ export type ValidatedGamePayload =
   | { ok: false; error: string };
 
 export const adminGameColumns =
-  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,instructions,manual_url,notes,created_at,updated_at";
+  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,instructions,manual_url,notes,created_at,updated_at";
 
 function optionalText(value: unknown, label: string) {
   if (value === undefined || value === null) {
@@ -195,6 +199,10 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
   if (!genres.ok) return { ok: false, error: genres.error };
   const rawImageUrl = optionalText(payload.imageUrl, "URL de imagen");
   if (!rawImageUrl.ok) return { ok: false, error: rawImageUrl.error };
+  const rawHeaderImageUrl = optionalText(payload.headerImageUrl, "Header del juego");
+  if (!rawHeaderImageUrl.ok) return { ok: false, error: rawHeaderImageUrl.error };
+  const rawLogoImageUrl = optionalText(payload.logoImageUrl, "Logo del juego");
+  if (!rawLogoImageUrl.ok) return { ok: false, error: rawLogoImageUrl.error };
   const instructions = optionalText(payload.instructions, "Instrucciones");
   if (!instructions.ok) return { ok: false, error: instructions.error };
   const rawManualUrl = optionalText(payload.manualUrl, "URL del manual");
@@ -206,6 +214,18 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
 
   if (!imageUrl.ok) {
     return { ok: false, error: imageUrl.error };
+  }
+
+  const headerImageUrl = validateOptionalUrl(rawHeaderImageUrl.value, "Header del juego");
+
+  if (!headerImageUrl.ok) {
+    return { ok: false, error: headerImageUrl.error };
+  }
+
+  const logoImageUrl = validateOptionalUrl(rawLogoImageUrl.value, "Logo del juego");
+
+  if (!logoImageUrl.ok) {
+    return { ok: false, error: logoImageUrl.error };
   }
 
   const manualUrl = validateOptionalUrl(rawManualUrl.value, "URL del manual");
@@ -226,6 +246,8 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
       themes: themes.value,
       genres: genres.value,
       image_url: imageUrl.value,
+      header_image_url: headerImageUrl.value,
+      logo_image_url: logoImageUrl.value,
       instructions: instructions.value,
       manual_url: manualUrl.value,
       notes: notes.value,

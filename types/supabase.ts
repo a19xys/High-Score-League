@@ -38,6 +38,8 @@ export type GameRow = {
   control_type?: string | null;
   difficulty?: string | null;
   image_url: string | null;
+  header_image_url?: string | null;
+  logo_image_url?: string | null;
   instructions: string | null;
   manual_url: string | null;
   notes: string | null;
