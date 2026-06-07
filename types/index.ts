@@ -20,6 +20,7 @@ export type Game = {
   id: string;
   title: string;
   slug: string;
+  year?: number;
   developers: string[];
   publishers: string[];
   perspectives: string[];
@@ -57,6 +58,7 @@ export type Week = {
   number: number;
   startsAt: string;
   endsAt: string;
+  publicFreezeAt?: string;
   revealAt?: string;
   manualUrl?: string;
   status: WeekStatus;

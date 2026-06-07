@@ -51,6 +51,7 @@ export function mapGameRowToGame(row: GameRow): Game {
     id: row.id,
     title: row.title,
     slug: row.rom_name ?? row.title.toLowerCase().replaceAll(" ", "-"),
+    year: row.year ?? undefined,
     developers,
     publishers,
     perspectives,
