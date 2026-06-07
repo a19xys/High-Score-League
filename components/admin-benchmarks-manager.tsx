@@ -2,6 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import {
+  BENCHMARK_ICON_KEYS,
+  DEFAULT_BENCHMARK_ICON_KEY,
+  getBenchmarkIconSrc,
+  type BenchmarkIconKey,
+} from "@/lib/benchmark-icons";
 import { formatScore } from "@/lib/format";
 import type { WeekBenchmarkRow } from "@/types/supabase";
 
@@ -14,6 +20,7 @@ type BenchmarkState = {
   label: string;
   score: string;
   description: string;
+  iconKey: BenchmarkIconKey;
 };
 
 function emptyState(): BenchmarkState {
@@ -21,6 +28,7 @@ function emptyState(): BenchmarkState {
     label: "",
     score: "",
     description: "",
+    iconKey: DEFAULT_BENCHMARK_ICON_KEY,
   };
 }
 
@@ -29,7 +37,53 @@ function stateFromBenchmark(benchmark: WeekBenchmarkRow): BenchmarkState {
     label: benchmark.label,
     score: String(benchmark.score),
     description: benchmark.description ?? "",
+    iconKey: (BENCHMARK_ICON_KEYS.includes(benchmark.icon_key as BenchmarkIconKey)
+      ? benchmark.icon_key
+      : DEFAULT_BENCHMARK_ICON_KEY) as BenchmarkIconKey,
   };
+}
+
+function BenchmarkIconPreview({ iconKey }: { iconKey: BenchmarkIconKey }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block h-5 w-5 bg-current"
+      style={{
+        WebkitMask: `url('${getBenchmarkIconSrc(iconKey)}') center / contain no-repeat`,
+        mask: `url('${getBenchmarkIconSrc(iconKey)}') center / contain no-repeat`,
+      }}
+    />
+  );
+}
+
+function IconSelect({
+  value,
+  onChange,
+}: {
+  value: BenchmarkIconKey;
+  onChange: (value: BenchmarkIconKey) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm font-semibold theme-text">Icono</span>
+      <span className="mt-2 flex items-center gap-2">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-md border theme-border theme-text">
+          <BenchmarkIconPreview iconKey={value} />
+        </span>
+        <select
+          className="w-full rounded-md border px-3 py-2 theme-input"
+          onChange={(event) => onChange(event.target.value as BenchmarkIconKey)}
+          value={value}
+        >
+          {BENCHMARK_ICON_KEYS.map((iconKey) => (
+            <option key={iconKey} value={iconKey}>
+              {iconKey.replace("_", " ")}
+            </option>
+          ))}
+        </select>
+      </span>
+    </label>
+  );
 }
 
 export function AdminBenchmarksManager({
@@ -123,7 +177,7 @@ export function AdminBenchmarksManager({
     <div className="space-y-5">
       <div className="rounded-lg border p-4 theme-border theme-surface-muted">
         <p className="font-semibold theme-text">Crear benchmark</p>
-        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_160px]">
+        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_160px_190px]">
           <input
             className="rounded-md border px-3 py-2 theme-input"
             onChange={(event) => updateNew("label", event.target.value)}
@@ -135,6 +189,10 @@ export function AdminBenchmarksManager({
             onChange={(event) => updateNew("score", event.target.value)}
             placeholder="10000"
             value={newBenchmark.score}
+          />
+          <IconSelect
+            onChange={(value) => updateNew("iconKey", value)}
+            value={newBenchmark.iconKey}
           />
         </div>
         <textarea
@@ -169,7 +227,7 @@ export function AdminBenchmarksManager({
               >
                 {isEditing ? (
                   <div>
-                    <div className="grid gap-3 md:grid-cols-[1fr_160px]">
+                    <div className="grid gap-3 md:grid-cols-[1fr_160px_190px]">
                       <input
                         className="rounded-md border px-3 py-2 theme-input"
                         onChange={(event) =>
@@ -183,6 +241,10 @@ export function AdminBenchmarksManager({
                           updateEditing("score", event.target.value)
                         }
                         value={editingBenchmark.score}
+                      />
+                      <IconSelect
+                        onChange={(value) => updateEditing("iconKey", value)}
+                        value={editingBenchmark.iconKey}
                       />
                     </div>
                     <textarea
@@ -220,7 +282,12 @@ export function AdminBenchmarksManager({
                 ) : (
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <div className="flex flex-wrap items-baseline gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border theme-border theme-text">
+                          <BenchmarkIconPreview
+                            iconKey={stateFromBenchmark(benchmark).iconKey}
+                          />
+                        </span>
                         <p className="font-semibold theme-text">{benchmark.label}</p>
                         <p className="text-sm font-semibold theme-text-muted">
                           {formatScore(benchmark.score)}

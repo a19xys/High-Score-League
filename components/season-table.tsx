@@ -49,6 +49,8 @@ function PositionChange({ value }: { value: number }) {
 }
 
 export function SeasonTable({ standings }: SeasonTableProps) {
+  const hasAnyPoints = standings.some((standing) => standing.totalPoints > 0);
+
   return (
     <DataTable>
       <thead className="text-xs font-semibold uppercase theme-table-head">
@@ -94,9 +96,22 @@ export function SeasonTable({ standings }: SeasonTableProps) {
       </thead>
       <tbody className="divide-y theme-border theme-surface">
         {standings.map((standing) => (
-          <tr className={getRankRowClass(standing.rank)} key={standing.player.id}>
+          <tr
+            className={hasAnyPoints ? getRankRowClass(standing.rank) : "theme-hover"}
+            key={standing.player.id}
+          >
             <td className="w-14 whitespace-nowrap px-2 py-4 text-center font-semibold theme-text sm:w-16 sm:px-3">
-              <RankBadge rank={standing.rank} />
+              {hasAnyPoints ? (
+                <RankBadge rank={standing.rank} />
+              ) : (
+                <span
+                  aria-label="Puesto pendiente"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-bold theme-border theme-text-muted"
+                  title="Puesto pendiente"
+                >
+                  1
+                </span>
+              )}
             </td>
             <td className="w-12 whitespace-nowrap px-2 py-4 text-center">
               <PositionChange value={standing.positionChange} />

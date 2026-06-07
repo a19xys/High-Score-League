@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { GameLogo } from "@/components/game-logo";
 import type { Game } from "@/types";
 
 type GameHeroProps = {
@@ -77,11 +78,7 @@ export function GameHero({ game }: GameHeroProps) {
           {game.logoImageUrl ? (
             <>
               <h1 className="sr-only">{game.title}</h1>
-              <img
-                alt=""
-                className="max-h-40 w-auto max-w-[min(24rem,100%)] object-contain object-left drop-shadow-[0_6px_18px_rgba(0,0,0,0.55)] sm:max-h-48"
-                src={game.logoImageUrl}
-              />
+              <GameLogo src={game.logoImageUrl} />
             </>
           ) : (
             <h1 className="max-w-full truncate text-4xl font-bold">{game.title}</h1>

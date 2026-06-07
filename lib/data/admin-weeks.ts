@@ -121,7 +121,7 @@ const weeklyResultColumns = `
   )
 `;
 const benchmarkColumns =
-  "id,week_id,label,score,description,sort_order,is_active,created_at,updated_at";
+  "id,week_id,label,score,description,icon_key,sort_order,is_active,created_at,updated_at";
 
 function unassignedGame(): Game {
   return {

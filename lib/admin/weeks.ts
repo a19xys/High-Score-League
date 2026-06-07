@@ -1,4 +1,8 @@
 import { getSynchronizedWeekStatus } from "@/lib/week-status";
+import {
+  DEFAULT_BENCHMARK_ICON_KEY,
+  isBenchmarkIconKey,
+} from "@/lib/benchmark-icons";
 
 export type WeekFormPayload = {
   seasonId?: unknown;
@@ -15,6 +19,8 @@ export type BenchmarkFormPayload = {
   label?: unknown;
   score?: unknown;
   description?: unknown;
+  iconKey?: unknown;
+  icon_key?: unknown;
   sortOrder?: unknown;
   isActive?: unknown;
 };
@@ -42,6 +48,7 @@ export type ValidatedBenchmarkPayload =
         label: string;
         score: number;
         description: string | null;
+        icon_key: string;
         sort_order: number;
         is_active: boolean;
       };
@@ -52,7 +59,7 @@ export const adminWeekColumns =
   "id,season_id,game_id,week_number,status,public_start_at,public_freeze_at,final_deadline_at,reveal_at,rules_summary,created_at,updated_at";
 
 export const adminBenchmarkColumns =
-  "id,week_id,label,score,description,sort_order,is_active,created_at,updated_at";
+  "id,week_id,label,score,description,icon_key,sort_order,is_active,created_at,updated_at";
 
 const zonedDateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -385,6 +392,12 @@ export function validateBenchmarkPayload(
   const description = optionalText(payload.description, "description");
   if (!description.ok) return { ok: false, error: description.error };
 
+  const iconKeyValue = payload.iconKey ?? payload.icon_key ?? DEFAULT_BENCHMARK_ICON_KEY;
+
+  if (!isBenchmarkIconKey(iconKeyValue)) {
+    return { ok: false, error: "Icono de benchmark no permitido." };
+  }
+
   const isActive =
     payload.isActive === undefined || payload.isActive === null
       ? true
@@ -400,6 +413,7 @@ export function validateBenchmarkPayload(
       label: label.value,
       score,
       description: description.value,
+      icon_key: iconKeyValue,
       sort_order: sortOrder,
       is_active: isActive,
     },

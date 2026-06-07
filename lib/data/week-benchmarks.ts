@@ -4,7 +4,7 @@ import type { WeekBenchmarkRow } from "@/types/supabase";
 import type { DataReadResult } from "./types";
 
 const benchmarkColumns =
-  "id,week_id,label,score,description,sort_order,is_active,created_at,updated_at";
+  "id,week_id,label,score,description,icon_key,sort_order,is_active,created_at,updated_at";
 
 export async function getRealWeekBenchmarks(
   weekId: string,
@@ -52,6 +52,7 @@ export function mapWeekBenchmarkRowToBenchmark(
     label: row.label,
     score: row.score,
     description: row.description,
+    iconKey: row.icon_key,
     sortOrder: row.sort_order,
     isActive: row.is_active,
   };

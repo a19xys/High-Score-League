@@ -45,7 +45,7 @@ function WeekStatusPanel({ display }: { display: WeekStatusDisplay }) {
     <div
       className={`inline-flex max-w-full flex-row flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-left sm:flex-col sm:items-end sm:gap-x-0 sm:text-right ${statusToneClasses[display.tone]}`}
     >
-      <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.08em]">
+      <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase">
         <MaskIcon className="h-3.5 w-3.5 bg-current" src="/icons/clock.png" />
         {display.label}
       </span>
@@ -185,10 +185,10 @@ export function WeekDetailView({
         <Card>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-circuit">
+              <p className="mb-1 text-xs font-bold uppercase text-circuit">
                 {season.name} · Semana {week.number}
               </p>
-              <h2 className="text-xl font-bold uppercase tracking-normal theme-text">
+              <h2 className="text-xl font-bold uppercase theme-text">
                 {game.title}
               </h2>
               <div className="mt-2 inline-flex max-w-full items-center gap-2 text-sm theme-text-muted">
@@ -208,7 +208,7 @@ export function WeekDetailView({
           <WeekStatusNotice display={statusDisplay} />
           <div className="space-y-5">
             <div>
-              <h2 className="text-sm font-bold uppercase tracking-[0.08em] text-circuit">
+              <h2 className="text-sm font-bold uppercase text-circuit">
                 Instrucciones
               </h2>
               <div className="mt-3 rounded-lg border p-4 theme-border theme-surface-muted">

@@ -43,6 +43,8 @@ normal.
   `accent_color_secondary` con validación `#RRGGBB`.
 - `0018_game_download_url.sql` añade `download_url` como enlace externo
   opcional con validación `http/https`.
+- `0019_week_benchmark_icon_key.sql` añade `icon_key` a benchmarks para elegir
+  entre `speedometer_1`, `speedometer_2` y `speedometer_3`.
 - `POST /api/submissions/ingest` crea submissions autenticadas.
 - `POST /api/cron/process-schedule` sincroniza calendario por fechas.
 - `POST /api/admin/weeks/[weekId]/weekly-results` genera resultados oficiales

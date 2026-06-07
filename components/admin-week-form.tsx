@@ -30,8 +30,28 @@ type FormState = {
   rulesSummary: string;
 };
 
-function dateOnly(value?: string | null) {
-  return value ? value.slice(0, 10) : "";
+function dateOnlyInMadrid(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+  }).formatToParts(date);
+  const day = parts.find((part) => part.type === "day")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const year = parts.find((part) => part.type === "year")?.value;
+
+  return year && month && day ? `${year}-${month}-${day}` : "";
 }
 
 function dateAtUtc(dateText: string) {
@@ -58,7 +78,7 @@ function nextMondayFrom(dateText: string) {
 }
 
 function todayDate() {
-  return new Date().toISOString().slice(0, 10);
+  return dateOnlyInMadrid(new Date().toISOString());
 }
 
 function activeSeasonId(seasons: SeasonRow[]) {
@@ -88,10 +108,10 @@ function defaultsForSeason(seasonId: string, seasons: SeasonRow[], weeks: WeekRo
   let openDate = "";
 
   if (lastWeek?.final_deadline_at) {
-    openDate = nextMondayFrom(dateOnly(lastWeek.final_deadline_at));
+    openDate = nextMondayFrom(dateOnlyInMadrid(lastWeek.final_deadline_at));
   } else {
     const season = seasons.find((row) => row.id === seasonId);
-    openDate = dateOnly(season?.starts_at) || nextMondayFrom(todayDate());
+    openDate = dateOnlyInMadrid(season?.starts_at) || nextMondayFrom(todayDate());
   }
 
   return {
@@ -106,9 +126,9 @@ function inferFinalStretchMode(week: WeekRow): {
   mode: FinalStretchMode;
   customDate: string;
 } {
-  const openDate = dateOnly(week.public_start_at);
-  const closeDate = dateOnly(week.final_deadline_at);
-  const freezeDate = dateOnly(week.public_freeze_at);
+  const openDate = dateOnlyInMadrid(week.public_start_at);
+  const closeDate = dateOnlyInMadrid(week.final_deadline_at);
+  const freezeDate = dateOnlyInMadrid(week.public_freeze_at);
 
   if (!freezeDate) {
     return { mode: "none", customDate: "" };
@@ -140,8 +160,8 @@ function initialState(
     return {
       seasonId: week.season_id,
       gameId: week.game_id ?? "",
-      openDate: dateOnly(week.public_start_at),
-      closeDate: dateOnly(week.final_deadline_at),
+      openDate: dateOnlyInMadrid(week.public_start_at),
+      closeDate: dateOnlyInMadrid(week.final_deadline_at),
       finalStretchMode: finalStretch.mode,
       customFinalStretchDate: finalStretch.customDate,
       shiftFollowingWeeks: false,

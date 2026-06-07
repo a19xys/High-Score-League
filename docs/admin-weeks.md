@@ -169,7 +169,7 @@ hasta que el admin vuelva a publicarla.
 La pantalla incluye una gestion basica de benchmarks visuales:
 
 - listar benchmarks existentes;
-- crear benchmark con etiqueta, puntuación y descripción opcional;
+- crear benchmark con etiqueta, puntuación, descripción opcional e icono;
 - ver benchmarks existentes en modo lectura por defecto;
 - editar un único benchmark cada vez;
 - eliminar benchmarks reales con confirmación.

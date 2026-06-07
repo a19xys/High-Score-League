@@ -168,8 +168,11 @@ Campos principales:
 - `label`
 - `score`
 - `description`
+- `icon_key`
 - `sort_order`
 - `is_active`
+
+`icon_key` solo admite `speedometer_1`, `speedometer_2` o `speedometer_3`.
 
 ### league_chat_messages
 
@@ -372,6 +375,3 @@ guardar el tipo y tamano del archivo resultante.
 
 Si se usa Supabase CLI mas adelante, el archivo puede aplicarse como migracion
 normal desde la carpeta `supabase/migrations`.
-
-
-

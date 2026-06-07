@@ -4,6 +4,7 @@ import {
   formatRelativeTime,
   formatScore,
 } from "@/lib/format";
+import { getBenchmarkIconSrc } from "@/lib/benchmark-icons";
 import type { LeaderboardEntry, WeekBenchmark } from "@/types";
 import { PlayerPill } from "./player-pill";
 import { getRankRowClass, RankBadge } from "./rank-badge";
@@ -37,7 +38,10 @@ function getVisualRows(entries: LeaderboardEntry[], benchmarks: WeekBenchmark[])
     }
 
     if (a.type === "benchmark" && b.type === "benchmark") {
-      return a.benchmark.label.localeCompare(b.benchmark.label);
+      return (
+        a.benchmark.sortOrder - b.benchmark.sortOrder ||
+        a.benchmark.label.localeCompare(b.benchmark.label)
+      );
     }
 
     return 0;
@@ -69,8 +73,8 @@ function MaskedIcon({ label, src }: MaskedIconProps) {
   );
 }
 
-function BenchmarkReferenceIcon() {
-  return <MaskedIcon label="Referencia" src="/icons/benchmark-reference.png" />;
+function BenchmarkReferenceIcon({ iconKey }: { iconKey?: string | null }) {
+  return <MaskedIcon label="Referencia" src={getBenchmarkIconSrc(iconKey)} />;
 }
 
 export function LeaderboardTable({
@@ -112,7 +116,7 @@ export function LeaderboardTable({
                 key={`benchmark-${row.benchmark.id}`}
               >
                 <td className="w-14 whitespace-nowrap px-2 py-4 text-center sm:w-16 sm:px-3">
-                  <BenchmarkReferenceIcon />
+                  <BenchmarkReferenceIcon iconKey={row.benchmark.iconKey} />
                 </td>
                 <td className="min-w-0 px-2 py-4 text-left sm:px-3">
                   <div className="min-w-0">
