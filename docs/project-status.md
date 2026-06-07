@@ -15,8 +15,9 @@ normal.
 - El panel admin permite gestionar juegos, temporadas, semanas, submissions,
   benchmarks y resultados oficiales. El catálogo de juegos usa metadatos
   múltiples para desarrolladores, editores, perspectivas, temas y géneros.
-- Los juegos pueden guardar URLs externas opcionales de header y logo; `image_url`
-  sigue como fallback visual.
+- Los juegos pueden guardar URLs externas opcionales de header y logo, además de
+  colores manuales de acento para el borde/glow del hero. `image_url` y
+  `rom_name` quedan como campos legacy/internos.
 - Las semanas futuras pueden existir sin juego asignado (`weeks.game_id = null`).
   La UI pública las muestra como `Por anunciar` y el admin como
   `Sin juego asignado`; ya no se usa un juego placeholder real.
@@ -38,6 +39,8 @@ normal.
   semanas futuras no anunciadas.
 - `0016_game_week_assets.sql` añade `header_image_url` y `logo_image_url` a
   `games` para preparar la cabecera visual de semana.
+- `0017_game_accent_colors.sql` añade `accent_color_primary` y
+  `accent_color_secondary` con validación `#RRGGBB`.
 - `POST /api/submissions/ingest` crea submissions autenticadas.
 - `POST /api/cron/process-schedule` sincroniza calendario por fechas.
 - `POST /api/admin/weeks/[weekId]/weekly-results` genera resultados oficiales

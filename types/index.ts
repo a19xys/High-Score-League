@@ -34,6 +34,8 @@ export type Game = {
   imageUrl?: string;
   headerImageUrl?: string;
   logoImageUrl?: string;
+  accentColorPrimary?: string | null;
+  accentColorSecondary?: string | null;
   instructions?: string;
   manualUrl?: string;
 };

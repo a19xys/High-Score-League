@@ -17,6 +17,8 @@ export type GameFormPayload = {
   imageUrl?: unknown;
   headerImageUrl?: unknown;
   logoImageUrl?: unknown;
+  accentColorPrimary?: unknown;
+  accentColorSecondary?: unknown;
   instructions?: unknown;
   manualUrl?: unknown;
   notes?: unknown;
@@ -39,6 +41,8 @@ export type ValidatedGamePayload =
         image_url: string | null;
         header_image_url: string | null;
         logo_image_url: string | null;
+        accent_color_primary: string | null;
+        accent_color_secondary: string | null;
         instructions: string | null;
         manual_url: string | null;
         notes: string | null;
@@ -47,7 +51,7 @@ export type ValidatedGamePayload =
   | { ok: false; error: string };
 
 export const adminGameColumns =
-  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,instructions,manual_url,notes,created_at,updated_at";
+  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,accent_color_primary,accent_color_secondary,instructions,manual_url,notes,created_at,updated_at";
 
 function optionalText(value: unknown, label: string) {
   if (value === undefined || value === null) {
@@ -83,6 +87,18 @@ function validateOptionalUrl(value: string | null, label: string) {
   } catch {
     return { ok: false as const, error: `${label} debe ser una URL válida.` };
   }
+}
+
+function validateOptionalHexColor(value: string | null, label: string) {
+  if (!value) {
+    return { ok: true as const, value: null };
+  }
+
+  if (!/^#[0-9A-Fa-f]{6}$/.test(value)) {
+    return { ok: false as const, error: `${label} debe tener formato #RRGGBB.` };
+  }
+
+  return { ok: true as const, value: value.toUpperCase() };
 }
 
 function validateStringArray(value: unknown, label: string) {
@@ -203,6 +219,20 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
   if (!rawHeaderImageUrl.ok) return { ok: false, error: rawHeaderImageUrl.error };
   const rawLogoImageUrl = optionalText(payload.logoImageUrl, "Logo del juego");
   if (!rawLogoImageUrl.ok) return { ok: false, error: rawLogoImageUrl.error };
+  const rawAccentColorPrimary = optionalText(
+    payload.accentColorPrimary,
+    "Color principal del logo",
+  );
+  if (!rawAccentColorPrimary.ok) {
+    return { ok: false, error: rawAccentColorPrimary.error };
+  }
+  const rawAccentColorSecondary = optionalText(
+    payload.accentColorSecondary,
+    "Color secundario del logo",
+  );
+  if (!rawAccentColorSecondary.ok) {
+    return { ok: false, error: rawAccentColorSecondary.error };
+  }
   const instructions = optionalText(payload.instructions, "Instrucciones");
   if (!instructions.ok) return { ok: false, error: instructions.error };
   const rawManualUrl = optionalText(payload.manualUrl, "URL del manual");
@@ -228,6 +258,24 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
     return { ok: false, error: logoImageUrl.error };
   }
 
+  const accentColorPrimary = validateOptionalHexColor(
+    rawAccentColorPrimary.value,
+    "Color principal del logo",
+  );
+
+  if (!accentColorPrimary.ok) {
+    return { ok: false, error: accentColorPrimary.error };
+  }
+
+  const accentColorSecondary = validateOptionalHexColor(
+    rawAccentColorSecondary.value,
+    "Color secundario del logo",
+  );
+
+  if (!accentColorSecondary.ok) {
+    return { ok: false, error: accentColorSecondary.error };
+  }
+
   const manualUrl = validateOptionalUrl(rawManualUrl.value, "URL del manual");
 
   if (!manualUrl.ok) {
@@ -248,6 +296,8 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
       image_url: imageUrl.value,
       header_image_url: headerImageUrl.value,
       logo_image_url: logoImageUrl.value,
+      accent_color_primary: accentColorPrimary.value,
+      accent_color_secondary: accentColorSecondary.value,
       instructions: instructions.value,
       manual_url: manualUrl.value,
       notes: notes.value,

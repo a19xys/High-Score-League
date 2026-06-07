@@ -10,6 +10,9 @@ export type WeekStatusDisplay = {
   label: string;
   secondary: string;
   tone: WeekDisplayTone;
+  countdownPrefix?: string;
+  countdownTarget?: string;
+  countdownExpiredText?: string;
   noticeTitle: string;
   noticeBody?: string;
   noticeTitleAttribute?: string;
@@ -25,7 +28,11 @@ function parseTime(value?: string | null) {
   return Number.isFinite(time) ? time : null;
 }
 
-function formatCountdown(prefix: string, target?: string | null, now = new Date()) {
+export function formatWeekCountdown(
+  prefix: string,
+  target?: string | null,
+  now = new Date(),
+) {
   const targetTime = parseTime(target);
 
   if (targetTime === null) {
@@ -100,10 +107,16 @@ export function getWeekStatusDisplay(
 
   if (week.status === "frozen") {
     const closeDate = formatShortDate(week.endsAt);
+
     return {
       label: "TRAMO FINAL",
-      secondary: formatCountdown("Termina en", week.endsAt, now) ?? "Cierre pendiente.",
+      secondary:
+        formatWeekCountdown("Termina en", week.endsAt, now) ??
+        "Se ha acabado el plazo.",
       tone: "frozen",
+      countdownPrefix: "Termina en",
+      countdownTarget: week.endsAt,
+      countdownExpiredText: "Se ha acabado el plazo.",
       noticeTitle: "Las nuevas puntuaciones permanecerán ocultas hasta el cierre.",
       noticeBody: closeDate ? `Se revelarán el ${closeDate}.` : undefined,
       noticeBodyTitleAttribute: exactDate(week.endsAt),
@@ -120,8 +133,13 @@ export function getWeekStatusDisplay(
 
     return {
       label: "ACTIVA",
-      secondary: formatCountdown("Termina en", week.endsAt, now) ?? "Cierre pendiente.",
+      secondary:
+        formatWeekCountdown("Termina en", week.endsAt, now) ??
+        "Se ha acabado el plazo.",
       tone: "active",
+      countdownPrefix: "Termina en",
+      countdownTarget: week.endsAt,
+      countdownExpiredText: "Se ha acabado el plazo.",
       noticeTitle: finalStretchIsFuture
         ? "Las puntuaciones serán visibles hasta el tramo final."
         : "Las puntuaciones serán visibles hasta el cierre de la semana.",
@@ -138,8 +156,13 @@ export function getWeekStatusDisplay(
 
   return {
     label: "INACTIVA",
-    secondary: formatCountdown("Comienza en", week.startsAt, now) ?? "Inicio pendiente.",
+    secondary:
+      formatWeekCountdown("Comienza en", week.startsAt, now) ??
+      "Actualiza para ver el estado.",
     tone: "inactive",
+    countdownPrefix: "Comienza en",
+    countdownTarget: week.startsAt,
+    countdownExpiredText: "Actualiza para ver el estado.",
     noticeTitle: "La competición todavía no ha empezado.",
     noticeBody: startDate
       ? `Podrás enviar puntuaciones a partir del ${startDate}.`

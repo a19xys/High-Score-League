@@ -1,7 +1,7 @@
 # Administración de juegos
 
-`/admin/games` gestiona el catálogo real de juegos arcade. Esta sección es
-solo para admins y usa las políticas RLS existentes de `public.games`; no usa
+`/admin/games` gestiona el catálogo real de juegos arcade. Esta sección es solo
+para admins y usa las políticas RLS existentes de `public.games`; no usa
 `service_role`.
 
 ## Juego vs semana
@@ -12,16 +12,34 @@ Un juego es una entrada reutilizable del catálogo:
 - año;
 - desarrolladores;
 - editores;
-- ROM;
 - perspectiva, tema y género;
-- imagen de referencia;
-- header y logo externos opcionales para la cabecera de semana;
+- header externo del juego;
+- logo externo del juego;
+- colores manuales de acento del logo;
 - instrucciones base;
 - enlace externo al manual.
 
 Una semana es una competición concreta que referencia a un juego y añade
-temporada, número de semana, fechas, estado, instrucciones específicas si hacen
-falta y resultados.
+temporada, número de semana, fechas, reglas específicas si hacen falta,
+submissions y resultados.
+
+## Assets y acentos
+
+La migración `supabase/migrations/0016_game_week_assets.sql` añade
+`header_image_url` y `logo_image_url`. La migración
+`supabase/migrations/0017_game_accent_colors.sql` añade:
+
+- `accent_color_primary text`;
+- `accent_color_secondary text`.
+
+Los colores son opcionales. Si se informan, deben tener formato `#RRGGBB`.
+Se eligen manualmente en el admin para evitar extracción automática de colores
+desde imágenes remotas. La tarjeta visual de semana usa estos acentos para su
+borde y glow; si faltan, conserva el fallback circuit/cian.
+
+`image_url` y `rom_name` se conservan en base de datos como campos legacy o
+internos. No se muestran en el formulario normal de crear/editar juego y no se
+deben borrar desde esta UI.
 
 ## Metadatos múltiples
 
@@ -33,48 +51,11 @@ La migración `supabase/migrations/0011_game_metadata_arrays.sql` añade:
 - `themes text[] not null default '{}'`;
 - `genres text[] not null default '{}'`.
 
-La migración hace backfill desde `developer`, `publisher` y `genre` si tenían
-valor. Las columnas legacy se conservan en base de datos por compatibilidad,
-pero la UI y el runtime usan las columnas nuevas como fuente de verdad.
+La migración hace backfill desde columnas legacy si tenían valor. Las columnas
+legacy se conservan por compatibilidad, pero la UI y el runtime usan las
+columnas nuevas como fuente normal.
 
 `control_type` y `difficulty` dejan de usarse en la UI y en el payload admin.
-
-## Taxonomía
-
-Perspectiva, tema y género se validan contra listas cerradas en
-`lib/admin/game-taxonomy.ts`. Desarrolladores y editores siguen siendo texto
-libre, pero admiten múltiples entradas sin vacíos ni duplicados.
-
-En listados, la columna `Género` muestra una combinación compacta de:
-
-- géneros.
-- temas;
-- perspectivas.
-
-Ejemplo: `Plataformas · Acción · Lateral`.
-
-El orden visual de etiquetas combinadas es siempre: género, tema y perspectiva.
-En la tabla se muestran como chips compactos de una sola línea; si no caben
-todos, aparece un chip `+N` y el listado completo queda disponible en `title`.
-
-## Listado
-
-`/admin/games` muestra:
-
-- título;
-- año;
-- desarrolladores;
-- editores;
-- género combinado;
-- ROM;
-- enlace de edición.
-
-Incluye buscador general y filtros avanzados en este orden: año, género,
-desarrollador y editor. La tabla se ordena por defecto por año ascendente, con
-los juegos sin año al final, y por título como desempate. La cabecera de título
-permite alternar orden ascendente y descendente. En móvil se priorizan solo
-título y acción de edición; el título ya no es enlace para evitar una tabla
-demasiado cargada en pantallas pequeñas.
 
 ## Crear y editar juego
 
@@ -84,13 +65,13 @@ demasiado cargada en pantallas pequeñas.
 - año opcional desde desplegable entre 1971 y el año actual;
 - desarrolladores múltiples;
 - editores múltiples;
-- ROM opcional;
 - géneros múltiples;
 - temas múltiples;
 - perspectivas múltiples;
-- URL de imagen opcional;
 - header del juego opcional;
 - logo del juego opcional;
+- color principal del logo opcional;
+- color secundario del logo opcional;
 - instrucciones opcionales;
 - URL del manual opcional;
 - notas opcionales.
@@ -101,37 +82,31 @@ Validaciones principales:
 - año entre 1971 y el año actual si existe;
 - arrays sin vacíos ni duplicados;
 - taxonomía solo con valores permitidos;
-- `image_url`, `header_image_url`, `logo_image_url` y `manual_url` deben ser
-  `http` o `https` si se informan.
+- `header_image_url`, `logo_image_url` y `manual_url` deben ser `http` o
+  `https` si se informan;
+- `accent_color_primary` y `accent_color_secondary` deben ser `#RRGGBB` si se
+  informan.
 
-`header_image_url` tiene prioridad como imagen principal de la tarjeta de
-semana. Si falta, la app conserva `image_url` como fallback. `logo_image_url`
-se usa como logo visual cuando existe; si falta, se muestra el título del juego
-como texto. Ambos campos son URLs externas de texto por ahora: no hay subida a
-Storage ni integración con APIs externas.
+Al editar un juego existente, los campos legacy que ya existan se preservan
+porque el formulario mantiene sus valores internamente aunque no los muestre.
+En juegos nuevos se guardan vacíos/null.
+
+## Listado
+
+`/admin/games` muestra título, año, desarrolladores, editores, género combinado
+y enlace de edición. Incluye buscador general y filtros avanzados por año,
+género, desarrollador y editor.
+
+En móvil se priorizan título y acción de edición.
 
 ## Borrado seguro
 
 `DELETE /api/admin/games/[gameId]` permite borrar un juego solo si no aparece en
 ninguna semana.
 
-Las semanas futuras o todavía no anunciadas no usan un juego real placeholder.
-En base de datos pueden quedar con `weeks.game_id = null`; la UI pública las
-muestra como `Por anunciar` y el panel admin como `Sin juego asignado`.
-
-Si existe alguna fila en `weeks` con ese `game_id`, el endpoint devuelve:
-
-```json
-{
-  "ok": false,
-  "code": "GAME_IN_USE",
-  "error": "No se puede borrar un juego usado por una semana."
-}
-```
-
-La pantalla de edición muestra una zona peligrosa. Si el juego está usado, el
-borrado queda desactivado. Si no está usado, exige escribir `BORRAR` y luego
-redirige a `/admin/games`.
+Las semanas futuras o todavía no anunciadas pueden quedar con
+`weeks.game_id = null`; la UI pública las muestra como `Por anunciar` y el panel
+admin como `Sin juego asignado`.
 
 ## Pendiente
 

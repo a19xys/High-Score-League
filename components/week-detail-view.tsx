@@ -5,6 +5,7 @@ import { SubmissionsTable } from "@/components/submissions-table";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable, TableHead } from "@/components/ui/table";
+import { WeekCountdown } from "@/components/week-countdown";
 import { formatScore, formatWeekRange } from "@/lib/format";
 import {
   getWeekStatusDisplay,
@@ -34,52 +35,48 @@ const statusToneClasses: Record<WeekDisplayTone, string> = {
     "border-slate-400/30 bg-slate-500/10 text-slate-700 dark:text-slate-200",
   active: "border-circuit/35 bg-circuit/10 text-circuit",
   frozen:
-    "border-amber-400/40 bg-amber-500/10 text-amber-700 dark:text-amber-200",
+    "border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-200",
   closed:
-    "border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300",
-};
-
-const noticeToneClasses: Record<WeekDisplayTone, string> = {
-  inactive:
-    "border-slate-400/25 bg-slate-500/10 text-slate-700 dark:text-slate-200",
-  active: "border-circuit/25 bg-circuit/10 text-circuit",
-  frozen:
-    "border-amber-400/35 bg-amber-500/10 text-amber-800 dark:text-amber-100",
-  closed:
-    "border-slate-500/25 bg-slate-500/10 text-slate-700 dark:text-slate-300",
+    "border-amber-400/35 bg-amber-500/10 text-amber-700 dark:text-amber-200",
 };
 
 function WeekStatusPanel({ display }: { display: WeekStatusDisplay }) {
   return (
     <div
-      className={`inline-flex w-full flex-wrap items-baseline justify-between gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-left sm:w-auto sm:min-w-44 sm:flex-col sm:items-end sm:text-right ${statusToneClasses[display.tone]}`}
+      className={`inline-flex max-w-full flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left sm:items-end sm:text-right ${statusToneClasses[display.tone]}`}
     >
-      <span className="text-xs font-black uppercase tracking-[0.12em]">
+      <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.12em]">
+        <MaskIcon className="h-3.5 w-3.5 bg-current" src="/icons/clock.png" />
         {display.label}
       </span>
-      <span className="text-xs font-semibold opacity-90">
-        {display.secondary}
-      </span>
+      <WeekCountdown
+        className="max-w-full whitespace-nowrap text-xs font-semibold opacity-90"
+        expiredText={display.countdownExpiredText}
+        initialText={display.secondary}
+        prefix={display.countdownPrefix}
+        target={display.countdownTarget}
+      />
     </div>
   );
 }
 
 function WeekStatusNotice({ display }: { display: WeekStatusDisplay }) {
   return (
-    <div
-      className={`mb-4 rounded-lg border p-4 text-sm ${noticeToneClasses[display.tone]}`}
-    >
-      <p className="font-semibold" title={display.noticeTitleAttribute}>
-        {display.noticeTitle}
-      </p>
-      {display.noticeBody ? (
-        <p
-          className="mt-1 opacity-85"
-          title={display.noticeBodyTitleAttribute}
-        >
-          {display.noticeBody}
+    <div className="mb-4 flex gap-3 rounded-lg border border-circuit/25 bg-circuit/10 p-4 text-sm theme-text">
+      <MaskIcon className="mt-0.5 h-4 w-4 bg-circuit" src="/icons/info.png" />
+      <div className="min-w-0">
+        <p className="font-semibold" title={display.noticeTitleAttribute}>
+          {display.noticeTitle}
         </p>
-      ) : null}
+        {display.noticeBody ? (
+          <p
+            className="mt-1 opacity-85"
+            title={display.noticeBodyTitleAttribute}
+          >
+            {display.noticeBody}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -195,7 +192,7 @@ export function WeekDetailView({
                 {formatWeekRange(week.startsAt, week.endsAt)}
               </div>
             </div>
-            <div className="shrink-0">
+            <div className="max-w-full sm:shrink-0">
               <WeekStatusPanel display={statusDisplay} />
             </div>
           </div>

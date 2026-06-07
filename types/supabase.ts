@@ -40,6 +40,8 @@ export type GameRow = {
   image_url: string | null;
   header_image_url?: string | null;
   logo_image_url?: string | null;
+  accent_color_primary?: string | null;
+  accent_color_secondary?: string | null;
   instructions: string | null;
   manual_url: string | null;
   notes: string | null;

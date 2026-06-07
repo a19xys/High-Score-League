@@ -167,7 +167,7 @@ function sortGames(games: GameRow[], sort: SortState) {
 }
 
 function rowGridClass() {
-  return "grid grid-cols-[minmax(0,1fr)_4.25rem] md:grid-cols-[minmax(0,1.3fr)_4.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.45fr)_minmax(0,0.75fr)_4.25rem]";
+  return "grid grid-cols-[minmax(0,1fr)_4.25rem] md:grid-cols-[minmax(0,1.3fr)_4.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.45fr)_4.25rem]";
 }
 
 function cellClass(extra = "") {
@@ -312,23 +312,6 @@ function MeasuredTagList({
 
 function renderTagValue(value: string | string[] | number | null | undefined) {
   return <MeasuredTagList values={getFilterValues(value)} />;
-}
-
-function renderTextValue(value: string | number | null | undefined) {
-  const values = getFilterValues(value);
-
-  if (values.length === 0) {
-    return <span className="theme-text-muted">-</span>;
-  }
-
-  return (
-    <span
-      className="block max-w-[8rem] truncate theme-text-muted"
-      title={values[0]}
-    >
-      {values[0]}
-    </span>
-  );
 }
 
 function FilterSelect({
@@ -566,12 +549,6 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
                     Género
                   </div>
                   <div
-                    className={cellClass("hidden whitespace-nowrap md:block")}
-                    role="columnheader"
-                  >
-                    ROM
-                  </div>
-                  <div
                     className={cellClass("whitespace-nowrap")}
                     role="columnheader"
                   >
@@ -613,9 +590,6 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
                         ...game.themes,
                         ...game.perspectives,
                       ])}
-                    </div>
-                    <div className={cellClass("hidden md:block")} role="cell">
-                      {renderTextValue(game.rom_name)}
                     </div>
                     <div className={cellClass("whitespace-nowrap")} role="cell">
                       <Link

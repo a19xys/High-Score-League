@@ -26,6 +26,8 @@ type FormState = {
   imageUrl: string;
   headerImageUrl: string;
   logoImageUrl: string;
+  accentColorPrimary: string;
+  accentColorSecondary: string;
   instructions: string;
   manualUrl: string;
   notes: string;
@@ -44,6 +46,8 @@ function initialState(game?: GameRow): FormState {
     imageUrl: game?.image_url ?? "",
     headerImageUrl: game?.header_image_url ?? "",
     logoImageUrl: game?.logo_image_url ?? "",
+    accentColorPrimary: game?.accent_color_primary ?? "",
+    accentColorSecondary: game?.accent_color_secondary ?? "",
     instructions: game?.instructions ?? "",
     manualUrl: game?.manual_url ?? "",
     notes: game?.notes ?? "",
@@ -65,7 +69,7 @@ function TextInput({
   label: string;
   name: keyof Pick<
     FormState,
-    "title" | "romName" | "imageUrl" | "headerImageUrl" | "logoImageUrl" | "manualUrl"
+    "title" | "headerImageUrl" | "logoImageUrl" | "manualUrl"
   >;
   value: string;
   onChange: (name: keyof FormState, value: string) => void;
@@ -82,6 +86,43 @@ function TextInput({
         required={required}
         value={value}
       />
+      {help ? <span className="mt-1 block text-xs theme-text-muted">{help}</span> : null}
+    </label>
+  );
+}
+
+function ColorInput({
+  label,
+  name,
+  value,
+  onChange,
+  help,
+}: {
+  label: string;
+  name: keyof Pick<FormState, "accentColorPrimary" | "accentColorSecondary">;
+  value: string;
+  onChange: (name: keyof FormState, value: string) => void;
+  help?: string;
+}) {
+  const isValid = /^#[0-9A-Fa-f]{6}$/.test(value);
+
+  return (
+    <label className="block">
+      <span className="text-sm font-semibold theme-text">{label}</span>
+      <div className="mt-2 flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className="h-10 w-10 shrink-0 rounded-md border theme-border"
+          style={{ backgroundColor: isValid ? value : "transparent" }}
+        />
+        <input
+          className="min-w-0 flex-1 rounded-md border px-3 py-2 theme-input"
+          name={name}
+          onChange={(event) => onChange(name, event.target.value)}
+          placeholder="#00D1B2"
+          value={value}
+        />
+      </div>
       {help ? <span className="mt-1 block text-xs theme-text-muted">{help}</span> : null}
     </label>
   );
@@ -252,6 +293,8 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
             imageUrl: state.imageUrl,
             headerImageUrl: state.headerImageUrl,
             logoImageUrl: state.logoImageUrl,
+            accentColorPrimary: state.accentColorPrimary,
+            accentColorSecondary: state.accentColorSecondary,
             instructions: state.instructions,
             manualUrl: state.manualUrl,
             notes: state.notes,
@@ -322,18 +365,6 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
           values={state.publishers}
         />
         <TextInput
-          label="ROM"
-          name="romName"
-          onChange={updateField}
-          value={state.romName}
-        />
-        <TextInput
-          label="URL de imagen"
-          name="imageUrl"
-          onChange={updateField}
-          value={state.imageUrl}
-        />
-        <TextInput
           help="Imagen panorámica para la futura cabecera de semana."
           label="Header del juego"
           name="headerImageUrl"
@@ -346,6 +377,20 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
           name="logoImageUrl"
           onChange={updateField}
           value={state.logoImageUrl}
+        />
+        <ColorInput
+          help="Se usa para el borde y brillo de la tarjeta del juego en la página de semana."
+          label="Color principal del logo"
+          name="accentColorPrimary"
+          onChange={updateField}
+          value={state.accentColorPrimary}
+        />
+        <ColorInput
+          help="Se usa junto al color principal para el borde y brillo del hero."
+          label="Color secundario del logo"
+          name="accentColorSecondary"
+          onChange={updateField}
+          value={state.accentColorSecondary}
         />
         <div className="md:col-span-2">
           <TaxonomySelector
@@ -382,7 +427,7 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
             value={state.instructions}
           />
           <span className="mt-1 block text-xs theme-text-muted">
-            Cómo jugar, controles, ROM recomendada y normas de puntuación.
+            Cómo jugar, controles, configuración recomendada y normas de puntuación.
           </span>
         </label>
         <TextInput
@@ -419,3 +464,4 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
     </form>
   );
 }
+
