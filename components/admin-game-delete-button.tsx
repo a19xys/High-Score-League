@@ -45,7 +45,7 @@ export function AdminGameDeleteButton({
     <div className="space-y-3">
       <p className="text-sm theme-text-muted">
         Para borrar {gameTitle}, escribe <strong>BORRAR</strong>. No se borran
-        semanas, submissions ni resultados.
+        semanas, envíos ni resultados.
       </p>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <input

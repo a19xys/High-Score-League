@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AdminWeekForm } from "@/components/admin-week-form";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminWeekFormOptions } from "@/lib/data/admin-weeks";
 
@@ -55,13 +56,13 @@ export default async function NewAdminWeekPage({
 
   return (
     <div className="space-y-6">
-      <Link className="text-sm font-semibold text-circuit hover:underline" href="/admin/weeks">
+      <ActionLink href="/admin/weeks">
         ← Volver a semanas
-      </Link>
+      </ActionLink>
       <Card>
         <CardHeader title="Crear semana" eyebrow="Semanas">
           Asocia una temporada, un juego, apertura, tramo final opcional,
-          cierre e instrucciones específicas opcionales. No se crean submissions ni resultados
+          cierre e instrucciones específicas opcionales. No se crean envíos ni resultados
           automáticamente.
         </CardHeader>
         {options.error ? (

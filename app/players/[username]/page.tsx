@@ -86,7 +86,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
       <EmptyState
         title="Historial público pendiente."
-        description="Los mejores resultados públicos se conectarán desde submissions y weekly_results en una fase posterior."
+        description="Los mejores resultados públicos aparecerán aquí cuando estén disponibles."
       />
     </div>
   );

@@ -4,6 +4,7 @@ import { AdminBenchmarksManager } from "@/components/admin-benchmarks-manager";
 import { AdminWeekDeleteButton } from "@/components/admin-week-delete-button";
 import { AdminWeekForm } from "@/components/admin-week-form";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminWeekEditData } from "@/lib/data/admin-weeks";
 
@@ -72,12 +73,12 @@ export default async function EditAdminWeekPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 text-sm font-semibold">
-        <Link className="text-circuit hover:underline" href={`/admin/weeks/${weekId}`}>
+        <ActionLink href={`/admin/weeks/${weekId}`}>
           ← Volver al cuadro de mandos
-        </Link>
-        <Link className="theme-text-muted hover:underline" href="/admin/weeks">
+        </ActionLink>
+        <ActionLink href="/admin/weeks">
           Volver a semanas
-        </Link>
+        </ActionLink>
       </div>
 
       <Card>
@@ -86,7 +87,7 @@ export default async function EditAdminWeekPage({
           eyebrow="Datos de semana"
         >
           Edita la temporada, el juego, apertura, tramo final, cierre e
-          instrucciones específicas. Las submissions y resultados oficiales se
+          instrucciones específicas. Los envíos y resultados oficiales se
           gestionan desde el cuadro de mandos de la semana.
         </CardHeader>
         <AdminWeekForm
@@ -101,14 +102,14 @@ export default async function EditAdminWeekPage({
       <Card>
         <CardHeader title="Benchmarks" eyebrow="Referencias visuales">
           Los benchmarks se muestran en el leaderboard como referencias. No son
-          submissions, no cuentan para puntos y no afectan a resultados oficiales.
+          envíos, no cuentan para puntos y no afectan a resultados oficiales.
         </CardHeader>
         <AdminBenchmarksManager benchmarks={data.benchmarks} weekId={data.week.id} />
       </Card>
 
       <Card>
         <CardHeader title="Zona peligrosa" eyebrow="Borrado seguro">
-          Solo se pueden borrar semanas inactivas sin submissions ni resultados.
+          Solo se pueden borrar semanas inactivas sin envíos ni resultados.
           Al borrar una semana también se eliminan sus benchmarks y se renumeran
           las semanas restantes de la temporada.
         </CardHeader>

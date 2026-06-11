@@ -8,6 +8,12 @@ export type BenchmarkIconKey = (typeof BENCHMARK_ICON_KEYS)[number];
 
 export const DEFAULT_BENCHMARK_ICON_KEY: BenchmarkIconKey = "speedometer_3";
 
+export const BENCHMARK_ICON_LABELS: Record<BenchmarkIconKey, string> = {
+  speedometer_1: "Fácil",
+  speedometer_2: "Medio",
+  speedometer_3: "Difícil",
+};
+
 export function isBenchmarkIconKey(value: unknown): value is BenchmarkIconKey {
   return (
     typeof value === "string" &&

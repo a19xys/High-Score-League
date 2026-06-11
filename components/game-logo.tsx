@@ -9,9 +9,9 @@ type GameLogoProps = {
 };
 
 const logoShapeClasses: Record<LogoShape, string> = {
-  wide: "max-h-28 max-w-[min(30rem,100%)] sm:max-h-32",
-  tall: "max-h-52 max-w-[min(18rem,100%)] sm:max-h-60",
-  balanced: "max-h-40 max-w-[min(24rem,100%)] sm:max-h-48",
+  wide: "max-h-24 max-w-[min(22rem,78%)] sm:max-h-28",
+  tall: "max-h-52 max-w-[min(14rem,58%)] sm:max-h-60",
+  balanced: "max-h-36 max-w-[min(20rem,76%)] sm:max-h-44",
 };
 
 function getLogoShape(width: number, height: number): LogoShape {

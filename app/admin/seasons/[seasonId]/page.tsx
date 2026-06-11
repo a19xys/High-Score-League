@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AdminSeasonDeleteButton } from "@/components/admin-season-delete-button";
 import { AdminSeasonForm } from "@/components/admin-season-form";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable, TableHead } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -72,21 +73,15 @@ export default async function AdminSeasonPage({ params }: AdminSeasonPageProps) 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 text-sm font-semibold">
-        <Link className="text-circuit hover:underline" href="/admin/seasons">
+        <ActionLink href="/admin/seasons">
           ← Volver a temporadas
-        </Link>
-        <Link
-          className="theme-text-muted hover:underline"
-          href={`/seasons/${data.season.slug}`}
-        >
+        </ActionLink>
+        <ActionLink href={`/seasons/${data.season.slug}`}>
           Ver página pública
-        </Link>
-        <Link
-          className="theme-text-muted hover:underline"
-          href={`/admin/weeks/new?seasonId=${data.season.id}`}
-        >
+        </ActionLink>
+        <ActionLink href={`/admin/weeks/new?seasonId=${data.season.id}`}>
           Crear semana para esta temporada
-        </Link>
+        </ActionLink>
       </div>
 
       <Card>
@@ -96,7 +91,7 @@ export default async function AdminSeasonPage({ params }: AdminSeasonPageProps) 
           action={<StatusBadge status={data.season.status} />}
         >
           Edita los datos principales de la temporada. El borrado solo está
-          disponible para temporadas inactivas sin submissions ni resultados.
+          disponible para temporadas inactivas sin envíos ni resultados.
         </CardHeader>
         <AdminSeasonForm mode="edit" season={data.season} />
       </Card>
@@ -218,7 +213,7 @@ export default async function AdminSeasonPage({ params }: AdminSeasonPageProps) 
 
       <Card>
         <CardHeader title="Zona peligrosa" eyebrow="Borrado seguro">
-          Solo se pueden borrar temporadas inactivas sin submissions ni resultados.
+          Solo se pueden borrar temporadas inactivas sin envíos ni resultados.
           Al borrar una temporada también se eliminan sus semanas, benchmarks y
           membresías asociadas.
         </CardHeader>

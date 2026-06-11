@@ -1,8 +1,8 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { AdminGamesTable } from "@/components/admin-games-table";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminGames } from "@/lib/data/admin-games";
 
@@ -28,9 +28,9 @@ export default async function AdminGamesPage() {
 
   return (
     <div className="space-y-6">
-      <Link className="text-sm font-semibold text-circuit hover:underline" href="/profile">
+      <ActionLink href="/profile">
         ← Volver al perfil
-      </Link>
+      </ActionLink>
       <Card>
         <CardHeader title="Catálogo de juegos" eyebrow="Administración">
           Gestiona el catálogo de juegos de la liga: datos básicos,

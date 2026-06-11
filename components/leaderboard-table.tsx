@@ -136,15 +136,9 @@ export function LeaderboardTable({
                 <td className="whitespace-nowrap px-2 py-4 text-right font-semibold theme-text sm:px-3">
                   {formatScore(row.benchmark.score)}
                 </td>
-                <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted md:table-cell lg:px-3">
-                  -
-                </td>
-                <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted md:table-cell lg:px-3">
-                  -
-                </td>
-                <td className="hidden whitespace-nowrap px-2 py-4 text-right theme-text-muted lg:table-cell lg:px-3">
-                  -
-                </td>
+                <td aria-hidden="true" className="hidden whitespace-nowrap px-2 py-4 md:table-cell lg:px-3" />
+                <td aria-hidden="true" className="hidden whitespace-nowrap px-2 py-4 md:table-cell lg:px-3" />
+                <td aria-hidden="true" className="hidden whitespace-nowrap px-2 py-4 lg:table-cell lg:px-3" />
               </tr>
             );
           }

@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminWeekSummaries } from "@/lib/data/admin-weeks";
 import { formatCompactDateRange } from "@/lib/format";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable, TableHead } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -53,12 +54,12 @@ export default async function AdminWeeksPage() {
 
   return (
     <div className="space-y-6">
-      <Link className="text-sm font-semibold text-circuit hover:underline" href="/profile">
+      <ActionLink href="/profile">
         ← Volver al perfil
-      </Link>
+      </ActionLink>
       <Card>
         <CardHeader title="Semanas" eyebrow="Administración">
-          Gestión mínima del flujo semanal: estado, submissions y resultados
+          Gestión mínima del flujo semanal: estado, envíos y resultados
           oficiales.
         </CardHeader>
         <div className="mb-4">
@@ -88,7 +89,7 @@ export default async function AdminWeeksPage() {
                 "Juego",
                 "Estado",
                 "Fechas",
-                "Submissions",
+                "Envíos",
                 "Inválidas",
                 "Resultados",
                 "",

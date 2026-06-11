@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { GameHeroMedia } from "@/components/game-hero-media";
 import { GameLogo } from "@/components/game-logo";
 import type { Game } from "@/types";
 
@@ -52,11 +53,12 @@ export function GameHero({ game }: GameHeroProps) {
     getSafeHexColor(game.accentColorSecondary) ??
     getSafeHexColor(game.accentColorPrimary) ??
     "#22D3EE";
-  const backgroundStyle = mediaUrl
-    ? {
-        backgroundImage: `linear-gradient(180deg, rgba(15, 23, 42, 0.18), rgba(15, 23, 42, 0.86)), url(${mediaUrl})`,
-      }
-    : undefined;
+  const heroStyle = {
+    background: `linear-gradient(135deg, #111827 0%, ${rgba(
+      accentPrimary,
+      0.46,
+    )} 52%, ${rgba(accentSecondary, 0.36)} 100%)`,
+  } satisfies CSSProperties;
   const frameStyle = {
     background: `linear-gradient(135deg, ${rgba(accentPrimary, 0.95)}, ${rgba(accentSecondary, 0.82)})`,
     boxShadow: `0 18px 44px ${rgba(accentPrimary, 0.16)}, 0 0 38px ${rgba(accentSecondary, 0.13)}`,
@@ -66,14 +68,12 @@ export function GameHero({ game }: GameHeroProps) {
     <div className="h-full rounded-lg p-[1px]" style={frameStyle}>
       <div
         aria-label={game.imageAlt}
-        className={
-          mediaUrl
-            ? "relative flex h-full min-h-[22rem] items-end overflow-hidden rounded-[calc(0.5rem-1px)] bg-cover bg-center p-6 text-white"
-            : "relative flex h-full min-h-[22rem] items-end overflow-hidden rounded-[calc(0.5rem-1px)] bg-[linear-gradient(135deg,#111827_0%,#0f766e_52%,#ef4444_100%)] p-6 text-white"
-        }
+        className="relative flex h-full min-h-[22rem] items-end overflow-hidden rounded-[calc(0.5rem-1px)] p-6 text-white"
         role="img"
-        style={backgroundStyle}
+        style={heroStyle}
       >
+        {mediaUrl ? <GameHeroMedia src={mediaUrl} /> : null}
+        <div className="absolute inset-0 z-[1] bg-gradient-to-b from-slate-950/20 via-slate-950/35 to-slate-950/90" />
         <div className="relative z-10 max-w-full">
           {game.logoImageUrl ? (
             <>

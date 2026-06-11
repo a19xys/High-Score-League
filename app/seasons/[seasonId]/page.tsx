@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/state";
 import { DataTable } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SeasonJoinButton } from "@/components/season-join-button";
+import { ActionLink } from "@/components/ui/action-link";
 import { formatCompactDateRange, formatWeekCount, formatWeekRange } from "@/lib/format";
 import { getSeasonDetailData } from "@/lib/data/season-detail";
 import { hasServerSession } from "@/lib/auth/session";
@@ -154,12 +155,17 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
     season.startsAt && season.endsAt
       ? formatWeekRange(season.startsAt, season.endsAt)
       : "Fechas pendientes";
+  const showJoinCard =
+    season.status === "active" && seasonData.membershipStatus !== "joined";
+  const hasPodium = seasonData.standings.some(
+    (standing) => standing.totalPoints > 0,
+  );
 
   return (
     <div className="space-y-6">
-      <Link className="text-sm font-semibold text-circuit hover:underline" href="/seasons">
+      <ActionLink href="/seasons">
         ← Volver a temporadas
-      </Link>
+      </ActionLink>
       <Card>
         <CardHeader
           eyebrow="Detalle de temporada"
@@ -177,6 +183,7 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
             {seasonData.warning}
           </div>
         ) : null}
+        {showJoinCard ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 theme-border theme-surface-muted">
           <div>
             <p className="text-sm font-semibold theme-text">Inscripción</p>
@@ -191,12 +198,13 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
             seasonStatus={season.status}
           />
         </div>
+        ) : null}
         {seasonData.standings.length > 0 ? (
           <SeasonTable standings={seasonData.standings} />
         ) : (
           <EmptyState
             title="No hay clasificación publicada."
-            description="La temporada no tiene miembros ni weekly_results oficiales todavía."
+            description="La temporada no tiene miembros ni resultados oficiales todavía."
           />
         )}
       </Card>
@@ -209,15 +217,10 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
         />
       </Card>
 
-      {!seasonData.hasRealStandings ? (
-        <EmptyState
-          title="Podio pendiente."
-          description="El podio real se mostrará cuando existan weekly_results oficiales."
-        />
-      ) : seasonData.standings.length > 0 ? (
+      {seasonData.hasRealStandings && hasPodium ? (
         <PodiumPlaceholder
           standings={seasonData.standings}
-          description="Podio real calculado desde weekly_results oficiales."
+          description="Podio calculado desde resultados oficiales."
         />
       ) : null}
     </div>

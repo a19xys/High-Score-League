@@ -299,7 +299,7 @@ export function AdminWeekForm({
         ((payload.reconciliation.submissionsMadeVisible ?? 0) > 0 ||
           (payload.reconciliation.submissionsMadeHidden ?? 0) > 0)
       ) {
-        details.push("La visibilidad de submissions se ha reconciliado con las nuevas fechas.");
+        details.push("La visibilidad de envíos se ha reconciliado con las nuevas fechas.");
       }
 
       if (payload.shiftedWeeks && payload.shiftedWeeks.length > 0) {
@@ -401,7 +401,7 @@ export function AdminWeekForm({
             ))}
           </select>
           <span className="mt-1 block text-xs theme-text-muted">
-            Las submissions desde el tramo final se guardan ocultas hasta el cierre.
+            Los envíos desde el tramo final se guardan ocultos hasta el cierre.
           </span>
         </label>
         {state.finalStretchMode === "custom" ? (

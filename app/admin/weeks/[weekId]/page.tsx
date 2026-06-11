@@ -6,6 +6,7 @@ import {
 } from "@/components/admin-week-actions";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 import { EmptyState } from "@/components/ui/state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTable, TableHead } from "@/components/ui/table";
@@ -105,14 +106,14 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 text-sm font-semibold">
-        <Link className="text-circuit hover:underline" href="/admin/weeks">
+        <ActionLink href="/admin/weeks">
           ← Volver a semanas
-        </Link>
-        <Link className="theme-text-muted hover:underline" href={`/weeks/${data.week.id}`}>
+        </ActionLink>
+        <ActionLink href={`/weeks/${data.week.id}`}>
           Ver página pública
-        </Link>
+        </ActionLink>
         <Link
-          className="theme-text-muted hover:underline"
+          className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm font-semibold transition theme-border theme-surface theme-text theme-hover"
           href={`/admin/weeks/${data.week.id}/edit`}
         >
           Editar datos de semana
@@ -135,7 +136,7 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
         <div className="grid gap-3 md:grid-cols-4">
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
             <p className="text-xs font-semibold uppercase theme-text-muted">
-              Submissions
+              Envíos
             </p>
             <p className="mt-2 text-2xl font-bold theme-text">
               {data.submissionCount}
@@ -183,7 +184,7 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
       </Card>
 
       <Card>
-        <CardHeader title="Resultados" eyebrow="weekly_results">
+        <CardHeader title="Resultados" eyebrow="Resultados oficiales">
           El estado se sincroniza por fechas. El cron deja la semana en closed;
           publicar resultados oficiales es una acción manual del admin.
         </CardHeader>
@@ -191,22 +192,22 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
       </Card>
 
       <Card>
-        <CardHeader title="Leaderboard vivo" eyebrow="Submissions visibles" />
+        <CardHeader title="Leaderboard vivo" eyebrow="Envíos visibles" />
         {data.leaderboard.length > 0 || data.benchmarks.length > 0 ? (
           <LeaderboardTable benchmarks={data.benchmarks} entries={data.leaderboard} />
         ) : (
           <EmptyState
             title="No hay leaderboard vivo."
-            description="Todavía no hay submissions válidas y visibles para esta semana."
+            description="Todavía no hay envíos válidos y visibles para esta semana."
           />
         )}
       </Card>
 
       <Card>
-        <CardHeader title="Submissions" eyebrow="Revisión admin" />
+        <CardHeader title="Envíos" eyebrow="Revisión admin" />
         {data.submissions.length === 0 ? (
           <EmptyState
-            title="No hay submissions."
+            title="No hay envíos."
             description="Cuando lleguen envíos por ingest aparecerán aquí."
           />
         ) : (

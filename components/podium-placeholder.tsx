@@ -51,11 +51,22 @@ export function PodiumPlaceholder({
     firstPlaces.length === 1 && secondPlaces.length === 1 && thirdPlaces.length === 1;
   const twoSecondPlaces =
     firstPlaces.length === 1 && secondPlaces.length === 2 && thirdPlaces.length === 0;
-  const visualOrder = normalPodium
-    ? [secondPlaces[0], firstPlaces[0], thirdPlaces[0]]
-    : twoSecondPlaces
-      ? [secondPlaces[0], firstPlaces[0], secondPlaces[1]]
-      : podiumStandings;
+  const visualOrder = podiumStandings;
+
+  function desktopOrder(standing: SeasonStanding, index: number) {
+    if (normalPodium) {
+      if (standing.rank === 2) return "sm:order-1";
+      if (standing.rank === 1) return "sm:order-2";
+      return "sm:order-3";
+    }
+
+    if (twoSecondPlaces) {
+      if (standing.rank === 1) return "sm:order-2";
+      return index === 1 ? "sm:order-1" : "sm:order-3";
+    }
+
+    return "";
+  }
 
   return (
     <section className="rounded-lg border p-6 theme-border theme-surface-muted">
@@ -66,8 +77,14 @@ export function PodiumPlaceholder({
         <p className="mt-1 text-sm theme-text-muted">{description}</p>
       </div>
       <div className="mt-8 grid items-end gap-4 sm:grid-cols-3 lg:min-h-80">
-        {visualOrder.map((standing) => (
-          <div className="flex min-w-0 flex-col items-center text-center" key={standing.player.id}>
+        {visualOrder.map((standing, index) => (
+          <div
+            className={`flex min-w-0 flex-col items-center text-center ${desktopOrder(
+              standing,
+              index,
+            )}`}
+            key={standing.player.id}
+          >
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full text-base font-bold theme-surface-strong">
               {standing.player.initials}
             </div>

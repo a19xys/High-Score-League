@@ -247,15 +247,13 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
                     </Link>
                   </td>
                   <td className="whitespace-nowrap px-5 py-6">
-                    <SeasonJoinButton
-                      membershipStatus={
-                        season.status === "active"
-                          ? (membershipStatus ?? "login_required")
-                          : "closed"
-                      }
-                      seasonId={season.id}
-                      seasonStatus={season.status}
-                    />
+                    {season.status === "active" && membershipStatus !== "joined" ? (
+                      <SeasonJoinButton
+                        membershipStatus={membershipStatus ?? "login_required"}
+                        seasonId={season.id}
+                        seasonStatus={season.status}
+                      />
+                    ) : null}
                   </td>
                 </tr>
               );

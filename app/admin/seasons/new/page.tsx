@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AdminSeasonForm } from "@/components/admin-season-form";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 import { requireAdmin } from "@/lib/auth/admin";
 
 export const dynamic = "force-dynamic";
@@ -43,12 +44,9 @@ export default async function NewAdminSeasonPage() {
 
   return (
     <div className="space-y-6">
-      <Link
-        className="text-sm font-semibold text-circuit hover:underline"
-        href="/admin/seasons"
-      >
+      <ActionLink href="/admin/seasons">
         ← Volver a temporadas
-      </Link>
+      </ActionLink>
       <Card>
         <CardHeader title="Crear temporada" eyebrow="Temporadas">
           Crear una temporada no crea semanas automáticamente.

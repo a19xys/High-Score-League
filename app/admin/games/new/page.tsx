@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { AdminGameForm } from "@/components/admin-game-form";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 import { requireAdmin } from "@/lib/auth/admin";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +26,9 @@ export default async function NewAdminGamePage() {
 
   return (
     <div className="space-y-6">
-      <Link
-        className="text-sm font-semibold text-circuit hover:underline"
-        href="/admin/games"
-      >
+      <ActionLink href="/admin/games">
         ← Volver a juegos
-      </Link>
+      </ActionLink>
       <Card>
         <CardHeader title="Crear juego" eyebrow="Catálogo">
           Añade un juego al catálogo de la liga. Completa sus datos básicos,

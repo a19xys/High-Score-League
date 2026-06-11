@@ -136,7 +136,7 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
   }
 
   return (
-    <header className="border-b theme-border theme-surface">
+    <header className="sticky top-0 z-50 border-b shadow-sm theme-border theme-surface">
       <nav className="mx-auto max-w-6xl px-4 py-4">
         <div className="flex items-center gap-3 lg:hidden">
           <Link

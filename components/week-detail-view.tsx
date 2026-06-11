@@ -3,6 +3,7 @@ import { GameHero } from "@/components/game-hero";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { SubmissionsTable } from "@/components/submissions-table";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable, TableHead } from "@/components/ui/table";
 import { WeekCountdown } from "@/components/week-countdown";
@@ -169,18 +170,18 @@ export function WeekDetailView({
       {backHref || seasonBackHref ? (
         <div className="flex flex-wrap gap-3 text-sm font-semibold">
           {backHref ? (
-            <Link className="text-circuit hover:underline" href={backHref}>
+            <ActionLink href={backHref}>
               {backLabel ?? "← Volver"}
-            </Link>
+            </ActionLink>
           ) : null}
           {seasonBackHref ? (
-            <Link className="theme-text-muted hover:underline" href={seasonBackHref}>
+            <ActionLink href={seasonBackHref}>
               {seasonBackLabel ?? `← Volver a ${season.name}`}
-            </Link>
+            </ActionLink>
           ) : null}
         </div>
       ) : null}
-      <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+      <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <GameHero game={game} />
         <Card>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -211,7 +212,7 @@ export function WeekDetailView({
               <h2 className="text-sm font-bold uppercase text-circuit">
                 Instrucciones
               </h2>
-              <div className="mt-3 rounded-lg border p-4 theme-border theme-surface-muted">
+              <div className="mt-3 rounded-lg border p-3 theme-border theme-surface-muted">
                 {instructionLines.length > 0 ? (
                   <div className="max-h-[4.75rem] overflow-y-auto overflow-x-hidden pr-1">
                     <ul className="list-disc space-y-1 pl-5 text-sm leading-5 marker:text-lg marker:font-bold marker:text-circuit theme-text-muted">
@@ -262,12 +263,12 @@ export function WeekDetailView({
       <Card>
         <CardHeader
           title="Leaderboard semanal"
-          eyebrow={dataMode === "supabase" ? "Submissions" : "Ranking"}
+          eyebrow="Envios"
         />
         {leaderboardPending ? (
           <EmptyState
-            title="Leaderboard pendiente de conectar."
-            description="Las puntuaciones reales se mostrarán cuando conectemos submissions y weekly_results."
+            title="Todavía no hay datos visibles."
+            description="Las puntuaciones aparecerán cuando haya envíos válidos para esta semana."
           />
         ) : leaderboard.length > 0 || benchmarks.length > 0 ? (
           <LeaderboardTable benchmarks={benchmarks} entries={leaderboard} />
@@ -277,7 +278,7 @@ export function WeekDetailView({
             description={
               dataMode === "supabase"
                 ? "Todaví­a no hay enví­os visibles para construir el leaderboard."
-                : "Cuando conectemos Supabase, este detalle cargará enví­os reales."
+                : "Todavía no hay envíos visibles para esta semana."
             }
           />
         )}
@@ -285,7 +286,7 @@ export function WeekDetailView({
 
       {showOfficialResults ? (
         <Card>
-          <CardHeader title="Resultados oficiales" eyebrow="weekly_results">
+          <CardHeader title="Resultados oficiales" eyebrow="Resultados oficiales">
             Estos resultados ya fueron confirmados por administración y cuentan
             para la clasificación de temporada.
           </CardHeader>
@@ -317,7 +318,7 @@ export function WeekDetailView({
           ) : (
             <EmptyState
               title="No hay resultados oficiales publicados."
-              description="La tabla weekly_results se leerá aquí­ cuando exista contenido."
+              description="Aún no hay resultados confirmados para esta semana."
             />
           )}
         </Card>
@@ -328,17 +329,17 @@ export function WeekDetailView({
           <>
             <CardHeader
               title="Historial de enví­os"
-              eyebrow="Submissions"
+              eyebrow="Envios"
             />
           <EmptyState
-            title="Historial de enví­os pendiente."
-            description="Los enví­os reales se cargarán cuando conectemos submissions."
+            title="Todavía no hay historial visible."
+            description="Los envíos aparecerán cuando haya actividad registrada."
           />
           </>
         ) : (
           <SubmissionsTable
             currentUserId={currentUserId}
-            eyebrow="Submissions"
+            eyebrow="Envios"
             emptyTitle="Todavía no hay envíos para esta semana."
             showDetectedAt={dataMode === "supabase"}
             showSource={dataMode === "supabase"}

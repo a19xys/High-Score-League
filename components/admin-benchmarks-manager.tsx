@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BENCHMARK_ICON_LABELS,
   BENCHMARK_ICON_KEYS,
   DEFAULT_BENCHMARK_ICON_KEY,
   getBenchmarkIconSrc,
@@ -65,8 +66,8 @@ function IconSelect({
 }) {
   return (
     <label className="block">
-      <span className="text-sm font-semibold theme-text">Icono</span>
-      <span className="mt-2 flex items-center gap-2">
+      <span className="sr-only">Icono</span>
+      <span className="flex items-center gap-2">
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-md border theme-border theme-text">
           <BenchmarkIconPreview iconKey={value} />
         </span>
@@ -77,7 +78,7 @@ function IconSelect({
         >
           {BENCHMARK_ICON_KEYS.map((iconKey) => (
             <option key={iconKey} value={iconKey}>
-              {iconKey.replace("_", " ")}
+              {BENCHMARK_ICON_LABELS[iconKey]}
             </option>
           ))}
         </select>

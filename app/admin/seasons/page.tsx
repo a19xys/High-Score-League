@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminSeasonSummaries } from "@/lib/data/admin-seasons";
 import { AdminSeasonsTable } from "@/components/admin-seasons-table";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -50,9 +51,9 @@ export default async function AdminSeasonsPage() {
 
   return (
     <div className="space-y-6">
-      <Link className="text-sm font-semibold text-circuit hover:underline" href="/profile">
+      <ActionLink href="/profile">
         ← Volver al perfil
-      </Link>
+      </ActionLink>
       <Card>
         <CardHeader title="Temporadas" eyebrow="Administración">
           Crea y edita temporadas reales. Las semanas se gestionan aparte y no

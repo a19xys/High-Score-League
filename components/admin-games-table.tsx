@@ -314,6 +314,17 @@ function renderTagValue(value: string | string[] | number | null | undefined) {
   return <MeasuredTagList values={getFilterValues(value)} />;
 }
 
+function renderTextList(value: string | string[] | number | null | undefined) {
+  const values = getFilterValues(value);
+  const text = values.length > 0 ? values.join(", ") : "-";
+
+  return (
+    <span className="block min-w-0 truncate theme-text-muted" title={text}>
+      {text}
+    </span>
+  );
+}
+
 function FilterSelect({
   label,
   value,
@@ -579,10 +590,10 @@ export function AdminGamesTable({ games }: AdminGamesTableProps) {
                       {game.year ?? "-"}
                     </div>
                     <div className={cellClass("hidden md:block")} role="cell">
-                      {renderTagValue(game.developers)}
+                      {renderTextList(game.developers)}
                     </div>
                     <div className={cellClass("hidden md:block")} role="cell">
-                      {renderTagValue(game.publishers)}
+                      {renderTextList(game.publishers)}
                     </div>
                     <div className={cellClass("hidden md:block")} role="cell">
                       {renderTagValue([

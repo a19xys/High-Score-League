@@ -78,7 +78,7 @@ export function WeeksTable({
   const [query, setQuery] = useState("");
   const [season, setSeason] = useState("all");
   const [status, setStatus] = useState("all");
-  const [developer, setDeveloper] = useState("all");
+  const [publisher, setPublisher] = useState("all");
   const [genre, setGenre] = useState("all");
   const [leader, setLeader] = useState("all");
   const [showMoreFilters, setShowMoreFilters] = useState(false);
@@ -92,7 +92,7 @@ export function WeeksTable({
 
     return {
       seasons: [...new Set(weeks.map((summary) => summary.season.name))].sort(),
-      developers: compactOptions(publicRows.flatMap((summary) => summary.game.developers)),
+      publishers: compactOptions(publicRows.flatMap((summary) => summary.game.publishers)),
       genres: compactOptions(publicRows.flatMap((summary) => summary.game.taxonomyTags)),
       leaders: [
         ...new Map(
@@ -116,7 +116,7 @@ export function WeeksTable({
           `Semana ${summary.week.number}`,
           String(summary.week.number),
           secret ? "Por anunciar" : summary.game.title,
-          secret ? "" : summary.game.developers.join(" "),
+          secret ? "" : summary.game.publishers.join(" "),
           secret ? "" : summary.game.taxonomyTags.join(" "),
           secret ? "" : summary.winner?.username,
           secret ? "" : summary.winner?.initials,
@@ -129,8 +129,8 @@ export function WeeksTable({
           );
         const matchesSeason = season === "all" || summary.season.name === season;
         const matchesStatus = status === "all" || status === publicStatus;
-        const matchesDeveloper =
-          developer === "all" || (!secret && summary.game.developers.includes(developer));
+        const matchesPublisher =
+          publisher === "all" || (!secret && summary.game.publishers.includes(publisher));
         const matchesGenre =
           genre === "all" || (!secret && summary.game.taxonomyTags.includes(genre));
         const matchesLeader =
@@ -140,7 +140,7 @@ export function WeeksTable({
           matchesQuery &&
           matchesSeason &&
           matchesStatus &&
-          matchesDeveloper &&
+          matchesPublisher &&
           matchesGenre &&
           matchesLeader
         );
@@ -178,7 +178,7 @@ export function WeeksTable({
       .map(({ summary }) => summary);
   }, [
     currentWeekNumber,
-    developer,
+    publisher,
     genre,
     leader,
     query,
@@ -203,7 +203,7 @@ export function WeeksTable({
     return (
       <EmptyState
         title="No hay semanas configuradas."
-        description="Cuando conectemos Supabase, aquí aparecerá el archivo de semanas de la liga."
+        description="Cuando haya semanas publicadas, aquí aparecerá el archivo de la liga."
       />
     );
   }
@@ -273,15 +273,15 @@ export function WeeksTable({
             <div className="grid gap-3 border-t pt-4 theme-border md:grid-cols-3">
               <label className="block">
                 <span className="text-xs font-semibold uppercase theme-text-muted">
-                  Desarrollador
+                  Editor
                 </span>
                 <select
                   className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-                  onChange={(event) => setDeveloper(event.target.value)}
-                  value={developer}
+                  onChange={(event) => setPublisher(event.target.value)}
+                  value={publisher}
                 >
                   <option value="all">Todos</option>
-                  {filterOptions.developers.map((option) => (
+                  {filterOptions.publishers.map((option) => (
                     <option key={option} value={option}>
                       {option}
                     </option>
@@ -399,7 +399,7 @@ export function WeeksTable({
                         className="cursor-not-allowed font-semibold theme-text-muted"
                         title={
                           disableWeekLinks
-                            ? "Detalle real pendiente de conectar."
+                            ? "Detalle no disponible todavía."
                             : "Semana no disponible todavia."
                         }
                       >
