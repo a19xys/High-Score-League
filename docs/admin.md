@@ -22,6 +22,7 @@ El bloque de administracion contiene:
 - Todas las semanas.
 - Temporadas, enlazando a `/admin/seasons`.
 - Juegos, enlazando al catalogo real en `/admin/games`.
+- Cuestionarios, enlazando a `/admin/polls`.
 - Usuarios como placeholder.
 
 `Publicar resultados` y `Revisar submissions` no son tarjetas separadas porque
@@ -63,6 +64,15 @@ Los estados de temporada se sincronizan por fechas:
 - antes de inicio: `draft`;
 - entre inicio y fin: `active`;
 - tras fin: `completed`.
+
+## Cuestionarios
+
+`/admin/polls` gestiona el cuestionario único preparado para Home. Permite
+editar pregunta, fecha de cierre, estado habilitado/deshabilitado, opciones,
+estadísticas agregadas y reinicio del cuestionario.
+
+La tarjeta pública, voto desde Home, Realtime y comentarios quedan para una fase
+posterior.
 
 ## Crear y editar semanas
 

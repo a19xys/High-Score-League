@@ -138,3 +138,30 @@ export type LeagueChatMessageRow = {
   edited_at: string | null;
   profiles?: RealProfile | RealProfile[] | null;
 };
+
+export type HomePollRow = {
+  id: string;
+  singleton_key: boolean;
+  question: string;
+  enabled: boolean;
+  closes_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HomePollOptionRow = {
+  id: string;
+  poll_id: string;
+  label: string;
+  sort_order: number;
+  created_at: string;
+};
+
+export type HomePollVoteRow = {
+  id: string;
+  poll_id: string;
+  option_id: string;
+  player_id: string;
+  created_at: string;
+  updated_at: string;
+};

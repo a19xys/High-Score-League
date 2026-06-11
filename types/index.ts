@@ -170,3 +170,33 @@ export type LeagueChatMessage = {
   editedAt?: string | null;
   author?: Player | null;
 };
+
+export type HomePoll = {
+  id: string;
+  question: string;
+  enabled: boolean;
+  closesAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HomePollOption = {
+  id: string;
+  pollId: string;
+  label: string;
+  sortOrder: number;
+  createdAt: string;
+};
+
+export type HomePollOptionStats = {
+  option: HomePollOption;
+  votes: number;
+  percentage: number;
+};
+
+export type HomePollAdminData = {
+  poll: HomePoll;
+  options: HomePollOption[];
+  stats: HomePollOptionStats[];
+  totalVotes: number;
+};

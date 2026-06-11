@@ -197,6 +197,32 @@ el contenido.
 La tabla inicial `chat_messages` queda como preparación histórica anterior; el
 chat conectado de la home usa `league_chat_messages`.
 
+### home_polls, home_poll_options y home_poll_votes
+
+Representan el cuestionario único preparado para aparecer en Home más adelante.
+Se crean en `0020_home_polls.sql`.
+
+`home_polls` es singleton mediante `singleton_key boolean not null default true
+unique check (singleton_key)`, por lo que solo puede existir un cuestionario. Sus
+campos principales son:
+
+- `question`
+- `enabled`
+- `closes_at`
+- `created_at`
+- `updated_at`
+
+`home_poll_options` guarda las respuestas posibles, con `label` no vacío y
+`sort_order >= 0`.
+
+`home_poll_votes` guarda un voto por usuario y cuestionario con
+`unique(poll_id, player_id)`. La FK compuesta `(option_id, poll_id)` garantiza
+que la opción votada pertenece al mismo cuestionario.
+
+El panel admin `/admin/polls` permite editar pregunta, cierre, estado, opciones,
+estadísticas agregadas y reinicio del cuestionario. La tarjeta pública en Home,
+el voto desde Home, Realtime y comentarios quedan para una fase posterior.
+
 ## Empates de temporada
 
 La clasificación de temporada usa estos criterios competitivos, en este orden:
@@ -236,6 +262,11 @@ generar o revisar estas filas antes de publicar una semana.
 - `season_memberships.season_id` referencia `seasons.id`.
 - `season_memberships.player_id` referencia `profiles.id`.
 - `week_benchmarks.week_id` referencia `weeks.id`.
+- `home_poll_options.poll_id` referencia `home_polls.id`.
+- `home_poll_votes.poll_id` referencia `home_polls.id`.
+- `home_poll_votes.option_id, poll_id` referencia `home_poll_options.id,
+  poll_id`.
+- `home_poll_votes.player_id` referencia `auth.users.id`.
 
 ## Flujo semanal de datos
 
@@ -321,6 +352,13 @@ Todas las tablas principales tienen Row Level Security activado.
   insertar mensajes `user` solo como ellos mismos; pueden editar solo su último
   mensaje propio durante 15 minutos; no pueden insertar mensajes `system`;
   admins pueden gestionar todo.
+- `home_polls`: usuarios autenticados solo pueden leer el cuestionario si está
+  habilitado, abierto y con pregunta; admins pueden gestionar todo.
+- `home_poll_options`: usuarios autenticados solo pueden leer opciones de un
+  cuestionario habilitado, abierto y con pregunta; admins pueden gestionar todo.
+- `home_poll_votes`: usuarios autenticados solo pueden leer su propio voto y
+  votar o cambiar su voto en un cuestionario habilitado y abierto; admins pueden
+  gestionar todo.
 
 Nota: si la home pública debe leer datos directamente desde Supabase sin sesión,
 habrá que decidir más adelante si se añaden políticas `anon` de solo lectura o

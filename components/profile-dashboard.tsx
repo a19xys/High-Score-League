@@ -180,7 +180,7 @@ function AdminCenter({ data }: { data: AdminCenterData }) {
           Hay {data.activeWeekCount} semanas activas. Revisa la configuración.
         </div>
       ) : null}
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <Link
           className="rounded-lg border p-4 theme-border theme-surface-muted theme-hover"
           href={currentWeekHref}
@@ -210,6 +210,13 @@ function AdminCenter({ data }: { data: AdminCenterData }) {
         >
           <p className="font-semibold theme-text">Juegos</p>
           <p className="mt-2 text-sm theme-text-muted">Catálogo real.</p>
+        </Link>
+        <Link
+          className="rounded-lg border p-4 theme-border theme-surface-muted theme-hover"
+          href="/admin/polls"
+        >
+          <p className="font-semibold theme-text">Cuestionarios</p>
+          <p className="mt-2 text-sm theme-text-muted">Pregunta única de Home.</p>
         </Link>
         <div className="rounded-lg border p-4 opacity-70 theme-border theme-surface-muted">
           <p className="font-semibold theme-text">Usuarios</p>

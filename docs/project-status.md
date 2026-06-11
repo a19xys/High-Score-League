@@ -13,8 +13,9 @@ normal.
   clasificacion de temporada, benchmarks y chat global leen Supabase. El chat
   permite editar el último mensaje propio durante 15 minutos.
 - El panel admin permite gestionar juegos, temporadas, semanas, submissions,
-  benchmarks y resultados oficiales. El catálogo de juegos usa metadatos
-  múltiples para desarrolladores, editores, perspectivas, temas y géneros.
+  benchmarks, cuestionarios y resultados oficiales. El catálogo de juegos usa
+  metadatos múltiples para desarrolladores, editores, perspectivas, temas y
+  géneros.
 - Los juegos pueden guardar URLs externas opcionales de header, logo y descarga
   del juego, además de colores manuales de acento para el borde/glow del hero.
   `image_url` y `rom_name` quedan como campos legacy/internos.
@@ -45,6 +46,8 @@ normal.
   opcional con validación `http/https`.
 - `0019_week_benchmark_icon_key.sql` añade `icon_key` a benchmarks para elegir
   entre `speedometer_1`, `speedometer_2` y `speedometer_3`.
+- `0020_home_polls.sql` prepara el cuestionario único de Home con opciones,
+  votos, singleton y RLS. La UI pública del cuestionario queda pendiente.
 - `POST /api/submissions/ingest` crea submissions autenticadas.
 - `POST /api/cron/process-schedule` sincroniza calendario por fechas.
 - `POST /api/admin/weeks/[weekId]/weekly-results` genera resultados oficiales
@@ -64,6 +67,7 @@ normal.
 - Chat: `docs/chat.md`.
 - Admin: `docs/admin.md`, `docs/admin-weeks.md`, `docs/admin-games.md`,
   `docs/admin-seasons.md`.
+- Cuestionario de Home: `docs/home-polls.md`.
 - Automatizacion: `docs/automation.md`.
 
 ## Sigue pendiente
@@ -77,6 +81,8 @@ normal.
 - Moderacion UI del chat.
 - Configuracion de Vercel Cron o equivalente para ejecutar
   `/api/cron/process-schedule`.
+- Tarjeta pública del cuestionario en Home, voto desde Home, Realtime y
+  comentarios.
 
 ## Proximo objetivo recomendado
 
