@@ -1,7 +1,7 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { AccessRequired } from "@/components/auth/access-required";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ActionLink } from "@/components/ui/action-link";
 import { EmptyState } from "@/components/ui/state";
 import { WeekDetailView } from "@/components/week-detail-view";
 import { getServerSession, hasServerSession } from "@/lib/auth/session";
@@ -46,9 +46,9 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
   if (!detail) {
     return (
       <div className="space-y-6">
-        <Link className="text-sm font-semibold text-circuit hover:underline" href="/weeks">
-          ← Volver a semanas
-        </Link>
+        <ActionLink href="/weeks" icon="back" variant="primary">
+          Volver a semanas
+        </ActionLink>
         <Card>
           <CardHeader title="Semana no disponible" eyebrow="Semana">
             No se pudo cargar una semana real con ese id.
@@ -65,7 +65,7 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
   return (
     <WeekDetailView
       backHref="/weeks"
-      backLabel="← Volver a semanas"
+      backLabel="Volver a semanas"
       benchmarks={detail.benchmarks}
       currentUserId={session.userId}
       dataMode={detail.mode}
@@ -75,7 +75,7 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
       leaderboardPending={detail.leaderboardPending}
       season={detail.season}
       seasonBackHref={`/seasons/${detail.season.slug}`}
-      seasonBackLabel={`← Volver a ${detail.season.name}`}
+      seasonBackLabel={`Volver a ${detail.season.name}`}
       submissions={detail.submissions}
       submissionsPending={detail.submissionsPending}
       statusHelp={detail.statusHelp}

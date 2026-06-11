@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 
 type LogoShape = "wide" | "tall" | "balanced";
 
@@ -34,17 +34,42 @@ function getLogoShape(width: number, height: number): LogoShape {
 
 export function GameLogo({ src }: GameLogoProps) {
   const [shape, setShape] = useState<LogoShape>("balanced");
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const imageRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    setFailed(false);
+    const image = imageRef.current;
+
+    if (image?.complete && image.naturalWidth > 0) {
+      setShape(getLogoShape(image.naturalWidth, image.naturalHeight));
+      setLoaded(true);
+      return;
+    }
+
+    setLoaded(false);
+  }, [src]);
 
   function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
     const image = event.currentTarget;
     setShape(getLogoShape(image.naturalWidth, image.naturalHeight));
+    setLoaded(true);
+  }
+
+  if (failed) {
+    return null;
   }
 
   return (
     <img
       alt=""
-      className={`${logoShapeClasses[shape]} w-auto object-contain object-left drop-shadow-[0_6px_18px_rgba(0,0,0,0.55)]`}
+      className={`${logoShapeClasses[shape]} w-auto object-contain object-left drop-shadow-[0_6px_18px_rgba(0,0,0,0.55)] transition duration-700 ease-out ${
+        loaded ? "scale-100 opacity-100" : "scale-90 opacity-0"
+      }`}
       onLoad={handleLoad}
+      onError={() => setFailed(true)}
+      ref={imageRef}
       src={src}
     />
   );

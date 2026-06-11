@@ -26,8 +26,8 @@ export default async function NewAdminGamePage() {
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/admin/games">
-        ← Volver a juegos
+      <ActionLink href="/admin/games" icon="back" variant="primary">
+        Volver a juegos
       </ActionLink>
       <Card>
         <CardHeader title="Crear juego" eyebrow="Catálogo">

@@ -311,7 +311,15 @@ function SortableHeader({
           isActive ? "text-circuit" : "opacity-45"
         }`}
       >
-        {isActive ? (currentDirection === "asc" ? "▲" : "▼") : "↕"}
+        {isActive ? (
+          currentDirection === "asc" ? (
+            "▲"
+          ) : (
+            "▼"
+          )
+        ) : (
+          <MaskIcon className="h-3.5 w-3.5 bg-current" src="/icons/sort-vertical.png" />
+        )}
       </span>
     </button>
   );

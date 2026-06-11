@@ -51,8 +51,8 @@ export default async function AdminGamePage({ params }: AdminGamePageProps) {
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/admin/games">
-        ← Volver a juegos
+      <ActionLink href="/admin/games" icon="back" variant="primary">
+        Volver a juegos
       </ActionLink>
       <Card>
         <CardHeader title={row.title} eyebrow="Editar juego">

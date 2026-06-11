@@ -106,8 +106,8 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 text-sm font-semibold">
-        <ActionLink href="/admin/weeks">
-          ← Volver a semanas
+        <ActionLink href="/admin/weeks" icon="back" variant="primary">
+          Volver a semanas
         </ActionLink>
         <ActionLink href={`/weeks/${data.week.id}`}>
           Ver página pública

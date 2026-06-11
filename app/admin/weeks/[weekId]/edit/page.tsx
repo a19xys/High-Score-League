@@ -73,10 +73,10 @@ export default async function EditAdminWeekPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 text-sm font-semibold">
-        <ActionLink href={`/admin/weeks/${weekId}`}>
-          ← Volver al cuadro de mandos
+        <ActionLink href={`/admin/weeks/${weekId}`} icon="back" variant="primary">
+          Volver al cuadro de mandos
         </ActionLink>
-        <ActionLink href="/admin/weeks">
+        <ActionLink href="/admin/weeks" icon="back">
           Volver a semanas
         </ActionLink>
       </div>

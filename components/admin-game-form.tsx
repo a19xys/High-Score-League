@@ -107,20 +107,47 @@ function ColorInput({
   help?: string;
 }) {
   const isValid = /^#[0-9A-Fa-f]{6}$/.test(value);
+  const pickerValue = isValid ? value : "#00D1B2";
+
+  function updateHex(nextValue: string) {
+    const normalized = nextValue.trim();
+
+    if (normalized === "") {
+      onChange(name, "");
+      return;
+    }
+
+    onChange(
+      name,
+      /^#[0-9A-Fa-f]{6}$/.test(normalized)
+        ? normalized.toUpperCase()
+        : normalized,
+    );
+  }
 
   return (
     <label className="block">
       <span className="text-sm font-semibold theme-text">{label}</span>
       <div className="mt-2 flex items-center gap-2">
-        <span
-          aria-hidden="true"
-          className="h-10 w-10 shrink-0 rounded-md border theme-border"
-          style={{ backgroundColor: isValid ? value : "transparent" }}
-        />
+        <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border theme-border">
+          <span
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={{ backgroundColor: isValid ? value : "transparent" }}
+          />
+          <input
+            aria-label={`${label}: selector visual`}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            onChange={(event) => onChange(name, event.target.value.toUpperCase())}
+            type="color"
+            value={pickerValue}
+          />
+        </span>
+
         <input
-          className="min-w-0 flex-1 rounded-md border px-3 py-2 theme-input"
+          className="min-w-0 flex-1 rounded-md border px-3 py-2 font-mono uppercase theme-input"
           name={name}
-          onChange={(event) => onChange(name, event.target.value)}
+          onChange={(event) => updateHex(event.target.value)}
           placeholder="#00D1B2"
           value={value}
         />

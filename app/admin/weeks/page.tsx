@@ -54,8 +54,8 @@ export default async function AdminWeeksPage() {
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/profile">
-        ← Volver al perfil
+      <ActionLink href="/profile" icon="back" variant="primary">
+        Volver al perfil
       </ActionLink>
       <Card>
         <CardHeader title="Semanas" eyebrow="Administración">

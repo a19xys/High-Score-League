@@ -170,13 +170,13 @@ export function WeekDetailView({
       {backHref || seasonBackHref ? (
         <div className="flex flex-wrap gap-3 text-sm font-semibold">
           {backHref ? (
-            <ActionLink href={backHref}>
-              {backLabel ?? "← Volver"}
+            <ActionLink href={backHref} icon="back" variant="primary">
+              {backLabel ?? "Volver"}
             </ActionLink>
           ) : null}
           {seasonBackHref ? (
-            <ActionLink href={seasonBackHref}>
-              {seasonBackLabel ?? `← Volver a ${season.name}`}
+            <ActionLink href={seasonBackHref} icon="back">
+              {seasonBackLabel ?? `Volver a ${season.name}`}
             </ActionLink>
           ) : null}
         </div>
@@ -214,7 +214,7 @@ export function WeekDetailView({
               </h2>
               <div className="mt-3 rounded-lg border p-3 theme-border theme-surface-muted">
                 {instructionLines.length > 0 ? (
-                  <div className="max-h-[4.75rem] overflow-y-auto overflow-x-hidden pr-1">
+                  <div className="max-h-24 overflow-y-auto overflow-x-hidden pr-1">
                     <ul className="list-disc space-y-1 pl-5 text-sm leading-5 marker:text-lg marker:font-bold marker:text-circuit theme-text-muted">
                       {instructionLines.map((instruction, index) => (
                         <li className="break-words" key={`${index}-${instruction}`}>

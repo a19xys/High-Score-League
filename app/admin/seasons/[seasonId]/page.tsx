@@ -73,8 +73,8 @@ export default async function AdminSeasonPage({ params }: AdminSeasonPageProps) 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 text-sm font-semibold">
-        <ActionLink href="/admin/seasons">
-          ← Volver a temporadas
+        <ActionLink href="/admin/seasons" icon="back" variant="primary">
+          Volver a temporadas
         </ActionLink>
         <ActionLink href={`/seasons/${data.season.slug}`}>
           Ver página pública

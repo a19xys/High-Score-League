@@ -44,8 +44,8 @@ export default async function NewAdminSeasonPage() {
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/admin/seasons">
-        ← Volver a temporadas
+      <ActionLink href="/admin/seasons" icon="back" variant="primary">
+        Volver a temporadas
       </ActionLink>
       <Card>
         <CardHeader title="Crear temporada" eyebrow="Temporadas">

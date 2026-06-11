@@ -163,8 +163,8 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/seasons">
-        ← Volver a temporadas
+      <ActionLink href="/seasons" icon="back" variant="primary">
+        Volver a temporadas
       </ActionLink>
       <Card>
         <CardHeader

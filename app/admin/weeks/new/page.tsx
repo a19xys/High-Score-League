@@ -56,8 +56,8 @@ export default async function NewAdminWeekPage({
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/admin/weeks">
-        ← Volver a semanas
+      <ActionLink href="/admin/weeks" icon="back" variant="primary">
+        Volver a semanas
       </ActionLink>
       <Card>
         <CardHeader title="Crear semana" eyebrow="Semanas">
