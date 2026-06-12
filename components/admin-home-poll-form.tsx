@@ -2,53 +2,32 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { formatMadridDateInput } from "@/lib/admin/home-polls";
 import type { HomePollAdminData } from "@/types";
 
 type OptionDraft = {
   id?: string;
   label: string;
+  imageUrl: string;
 };
 
 type AdminHomePollFormProps = {
   initialData: HomePollAdminData;
 };
 
-function toDateTimeLocal(value?: string | null) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-
-  if (!Number.isFinite(date.getTime())) {
-    return "";
-  }
-
-  const offset = date.getTimezoneOffset();
-  const local = new Date(date.getTime() - offset * 60 * 1000);
-
-  return local.toISOString().slice(0, 16);
-}
-
-function toIsoDate(value: string) {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(value);
-
-  return Number.isFinite(date.getTime()) ? date.toISOString() : value;
-}
-
 function initialOptions(data: HomePollAdminData): OptionDraft[] {
   if (data.options.length > 0) {
     return data.options.map((option) => ({
       id: option.id,
       label: option.label,
+      imageUrl: option.imageUrl ?? "",
     }));
   }
 
-  return [{ label: "" }, { label: "" }];
+  return [
+    { label: "", imageUrl: "" },
+    { label: "", imageUrl: "" },
+  ];
 }
 
 function isClosed(closesAt?: string | null) {
@@ -60,7 +39,9 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
   const [data, setData] = useState(initialData);
   const [question, setQuestion] = useState(initialData.poll.question);
   const [enabled, setEnabled] = useState(initialData.poll.enabled);
-  const [closesAt, setClosesAt] = useState(toDateTimeLocal(initialData.poll.closesAt));
+  const [closesDate, setClosesDate] = useState(
+    formatMadridDateInput(initialData.poll.closesAt),
+  );
   const [options, setOptions] = useState<OptionDraft[]>(() => initialOptions(initialData));
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +70,14 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
     );
   }
 
+  function updateOptionImage(index: number, imageUrl: string) {
+    setOptions((current) =>
+      current.map((option, optionIndex) =>
+        optionIndex === index ? { ...option, imageUrl } : option,
+      ),
+    );
+  }
+
   function addOption() {
     setError(null);
 
@@ -97,7 +86,7 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
       return;
     }
 
-    setOptions((current) => [...current, { label: "" }]);
+    setOptions((current) => [...current, { label: "", imageUrl: "" }]);
   }
 
   function removeOption(index: number) {
@@ -113,12 +102,12 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
     setData(nextData);
     setQuestion(nextData.poll.question);
     setEnabled(nextData.poll.enabled);
-    setClosesAt(toDateTimeLocal(nextData.poll.closesAt));
+    setClosesDate(formatMadridDateInput(nextData.poll.closesAt));
     setOptions(initialOptions(nextData));
     router.refresh();
   }
 
-  function save() {
+  function save(nextEnabled = enabled) {
     setError(null);
     setMessage(null);
     startTransition(async () => {
@@ -127,8 +116,8 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question,
-          closesAt: toIsoDate(closesAt),
-          enabled,
+          closesDate,
+          enabled: nextEnabled,
           options,
         }),
       });
@@ -144,6 +133,7 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
       }
 
       applyData(payload.data);
+      setEnabled(nextEnabled);
       setMessage("Cuestionario guardado.");
     });
   }
@@ -206,29 +196,17 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
           />
         </label>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div>
           <label className="block">
-            <span className="text-sm font-semibold theme-text">Fecha y hora de cierre</span>
+            <span className="text-sm font-semibold theme-text">Fecha de cierre</span>
             <input
               className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-              onChange={(event) => setClosesAt(event.target.value)}
-              type="datetime-local"
-              value={closesAt}
+              onChange={(event) => setClosesDate(event.target.value)}
+              type="date"
+              value={closesDate}
             />
-          </label>
-
-          <label className="flex items-start gap-3 rounded-lg border p-4 theme-border theme-surface-muted">
-            <input
-              checked={enabled}
-              className="mt-1"
-              onChange={(event) => setEnabled(event.target.checked)}
-              type="checkbox"
-            />
-            <span>
-              <span className="block font-semibold theme-text">Habilitado</span>
-              <span className="mt-1 block text-sm theme-text-muted">
-                Si está deshabilitado, no aparecerá en Home.
-              </span>
+            <span className="mt-1 block text-xs theme-text-muted">
+              El cuestionario se cerrará a las 23:59 de ese día.
             </span>
           </label>
         </div>
@@ -252,13 +230,29 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
 
           <div className="mt-3 space-y-2">
             {options.map((option, index) => (
-              <div className="flex gap-2" key={option.id ?? `new-${index}`}>
-                <input
-                  className="min-w-0 flex-1 rounded-md border px-3 py-2 theme-input"
-                  onChange={(event) => updateOption(index, event.target.value)}
-                  placeholder={`Opción ${index + 1}`}
-                  value={option.label}
-                />
+              <div
+                className="grid gap-2 rounded-lg border p-3 theme-border theme-surface-muted md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+                key={option.id ?? `new-${index}`}
+              >
+                <label className="min-w-0">
+                  <span className="sr-only">Opción {index + 1}</span>
+                  <input
+                    className="w-full rounded-md border px-3 py-2 theme-input"
+                    maxLength={80}
+                    onChange={(event) => updateOption(index, event.target.value)}
+                    placeholder={`Opción ${index + 1}`}
+                    value={option.label}
+                  />
+                </label>
+                <label className="min-w-0">
+                  <span className="sr-only">Imagen de la opción {index + 1}</span>
+                  <input
+                    className="w-full rounded-md border px-3 py-2 theme-input"
+                    onChange={(event) => updateOptionImage(index, event.target.value)}
+                    placeholder="Imagen · https://..."
+                    value={option.imageUrl}
+                  />
+                </label>
                 <button
                   className="rounded-md border px-3 py-2 text-sm font-semibold theme-border theme-hover theme-text disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={options.length <= 2}
@@ -270,6 +264,9 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
               </div>
             ))}
           </div>
+          <p className="mt-2 text-xs theme-text-muted">
+            Imagen opcional. Si una opción tiene imagen, todas deben tenerla.
+          </p>
         </div>
 
         {error ? (
@@ -290,10 +287,10 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
           <button
             className="rounded-md border px-4 py-3 text-sm font-semibold theme-border theme-hover theme-text disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isPending}
-            onClick={() => setEnabled((current) => !current)}
+            onClick={() => save(!enabled)}
             type="button"
           >
-            {enabled ? "Deshabilitar" : "Habilitar"}
+            {enabled ? "Deshabilitar cuestionario" : "Habilitar cuestionario"}
           </button>
         </div>
       </form>
@@ -308,7 +305,16 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
           {data.stats.map((stat) => (
             <div key={stat.option.id}>
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="font-semibold theme-text">{stat.option.label}</span>
+                <span className="flex min-w-0 items-center gap-2 font-semibold theme-text">
+                  {stat.option.imageUrl ? (
+                    <img
+                      alt=""
+                      className="h-8 w-8 shrink-0 rounded-md object-cover"
+                      src={stat.option.imageUrl}
+                    />
+                  ) : null}
+                  <span className="min-w-0 truncate">{stat.option.label}</span>
+                </span>
                 <span className="theme-text-muted">
                   {stat.votes} votos · {stat.percentage}%
                 </span>

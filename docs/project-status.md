@@ -16,6 +16,10 @@ normal.
   benchmarks, cuestionarios y resultados oficiales. El catálogo de juegos usa
   metadatos múltiples para desarrolladores, editores, perspectivas, temas y
   géneros.
+- La Home privada muestra un cuestionario único para usuarios registrados cuando
+  está habilitado y abierto. El voto es editable y los resultados agregados se
+  muestran solo después de votar. Las opciones admiten imagen opcional en modo
+  todo-o-nada, con etiquetas compactas de hasta 80 caracteres.
 - Los juegos pueden guardar URLs externas opcionales de header, logo y descarga
   del juego, además de colores manuales de acento para el borde/glow del hero.
   `image_url` y `rom_name` quedan como campos legacy/internos.
@@ -47,7 +51,11 @@ normal.
 - `0019_week_benchmark_icon_key.sql` añade `icon_key` a benchmarks para elegir
   entre `speedometer_1`, `speedometer_2` y `speedometer_3`.
 - `0020_home_polls.sql` prepara el cuestionario único de Home con opciones,
-  votos, singleton y RLS. La UI pública del cuestionario queda pendiente.
+  votos, singleton y RLS.
+- `0021_home_poll_votes_realtime.sql` activa Realtime para votos del
+  cuestionario.
+- `0022_home_poll_option_images.sql` añade `image_url` opcional a las opciones
+  del cuestionario de Home.
 - `POST /api/submissions/ingest` crea submissions autenticadas.
 - `POST /api/cron/process-schedule` sincroniza calendario por fechas.
 - `POST /api/admin/weeks/[weekId]/weekly-results` genera resultados oficiales
@@ -81,8 +89,8 @@ normal.
 - Moderacion UI del chat.
 - Configuracion de Vercel Cron o equivalente para ejecutar
   `/api/cron/process-schedule`.
-- Tarjeta pública del cuestionario en Home, voto desde Home, Realtime y
-  comentarios.
+- Comentarios del cuestionario, historial de cuestionarios y múltiples
+  cuestionarios simultáneos.
 
 ## Proximo objetivo recomendado
 

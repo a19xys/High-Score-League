@@ -3,6 +3,7 @@ import { formatWeekCount, formatWeekRange } from "@/lib/format";
 import { join } from "node:path";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LeagueChat } from "@/components/league-chat";
+import { HomePollCard } from "@/components/home-poll-card";
 import { LinkButton } from "@/components/link-button";
 import { PublicLanding } from "@/components/public-landing";
 import { SeasonTable } from "@/components/season-table";
@@ -87,6 +88,7 @@ export default async function HomePage() {
 
   return (
 	<div className="space-y-6">
+      <HomePollCard />
 	  <section className="grid items-stretch gap-6 lg:grid-cols-[1.35fr_0.85fr]">
 		<div className="flex h-full min-h-[260px] flex-col justify-end rounded-lg p-7 shadow-panel theme-surface-strong">
 		  <div>

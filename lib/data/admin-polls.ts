@@ -167,7 +167,11 @@ export async function saveAdminHomePoll(
     if (option.id && existingIds.has(option.id)) {
       const { error } = await supabase
         .from("home_poll_options")
-        .update({ label: option.label, sort_order: option.sort_order })
+        .update({
+          label: option.label,
+          image_url: option.image_url,
+          sort_order: option.sort_order,
+        })
         .eq("poll_id", pollId)
         .eq("id", option.id);
 
@@ -181,6 +185,7 @@ export async function saveAdminHomePoll(
     const { error } = await supabase.from("home_poll_options").insert({
       poll_id: pollId,
       label: option.label,
+      image_url: option.image_url,
       sort_order: option.sort_order,
     });
 

@@ -199,8 +199,9 @@ chat conectado de la home usa `league_chat_messages`.
 
 ### home_polls, home_poll_options y home_poll_votes
 
-Representan el cuestionario único preparado para aparecer en Home más adelante.
-Se crean en `0020_home_polls.sql`.
+Representan el cuestionario único de Home. Se crean en
+`0020_home_polls.sql`; `0021_home_poll_votes_realtime.sql` añade
+`home_poll_votes` a la publicación Realtime.
 
 `home_polls` es singleton mediante `singleton_key boolean not null default true
 unique check (singleton_key)`, por lo que solo puede existir un cuestionario. Sus
@@ -212,16 +213,24 @@ campos principales son:
 - `created_at`
 - `updated_at`
 
-`home_poll_options` guarda las respuestas posibles, con `label` no vacío y
-`sort_order >= 0`.
+`home_poll_options` guarda las respuestas posibles, con `label` no vacío,
+máximo 80 caracteres y `sort_order >= 0`.
+
+Desde `0022_home_poll_option_images.sql`, cada opción puede guardar
+`image_url` opcional. Si existe, debe empezar por `http://` o `https://`. La app
+valida que un cuestionario use imágenes en todas sus opciones o en ninguna, para
+evitar tarjetas mezcladas. Si no hay imágenes, Home no reserva espacio ni
+muestra placeholder.
 
 `home_poll_votes` guarda un voto por usuario y cuestionario con
 `unique(poll_id, player_id)`. La FK compuesta `(option_id, poll_id)` garantiza
 que la opción votada pertenece al mismo cuestionario.
 
 El panel admin `/admin/polls` permite editar pregunta, cierre, estado, opciones,
-estadísticas agregadas y reinicio del cuestionario. La tarjeta pública en Home,
-el voto desde Home, Realtime y comentarios quedan para una fase posterior.
+URLs opcionales de imagen, estadísticas agregadas y reinicio del cuestionario.
+La tarjeta pública en Home permite votar, cambiar voto y ver resultados
+agregados tras votar, con Realtime y polling de respaldo cada 10 segundos.
+Comentarios e historial de cuestionarios quedan para una fase posterior.
 
 ## Empates de temporada
 

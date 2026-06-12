@@ -184,6 +184,7 @@ export type HomePollOption = {
   id: string;
   pollId: string;
   label: string;
+  imageUrl?: string | null;
   sortOrder: number;
   createdAt: string;
 };
@@ -199,4 +200,23 @@ export type HomePollAdminData = {
   options: HomePollOption[];
   stats: HomePollOptionStats[];
   totalVotes: number;
+};
+
+export type PublicHomePollOption = {
+  id: string;
+  label: string;
+  imageUrl?: string | null;
+  sortOrder: number;
+  votes?: number;
+  percentage?: number;
+};
+
+export type PublicHomePoll = {
+  id: string;
+  question: string;
+  closesAt: string;
+  options: PublicHomePollOption[];
+  selectedOptionId: string | null;
+  hasVoted: boolean;
+  totalVotes?: number;
 };

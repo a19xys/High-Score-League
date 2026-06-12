@@ -153,6 +153,7 @@ export type HomePollOptionRow = {
   id: string;
   poll_id: string;
   label: string;
+  image_url: string | null;
   sort_order: number;
   created_at: string;
 };
