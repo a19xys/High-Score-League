@@ -23,11 +23,6 @@ export default async function SeasonsPage() {
         <CardHeader
           eyebrow="Temporadas"
           title="Archivo de temporadas"
-          action={
-            <span className="rounded-full border px-3 py-1 text-xs font-semibold uppercase theme-border theme-surface-muted theme-text">
-              Datos reales
-            </span>
-          }
         >
           Temporadas visibles ordenadas de mas nueva a mas antigua. Los lideres
           reales quedan pendientes hasta conectar resultados semanales.

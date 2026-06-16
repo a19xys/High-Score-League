@@ -11,8 +11,10 @@ type AuthNavItemProps = {
   onNavigate?: () => void;
 };
 
-function navLinkClass(active: boolean) {
-  return `whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium transition theme-hover ${
+function navLinkClass(active: boolean, variant: AuthNavItemProps["variant"] = "avatar") {
+  const weightClass = variant === "link" ? "font-semibold" : "font-medium";
+
+  return `whitespace-nowrap rounded-md border px-3 py-2 text-sm ${weightClass} transition theme-hover ${
     active
       ? "border-circuit bg-circuit/10 text-circuit shadow-sm"
       : "border-transparent theme-text-muted"
@@ -33,7 +35,7 @@ export function AuthNavItem({
     return (
       <Link
         aria-current={loginActive ? "page" : undefined}
-        className={navLinkClass(loginActive)}
+        className={navLinkClass(loginActive, variant)}
         href="/login"
         onClick={onNavigate}
       >
@@ -46,7 +48,7 @@ export function AuthNavItem({
     return (
       <Link
         aria-current={profileActive ? "page" : undefined}
-        className={navLinkClass(profileActive)}
+        className={navLinkClass(profileActive, variant)}
         href="/profile"
         onClick={onNavigate}
       >

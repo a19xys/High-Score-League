@@ -121,7 +121,7 @@ export function getWeekStatusDisplay(
     const closeDate = formatRevealDateWithoutYear(week.endsAt);
 
     return {
-      label: "TRAMO FINAL",
+      label: "ACTIVA",
       secondary:
         formatWeekCountdown("Termina en", week.endsAt, now) ??
         "Se ha acabado el plazo.",
@@ -170,11 +170,11 @@ export function getWeekStatusDisplay(
     label: "INACTIVA",
     secondary:
       formatWeekCountdown("Comienza en", week.startsAt, now) ??
-      "Actualiza para ver el estado.",
+      "Comienza ahora.",
     tone: "inactive",
     countdownPrefix: "Comienza en",
     countdownTarget: week.startsAt,
-    countdownExpiredText: "Actualiza para ver el estado.",
+    countdownExpiredText: "Comienza ahora.",
     noticeTitle: "La competición todavía no ha empezado.",
     noticeBody: startDate
       ? `Podrás enviar puntuaciones a partir del ${startDate}.`

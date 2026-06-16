@@ -35,14 +35,6 @@ export function getDerivedWeekStatus(
     return "published";
   }
 
-  if (week.status === "draft") {
-    return "draft";
-  }
-
-  if (week.status === "closed") {
-    return "closed";
-  }
-
   const nowTime = now.getTime();
   const opensAt = timestamp(week.public_start_at);
   const finalStretchAt = timestamp(week.public_freeze_at);
@@ -68,6 +60,14 @@ export function getDerivedWeekStatus(
     return "active";
   }
 
+  if (week.status === "draft") {
+    return "draft";
+  }
+
+  if (week.status === "closed") {
+    return "closed";
+  }
+
   if (week.status === "frozen") {
     return "final_stretch";
   }
@@ -90,16 +90,14 @@ export function getDerivedWeekStatusFromRow(
 export function getPublicWeekStatusLabel(status: DerivedWeekStatus) {
   switch (status) {
     case "draft":
-      return "Configuración";
     case "scheduled":
-      return "Programada";
+      return "Inactiva";
     case "active":
     case "final_stretch":
       return "Activa";
     case "closed":
-      return "Cerrada";
     case "published":
-      return "Resultados oficiales";
+      return "Cerrada";
   }
 }
 

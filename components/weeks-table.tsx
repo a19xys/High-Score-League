@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { formatCompactDateRange } from "@/lib/format";
+import { formatTableDateRange } from "@/lib/format";
 import type { WeekSummary } from "@/types";
 import { PlayerHoverCard } from "./player-hover-card";
 import { StatusBadge } from "./ui/status-badge";
 import { EmptyState } from "./ui/state";
+import { SortableHeaderButton } from "./ui/sortable-header-button";
 import { DataTable } from "./ui/table";
 
 type SortKey = "season" | "week" | "game" | "dates" | "status" | "leader";
@@ -67,6 +68,18 @@ function publicStatusLabel(status: ReturnType<typeof publicWeekStatus>) {
   }
 
   return "Inactiva";
+}
+
+function stateLinkClass(status: ReturnType<typeof publicWeekStatus>) {
+  if (status === "active") {
+    return "text-circuit hover:underline";
+  }
+
+  if (status === "closed") {
+    return "text-[var(--warning-text)] hover:underline";
+  }
+
+  return "theme-text-muted";
 }
 
 export function WeeksTable({
@@ -232,7 +245,7 @@ export function WeeksTable({
               <input
                 className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Juego, temporada, semana o jugador"
+                placeholder="Escribe aquí..."
                 value={query}
               />
             </label>
@@ -307,7 +320,7 @@ export function WeeksTable({
               </label>
               <label className="block">
                 <span className="text-xs font-semibold uppercase theme-text-muted">
-                  Líder/Ganador
+                  Líder
                 </span>
                 <select
                   className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
@@ -339,20 +352,32 @@ export function WeeksTable({
           <thead className="text-xs font-semibold uppercase theme-table-head">
             <tr>
               {sortableColumns.map((column) => (
-                <th className="whitespace-nowrap px-4 py-3" key={column.key} scope="col">
-                  <button
-                    className="inline-flex items-center gap-1 font-semibold"
+                <th
+                  className={`whitespace-nowrap px-2 py-3 sm:px-3 ${
+                    column.key === "dates"
+                      ? "hidden md:table-cell"
+                      : column.key === "status"
+                        ? "hidden sm:table-cell"
+                        : column.key === "leader"
+                          ? "hidden lg:table-cell"
+                          : column.key === "game"
+                            ? "hidden sm:table-cell"
+                            : ""
+                  }`}
+                  key={column.key}
+                  scope="col"
+                >
+                  <SortableHeaderButton
+                    currentDirection={sortDirection}
+                    isActive={sortKey === column.key}
+                    label={`Ordenar por ${column.label.toLowerCase()}`}
                     onClick={() => toggleSort(column.key)}
-                    type="button"
                   >
                     {column.label}
-                    {sortKey === column.key ? (
-                      <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
-                    ) : null}
-                  </button>
+                  </SortableHeaderButton>
                 </th>
               ))}
-              <th className="whitespace-nowrap px-4 py-3" scope="col" />
+              <th className="hidden whitespace-nowrap px-3 py-3 sm:table-cell" scope="col" />
             </tr>
           </thead>
           <tbody className="divide-y theme-border theme-surface">
@@ -363,19 +388,41 @@ export function WeeksTable({
 
               return (
                 <tr className="theme-hover" key={summary.week.id}>
-                  <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
-                    {summary.season.name}
+                  <td className="w-[46%] min-w-0 px-2 py-4 theme-text-muted sm:w-auto sm:px-3">
+                    <div className="min-w-0">
+                      <p className="truncate">{summary.season.name}</p>
+                      <p className="mt-1 truncate text-xs md:hidden">
+                        {formatTableDateRange(summary.week.startsAt, summary.week.endsAt)}
+                      </p>
+                    </div>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
-                    Semana {summary.week.number}
+                  <td className="w-[54%] min-w-0 px-2 py-4 font-semibold sm:w-auto sm:px-3">
+                    {linkDisabled || publicStatus === "inactive" ? (
+                      <span className="theme-text">Semana {summary.week.number}</span>
+                    ) : (
+                      <>
+                        <Link
+                          className={`sm:hidden ${stateLinkClass(publicStatus)}`}
+                          href={`/weeks/${summary.week.id}`}
+                        >
+                          Semana {summary.week.number}
+                        </Link>
+                        <span className="hidden theme-text sm:inline">
+                          Semana {summary.week.number}
+                        </span>
+                      </>
+                    )}
+                    <p className="mt-1 truncate text-xs font-normal theme-text-muted sm:hidden">
+                      {secret ? "Por anunciar" : summary.game.title}
+                    </p>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4 theme-text">
-                    {secret ? "Por anunciar" : summary.game.title}
+                  <td className="hidden min-w-0 max-w-[10rem] px-3 py-4 theme-text sm:table-cell lg:max-w-xs">
+                    <p className="truncate">{secret ? "Por anunciar" : summary.game.title}</p>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
-                    {formatCompactDateRange(summary.week.startsAt, summary.week.endsAt)}
+                  <td className="hidden whitespace-nowrap px-1 py-4 theme-text-muted md:table-cell">
+                    {formatTableDateRange(summary.week.startsAt, summary.week.endsAt)}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4">
+                  <td className="hidden whitespace-nowrap px-3 py-4 sm:table-cell">
                     <StatusBadge
                       status={
                         publicStatus === "active"
@@ -386,14 +433,14 @@ export function WeeksTable({
                       }
                     />
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4">
+                  <td className="hidden whitespace-nowrap px-3 py-4 lg:table-cell">
                     {!secret && summary.winner ? (
                       <PlayerHoverCard player={summary.winner} />
                     ) : (
                       <span className="theme-text-muted">Pendiente</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4">
+                  <td className="hidden whitespace-nowrap px-3 py-4 sm:table-cell">
                     {linkDisabled ? (
                       <span
                         className="cursor-not-allowed font-semibold theme-text-muted"

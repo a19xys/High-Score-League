@@ -529,13 +529,7 @@ export function LeagueChat({
       return;
     }
 
-    const frameId = window.requestAnimationFrame(() => {
-      scrollToBottom("auto");
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
+    scrollToBottom("auto");
   }, [localMessages.length, scrollToBottom]);
 
   useLayoutEffect(() => {

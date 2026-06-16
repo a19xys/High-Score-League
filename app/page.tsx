@@ -88,7 +88,7 @@ export default async function HomePage() {
 
   return (
 	<div className="space-y-6">
-      <HomePollCard />
+      <HomePollCard initialPoll={data.homePoll} />
 	  <section className="grid items-stretch gap-6 lg:grid-cols-[1.35fr_0.85fr]">
 		<div className="flex h-full min-h-[260px] flex-col justify-end rounded-lg p-7 shadow-panel theme-surface-strong">
 		  <div>

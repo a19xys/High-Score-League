@@ -170,11 +170,7 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
         <CardHeader
           eyebrow="Detalle de temporada"
           title={season.name}
-          action={
-            <span className="rounded-full border px-3 py-1 text-xs font-semibold uppercase theme-border theme-surface-muted theme-text">
-              Datos reales
-            </span>
-          }
+          action={<StatusBadge status={season.status} />}
         >
           {seasonStatusLabel(season.status)} · {dateLabel} · {formatWeekCount(season.weekCount)}
         </CardHeader>

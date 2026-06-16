@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 type ThemePreference = "light" | "dark" | "system";
 
@@ -32,7 +32,7 @@ function readStoredPreference(): ThemePreference {
 export function ThemeSelect() {
   const [preference, setPreference] = useState<ThemePreference | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const storedPreference = readStoredPreference();
 
     setPreference(storedPreference);

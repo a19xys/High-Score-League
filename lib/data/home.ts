@@ -5,9 +5,11 @@ import type {
   SeasonStanding,
   Week,
   WeekBenchmark,
+  PublicHomePoll,
 } from "@/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getRealLeagueChatMessages } from "./league-chat";
+import { getPublicHomePoll } from "./home-poll";
 import { getActiveRealSeason, mapSeasonRowToSeason } from "./seasons";
 import { getActiveWeekDetailData } from "./week-detail";
 import { getUserSeasonMemberships } from "./season-memberships";
@@ -42,6 +44,8 @@ export type HomePageData = {
   upcomingWeek: UpcomingWeekSummary | null;
   seasonStandings: SeasonStanding[];
   seasonStandingsError: string | null;
+  homePoll: PublicHomePoll | null;
+  homePollError: string | null;
 };
 
 async function getCurrentUserId() {
@@ -135,14 +139,26 @@ export async function getHomePageData(): Promise<HomePageData> {
       upcomingWeek: null,
       seasonStandings: [],
       seasonStandingsError: null,
+      homePoll: null,
+      homePollError: null,
     };
   }
 
-  const [activeWeekResult, activeSeasonRow, chatResult, weeksResult] = await Promise.all([
+  const supabase = await createSupabaseServerClient();
+  const [
+    activeWeekResult,
+    activeSeasonRow,
+    chatResult,
+    weeksResult,
+    homePollResult,
+  ] = await Promise.all([
     getActiveWeekDetailData(),
     getActiveRealSeason(),
     getRealLeagueChatMessages(),
     getRealWeeks(),
+    supabase
+      ? getPublicHomePoll(supabase, currentUserId)
+      : Promise.resolve({ poll: null, error: "Supabase no está configurado." }),
   ]);
 
   const activeSeasonWeekCount = activeSeasonRow
@@ -192,6 +208,8 @@ export async function getHomePageData(): Promise<HomePageData> {
       upcomingWeek,
       seasonStandings: seasonStandingsResult?.rows ?? [],
       seasonStandingsError: seasonStandingsResult?.error ?? null,
+      homePoll: homePollResult.poll,
+      homePollError: homePollResult.error,
     };
   }
 
@@ -217,5 +235,7 @@ export async function getHomePageData(): Promise<HomePageData> {
     upcomingWeek,
     seasonStandings: seasonStandingsResult?.rows ?? [],
     seasonStandingsError: seasonStandingsResult?.error ?? null,
+    homePoll: homePollResult.poll,
+    homePollError: homePollResult.error,
   };
 }

@@ -23,11 +23,6 @@ export default async function WeeksPage() {
         <CardHeader
           eyebrow="Archivo semanal"
           title="Semanas"
-          action={
-            <span className="rounded-full border px-3 py-1 text-xs font-semibold uppercase theme-border theme-surface-muted theme-text">
-              Datos reales
-            </span>
-          }
         >
         </CardHeader>
         {weekData.warning ? (

@@ -28,9 +28,13 @@ function voteLabel(votes?: number) {
   return votes === 1 ? "1 voto" : `${votes} votos`;
 }
 
-export function HomePollCard() {
-  const [poll, setPoll] = useState<PublicHomePoll | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
+type HomePollCardProps = {
+  initialPoll?: PublicHomePoll | null;
+};
+
+export function HomePollCard({ initialPoll }: HomePollCardProps) {
+  const [poll, setPoll] = useState<PublicHomePoll | null>(initialPoll ?? null);
+  const [hasLoaded, setHasLoaded] = useState(initialPoll !== undefined);
   const [error, setError] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set());
   const [isPending, startTransition] = useTransition();
@@ -66,8 +70,10 @@ export function HomePollCard() {
   }, []);
 
   useEffect(() => {
-    void refreshPoll();
-  }, [refreshPoll]);
+    if (initialPoll === undefined) {
+      void refreshPoll();
+    }
+  }, [initialPoll, refreshPoll]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -154,7 +160,7 @@ export function HomePollCard() {
                   selected
                     ? "border-circuit bg-circuit/10"
                     : "theme-border theme-surface-muted theme-hover"
-                } ${usesImages ? "min-h-[4.75rem]" : "min-h-16"}`}
+                } ${usesImages ? "min-h-24 sm:min-h-[6.25rem]" : "min-h-16"}`}
                 disabled={isPending}
                 key={option.id}
                 onClick={() => vote(option.id)}
@@ -168,17 +174,14 @@ export function HomePollCard() {
                   />
                 ) : null}
                 <span className="relative z-10 flex min-w-0 items-center gap-3">
-                  <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                      selected ? "border-circuit bg-circuit" : "theme-border"
-                    }`}
-                  >
-                    {selected ? (
-                      <span className="h-2 w-2 rounded-full bg-white" />
-                    ) : null}
-                  </span>
                   {usesImages ? (
-                    <span className="h-10 w-10 shrink-0 overflow-hidden rounded-md sm:h-12 sm:w-12">
+                    <span
+                      className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 bg-slate-950/20 transition sm:h-[4.5rem] sm:w-[4.5rem] ${
+                        selected
+                          ? "border-circuit shadow-[0_0_0_3px_rgba(34,197,94,0.22)]"
+                          : "border-white/35"
+                      }`}
+                    >
                       {option.imageUrl && !failedImages.has(option.id) ? (
                         <img
                           alt=""
@@ -194,7 +197,19 @@ export function HomePollCard() {
                         />
                       ) : null}
                     </span>
-                  ) : null}
+                  ) : (
+                    <span
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 shadow-sm ring-1 ring-black/15 ${
+                        selected
+                          ? "border-circuit bg-circuit"
+                          : "border-white/80 bg-slate-950/45 dark:border-white/70"
+                      }`}
+                    >
+                      {selected ? (
+                        <span className="h-2 w-2 rounded-full bg-white" />
+                      ) : null}
+                    </span>
+                  )}
                   <span className="min-w-0 flex-1 overflow-hidden font-semibold leading-5 theme-text [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                     {option.label}
                   </span>

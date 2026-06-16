@@ -53,6 +53,11 @@ const compactDateFormatter = new Intl.DateTimeFormat("es-ES", {
   timeZone: competitionTimeZone,
 });
 
+const shortMonthFormatter = new Intl.DateTimeFormat("es-ES", {
+  month: "short",
+  timeZone: competitionTimeZone,
+});
+
 export function formatDate(value: string) {
   return dateFormatter.format(new Date(value));
 }
@@ -112,6 +117,29 @@ export function formatWeekCount(count: number) {
 
 export function formatCompactDateRange(startsAt: string, endsAt: string) {
   return `${compactDateFormatter.format(new Date(startsAt))} – ${compactDateFormatter.format(new Date(endsAt))}`;
+}
+
+function formatShortMonth(value: Date) {
+  return shortMonthFormatter.format(value).replace(".", "");
+}
+
+export function formatTableDateRange(startsAt: string, endsAt: string) {
+  const start = getMadridDateParts(startsAt);
+  const end = getMadridDateParts(endsAt);
+  const startDate = new Date(startsAt);
+  const endDate = new Date(endsAt);
+  const startMonth = formatShortMonth(startDate);
+  const endMonth = formatShortMonth(endDate);
+
+  if (start.month === end.month && start.year === end.year) {
+    return `${start.day}-${end.day} ${endMonth} ${end.year}`;
+  }
+
+  if (start.year === end.year) {
+    return `${start.day} ${startMonth} - ${end.day} ${endMonth} ${end.year}`;
+  }
+
+  return `${start.day} ${startMonth} ${start.year} - ${end.day} ${endMonth} ${end.year}`;
 }
 
 export function formatScore(value: number) {

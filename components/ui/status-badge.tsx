@@ -16,7 +16,7 @@ const statusLabels: Record<StatusValue, string> = {
   active: "Activa",
   frozen: "Activa",
   closed: "Cerrada",
-  published: "Resultados oficiales",
+  published: "Cerrada",
   completed: "Cerrada",
 };
 
