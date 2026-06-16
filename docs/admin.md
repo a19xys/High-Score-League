@@ -133,12 +133,15 @@ La publicación oficial es manual. Al llegar el cierre, el cron deja la semana
 en `closed`; cuando el admin publica, se generan `weekly_results` y pasa a
 `published`.
 
-## Cuentas de prueba
+## Eliminacion de cuenta
 
-La opcion actual de borrar cuenta se mantiene como herramienta de desarrollo.
+El borrado fisico de cuenta esta deshabilitado para el primer despliegue
+publico.
 
-En produccion, borrar cuenta deberia sustituirse por desactivar y anonimizar el
-usuario para no romper competiciones pasadas o en curso.
+La futura opcion de perfil "Eliminar cuenta" debe implementarse como
+anonimizacion: retirar o reemplazar datos personales del perfil y bloquear el
+acceso futuro segun se diseñe, sin borrar submissions, resultados, memberships
+ni actividad necesaria para mantener la historia competitiva.
 
 ## Pendiente
 

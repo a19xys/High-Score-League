@@ -4,6 +4,8 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { requireAdmin } from "@/lib/auth/admin";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminPage() {
   const auth = await requireAdmin();
 

@@ -60,8 +60,8 @@ normal.
 - `POST /api/cron/process-schedule` sincroniza calendario por fechas.
 - `POST /api/admin/weeks/[weekId]/weekly-results` genera resultados oficiales
   para admins.
-- `/supabase-test` y `/real-data-test` siguen como rutas de diagnostico de
-  desarrollo.
+- `/supabase-test` y `/real-data-test` siguen como rutas de diagnostico
+  protegidas para admin.
 
 ## Documentacion principal
 
@@ -77,6 +77,12 @@ normal.
   `docs/admin-seasons.md`.
 - Cuestionario de Home: `docs/home-polls.md`.
 - Automatizacion: `docs/automation.md`.
+- Checklist de despliegue: `docs/deploy-checklist.md`.
+
+## Preparacion de despliegue
+
+El proyecto esta preparado para despliegue pendiente de ejecutar el checklist
+manual de `docs/deploy-checklist.md` en el entorno real de Vercel y Supabase.
 
 ## Sigue pendiente
 
@@ -85,14 +91,21 @@ normal.
 - Capturas reales.
 - App local y plugin MAME como flujo principal de envios.
 - Panel completo de usuarios.
+- Pulido de perfil y eliminacion de cuenta por anonimizacion, sin borrar
+  actividad historica.
 - Medallas y bonus.
 - Moderacion UI del chat.
 - Configuracion de Vercel Cron o equivalente para ejecutar
   `/api/cron/process-schedule`.
 - Comentarios del cuestionario, historial de cuestionarios y múltiples
   cuestionarios simultáneos.
+- `POSTDEPLOY-ARCHIVE-1`: fusionar Semanas y Temporadas en una seccion
+  `ARCHIVO` con pestañas.
+- `POSTDEPLOY-MIGRATIONS-1`: consolidar migraciones para instalacion limpia con
+  estrategia de fresh install o snapshot, sin alterar produccion sin backup.
 
 ## Proximo objetivo recomendado
 
-Hacer una pasada de limpieza de textos debug/redundantes en UI y documentacion,
-sin cambiar logica competitiva.
+Ejecutar el checklist manual de despliegue, configurar variables de entorno,
+aplicar migraciones pendientes y validar rutas publicas, privadas, admin, cron,
+Realtime e ingest en produccion.

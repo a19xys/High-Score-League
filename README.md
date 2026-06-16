@@ -57,7 +57,7 @@ http://localhost:3000
 - `/admin/weeks`, `/admin/games`, `/admin/seasons`: panel admin minimo.
   Juegos permite metadatos múltiples y borrado seguro si no hay semanas
   asociadas.
-- `/supabase-test` y `/real-data-test`: diagnostico de desarrollo.
+- `/supabase-test` y `/real-data-test`: diagnostico protegido para admin.
 
 ## Marca estatica
 
@@ -85,6 +85,7 @@ Supabase Storage queda reservado para contenido dinamico futuro.
 - [Admin juegos](docs/admin-games.md)
 - [Admin temporadas](docs/admin-seasons.md)
 - [Automatizacion](docs/automation.md)
+- [Checklist de despliegue](docs/deploy-checklist.md)
 - [Estado del proyecto](docs/project-status.md)
 
 ## Pendiente
@@ -94,5 +95,7 @@ Supabase Storage queda reservado para contenido dinamico futuro.
 - Capturas reales.
 - App local y plugin MAME como flujo principal de envios.
 - Panel completo de usuarios.
+- Eliminacion de cuenta por anonimizacion de perfil, sin borrar actividad
+  historica.
 - Medallas y bonus.
 - Moderacion UI del chat.

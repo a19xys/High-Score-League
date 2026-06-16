@@ -6,6 +6,8 @@ import { hasServerSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { RealProfile } from "@/types/supabase";
 
+export const dynamic = "force-dynamic";
+
 type PlayerPageProps = {
   params: Promise<{
     username: string;

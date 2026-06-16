@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable } from "@/components/ui/table";
+import { requireAdmin } from "@/lib/auth/admin";
 import { getRealGames } from "@/lib/data/games";
 import { getRealSeasonStandings } from "@/lib/data/season-standings";
 import { getActiveRealSeason, getRealSeasons } from "@/lib/data/seasons";
@@ -155,6 +157,18 @@ function WeeksRows({ weeks }: { weeks: WeekRow[] }) {
 }
 
 export default async function RealDataTestPage() {
+  const auth = await requireAdmin();
+
+  if (!auth.ok) {
+    return (
+      <AdminGateMessage
+        description={auth.error}
+        showLogin={auth.status === 401}
+        title={auth.status === 403 ? "Acceso denegado" : "Sesión requerida"}
+      />
+    );
+  }
+
   const env = getSupabaseEnv();
 
   if (!env.isConfigured) {

@@ -1,5 +1,7 @@
 ﻿import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
+import { AdminGateMessage } from "@/components/admin/admin-gate-message";
+import { requireAdmin } from "@/lib/auth/admin";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { RealProfile } from "@/types/supabase";
@@ -50,6 +52,18 @@ async function readTable(
 }
 
 export default async function SupabaseTestPage() {
+  const auth = await requireAdmin();
+
+  if (!auth.ok) {
+    return (
+      <AdminGateMessage
+        description={auth.error}
+        showLogin={auth.status === 401}
+        title={auth.status === 403 ? "Acceso denegado" : "Sesión requerida"}
+      />
+    );
+  }
+
   const env = getSupabaseEnv();
   const hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY?.trim());
 
@@ -292,4 +306,3 @@ export default async function SupabaseTestPage() {
     </div>
   );
 }
-

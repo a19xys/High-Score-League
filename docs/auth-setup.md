@@ -13,9 +13,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
 SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` solo se usa en route handlers de servidor, por
-ejemplo para borrar cuentas de prueba. Nunca debe usarse en componentes cliente,
-ni exponerse como `NEXT_PUBLIC_*`, ni pegarse en codigo fuente.
+`SUPABASE_SERVICE_ROLE_KEY` solo se usa en route handlers de servidor que lo
+necesitan, como cron o tareas server-side concretas. Nunca debe usarse en
+componentes cliente, ni exponerse como `NEXT_PUBLIC_*`, ni pegarse en codigo
+fuente.
 
 En Windows, si aparece `fetch failed` o errores de certificados:
 
@@ -95,21 +96,19 @@ metadata y `public.profiles` se usan para este flujo.
 `/profile/setup` queda como ruta legacy con un mensaje simple y enlace a
 `/profile`. Ya no forma parte del registro ni del login.
 
-## Borrar cuenta de prueba
+## Eliminacion de cuenta
 
-En `/profile` hay una accion "Borrar mi cuenta de prueba". Requiere confirmar
-escribiendo `BORRAR`.
+El borrado fisico de cuenta de prueba esta deshabilitado antes del primer
+despliegue publico.
 
-La accion llama a `POST /auth/delete-account`, un route handler de servidor que:
+La futura accion "Eliminar cuenta" debe implementarse como anonimizacion, no
+como borrado fisico de actividad historica. Debe anonimizar datos de perfil
+como `username`, avatar, bio y preferencias personales, pero conservar
+submissions, resultados, memberships y actividad necesaria para preservar la
+integridad de las competiciones.
 
-- obtiene el usuario actual desde la sesion;
-- usa `SUPABASE_SERVICE_ROLE_KEY` solo en servidor;
-- llama a `auth.admin.deleteUser(user.id)`;
-- aprovecha `on delete cascade` para eliminar `profiles`;
-- cierra la sesion y devuelve al flujo de registro.
-
-Si falta `SUPABASE_SERVICE_ROLE_KEY`, la ruta devuelve un error claro y no borra
-nada.
+`POST /auth/delete-account` queda bloqueado y devuelve un error claro. No debe
+usarse `auth.admin.deleteUser` como flujo de usuario en produccion.
 
 ## Primer admin
 

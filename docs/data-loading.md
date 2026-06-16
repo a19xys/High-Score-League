@@ -44,11 +44,12 @@ real todavia.
 
 ## Diagnostico
 
-`/supabase-test` prueba conexion tecnica, Auth y lectura basica.
+`/supabase-test` prueba conexion tecnica, Auth y lectura basica. Es una ruta de
+diagnostico protegida para admin.
 
 `/real-data-test` prueba datos de dominio: temporadas, juegos, semanas,
-submissions, weekly_results y enlaces utiles. Estas rutas son de desarrollo y no
-forman parte de la navegacion principal.
+submissions, weekly_results y enlaces utiles. Es una ruta de diagnostico
+protegida para admin y no forma parte de la navegacion principal.
 
 ## Pendiente
 

@@ -3,7 +3,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DeleteAccountButton } from "@/components/auth/delete-account-button";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { SubmissionsTable } from "@/components/submissions-table";
 import { ThemeSelect } from "@/components/theme-select";
@@ -623,14 +622,12 @@ export function ProfileDashboard({
             </div>
 
             <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-5 text-[var(--warning-text)]">
-              <p className="font-semibold">Zona peligrosa</p>
+              <p className="font-semibold">Eliminación de cuenta</p>
               <p className="mt-1 text-sm">
-                Acción de desarrollo para borrar cuentas de prueba. En producción
-                deberí­a sustituirse por desactivación o anonimización.
+                La eliminación de cuenta queda pendiente para después del primer
+                despliegue. Se implementará como anonimización del perfil, sin
+                borrar actividad histórica de la liga.
               </p>
-              <div className="mt-3">
-                <DeleteAccountButton />
-              </div>
             </div>
 
             <div className="rounded-lg border p-5 theme-border theme-surface">

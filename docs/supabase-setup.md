@@ -41,7 +41,7 @@ http://localhost:3000
 
 ## Diagnostico
 
-`/supabase-test` comprueba:
+`/supabase-test` es una ruta de diagnostico protegida para admin y comprueba:
 
 - variables publicas configuradas;
 - si `SUPABASE_SERVICE_ROLE_KEY` existe en servidor, sin mostrar su valor;
@@ -52,7 +52,8 @@ http://localhost:3000
 - lectura basica de `seasons`, `games` y `weeks`;
 - errores de RLS si existen.
 
-`/real-data-test` comprueba datos de dominio reales.
+`/real-data-test` es una ruta de diagnostico protegida para admin y comprueba
+datos de dominio reales.
 
 ## Errores esperables
 
