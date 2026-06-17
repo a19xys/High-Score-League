@@ -31,6 +31,7 @@ test("validateEvent accepts a complete v1 MAME event", () => {
 
   assert.deepEqual(result.errors, []);
   assert.deepEqual(result.warnings, []);
+  assert.equal(result.normalizedGame.gameId, "space-invaders");
 });
 
 test("validateEvent rejects missing required fields", () => {
@@ -62,9 +63,19 @@ test("validateEvent warns but does not reject optional audit metadata", () => {
   const result = validateEvent(event);
 
   assert.deepEqual(result.errors, []);
+  assert.equal(result.normalizedGame.gameId, "space-invaders");
   assert.ok(result.warnings.includes("game falta o no es string"));
   assert.ok(result.warnings.includes("pluginVersion falta o no es string"));
   assert.ok(result.warnings.includes("mameVersion falta o no es string"));
   assert.ok(result.warnings.includes("detection falta o no es objeto"));
   assert.ok(result.warnings.includes("scoreData falta o no es objeto"));
+});
+
+test("validateEvent does not reject otherwise valid unknown ROMs", () => {
+  const result = validateEvent(validEvent({
+    rom: "unknown-rom",
+  }));
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.normalizedGame, null);
 });

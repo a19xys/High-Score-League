@@ -74,6 +74,18 @@ test("buildSubmissionPayload preserves normalized fields and raw local event", (
   assert.equal(payload.rawEvent.detection, event.detection);
   assert.equal(payload.rawEvent.scoreData, event.scoreData);
   assert.equal(payload.duplicateKey, buildDuplicateKey(config, event, storedSession));
+  assert.deepEqual(Object.keys(payload).sort(), [
+    "clientVersion",
+    "comment",
+    "detectedAt",
+    "duplicateKey",
+    "mameVersion",
+    "rawEvent",
+    "rom",
+    "score",
+    "source",
+    "weekId",
+  ]);
 });
 
 test("response classification treats duplicate success as logical success", () => {

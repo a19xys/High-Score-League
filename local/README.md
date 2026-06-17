@@ -110,6 +110,27 @@ MAME plugin -> events/pending -> hsl-local-app -> web ingest endpoint
 The local app moves successfully submitted events to `events/sent`. Controlled
 validation failures move to `events/failed` with a small failure note.
 
+## Game modules
+
+The local app has a small game registry under `hsl-local-app/src/games/`.
+For now it only declares Space Invaders (`invaders`) and does not change CLI
+behavior, JSON validation, or the ingest payload.
+
+These modules are preparation for later phases. In the future they can hold
+launcher metadata, competition rules, Game Over detection details, official DIP
+settings, and other game-specific checks.
+
+## Declarative game rules
+
+Game modules can now declare future-facing rules for competition and practice
+modes. These declarations are metadata only: they are not enforced, they do not
+launch MAME, and they do not change the current JSON contract or ingest payload.
+
+For `invaders`, the metadata marks F12 capture, Game Over detection, DIP rules,
+launcher settings, and audit fields as planned or pending. Future phases can
+use those declarations for a launcher, hotkeys, Game Over detection, official
+DIPs, and save/load/rewind checks.
+
 ## Current scope
 
 This is still an MVP. It does not include a GUI, launcher, competition/practice

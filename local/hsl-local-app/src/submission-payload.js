@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { getGameByRom } = require("./games");
 
 function sha256Hex(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -24,6 +25,9 @@ function buildDuplicateKey(config, event, storedSession) {
 }
 
 function buildSubmissionPayload(config, event, storedSession) {
+  // Registry lookup is intentionally side-effect free in this phase.
+  getGameByRom(event.rom);
+
   return {
     weekId: config.defaultWeekId,
     score: event.score,

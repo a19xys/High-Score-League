@@ -1,3 +1,5 @@
+const { getGameByRom } = require("./games");
+
 const ALLOWED_SOURCES = new Set([
   "web",
   "mame_memory",
@@ -9,6 +11,7 @@ const ALLOWED_SOURCES = new Set([
 function validateEvent(event) {
   const errors = [];
   const warnings = [];
+  let normalizedGame = null;
 
   if (!event || typeof event !== "object" || Array.isArray(event)) {
     return {
@@ -23,6 +26,8 @@ function validateEvent(event) {
 
   if (!event.rom || typeof event.rom !== "string") {
     errors.push("rom debe ser un string");
+  } else {
+    normalizedGame = getGameByRom(event.rom);
   }
 
   if (!Number.isInteger(event.score) || event.score < 0) {
@@ -97,7 +102,7 @@ function validateEvent(event) {
     }
   }
 
-  return { errors, warnings };
+  return { errors, warnings, normalizedGame };
 }
 
 module.exports = {
