@@ -1,7 +1,7 @@
-.next
-node_modules
-out
-dist
+.next/
+node_modules/
+out/
+dist/
 .env
 .env*.local
 *.tsbuildinfo
@@ -9,3 +9,31 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+#####################################
+
+# Local app secrets/session
+local/hsl-local-app/.hsl-session.json
+local/hsl-local-app/config.json
+local/hsl-local-app/logs/
+local/hsl-local-app/node_modules/
+
+# MAME plugin local config
+local/mame-plugin/hsl-score/config.lua
+
+# MAME/runtime artifacts
+**/events/pending/*.json
+**/events/sent/*.json
+**/events/failed/*.json
+**/events/failed/*.txt
+
+# ROMs / MAME binaries
+*.zip
+*.7z
+mame.exe
+roms/
+nvram/
+cfg/
+sta/
+snap/
+inp/
