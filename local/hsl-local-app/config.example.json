@@ -1,7 +1,6 @@
 {
-  "eventsPendingDir": "../mame-plugin/hsl-score/events/pending",
-  "eventsSentDir": "../mame-plugin/hsl-score/events/sent",
-  "eventsFailedDir": "../mame-plugin/hsl-score/events/failed",
+  "userDataDir": "auto",
+  "eventsBaseDir": "userData/events",
 
   "mame": {
     "executablePath": "C:/RUTA/A/MAME/mame.exe",
@@ -9,14 +8,14 @@
     "pluginName": "hsl-score"
   },
 
-  "webBaseUrl": "http://localhost:3000",
+  "webBaseUrl": "https://high-score-league.vercel.app",
   "defaultWeekId": "PON_AQUI_EL_WEEK_ID",
 
   "supabaseUrl": "https://TU_PROYECTO.supabase.co",
   "supabaseAnonKey": "TU_SUPABASE_ANON_KEY",
 
-  "sessionFile": ".hsl-session.json",
-  "logsDir": "./logs",
+  "sessionFile": "userData/session.json",
+  "logsDir": "userData/logs",
 
   "clientVersion": "0.1.0",
   "defaultComment": "Subida desde app local",

@@ -3,9 +3,6 @@ const path = require("node:path");
 const { buildMameArgs, DEFAULT_PLUGIN_NAME } = require("./mame-launcher");
 
 const REQUIRED_CONFIG_FIELDS = [
-  "eventsPendingDir",
-  "eventsSentDir",
-  "eventsFailedDir",
   "sessionFile",
   "clientVersion",
 ];
@@ -34,6 +31,19 @@ function add(report, section, level, message, detail = null) {
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
+}
+
+function hasUrlProtocol(value) {
+  return typeof value === "string" && /^[a-z][a-z0-9+.-]*:\/\//i.test(value);
+}
+
+function looksLikePersonalAbsolutePath(value) {
+  if (!isNonEmptyString(value) || !path.isAbsolute(value)) {
+    return false;
+  }
+
+  const normalized = value.replace(/\\/g, "/").toLowerCase();
+  return normalized.includes("/users/") || normalized.includes("/downloads/") || normalized.includes("/documents/");
 }
 
 async function getPathInfo(targetPath) {
@@ -164,6 +174,8 @@ async function buildDiagnoseReport(config) {
       events: [],
       mame: [],
       launcher: [],
+      pack: [],
+      runtime: [],
       session: [],
     },
     warnings: [],
@@ -171,7 +183,34 @@ async function buildDiagnoseReport(config) {
     recommendations: [],
   };
 
-  add(report, "config", "OK", "config.json cargado");
+  add(report, "config", config.configExists === false ? "INFO" : "OK", config.configExists === false ? "config.json no existe" : "config.json cargado");
+  add(report, "config", "OK", `fuente efectiva: ${config.configSource || "config.json"}`);
+
+  if (config.configExists === false) {
+    add(report, "config", "INFO", "No hay config.json local; se usan pack/defaults");
+  }
+
+  if (config.packLoaded) {
+    add(report, "pack", "OK", "pack.json cargado", config.packPath);
+  } else {
+    add(report, "pack", "INFO", "No se encontró pack.json", config.packPath);
+  }
+
+  for (const error of config.packErrors || []) {
+    add(report, "pack", "WARN", error);
+  }
+
+  const userDataInfo = await getPathInfo(config.userDataDir);
+  if (userDataInfo.exists && userDataInfo.isDirectory) {
+    add(report, "runtime", "OK", "userDataDir existe", config.userDataDir);
+  } else if (userDataInfo.exists) {
+    add(report, "runtime", "ERROR", "userDataDir existe, pero no es una carpeta", config.userDataDir);
+  } else {
+    add(report, "runtime", "INFO", "userDataDir no existe todavía", config.userDataDir);
+  }
+
+  add(report, "runtime", "OK", `eventos resueltos desde ${config.eventsSource || "rutas finales"}`);
+  add(report, "runtime", "OK", "sessionFile final", config.sessionFileAbs);
 
   for (const field of REQUIRED_CONFIG_FIELDS) {
     if (isNonEmptyString(config[field])) {
@@ -184,9 +223,17 @@ async function buildDiagnoseReport(config) {
   for (const field of WEB_CONFIG_FIELDS) {
     if (isNonEmptyString(config[field])) {
       add(report, "config", "OK", `${field} configurado`);
+
+      if (field === "webBaseUrl" && !hasUrlProtocol(config[field])) {
+        add(report, "config", "WARN", "webBaseUrl no incluye protocolo http:// o https://", config[field]);
+      }
     } else {
       add(report, "config", "WARN", `${field} falta o está vacío`);
     }
+  }
+
+  if (isNonEmptyString(config.eventsBaseDir)) {
+    add(report, "config", "OK", "eventsBaseDir configurado", config.eventsBaseDir);
   }
 
   const eventDirs = [
@@ -214,6 +261,17 @@ async function buildDiagnoseReport(config) {
     const pluginName = isNonEmptyString(config.mame.pluginName)
       ? config.mame.pluginName.trim()
       : DEFAULT_PLUGIN_NAME;
+
+    if (
+      config.configExists &&
+      (looksLikePersonalAbsolutePath(config.mame.executablePath) || looksLikePersonalAbsolutePath(config.mame.workingDir))
+    ) {
+      add(report, "mame", "WARN", "config.json contiene rutas absolutas personales de MAME", [
+        config.mame.executablePath,
+        config.mame.workingDir,
+      ]);
+      report.recommendations.push("Para packs descargables, mueve rutas de MAME a pack.json y deja datos persistentes en userData.");
+    }
 
     if (isNonEmptyString(config.mame.executablePath)) {
       const executableInfo = await getPathInfo(config.mame.executablePath);
@@ -359,6 +417,8 @@ function printDiagnoseReport(report) {
   console.log("");
 
   printEntries("Config", report.sections.config);
+  printEntries("Pack", report.sections.pack);
+  printEntries("Runtime", report.sections.runtime);
   printEntries("Eventos", report.sections.events);
   printEntries("MAME", report.sections.mame);
   printEntries("Launcher", report.sections.launcher);

@@ -110,6 +110,17 @@ test("diagnose confirms practice does not include the score plugin in launcher a
   });
 });
 
+test("diagnose warns when webBaseUrl has no protocol", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createBaseConfig(dir);
+    config.webBaseUrl = "high-score-league.vercel.app";
+
+    const report = await buildDiagnoseReport(config);
+
+    assert.ok(hasEntry(report.sections.config, "WARN", /webBaseUrl no incluye protocolo/));
+  });
+});
+
 test("diagnose session summary does not expose tokens", async () => {
   await withTempDir(async (dir) => {
     const config = await createBaseConfig(dir);

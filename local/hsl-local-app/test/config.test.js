@@ -24,7 +24,7 @@ test("resolveFromAppDir keeps absolute paths and resolves relative paths", async
   });
 });
 
-test("loadConfig resolves queue paths and default session path", async () => {
+test("loadConfig resolves explicit queue paths and legacy default session path", async () => {
   await withTempDir(async (dir) => {
     const configPath = path.join(dir, "config.json");
     await fsp.writeFile(
@@ -47,11 +47,77 @@ test("loadConfig resolves queue paths and default session path", async () => {
   });
 });
 
-test("loadConfig requires eventsPendingDir", async () => {
+test("loadConfig derives queue paths from eventsBaseDir", async () => {
   await withTempDir(async (dir) => {
     const configPath = path.join(dir, "config.json");
-    await fsp.writeFile(configPath, JSON.stringify({}), "utf8");
+    await fsp.writeFile(
+      configPath,
+      JSON.stringify({
+        eventsBaseDir: "userData/events",
+        userDataDir: path.join(dir, "user-data"),
+      }),
+      "utf8"
+    );
 
-    assert.throws(() => loadConfig(configPath, dir), /eventsPendingDir/);
+    const config = loadConfig(configPath, dir);
+
+    assert.equal(config.eventsPendingDirAbs, path.join(dir, "user-data", "events", "pending"));
+    assert.equal(config.eventsSentDirAbs, path.join(dir, "user-data", "events", "sent"));
+    assert.equal(config.eventsFailedDirAbs, path.join(dir, "user-data", "events", "failed"));
+    assert.equal(config.eventsSource, "eventsBaseDir");
+  });
+});
+
+test("loadConfig uses userData events when no event paths are configured", async () => {
+  await withTempDir(async (dir) => {
+    const configPath = path.join(dir, "missing-config.json");
+
+    const config = loadConfig(configPath, dir);
+
+    assert.equal(config.configSource, "defaults");
+    assert.match(config.eventsPendingDirAbs, /events[\\/]pending$/);
+    assert.equal(config.eventsSource, "userData");
+  });
+});
+
+test("loadConfig gives explicit event dirs priority over eventsBaseDir", async () => {
+  await withTempDir(async (dir) => {
+    const configPath = path.join(dir, "config.json");
+    await fsp.writeFile(
+      configPath,
+      JSON.stringify({
+        eventsBaseDir: "userData/events",
+        eventsPendingDir: "legacy/pending",
+        eventsSentDir: "legacy/sent",
+        eventsFailedDir: "legacy/failed",
+        userDataDir: path.join(dir, "user-data"),
+      }),
+      "utf8"
+    );
+
+    const config = loadConfig(configPath, dir);
+
+    assert.equal(config.eventsPendingDirAbs, path.resolve(dir, "legacy/pending"));
+    assert.equal(config.eventsSentDirAbs, path.resolve(dir, "legacy/sent"));
+    assert.equal(config.eventsFailedDirAbs, path.resolve(dir, "legacy/failed"));
+    assert.equal(config.eventsSource, "explicit");
+  });
+});
+
+test("loadConfig resolves sessionFile inside userData", async () => {
+  await withTempDir(async (dir) => {
+    const configPath = path.join(dir, "config.json");
+    await fsp.writeFile(
+      configPath,
+      JSON.stringify({
+        userDataDir: path.join(dir, "user-data"),
+        sessionFile: "userData/session.json",
+      }),
+      "utf8"
+    );
+
+    const config = loadConfig(configPath, dir);
+
+    assert.equal(config.sessionFileAbs, path.join(dir, "user-data", "session.json"));
   });
 });

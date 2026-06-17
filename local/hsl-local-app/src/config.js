@@ -1,5 +1,7 @@
 const fs = require("fs");
 const path = require("path");
+const { loadDefaultPack } = require("./pack");
+const { resolveRuntimePaths } = require("./runtime-paths");
 
 const APP_DIR = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(APP_DIR, "config.json");
@@ -14,30 +16,35 @@ function resolveFromAppDir(value, appDir = APP_DIR) {
 }
 
 function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR) {
-  if (!fs.existsSync(configPath)) {
-    throw new Error(`No existe config.json en ${configPath}`);
-  }
-
-  const raw = fs.readFileSync(configPath, "utf8");
-  const config = JSON.parse(raw);
-
-  if (!config.eventsPendingDir || typeof config.eventsPendingDir !== "string") {
-    throw new Error("config.json debe incluir eventsPendingDir");
-  }
-
-  const eventsSentDir = config.eventsSentDir || "../plugins/hsl-score/events/sent";
-  const eventsFailedDir = config.eventsFailedDir || "../plugins/hsl-score/events/failed";
-  const sessionFile = config.sessionFile || ".hsl-session.json";
+  const configExists = fs.existsSync(configPath);
+  const config = configExists ? JSON.parse(fs.readFileSync(configPath, "utf8")) : {};
+  const packResult = loadDefaultPack(appDir, config.packPath);
+  const pack = packResult.pack;
+  const sessionFile = config.sessionFile || (configExists ? ".hsl-session.json" : "userData/session.json");
+  const mergedConfig = {
+    ...config,
+    defaultWeekId: config.defaultWeekId || pack?.weekId,
+    eventsBaseDir: config.eventsBaseDir,
+    sessionFile,
+    userDataDir: config.userDataDir || "auto",
+    webBaseUrl: config.webBaseUrl || pack?.webBaseUrl,
+  };
+  const runtimePaths = resolveRuntimePaths(mergedConfig, pack, { appDir });
 
   return {
-    ...config,
-    eventsSentDir,
-    eventsFailedDir,
+    ...mergedConfig,
+    configExists,
+    configPath,
+    configSource: configExists ? "config.json" : pack ? "pack.json" : "defaults",
+    eventsFailedDir: config.eventsFailedDir || null,
+    eventsPendingDir: config.eventsPendingDir || null,
+    eventsSentDir: config.eventsSentDir || null,
+    pack,
+    packErrors: packResult.errors,
+    packPath: packResult.packPath,
+    packLoaded: packResult.loaded,
     sessionFile,
-    eventsPendingDirAbs: resolveFromAppDir(config.eventsPendingDir, appDir),
-    eventsSentDirAbs: resolveFromAppDir(eventsSentDir, appDir),
-    eventsFailedDirAbs: resolveFromAppDir(eventsFailedDir, appDir),
-    sessionFileAbs: resolveFromAppDir(sessionFile, appDir),
+    ...runtimePaths,
   };
 }
 

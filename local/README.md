@@ -12,6 +12,63 @@ It is separate from the main web app.
   Invaders (`invaders`), reads the score from memory, tracks basic rollover, and
   writes JSON events into `events/pending`.
 - `mame-plugin/hsl-score/events/`: queue folders used by the local app.
+- `pack.example.json`: example metadata for a downloadable game/week pack.
+
+## Modelo de distribución
+
+The `local/` folder in this repository is development source, not the final
+player ZIP. The intended product model is:
+
+```text
+HSL_SpaceInvaders_Semana12/
+  pack.json
+  hsl-local-app/
+  mame/
+    mame.exe
+    roms/
+    plugins/hsl-score/
+```
+
+Each player downloads one ZIP per game/week. That ZIP contains the emulator,
+ROM, plugin, launcher/app, and metadata needed to launch that specific pack.
+
+Persistent player data should live outside every ZIP so all packs share the
+same identity, session, local queue, logs, and preferences. By default the app
+resolves user data to:
+
+- Windows: `%APPDATA%/High Score League/`, or `%LOCALAPPDATA%/High Score League/`
+  when `%APPDATA%` is unavailable.
+- GNU/Linux: `$XDG_DATA_HOME/high-score-league/`, or
+  `~/.local/share/high-score-league/` when `$XDG_DATA_HOME` is unavailable.
+- macOS future/default support:
+  `~/Library/Application Support/High Score League/`.
+
+The target persistent layout is:
+
+```text
+session.json
+account.json
+events/
+  pending/
+  sent/
+  failed/
+logs/
+preferences.json
+```
+
+The current MVP prepares these paths but does not create or migrate them
+automatically.
+
+## Pack descargable
+
+`pack.json` describes a prepared game/week pack. See `pack.example.json` for
+the versioned example. It includes pack identity, game ID, ROM name, week ID,
+web URL, MAME paths relative to the pack root, and plugin metadata. It must not
+contain secrets, ROMs, or personal machine paths.
+
+The app looks for `pack.json` in the directory above `hsl-local-app` by default,
+which matches the downloadable pack shape. `config.json` remains supported for
+development and local overrides.
 
 ## Versioned and local files
 
@@ -21,6 +78,8 @@ Versioned files include source code, examples, tests, documentation, and
 Local files are intentionally ignored by Git:
 
 - `local/hsl-local-app/config.json`
+- `local/pack.json`
+- `local/hsl-local-app/pack.json`
 - `local/hsl-local-app/.hsl-session.json`
 - `local/hsl-local-app/logs/`
 - `local/hsl-local-app/node_modules/`
@@ -43,13 +102,12 @@ copy config.example.json config.json
 ```
 
 Edit `config.json` locally. Keep the event paths aligned with this repo layout
-unless your playable MAME pack uses a different structure:
+or let them resolve to shared user data:
 
 ```json
 {
-  "eventsPendingDir": "../mame-plugin/hsl-score/events/pending",
-  "eventsSentDir": "../mame-plugin/hsl-score/events/sent",
-  "eventsFailedDir": "../mame-plugin/hsl-score/events/failed",
+  "userDataDir": "auto",
+  "eventsBaseDir": "userData/events",
   "mame": {
     "executablePath": "C:/RUTA/A/MAME/mame.exe",
     "workingDir": "C:/RUTA/A/MAME",
@@ -60,6 +118,33 @@ unless your playable MAME pack uses a different structure:
 
 Set `webBaseUrl`, `defaultWeekId`, `supabaseUrl`, and `supabaseAnonKey` for
 your environment. Use the Supabase anon key, never a `service_role` key.
+Use a full URL with protocol, for example
+`https://high-score-league.vercel.app`.
+
+Configuration precedence is:
+
+1. Explicit `config.json`, when present.
+2. `pack.json`, when present.
+3. Safe defaults using shared `userData`.
+
+Event paths resolve as follows:
+
+1. If `eventsPendingDir`, `eventsSentDir`, and `eventsFailedDir` are explicitly
+   configured, those paths are used.
+2. Otherwise `eventsBaseDir` is used and `pending`, `sent`, and `failed` are
+   derived below it.
+3. Otherwise the app uses `userData/events`.
+
+`sessionFile` can also point at user data:
+
+```json
+{
+  "sessionFile": "userData/session.json"
+}
+```
+
+Legacy relative session paths such as `.hsl-session.json` still resolve relative
+to `hsl-local-app` for compatibility.
 
 ## Basic commands
 
@@ -103,6 +188,8 @@ npm.cmd --prefix local/hsl-local-app run diagnose
 directory, the configured plugin folder, launcher arguments, and the local
 session file without printing access or refresh tokens. It does not run MAME,
 connect to Supabase, upload submissions, create folders, or modify local files.
+It also prints the effective config source, `pack.json` status, resolved
+`userDataDir`, final event paths, and final session file.
 
 `play` activates `hsl-score` explicitly with `-plugins -plugin hsl-score`.
 `practice` does not pass `-plugin hsl-score`, but MAME can still load the plugin

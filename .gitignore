@@ -15,6 +15,8 @@ pnpm-debug.log*
 # Local app secrets/session
 local/hsl-local-app/.hsl-session.json
 local/hsl-local-app/config.json
+local/pack.json
+local/hsl-local-app/pack.json
 local/hsl-local-app/logs/
 local/hsl-local-app/node_modules/
 
