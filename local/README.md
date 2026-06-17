@@ -49,7 +49,12 @@ unless your playable MAME pack uses a different structure:
 {
   "eventsPendingDir": "../mame-plugin/hsl-score/events/pending",
   "eventsSentDir": "../mame-plugin/hsl-score/events/sent",
-  "eventsFailedDir": "../mame-plugin/hsl-score/events/failed"
+  "eventsFailedDir": "../mame-plugin/hsl-score/events/failed",
+  "mame": {
+    "executablePath": "C:/RUTA/A/MAME/mame.exe",
+    "workingDir": "C:/RUTA/A/MAME",
+    "pluginName": "hsl-score"
+  }
 }
 ```
 
@@ -79,6 +84,65 @@ npm.cmd --prefix local/hsl-local-app test
 ```
 
 `scan` should report `No hay eventos.` when the queue exists but is empty.
+
+## Diagnóstico local
+
+Before launching MAME, run:
+
+```powershell
+node app.js diagnose
+```
+
+From the repository root:
+
+```powershell
+npm.cmd --prefix local/hsl-local-app run diagnose
+```
+
+`diagnose` checks the local event folders, MAME executable and working
+directory, the configured plugin folder, launcher arguments, and the local
+session file without printing access or refresh tokens. It does not run MAME,
+connect to Supabase, upload submissions, create folders, or modify local files.
+
+`play` activates `hsl-score` explicitly with `-plugins -plugin hsl-score`.
+`practice` does not pass `-plugin hsl-score`, but MAME can still load the plugin
+if it is enabled globally in `plugin.ini`. For clean practice sessions, keep
+`hsl-score` disabled globally and let `play` enable it explicitly.
+
+`diagnose` looks for `plugin.ini` in the MAME working directory and in
+`ini/plugin.ini`. If it finds a line such as `hsl-score 1`, it warns that
+practice may generate pending score events.
+
+## Launcher CLI
+
+The local app can launch configured MAME games without a GUI:
+
+```powershell
+node app.js play invaders
+node app.js practice invaders
+```
+
+From the repository root, the npm scripts accept the ROM after `--`:
+
+```powershell
+npm.cmd --prefix local/hsl-local-app run play -- invaders
+npm.cmd --prefix local/hsl-local-app run practice -- invaders
+```
+
+`play` is competition mode. It starts MAME with the configured score plugin:
+
+```text
+mame invaders -plugins -plugin hsl-score
+```
+
+That mode can generate pending JSON events through the plugin. `practice`
+starts MAME without `hsl-score`, so it is intended for free play and should not
+generate pending score events.
+
+The launcher reads `config.json` but does not upload anything automatically.
+Uploads still require `submit` or `submit-all`. Future phases can add F12
+capture, automatic Game Over capture, official DIP enforcement, and explicit
+save/load/rewind handling.
 
 ## MAME plugin setup
 
@@ -113,8 +177,9 @@ validation failures move to `events/failed` with a small failure note.
 ## Game modules
 
 The local app has a small game registry under `hsl-local-app/src/games/`.
-For now it only declares Space Invaders (`invaders`) and does not change CLI
-behavior, JSON validation, or the ingest payload.
+For now it declares Space Invaders (`invaders`) and is used by the launcher to
+resolve supported ROMs. It does not change JSON validation or the ingest
+payload.
 
 These modules are preparation for later phases. In the future they can hold
 launcher metadata, competition rules, Game Over detection details, official DIP
@@ -123,8 +188,9 @@ settings, and other game-specific checks.
 ## Declarative game rules
 
 Game modules can now declare future-facing rules for competition and practice
-modes. These declarations are metadata only: they are not enforced, they do not
-launch MAME, and they do not change the current JSON contract or ingest payload.
+modes. These declarations are metadata only: apart from launcher ROM resolution,
+they are not enforced and they do not change the current JSON contract or ingest
+payload.
 
 For `invaders`, the metadata marks F12 capture, Game Over detection, DIP rules,
 launcher settings, and audit fields as planned or pending. Future phases can
@@ -133,6 +199,6 @@ DIPs, and save/load/rewind checks.
 
 ## Current scope
 
-This is still an MVP. It does not include a GUI, launcher, competition/practice
-mode split, F12 hotkey, automatic Game Over capture, DIP enforcement, or strong
-anti-cheat. Those should be added in later phases after the internal refactor.
+This is still an MVP. It includes a basic CLI launcher, but not a GUI, F12
+hotkey, automatic Game Over capture, DIP enforcement, or strong anti-cheat.
+Those should be added in later phases after the internal refactor.

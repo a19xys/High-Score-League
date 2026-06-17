@@ -15,6 +15,9 @@
     "auth-status": "node app.js auth-status",
     "auth-token": "node app.js auth-token",
     "logout": "node app.js logout",
+    "diagnose": "node app.js diagnose",
+    "play": "node app.js play",
+    "practice": "node app.js practice",
     "submit": "node app.js submit",
     "submit-all": "node app.js submit-all",
     "test": "node --test"

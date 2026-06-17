@@ -144,6 +144,13 @@ function printHelp() {
   console.log("  node app.js submit <archivo.json>");
   console.log("  node app.js submit-all");
   console.log("");
+  console.log("Comandos de diagnóstico:");
+  console.log("  node app.js diagnose");
+  console.log("");
+  console.log("Comandos de launcher:");
+  console.log("  node app.js play <rom>");
+  console.log("  node app.js practice <rom>");
+  console.log("");
   console.log("Comandos de autenticación:");
   console.log("  node app.js login [email]");
   console.log("  node app.js auth-status");

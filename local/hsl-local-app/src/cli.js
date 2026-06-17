@@ -1,7 +1,9 @@
 const { authStatus, authToken, login, logout } = require("./auth");
 const { loadConfig } = require("./config");
+const { diagnose } = require("./diagnose");
 const { scanBox, showOne, watchPending } = require("./event-files");
 const { markFailed, markSent, restoreToPending } = require("./file-queue");
+const { launchMame } = require("./mame-launcher");
 const { printHelp } = require("./output");
 const { submitAll, submitOne } = require("./submission-service");
 
@@ -67,6 +69,21 @@ async function runCli(argv = process.argv) {
 
   if (command === "submit-all") {
     await submitAll(config);
+    return;
+  }
+
+  if (command === "diagnose") {
+    await diagnose(config);
+    return;
+  }
+
+  if (command === "play") {
+    process.exitCode = await launchMame(config, argv[3], "competition");
+    return;
+  }
+
+  if (command === "practice") {
+    process.exitCode = await launchMame(config, argv[3], "practice");
     return;
   }
 
