@@ -1,0 +1,161 @@
+function formatDate(value) {
+  if (!value) {
+    return {
+      utc: "sin fecha",
+      local: "sin fecha",
+    };
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return {
+      utc: String(value),
+      local: "fecha inválida",
+    };
+  }
+
+  return {
+    utc: date.toISOString(),
+    local: date.toLocaleString("es-ES", {
+      hour12: false,
+    }),
+  };
+}
+
+function printHeader(config) {
+  console.log("");
+  console.log("High Score League Local App");
+  console.log("===========================");
+  console.log(`Versión cliente: ${config.clientVersion || "sin versión"}`);
+  console.log(`Pending: ${config.eventsPendingDirAbs}`);
+  console.log(`Sent:    ${config.eventsSentDirAbs}`);
+  console.log(`Failed:  ${config.eventsFailedDirAbs}`);
+  console.log("");
+}
+
+function printEventCard(result, index) {
+  const prefix = result.ok ? "OK" : "ERROR";
+  const event = result.event || {};
+  const dates = formatDate(event.detectedAt);
+
+  console.log(`${index + 1}. [${prefix}] ${result.filename}`);
+
+  if (result.event) {
+    console.log(`   Juego: ${event.game || "desconocido"} (${event.rom || "sin rom"})`);
+    console.log(`   Score: ${Number.isInteger(event.score) ? event.score : "inválido"}`);
+    console.log(`   Fecha UTC: ${dates.utc}`);
+    console.log(`   Fecha local: ${dates.local}`);
+    console.log(`   Fuente: ${event.source || "sin source"}`);
+    console.log(`   MAME: ${event.mameVersion || "sin mameVersion"}`);
+    console.log(`   Plugin: ${event.pluginVersion || "sin pluginVersion"}`);
+
+    if (event.scoreData) {
+      const display = event.scoreData.displayScore;
+      const tracked = event.scoreData.trackedScore;
+      const rollovers = event.scoreData.rollovers;
+
+      console.log(
+        `   ScoreData: display=${display ?? "?"}, tracked=${tracked ?? "?"}, rollovers=${rollovers ?? "?"}`
+      );
+    }
+  }
+
+  if (result.errors.length > 0) {
+    console.log("   Errores:");
+    for (const error of result.errors) {
+      console.log(`   - ${error}`);
+    }
+  }
+
+  if (result.warnings.length > 0) {
+    console.log("   Avisos:");
+    for (const warning of result.warnings) {
+      console.log(`   - ${warning}`);
+    }
+  }
+
+  console.log("");
+}
+
+function printSubmitResult(result) {
+  console.log("");
+
+  if (result.ok) {
+    console.log(`[OK] ${result.filename}`);
+
+    if (result.action === "duplicate_sent") {
+      console.log("El servidor indicó duplicado. Lo trato como éxito lógico.");
+    } else {
+      console.log("Submission enviada correctamente.");
+    }
+
+    if (result.status) {
+      console.log(`HTTP: ${result.status}`);
+    }
+
+    if (result.duplicateKey) {
+      console.log(`duplicateKey: ${result.duplicateKey}`);
+    }
+
+    if (result.movedTo) {
+      console.log(`Movido a: ${result.movedTo}`);
+    }
+
+    if (result.body) {
+      console.log("Respuesta:");
+      console.log(JSON.stringify(result.body, null, 2));
+    }
+
+    console.log("");
+    return;
+  }
+
+  console.log(`[ERROR] ${result.filename}`);
+  console.log(result.message || "Error desconocido");
+
+  if (result.status) {
+    console.log(`HTTP: ${result.status}`);
+  }
+
+  if (result.movedTo) {
+    console.log(`Movido a: ${result.movedTo}`);
+  }
+
+  if (result.body) {
+    console.log("Respuesta:");
+    console.log(JSON.stringify(result.body, null, 2));
+  }
+
+  console.log("");
+}
+
+function printHelp() {
+  console.log("");
+  console.log("High Score League Local App");
+  console.log("");
+  console.log("Comandos de eventos:");
+  console.log("  node app.js scan [pending|sent|failed]");
+  console.log("  node app.js show <archivo.json> [pending|sent|failed]");
+  console.log("  node app.js watch");
+  console.log("  node app.js mark-sent <archivo.json>");
+  console.log("  node app.js mark-failed <archivo.json> [motivo]");
+  console.log("  node app.js restore <sent|failed> <archivo.json>");
+  console.log("  node app.js submit <archivo.json>");
+  console.log("  node app.js submit-all");
+  console.log("");
+  console.log("Comandos de autenticación:");
+  console.log("  node app.js login [email]");
+  console.log("  node app.js auth-status");
+  console.log("  node app.js auth-token");
+  console.log("  node app.js logout");
+  console.log("");
+}
+
+module.exports = {
+  formatDate,
+  printEventCard,
+  printHeader,
+  printHelp,
+  printSubmitResult,
+};
