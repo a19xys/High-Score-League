@@ -312,6 +312,77 @@ For now, events can live temporarily in the external pack's plugin folder. In
 the installed launcher model, persistent queues should live in shared userData
 instead.
 
+## Estado estable del MVP local
+
+This CLI MVP is stable enough to close the local end-to-end phase for Space
+Invaders in dev bridge mode.
+
+What already works:
+
+- `diagnose` audits config, dev bridge paths, MAME, plugin, launcher args,
+  queues, and session status without running MAME or uploading data.
+- `sync-plugin` copies the versioned `hsl-score` plugin to the configured test
+  pack without copying ROMs, MAME, events, sessions, userData, or `config.lua`.
+- `play invaders` launches competition mode with `-plugins -plugin hsl-score`.
+- Manual capture from the MAME plugin writes a pending JSON event.
+- `scan pending` and `show <archivo.json>` review local events before upload.
+- `login`, `auth-status`, and `logout` manage the Supabase session in userData.
+- `submit <archivo.json>` and `submit-all` upload pending events to the web
+  ingest endpoint.
+- Accepted submissions, including accepted duplicates, move to `sent`.
+- Controlled validation/server failures move to `failed` with a failure note.
+- Network/auth/retryable failures leave events in `pending`.
+- `practice invaders` does not pass `-plugin hsl-score` explicitly.
+- `diagnose` warns if `plugin.ini` appears to activate `hsl-score` globally.
+
+What this is not yet:
+
+- no GUI;
+- no installed launcher;
+- no pack selector;
+- no complete multi-pack flow;
+- no final distributable ZIP or installer;
+- no F12 capture;
+- no automatic Game Over capture;
+- no auto-submit;
+- no DIP enforcement;
+- no strong anti-cheat;
+- no save/load/rewind blocking.
+
+Stability criteria:
+
+- pending events are not deleted on network or auth errors;
+- tokens and Supabase keys are not printed by diagnose or normal status output;
+- plugin sync does not touch ROMs, MAME, events, sessions, userData, or pack
+  `config.lua`;
+- queue moves never overwrite an existing destination file; colliding names get
+  a suffix such as `__2`;
+- `submit-all` skips files modified less than 2000ms ago to avoid reading JSON
+  while MAME/plugin code may still be writing it;
+- `submit <archivo.json>` warns for a very recent file, and if that recent file
+  is invalid JSON it stays in `pending` instead of moving to `failed`;
+- old invalid JSON is moved to `failed` with a clear reason;
+- events move to `sent` only after an accepted upload or accepted duplicate;
+- `practice` does not explicitly activate the score plugin.
+
+## Proxima etapa: GUI minima del launcher
+
+The future launcher GUI should wrap the validated CLI behavior instead of
+reinventing it. The first GUI design should lean on these proven operations:
+`diagnose`, development-only `sync-plugin`, `play`, `practice`, `scan pending`,
+`submit`/`submit-all`, and `auth-status`/`login`.
+
+Architecture constraints for that GUI:
+
+- do not store session/account data inside a disposable pack;
+- do not assume packs live in `Downloads`;
+- do not delete pending submissions when a pack is deleted;
+- keep persistent data in shared userData;
+- treat `sync-plugin` as temporary development tooling, not as an end-user
+  feature.
+
+Detailed GUI screens belong to the later `LOCAL-LAUNCHER-GUI-0` design task.
+
 Configuration precedence is:
 
 1. Explicit `config.json`, when present.

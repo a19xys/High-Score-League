@@ -89,6 +89,10 @@ function printSubmitResult(result) {
     console.log(`Endpoint: ${result.submission.endpoint || "sin endpoint"}`);
   }
 
+  if (result.recentWarning) {
+    console.log(`Aviso: ${result.recentWarning}`);
+  }
+
   if (result.ok) {
     console.log(`[OK] ${result.filename}`);
 

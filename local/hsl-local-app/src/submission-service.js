@@ -1,7 +1,12 @@
 const path = require("path");
 const { assertAuthConfig, getValidStoredSession } = require("./auth");
 const { assertDirExists, pathExists } = require("./file-utils");
-const { readEventFile, listJsonFiles } = require("./event-files");
+const {
+  RECENT_EVENT_THRESHOLD_MS,
+  getEventFileFreshness,
+  readEventFile,
+  listJsonFiles,
+} = require("./event-files");
 const { movePendingToFailed, movePendingToSent } = require("./file-queue");
 const { printHeader, printSubmitResult } = require("./output");
 const {
@@ -26,6 +31,20 @@ function buildSubmitSummary(config, event) {
   };
 }
 
+function getRecentThresholdMs(config) {
+  return Number.isFinite(config.recentEventThresholdMs)
+    ? config.recentEventThresholdMs
+    : RECENT_EVENT_THRESHOLD_MS;
+}
+
+function formatRecentWarning(freshness) {
+  if (!freshness?.isRecent) {
+    return null;
+  }
+
+  return `Archivo modificado hace ${Math.round(freshness.ageMs)}ms; puede estar aun escribiendose. Umbral: ${freshness.thresholdMs}ms.`;
+}
+
 async function submitPendingFile(config, filename) {
   assertSubmitConfig(config);
   assertAuthConfig(config);
@@ -46,9 +65,23 @@ async function submitPendingFile(config, filename) {
     };
   }
 
+  const freshness = await getEventFileFreshness(sourcePath, {
+    thresholdMs: getRecentThresholdMs(config),
+  });
+  const recentWarning = formatRecentWarning(freshness);
   const result = await readEventFile(config.eventsPendingDirAbs, safeName);
 
   if (!result.ok) {
+    if (freshness.isRecent) {
+      return {
+        action: "pending",
+        ok: false,
+        filename: safeName,
+        message: `Evento local invalido, pero demasiado reciente para moverlo a failed. Se deja en pending para reintentar o revisar: ${result.errors.join("; ")}`,
+        recentWarning,
+      };
+    }
+
     const reason = `Evento local inválido: ${result.errors.join("; ")}`;
     const finalPath = await movePendingToFailed(config, safeName, reason);
 
@@ -58,6 +91,7 @@ async function submitPendingFile(config, filename) {
       filename: safeName,
       message: reason,
       movedTo: finalPath,
+      recentWarning,
     };
   }
 
@@ -72,6 +106,7 @@ async function submitPendingFile(config, filename) {
       ok: false,
       filename: safeName,
       message: error.message,
+      recentWarning,
       submission,
     };
   }
@@ -92,6 +127,7 @@ async function submitPendingFile(config, filename) {
       ok: false,
       filename: safeName,
       message: `Error de red o servidor no accesible: ${error.message}`,
+      recentWarning,
       submission,
     };
   }
@@ -109,6 +145,7 @@ async function submitPendingFile(config, filename) {
       body,
       duplicateKey: payload.duplicateKey,
       movedTo: finalPath,
+      recentWarning,
       submission,
     };
   }
@@ -121,6 +158,7 @@ async function submitPendingFile(config, filename) {
       status,
       body,
       message: `401 no autorizado. Haz login de nuevo o revisa que el endpoint acepte Bearer token. Respuesta: ${getServerMessage(body)}`,
+      recentWarning,
       submission,
     };
   }
@@ -139,6 +177,7 @@ async function submitPendingFile(config, filename) {
       body,
       message: reason,
       movedTo: finalPath,
+      recentWarning,
       submission,
     };
   }
@@ -150,6 +189,7 @@ async function submitPendingFile(config, filename) {
     status,
     body,
     message: `HTTP ${status}: ${getServerMessage(body)}. Se deja en pending para revisar/reintentar.`,
+    recentWarning,
     submission,
   };
 }
@@ -192,8 +232,24 @@ async function submitAll(config) {
   let sent = 0;
   let failed = 0;
   let pending = 0;
+  let skippedRecent = 0;
 
   for (const filename of files) {
+    const sourcePath = path.join(config.eventsPendingDirAbs, filename);
+    const freshness = await getEventFileFreshness(sourcePath, {
+      thresholdMs: getRecentThresholdMs(config),
+    });
+
+    if (freshness.isRecent) {
+      pending += 1;
+      skippedRecent += 1;
+      console.log(`[SKIP] ${filename}`);
+      console.log(formatRecentWarning(freshness));
+      console.log("Se deja en pending para evitar leer un JSON mientras MAME lo escribe.");
+      console.log("");
+      continue;
+    }
+
     const result = await submitPendingFile(config, filename);
     printSubmitResult(result);
 
@@ -216,6 +272,7 @@ async function submitAll(config) {
   console.log(`Enviados/sent: ${sent}`);
   console.log(`Fallidos/failed: ${failed}`);
   console.log(`Siguen pending: ${pending}`);
+  console.log(`Omitidos por recientes: ${skippedRecent}`);
   console.log("");
 
   if (failed > 0 || pending > 0) {
@@ -225,6 +282,7 @@ async function submitAll(config) {
 
 module.exports = {
   buildSubmitSummary,
+  formatRecentWarning,
   submitAll,
   submitOne,
   submitPendingFile,

@@ -6,6 +6,8 @@ const { assertDirExists, pathExists } = require("./file-utils");
 const { validateEvent } = require("./event-validation");
 const { printEventCard, printHeader } = require("./output");
 
+const RECENT_EVENT_THRESHOLD_MS = 2000;
+
 async function listJsonFiles(dir) {
   const entries = await fsp.readdir(dir, { withFileTypes: true });
 
@@ -14,6 +16,21 @@ async function listJsonFiles(dir) {
     .map((entry) => entry.name)
     .filter((name) => name.toLowerCase().endsWith(".json"))
     .sort();
+}
+
+async function getEventFileFreshness(filePath, options = {}) {
+  const thresholdMs = Number.isFinite(options.thresholdMs)
+    ? options.thresholdMs
+    : RECENT_EVENT_THRESHOLD_MS;
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now();
+  const stat = await fsp.stat(filePath);
+  const ageMs = Math.max(0, nowMs - stat.mtimeMs);
+
+  return {
+    ageMs,
+    isRecent: ageMs < thresholdMs,
+    thresholdMs,
+  };
 }
 
 async function readEventFile(dir, filename) {
@@ -158,6 +175,8 @@ async function watchPending(config) {
 }
 
 module.exports = {
+  RECENT_EVENT_THRESHOLD_MS,
+  getEventFileFreshness,
   listJsonFiles,
   readEventFile,
   scanBox,
