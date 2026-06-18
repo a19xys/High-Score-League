@@ -1,21 +1,11 @@
 {
   "userDataDir": "auto",
   "eventsBaseDir": "userData/events",
-
-  "mame": {
-    "executablePath": "C:/RUTA/A/MAME/mame.exe",
-    "workingDir": "C:/RUTA/A/MAME",
-    "pluginName": "hsl-score"
-  },
-
-  "webBaseUrl": "https://high-score-league.vercel.app",
-  "defaultWeekId": "PON_AQUI_EL_WEEK_ID",
+  "sessionFile": "userData/session.json",
+  "logsDir": "userData/logs",
 
   "supabaseUrl": "https://TU_PROYECTO.supabase.co",
   "supabaseAnonKey": "TU_SUPABASE_ANON_KEY",
-
-  "sessionFile": "userData/session.json",
-  "logsDir": "userData/logs",
 
   "clientVersion": "0.1.0",
   "defaultComment": "Subida desde app local",

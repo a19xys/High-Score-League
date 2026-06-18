@@ -3,7 +3,12 @@ const assert = require("node:assert/strict");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { loadPack, validatePack } = require("../src/pack");
+const {
+  loadPack,
+  loadPackFromDir,
+  resolvePackMamePaths,
+  validatePack,
+} = require("../src/pack");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-pack-test-"));
@@ -55,4 +60,35 @@ test("loadPack loads and annotates pack root", async () => {
     assert.equal(result.pack.packRoot, dir);
     assert.equal(result.pack.rom, "invaders");
   });
+});
+
+test("loadPackFromDir loads pack.json from an external pack directory", async () => {
+  await withTempDir(async (dir) => {
+    await fsp.writeFile(path.join(dir, "pack.json"), JSON.stringify(validPack()), "utf8");
+
+    const result = loadPackFromDir(dir);
+
+    assert.equal(result.loaded, true);
+    assert.equal(result.pack.packRoot, dir);
+    assert.equal(result.pack.gameId, "space-invaders");
+  });
+});
+
+test("loadPackFromDir reports missing pack.json clearly", async () => {
+  await withTempDir(async (dir) => {
+    const result = loadPackFromDir(dir);
+
+    assert.equal(result.loaded, false);
+    assert.equal(result.pack, null);
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.packPath, path.join(dir, "pack.json"));
+  });
+});
+
+test("resolvePackMamePaths resolves paths relative to external pack dir", () => {
+  const mame = resolvePackMamePaths(validPack(), "C:/packs/HSL_SpaceInvaders_Semana12");
+
+  assert.equal(mame.executablePath, path.resolve("C:/packs/HSL_SpaceInvaders_Semana12", "mame/mame.exe"));
+  assert.equal(mame.workingDir, path.resolve("C:/packs/HSL_SpaceInvaders_Semana12", "mame"));
+  assert.equal(mame.pluginName, "hsl-score");
 });

@@ -5,6 +5,28 @@ function getDefaultPackPath(appDir) {
   return path.join(path.resolve(appDir, ".."), "pack.json");
 }
 
+function resolvePackMamePaths(pack, packDir) {
+  const mame = pack?.mame || {};
+
+  return {
+    executablePath: resolvePackRelativePath(mame.relativeExecutablePath || mame.executablePath, packDir),
+    workingDir: resolvePackRelativePath(mame.workingDir, packDir),
+    pluginName: mame.pluginName,
+  };
+}
+
+function resolvePackRelativePath(value, packDir) {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  if (path.isAbsolute(value)) {
+    return value;
+  }
+
+  return path.resolve(packDir, value);
+}
+
 function validatePack(pack) {
   const errors = [];
 
@@ -59,6 +81,10 @@ function loadPack(packPath) {
   };
 }
 
+function loadPackFromDir(packDir) {
+  return loadPack(path.join(packDir, "pack.json"));
+}
+
 function loadDefaultPack(appDir, configuredPackPath) {
   const packPath = configuredPackPath
     ? path.resolve(appDir, configuredPackPath)
@@ -71,5 +97,7 @@ module.exports = {
   getDefaultPackPath,
   loadDefaultPack,
   loadPack,
+  loadPackFromDir,
+  resolvePackMamePaths,
   validatePack,
 };

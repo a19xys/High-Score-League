@@ -52,6 +52,52 @@ async function createBaseConfig(root) {
   };
 }
 
+async function createDevBridgeConfig(root) {
+  const appDir = path.join(root, "repo", "local", "hsl-local-app");
+  const packRoot = path.join(root, "Downloads", "hsl-invaders");
+  const pending = path.join(packRoot, "plugins", "hsl-score", "events", "pending");
+  const sent = path.join(packRoot, "plugins", "hsl-score", "events", "sent");
+  const failed = path.join(packRoot, "plugins", "hsl-score", "events", "failed");
+  const pluginDir = path.join(packRoot, "plugins", "hsl-score");
+  const executablePath = path.join(packRoot, "mame.exe");
+
+  await fsp.mkdir(appDir, { recursive: true });
+  await fsp.mkdir(pending, { recursive: true });
+  await fsp.mkdir(sent, { recursive: true });
+  await fsp.mkdir(failed, { recursive: true });
+  await fsp.mkdir(pluginDir, { recursive: true });
+  await fsp.writeFile(executablePath, "", "utf8");
+
+  return {
+    appDir,
+    configExists: true,
+    configPath: path.join(appDir, "config.json"),
+    configSource: "config.json",
+    packLoaded: false,
+    packPath: path.join(root, "repo", "local", "pack.json"),
+    eventsSource: "explicit",
+    eventsPendingDir: pending,
+    eventsSentDir: sent,
+    eventsFailedDir: failed,
+    eventsPendingDirAbs: pending,
+    eventsSentDirAbs: sent,
+    eventsFailedDirAbs: failed,
+    webBaseUrl: "https://high-score-league.vercel.app",
+    defaultWeekId: "week-1",
+    supabaseUrl: "https://example.supabase.co",
+    supabaseAnonKey: "secret-dev-bridge-anon-key",
+    sessionFile: "userData/session.json",
+    sessionFileAbs: path.join(root, "userData", "session.json"),
+    userDataDir: path.join(root, "userData"),
+    clientVersion: "0.1.0",
+    mame: {
+      executablePath,
+      workingDir: packRoot,
+      pluginName: "hsl-score",
+    },
+  };
+}
+
 function hasEntry(entries, level, pattern) {
   return entries.some((entry) => entry.level === level && pattern.test(entry.message));
 }
@@ -118,6 +164,56 @@ test("diagnose warns when webBaseUrl has no protocol", async () => {
     const report = await buildDiagnoseReport(config);
 
     assert.ok(hasEntry(report.sections.config, "WARN", /webBaseUrl no incluye protocolo/));
+  });
+});
+
+test("diagnose does not error only because no pack or MAME is active", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createBaseConfig(dir);
+    delete config.mame;
+    config.packLoaded = false;
+    config.packPath = path.join(dir, "pack.json");
+    config.configSource = "config.json";
+
+    const report = await buildDiagnoseReport(config);
+
+    assert.ok(hasEntry(report.sections.mame, "INFO", /No hay MAME activo/));
+    assert.equal(report.errors.some((entry) => /MAME|launcher/i.test(entry.message)), false);
+  });
+});
+
+test("diagnose detects dev bridge with external MAME pack and existing event dirs", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createDevBridgeConfig(dir);
+
+    const report = await buildDiagnoseReport(config);
+
+    assert.ok(hasEntry(report.sections.runtime, "INFO", /Modo desarrollo puente detectado/));
+    assert.equal(report.errors.length, 0);
+  });
+});
+
+test("diagnose keeps personal MAME path warning but marks it acceptable for dev bridge", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createDevBridgeConfig(dir);
+
+    const report = await buildDiagnoseReport(config);
+    const warning = report.sections.mame.find((entry) => /rutas absolutas personales/.test(entry.message));
+
+    assert.equal(warning?.level, "WARN");
+    assert.ok(warning.detail.some((item) => /aceptable en modo desarrollo puente/.test(item)));
+    assert.ok(warning.detail.some((item) => /no debe versionarse ni usarse como pack final/.test(item)));
+  });
+});
+
+test("diagnose dev bridge report does not expose Supabase anon key", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createDevBridgeConfig(dir);
+
+    const report = await buildDiagnoseReport(config);
+    const serialized = JSON.stringify(report);
+
+    assert.equal(serialized.includes("secret-dev-bridge-anon-key"), false);
   });
 });
 

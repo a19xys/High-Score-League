@@ -16,25 +16,28 @@ It is separate from the main web app.
 
 ## Modelo de distribución
 
-The `local/` folder in this repository is development source, not the final
-player ZIP. The intended product model is:
+The `local/` folder in this repository is development source, not the installed
+player app and not a weekly pack. The intended product model is:
 
 ```text
-HSL_SpaceInvaders_Semana12/
-  pack.json
-  hsl-local-app/
-  mame/
-    mame.exe
-    roms/
-    plugins/hsl-score/
+High Score League Launcher installed once
++
+external game/week packs
++
+shared persistent userData
 ```
 
-Each player downloads one ZIP per game/week. That ZIP contains the emulator,
-ROM, plugin, launcher/app, and metadata needed to launch that specific pack.
+### App instalada
 
-Persistent player data should live outside every ZIP so all packs share the
-same identity, session, local queue, logs, and preferences. By default the app
-resolves user data to:
+The installed app is the program the player installs once. Conceptually, it is
+the High Score League Launcher.
+
+It owns login/account linking, local session, the global pending/sent/failed
+queue, logs, preferences, diagnostics, opening/importing packs, launching MAME
+from the active pack, and submitting scores to the web endpoint.
+
+The installed app must survive deleting any downloaded pack. Its persistent
+data lives in shared user data:
 
 - Windows: `%APPDATA%/High Score League/`, or `%LOCALAPPDATA%/High Score League/`
   when `%APPDATA%` is unavailable.
@@ -43,7 +46,7 @@ resolves user data to:
 - macOS future/default support:
   `~/Library/Application Support/High Score League/`.
 
-The target persistent layout is:
+Target persistent layout:
 
 ```text
 session.json
@@ -54,21 +57,56 @@ events/
   failed/
 logs/
 preferences.json
+packs/
+  recent.json
 ```
 
 The current MVP prepares these paths but does not create or migrate them
 automatically.
 
+### Pack externo por juego/semana
+
+Each player downloads one ZIP per game/week and can extract it anywhere:
+Downloads, Desktop, an external disk, or a games folder.
+
+Example pack:
+
+```text
+HSL_SpaceInvaders_Semana12/
+  pack.json
+  mame/
+    mame.exe
+    roms/
+      invaders.zip
+    plugins/
+      hsl-score/
+        init.lua
+        plugin.json
+        core/
+        games/
+        config.lua
+```
+
+The pack brings MAME, the ROM, the `hsl-score` plugin, and pack metadata. It is
+disposable: deleting it must not delete the player's session, linked account,
+pending submissions, logs, or preferences.
+
+In a future launcher flow, the installed app will open/import a pack folder,
+read its `pack.json`, resolve MAME paths relative to that pack folder, and
+launch that pack's MAME.
+
 ## Pack descargable
 
-`pack.json` describes a prepared game/week pack. See `pack.example.json` for
-the versioned example. It includes pack identity, game ID, ROM name, week ID,
-web URL, MAME paths relative to the pack root, and plugin metadata. It must not
-contain secrets, ROMs, or personal machine paths.
+`pack.json` describes an external game/week pack, not the installed app. See
+`pack.example.json` for the versioned example. It includes pack identity, game
+ID, ROM name, week ID, web URL, MAME paths relative to the pack root, and plugin
+metadata. It must not contain secrets, ROM files, or personal machine paths.
 
-The app looks for `pack.json` in the directory above `hsl-local-app` by default,
-which matches the downloadable pack shape. `config.json` remains supported for
-development and local overrides.
+The current CLI still supports a development fallback that looks for
+`pack.json` next to the local development app shape. The product direction is
+external pack folders opened by the installed launcher; helper code already
+supports reading a pack from an arbitrary directory, but there is no pack picker
+or GUI yet.
 
 ## Versioned and local files
 
@@ -102,24 +140,83 @@ copy config.example.json config.json
 ```
 
 Edit `config.json` locally. Keep the event paths aligned with this repo layout
-or let them resolve to shared user data:
+or let them resolve to shared user data. In the installed-app model,
+`config.json` is global app configuration or development override, not pack
+metadata:
 
 ```json
 {
   "userDataDir": "auto",
   "eventsBaseDir": "userData/events",
-  "mame": {
-    "executablePath": "C:/RUTA/A/MAME/mame.exe",
-    "workingDir": "C:/RUTA/A/MAME",
-    "pluginName": "hsl-score"
-  }
+  "sessionFile": "userData/session.json",
+  "supabaseUrl": "https://TU_PROYECTO.supabase.co",
+  "supabaseAnonKey": "TU_SUPABASE_ANON_KEY",
+  "clientVersion": "0.1.0",
+  "defaultComment": "Subida desde app local"
 }
 ```
 
-Set `webBaseUrl`, `defaultWeekId`, `supabaseUrl`, and `supabaseAnonKey` for
-your environment. Use the Supabase anon key, never a `service_role` key.
-Use a full URL with protocol, for example
-`https://high-score-league.vercel.app`.
+Set `supabaseUrl` and `supabaseAnonKey` for your environment. Use the Supabase
+anon key, never a `service_role` key.
+
+Fields such as `defaultWeekId`, `webBaseUrl`, and MAME paths belong to
+`pack.json` in the external-pack model. They may still appear in `config.json`
+for legacy development compatibility.
+
+## Modo desarrollo: app desde repo + pack externo
+
+This is a temporary development bridge until there is a real installed Launcher
+or a pack selector. It keeps source code in the repository, runs the local app
+from `local/hsl-local-app`, and points that app at a real external MAME test
+pack extracted somewhere else.
+
+Example layout:
+
+```text
+C:/Users/u/Documents/High Score League/
+  local/
+    hsl-local-app/
+    mame-plugin/
+      hsl-score/
+
+C:/Users/u/Downloads/hsl-invaders/
+  mame.exe
+  roms/
+    invaders.zip
+  plugins/
+    hsl-score/
+      init.lua
+      plugin.json
+      core/
+      games/
+      config.lua
+      events/
+        pending/
+        sent/
+        failed/
+```
+
+In this mode:
+
+- the app is still executed from `local/hsl-local-app`;
+- the test pack can live in any folder outside the repository;
+- the `hsl-score` plugin is copied from the repo into the pack's MAME
+  `plugins/hsl-score` folder;
+- the ignored local `config.json` can point MAME and event paths at the
+  external pack;
+- `sessionFile` can stay in `userData/session.json`, so local login/session data
+  is not tied to the disposable pack;
+- events may temporarily live in the external pack's plugin folders while the
+  launcher does not yet rewrite plugin output paths to shared user data.
+
+Use `config.dev-bridge.example.json` as the versioned template for this setup.
+Copy it to the ignored `config.dev-bridge.json` or adapt its values into the
+ignored `config.json`. The example uses placeholders only and is for local
+development, not final distribution.
+
+This bridge is valid for local testing, but it is not the final product model.
+The final Launcher should keep persistent data in shared userData and read
+MAME/game metadata from external pack `pack.json` files.
 
 Configuration precedence is:
 
@@ -189,7 +286,8 @@ directory, the configured plugin folder, launcher arguments, and the local
 session file without printing access or refresh tokens. It does not run MAME,
 connect to Supabase, upload submissions, create folders, or modify local files.
 It also prints the effective config source, `pack.json` status, resolved
-`userDataDir`, final event paths, and final session file.
+`userDataDir`, final event paths, and final session file. A missing active pack
+is not fatal by itself in the installed-app model.
 
 `play` activates `hsl-score` explicitly with `-plugins -plugin hsl-score`.
 `practice` does not pass `-plugin hsl-score`, but MAME can still load the plugin
@@ -226,10 +324,12 @@ That mode can generate pending JSON events through the plugin. `practice`
 starts MAME without `hsl-score`, so it is intended for free play and should not
 generate pending score events.
 
-The launcher reads `config.json` but does not upload anything automatically.
-Uploads still require `submit` or `submit-all`. Future phases can add F12
-capture, automatic Game Over capture, official DIP enforcement, and explicit
-save/load/rewind handling.
+The current CLI launcher reads the effective development config. The product
+launcher will receive an external pack path, read that pack's `pack.json`,
+resolve `mame.relativeExecutablePath` relative to the pack, and launch MAME from
+the pack. Uploads still require `submit` or `submit-all`. Future phases can add
+pack opening, GUI, F12 capture, automatic Game Over capture, official DIP
+enforcement, and explicit save/load/rewind handling.
 
 ## MAME plugin setup
 
@@ -239,20 +339,30 @@ The repo copy lives at:
 local/mame-plugin/hsl-score/
 ```
 
-For a playable MAME pack, copy the plugin folder into the MAME plugins folder,
-for example:
+For a playable external pack, the plugin lives inside that pack's MAME folder:
 
 ```text
-<MAME_ROOT>/plugins/hsl-score/
+<PACK_ROOT>/mame/plugins/hsl-score/
 ```
 
 Copy `config.example.lua` to `config.lua` inside that plugin folder if you need
 local overrides. The default output path is `events/pending` relative to the
-plugin folder. In a real MAME pack, the folder layout may differ from the repo,
-so adjust either the plugin `config.lua` output path or the local app
-`config.json` queue paths.
+plugin folder. In the target architecture, competition events should end up in
+shared user data:
 
-The app and plugin only communicate through local JSON files:
+```text
+userData/events/pending
+userData/events/sent
+userData/events/failed
+```
+
+Future `play` should prepare or update the plugin config in the active pack so
+the plugin writes to `userData/events/pending`. `practice` should not activate
+`hsl-score` explicitly. This task does not implement that plugin-config rewrite
+yet.
+
+In the current MVP, the app and plugin only communicate through local JSON
+files:
 
 ```text
 MAME plugin -> events/pending -> hsl-local-app -> web ingest endpoint

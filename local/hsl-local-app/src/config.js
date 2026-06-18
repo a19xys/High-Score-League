@@ -34,6 +34,7 @@ function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR) {
   return {
     ...mergedConfig,
     configExists,
+    appDir,
     configPath,
     configSource: configExists ? "config.json" : pack ? "pack.json" : "defaults",
     eventsFailedDir: config.eventsFailedDir || null,

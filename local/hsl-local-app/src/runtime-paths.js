@@ -1,5 +1,6 @@
 const os = require("node:os");
 const path = require("node:path");
+const { resolvePackMamePaths } = require("./pack");
 
 function getHomeDir(options = {}) {
   return options.homeDir || options.env?.HOME || options.env?.USERPROFILE || os.homedir();
@@ -41,18 +42,6 @@ function resolvePathValue(value, context) {
   }
 
   return path.resolve(context.appDir, value);
-}
-
-function resolvePackPathValue(value, context) {
-  if (!value || typeof value !== "string") {
-    return null;
-  }
-
-  if (path.isAbsolute(value)) {
-    return value;
-  }
-
-  return path.resolve(context.packRoot || context.appDir, value);
 }
 
 function resolveUserDataDir(config = {}, options = {}) {
@@ -105,11 +94,7 @@ function resolveRuntimePaths(config = {}, pack = null, options = {}) {
   let mame = config.mame;
 
   if (!mame && pack?.mame) {
-    mame = {
-      executablePath: resolvePackPathValue(pack.mame.relativeExecutablePath || pack.mame.executablePath, context),
-      workingDir: resolvePackPathValue(pack.mame.workingDir, context),
-      pluginName: pack.mame.pluginName,
-    };
+    mame = resolvePackMamePaths(pack, context.packRoot);
   }
 
   return {

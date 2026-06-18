@@ -7,12 +7,8 @@ const REQUIRED_CONFIG_FIELDS = [
   "clientVersion",
 ];
 
-const WEB_CONFIG_FIELDS = [
-  "webBaseUrl",
-  "defaultWeekId",
-  "supabaseUrl",
-  "supabaseAnonKey",
-];
+const PACK_OR_DEV_FIELDS = ["webBaseUrl", "defaultWeekId"];
+const AUTH_CONFIG_FIELDS = ["supabaseUrl", "supabaseAnonKey"];
 
 function add(report, section, level, message, detail = null) {
   const entry = { level, message, detail };
@@ -44,6 +40,27 @@ function looksLikePersonalAbsolutePath(value) {
 
   const normalized = value.replace(/\\/g, "/").toLowerCase();
   return normalized.includes("/users/") || normalized.includes("/downloads/") || normalized.includes("/documents/");
+}
+
+function getConfigAppDir(config) {
+  if (isNonEmptyString(config.appDir)) {
+    return path.resolve(config.appDir);
+  }
+
+  if (isNonEmptyString(config.configPath)) {
+    return path.dirname(path.resolve(config.configPath));
+  }
+
+  return path.resolve(__dirname, "..");
+}
+
+function isPathOutsideDir(targetPath, baseDir) {
+  if (!isNonEmptyString(targetPath)) {
+    return false;
+  }
+
+  const relative = path.relative(path.resolve(baseDir), path.resolve(targetPath));
+  return relative !== "" && (relative.startsWith("..") || path.isAbsolute(relative));
 }
 
 async function getPathInfo(targetPath) {
@@ -168,6 +185,10 @@ async function readSessionSummary(sessionFileAbs) {
 }
 
 async function buildDiagnoseReport(config) {
+  const appDir = getConfigAppDir(config);
+  const checkedEventDirs = [];
+  let mameExecutableExists = false;
+  let mameWorkingDirExists = false;
   const report = {
     sections: {
       config: [],
@@ -220,13 +241,21 @@ async function buildDiagnoseReport(config) {
     }
   }
 
-  for (const field of WEB_CONFIG_FIELDS) {
+  for (const field of PACK_OR_DEV_FIELDS) {
     if (isNonEmptyString(config[field])) {
       add(report, "config", "OK", `${field} configurado`);
 
       if (field === "webBaseUrl" && !hasUrlProtocol(config[field])) {
         add(report, "config", "WARN", "webBaseUrl no incluye protocolo http:// o https://", config[field]);
       }
+    } else {
+      add(report, "config", "INFO", `${field} no configurado en config global; puede venir de pack.json`);
+    }
+  }
+
+  for (const field of AUTH_CONFIG_FIELDS) {
+    if (isNonEmptyString(config[field])) {
+      add(report, "config", "OK", `${field} configurado`);
     } else {
       add(report, "config", "WARN", `${field} falta o está vacío`);
     }
@@ -244,6 +273,10 @@ async function buildDiagnoseReport(config) {
 
   for (const [field, label, dir] of eventDirs) {
     const info = await getPathInfo(dir);
+    checkedEventDirs.push({
+      dir,
+      existsDirectory: info.exists && info.isDirectory,
+    });
 
     if (info.exists && info.isDirectory) {
       add(report, "events", "OK", `${field} existe`, dir);
@@ -255,8 +288,8 @@ async function buildDiagnoseReport(config) {
   }
 
   if (!config.mame || typeof config.mame !== "object") {
-    add(report, "mame", "ERROR", "mame falta en config.json");
-    add(report, "launcher", "ERROR", "No se pueden comprobar argumentos de launcher sin configuración MAME");
+    add(report, "mame", "INFO", "No hay MAME activo en config global ni pack cargado");
+    add(report, "launcher", "INFO", "No se comprueban argumentos de launcher sin pack activo o configuración MAME de desarrollo");
   } else {
     const pluginName = isNonEmptyString(config.mame.pluginName)
       ? config.mame.pluginName.trim()
@@ -267,6 +300,7 @@ async function buildDiagnoseReport(config) {
       (looksLikePersonalAbsolutePath(config.mame.executablePath) || looksLikePersonalAbsolutePath(config.mame.workingDir))
     ) {
       add(report, "mame", "WARN", "config.json contiene rutas absolutas personales de MAME", [
+        "Esto es aceptable en modo desarrollo puente, pero no debe versionarse ni usarse como pack final.",
         config.mame.executablePath,
         config.mame.workingDir,
       ]);
@@ -277,6 +311,7 @@ async function buildDiagnoseReport(config) {
       const executableInfo = await getPathInfo(config.mame.executablePath);
 
       if (executableInfo.exists && executableInfo.isFile) {
+        mameExecutableExists = true;
         add(report, "mame", "OK", "mame.executablePath existe", config.mame.executablePath);
       } else if (executableInfo.exists) {
         add(report, "mame", "ERROR", "mame.executablePath existe, pero no es un archivo", config.mame.executablePath);
@@ -291,6 +326,7 @@ async function buildDiagnoseReport(config) {
       const workingDirInfo = await getPathInfo(config.mame.workingDir);
 
       if (workingDirInfo.exists && workingDirInfo.isDirectory) {
+        mameWorkingDirExists = true;
         add(report, "mame", "OK", "mame.workingDir existe", config.mame.workingDir);
 
         const pluginDir = path.join(config.mame.workingDir, "plugins", pluginName);
@@ -349,6 +385,32 @@ async function buildDiagnoseReport(config) {
     } catch (error) {
       add(report, "launcher", "ERROR", `No se pudieron construir argumentos de launcher: ${error.message}`);
     }
+  }
+
+  const devBridgePaths = [
+    config.mame?.executablePath,
+    config.mame?.workingDir,
+    config.eventsPendingDirAbs,
+    config.eventsSentDirAbs,
+    config.eventsFailedDirAbs,
+  ];
+  const eventsExist = checkedEventDirs.length === 3 && checkedEventDirs.every((item) => item.existsDirectory);
+  const pathsOutsideApp = devBridgePaths.some((item) => isPathOutsideDir(item, appDir));
+  const devBridgeDetected = config.configExists === true
+    && !config.packLoaded
+    && eventsExist
+    && mameExecutableExists
+    && mameWorkingDirExists
+    && pathsOutsideApp;
+
+  if (devBridgeDetected) {
+    add(
+      report,
+      "runtime",
+      "INFO",
+      "Modo desarrollo puente detectado",
+      "La app se ejecuta desde el repo y usa un pack MAME externo configurado en config.json."
+    );
   }
 
   const session = await readSessionSummary(config.sessionFileAbs);
