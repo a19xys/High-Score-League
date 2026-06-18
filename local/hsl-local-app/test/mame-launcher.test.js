@@ -5,6 +5,7 @@ const {
   DEFAULT_PLUGIN_NAME,
   buildMameArgs,
   launchMame,
+  printLaunchSummary,
 } = require("../src/mame-launcher");
 
 function mameConfig(overrides = {}) {
@@ -60,18 +61,47 @@ test("play defaults to the hsl-score plugin when pluginName is omitted", () => {
 });
 
 test("launchMame uses spawn with inherited stdio and returns the exit code", async () => {
-  const exitCode = await launchMame(mameConfig(), "invaders", "competition", (command, args, options) => {
-    assert.equal(command, "C:/MAME/mame.exe");
-    assert.deepEqual(args, ["invaders", "-plugins", "-plugin", "hsl-score"]);
-    assert.deepEqual(options, {
-      cwd: "C:/MAME",
-      stdio: "inherit",
-    });
+  const originalLog = console.log;
+  console.log = () => {};
 
-    const child = new EventEmitter();
-    process.nextTick(() => child.emit("close", 0));
-    return child;
-  });
+  let exitCode;
+
+  try {
+    exitCode = await launchMame(mameConfig(), "invaders", "competition", (command, args, options) => {
+      assert.equal(command, "C:/MAME/mame.exe");
+      assert.deepEqual(args, ["invaders", "-plugins", "-plugin", "hsl-score"]);
+      assert.deepEqual(options, {
+        cwd: "C:/MAME",
+        stdio: "inherit",
+      });
+
+      const child = new EventEmitter();
+      process.nextTick(() => child.emit("close", 0));
+      return child;
+    });
+  } finally {
+    console.log = originalLog;
+  }
 
   assert.equal(exitCode, 0);
+});
+
+test("printLaunchSummary explains competition and practice plugin behavior", () => {
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (line = "") => lines.push(String(line));
+
+  try {
+    printLaunchSummary(buildMameArgs(mameConfig(), "invaders", "competition"));
+    printLaunchSummary(buildMameArgs(mameConfig(), "invaders", "practice"));
+  } finally {
+    console.log = originalLog;
+  }
+
+  const output = lines.join("\n");
+  assert.match(output, /Modo: competicion/);
+  assert.match(output, /Plugin: hsl-score activado explicitamente/);
+  assert.match(output, /Modo: practica/);
+  assert.match(output, /Plugin: hsl-score no se activa explicitamente/);
+  assert.match(output, /plugin\.ini/);
 });

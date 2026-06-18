@@ -267,6 +267,51 @@ multi-pack launcher flow. When the installed app can open/import external packs,
 this helper should be reviewed or replaced by pack verification and plugin
 configuration steps owned by the launcher.
 
+## Flujo minimo probado
+
+The current MVP has been validated end to end in dev bridge mode with Space
+Invaders. This is a technical development flow, not the final player
+experience. The future GUI should reduce it to opening a pack, playing or
+practicing, and uploading scores.
+
+From `local/hsl-local-app`:
+
+```powershell
+node app.js diagnose
+node app.js sync-plugin --dry-run
+node app.js sync-plugin
+node app.js play invaders
+node app.js scan pending
+node app.js show <archivo.json>
+node app.js auth-status
+node app.js login <email>
+node app.js submit <archivo.json>
+node app.js scan sent
+node app.js practice invaders
+node app.js scan pending
+```
+
+Expected flow:
+
+- `diagnose` confirms config, dev bridge, MAME, plugin, event folders, launcher
+  args, and local session status without changing files.
+- `sync-plugin --dry-run` previews plugin files copied from the repo to the
+  external pack; `sync-plugin` performs the copy.
+- `play invaders` launches competition mode and explicitly activates
+  `hsl-score`.
+- Manual capture from the MAME plugin writes a JSON event into `pending`.
+- `scan pending` and `show <archivo.json>` verify the event before upload.
+- `auth-status` and `login <email>` manage the local Supabase session in
+  userData.
+- `submit <archivo.json>` uploads one pending event and moves success to `sent`;
+  `submit-all` can upload the whole pending queue.
+- `practice invaders` does not pass `-plugin hsl-score`; if the plugin is
+  enabled globally in `plugin.ini`, MAME may still load it.
+
+For now, events can live temporarily in the external pack's plugin folder. In
+the installed launcher model, persistent queues should live in shared userData
+instead.
+
 Configuration precedence is:
 
 1. Explicit `config.json`, when present.

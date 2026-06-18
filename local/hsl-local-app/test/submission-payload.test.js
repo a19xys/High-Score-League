@@ -6,6 +6,7 @@ const {
   responseLooksDuplicate,
   responseLooksOk,
 } = require("../src/submission-payload");
+const { buildSubmitSummary } = require("../src/submission-service");
 
 const config = {
   defaultWeekId: "week-123",
@@ -86,6 +87,24 @@ test("buildSubmissionPayload preserves normalized fields and raw local event", (
     "source",
     "weekId",
   ]);
+});
+
+test("buildSubmitSummary exposes CLI-safe submission context", () => {
+  const summary = buildSubmitSummary(
+    {
+      ...config,
+      webBaseUrl: "https://high-score-league.example",
+    },
+    event
+  );
+
+  assert.deepEqual(summary, {
+    endpoint: "https://high-score-league.example/api/submissions/ingest",
+    game: "Space Invaders",
+    rom: "invaders",
+    score: 4320,
+    weekId: "week-123",
+  });
 });
 
 test("response classification treats duplicate success as logical success", () => {

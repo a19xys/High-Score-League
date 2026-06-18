@@ -16,6 +16,16 @@ const {
   postSubmission,
 } = require("./submission-http");
 
+function buildSubmitSummary(config, event) {
+  return {
+    endpoint: getIngestUrl(config),
+    game: event.game || null,
+    rom: event.rom || null,
+    score: event.score,
+    weekId: config.defaultWeekId || null,
+  };
+}
+
 async function submitPendingFile(config, filename) {
   assertSubmitConfig(config);
   assertAuthConfig(config);
@@ -51,6 +61,7 @@ async function submitPendingFile(config, filename) {
     };
   }
 
+  const submission = buildSubmitSummary(config, result.event);
   let storedSession;
 
   try {
@@ -61,6 +72,7 @@ async function submitPendingFile(config, filename) {
       ok: false,
       filename: safeName,
       message: error.message,
+      submission,
     };
   }
 
@@ -80,6 +92,7 @@ async function submitPendingFile(config, filename) {
       ok: false,
       filename: safeName,
       message: `Error de red o servidor no accesible: ${error.message}`,
+      submission,
     };
   }
 
@@ -96,6 +109,7 @@ async function submitPendingFile(config, filename) {
       body,
       duplicateKey: payload.duplicateKey,
       movedTo: finalPath,
+      submission,
     };
   }
 
@@ -107,6 +121,7 @@ async function submitPendingFile(config, filename) {
       status,
       body,
       message: `401 no autorizado. Haz login de nuevo o revisa que el endpoint acepte Bearer token. Respuesta: ${getServerMessage(body)}`,
+      submission,
     };
   }
 
@@ -124,6 +139,7 @@ async function submitPendingFile(config, filename) {
       body,
       message: reason,
       movedTo: finalPath,
+      submission,
     };
   }
 
@@ -134,6 +150,7 @@ async function submitPendingFile(config, filename) {
     status,
     body,
     message: `HTTP ${status}: ${getServerMessage(body)}. Se deja en pending para revisar/reintentar.`,
+    submission,
   };
 }
 
@@ -207,6 +224,7 @@ async function submitAll(config) {
 }
 
 module.exports = {
+  buildSubmitSummary,
   submitAll,
   submitOne,
   submitPendingFile,

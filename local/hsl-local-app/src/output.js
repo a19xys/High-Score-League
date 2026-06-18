@@ -80,6 +80,14 @@ function printEventCard(result, index) {
 
 function printSubmitResult(result) {
   console.log("");
+  console.log(`Archivo: ${result.filename}`);
+
+  if (result.submission) {
+    console.log(`Juego: ${result.submission.game || "desconocido"} (${result.submission.rom || "sin rom"})`);
+    console.log(`Score: ${Number.isInteger(result.submission.score) ? result.submission.score : "invalido"}`);
+    console.log(`Week: ${result.submission.weekId || "sin weekId"}`);
+    console.log(`Endpoint: ${result.submission.endpoint || "sin endpoint"}`);
+  }
 
   if (result.ok) {
     console.log(`[OK] ${result.filename}`);
@@ -99,7 +107,7 @@ function printSubmitResult(result) {
     }
 
     if (result.movedTo) {
-      console.log(`Movido a: ${result.movedTo}`);
+      console.log(`Movido a sent: ${result.movedTo}`);
     }
 
     if (result.body) {
@@ -114,12 +122,16 @@ function printSubmitResult(result) {
   console.log(`[ERROR] ${result.filename}`);
   console.log(result.message || "Error desconocido");
 
+  if (result.action === "network_error" || result.action === "auth_required" || result.action === "pending") {
+    console.log("El evento sigue en pending para reintentar.");
+  }
+
   if (result.status) {
     console.log(`HTTP: ${result.status}`);
   }
 
   if (result.movedTo) {
-    console.log(`Movido a: ${result.movedTo}`);
+    console.log(`Movido a failed: ${result.movedTo}`);
   }
 
   if (result.body) {
@@ -134,31 +146,33 @@ function printHelp() {
   console.log("");
   console.log("High Score League Local App");
   console.log("");
-  console.log("Comandos de eventos:");
+  console.log("Diagnostico:");
+  console.log("  node app.js diagnose");
+  console.log("");
+  console.log("Desarrollo:");
+  console.log("  node app.js sync-plugin [--dry-run]");
+  console.log("");
+  console.log("Juego:");
+  console.log("  node app.js play <rom>");
+  console.log("  node app.js practice <rom>");
+  console.log("");
+  console.log("Eventos:");
   console.log("  node app.js scan [pending|sent|failed]");
   console.log("  node app.js show <archivo.json> [pending|sent|failed]");
   console.log("  node app.js watch");
   console.log("  node app.js mark-sent <archivo.json>");
-  console.log("  node app.js mark-failed <archivo.json> [motivo]");
+  console.log("  node app.js mark-failed <archivo.json> \"Motivo\"");
   console.log("  node app.js restore <sent|failed> <archivo.json>");
-  console.log("  node app.js submit <archivo.json>");
-  console.log("  node app.js submit-all");
   console.log("");
-  console.log("Comandos de diagnóstico:");
-  console.log("  node app.js diagnose");
-  console.log("");
-  console.log("Comandos de desarrollo:");
-  console.log("  node app.js sync-plugin [--dry-run]");
-  console.log("");
-  console.log("Comandos de launcher:");
-  console.log("  node app.js play <rom>");
-  console.log("  node app.js practice <rom>");
-  console.log("");
-  console.log("Comandos de autenticación:");
+  console.log("Cuenta:");
   console.log("  node app.js login [email]");
   console.log("  node app.js auth-status");
   console.log("  node app.js auth-token");
   console.log("  node app.js logout");
+  console.log("");
+  console.log("Subida:");
+  console.log("  node app.js submit <archivo.json>");
+  console.log("  node app.js submit-all");
   console.log("");
 }
 

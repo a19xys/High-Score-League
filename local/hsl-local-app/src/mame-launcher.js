@@ -51,12 +51,33 @@ function buildMameArgs(config, rom, mode) {
     cwd: config.mame.workingDir.trim(),
     game: launch.game,
     mode,
+    pluginName: config.mame.pluginName || DEFAULT_PLUGIN_NAME,
     rom: launch.rom,
   };
 }
 
+function printLaunchSummary(launch) {
+  console.log("");
+  console.log("Lanzando MAME");
+  console.log("=============");
+  console.log(`Modo: ${launch.mode === "competition" ? "competicion" : "practica"}`);
+  console.log(`ROM: ${launch.rom}`);
+
+  if (launch.mode === "competition") {
+    console.log(`Plugin: ${launch.pluginName} activado explicitamente`);
+  } else {
+    console.log(`Plugin: ${launch.pluginName} no se activa explicitamente`);
+    console.log("Nota: si esta activado globalmente en plugin.ini, MAME podria cargarlo igualmente.");
+  }
+
+  console.log(`Ejecutable: ${launch.command}`);
+  console.log(`Working dir: ${launch.cwd}`);
+  console.log("");
+}
+
 function launchMame(config, rom, mode, spawnImpl = spawn) {
   const launch = buildMameArgs(config, rom, mode);
+  printLaunchSummary(launch);
 
   return new Promise((resolve, reject) => {
     const child = spawnImpl(launch.command, launch.args, {
@@ -74,4 +95,5 @@ module.exports = {
   assertMameConfig,
   buildMameArgs,
   launchMame,
+  printLaunchSummary,
 };
