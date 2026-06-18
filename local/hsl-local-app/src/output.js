@@ -147,6 +147,9 @@ function printHelp() {
   console.log("Comandos de diagnóstico:");
   console.log("  node app.js diagnose");
   console.log("");
+  console.log("Comandos de desarrollo:");
+  console.log("  node app.js sync-plugin [--dry-run]");
+  console.log("");
   console.log("Comandos de launcher:");
   console.log("  node app.js play <rom>");
   console.log("  node app.js practice <rom>");

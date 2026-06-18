@@ -16,6 +16,7 @@
     "auth-token": "node app.js auth-token",
     "logout": "node app.js logout",
     "diagnose": "node app.js diagnose",
+    "sync-plugin": "node app.js sync-plugin",
     "play": "node app.js play",
     "practice": "node app.js practice",
     "submit": "node app.js submit",

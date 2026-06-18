@@ -5,6 +5,7 @@ const { scanBox, showOne, watchPending } = require("./event-files");
 const { markFailed, markSent, restoreToPending } = require("./file-queue");
 const { launchMame } = require("./mame-launcher");
 const { printHelp } = require("./output");
+const { syncPluginCommand } = require("./dev-sync-plugin");
 const { submitAll, submitOne } = require("./submission-service");
 
 async function runCli(argv = process.argv) {
@@ -74,6 +75,11 @@ async function runCli(argv = process.argv) {
 
   if (command === "diagnose") {
     await diagnose(config);
+    return;
+  }
+
+  if (command === "sync-plugin") {
+    await syncPluginCommand(config, { dryRun: argv.includes("--dry-run") });
     return;
   }
 

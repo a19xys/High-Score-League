@@ -218,6 +218,55 @@ This bridge is valid for local testing, but it is not the final product model.
 The final Launcher should keep persistent data in shared userData and read
 MAME/game metadata from external pack `pack.json` files.
 
+## Sincronizar plugin al pack de prueba
+
+For the current dev bridge only, the local app includes a small helper that
+copies the versioned `hsl-score` plugin from this repository into the external
+MAME pack configured in the ignored local `config.json`.
+
+Preview the copy first:
+
+```powershell
+node app.js sync-plugin --dry-run
+```
+
+Then sync it:
+
+```powershell
+node app.js sync-plugin
+```
+
+The source is resolved from the local app directory:
+
+```text
+local/mame-plugin/hsl-score/
+```
+
+The destination is derived from the effective MAME config:
+
+```text
+<mame.workingDir>/plugins/<mame.pluginName>/
+```
+
+The helper copies only plugin source files:
+
+```text
+init.lua
+plugin.json
+config.example.lua
+core/**
+games/**
+```
+
+It does not copy ROMs, MAME binaries, real events, sessions, userData, or
+`config.lua`. It also does not delete unknown files from the pack. Existing pack
+events and the pack-local `config.lua` are preserved.
+
+This command is temporary development tooling. It does not replace the final
+multi-pack launcher flow. When the installed app can open/import external packs,
+this helper should be reviewed or replaced by pack verification and plugin
+configuration steps owned by the launcher.
+
 Configuration precedence is:
 
 1. Explicit `config.json`, when present.
