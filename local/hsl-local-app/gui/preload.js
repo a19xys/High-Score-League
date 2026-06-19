@@ -4,6 +4,7 @@ const invoke = (channel) => () => ipcRenderer.invoke(channel);
 
 contextBridge.exposeInMainWorld("hslLauncher", {
   addLibraryLocation: invoke("launcher:add-library-location"),
+  checkMembership: invoke("launcher:check-membership"),
   diagnose: invoke("launcher:diagnose"),
   getAuthState: invoke("launcher:get-auth-state"),
   getState: invoke("launcher:get-state"),

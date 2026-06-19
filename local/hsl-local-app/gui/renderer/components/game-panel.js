@@ -46,27 +46,24 @@ function renderPackAction(state) {
 }
 
 function membershipBadge(membership) {
+  const labels = {
+    error: ["badge-error", "Error de comprobacion"],
+    invalid_week: ["badge-error", "Semana no valida"],
+    member: ["badge-ok", "Participas"],
+    missing_week: ["badge-error", "Falta weekId"],
+    no_session: ["badge-warn", "Sin cuenta"],
+    not_member: ["badge-error", "No participas"],
+    unauthenticated: ["badge-error", "Sesion no valida"],
+    unknown: ["badge-warn", "No se pudo comprobar"],
+  };
+
   if (!membership) {
     return `<span class="badge badge-muted">Participacion pendiente</span>`;
   }
 
-  if (membership.status === "member") {
-    return `<span class="badge badge-ok">Participas</span>`;
-  }
+  const [badgeClass, label] = labels[membership.status] || labels.unknown;
 
-  if (membership.status === "not_member") {
-    return `<span class="badge badge-error">No participas</span>`;
-  }
-
-  if (membership.status === "no_session") {
-    return `<span class="badge badge-warn">Sin cuenta</span>`;
-  }
-
-  if (membership.status === "missing_week" || membership.status === "invalid_week") {
-    return `<span class="badge badge-error">Semana no valida</span>`;
-  }
-
-  return `<span class="badge badge-warn">No se pudo comprobar</span>`;
+  return `<span class="badge ${badgeClass}">${label}</span>`;
 }
 
 function renderMembershipCallToAction(membership) {
@@ -80,6 +77,17 @@ function renderMembershipCallToAction(membership) {
     <button class="secondary-action" type="button" data-action="open-membership-url">
       <span>${label}</span>
       <small>Abre High Score League en el navegador.</small>
+    </button>
+  `;
+}
+
+function renderMembershipCheckAction(state) {
+  const disabled = state.busy ? "disabled" : "";
+
+  return `
+    <button class="secondary-action" type="button" data-action="check-membership" ${disabled}>
+      <span>Comprobar de nuevo</span>
+      <small>Actualiza la participacion del pack activo.</small>
     </button>
   `;
 }
@@ -174,6 +182,7 @@ export function renderGamePanel(state) {
             </button>
             ${renderSubmitState(state)}
             ${renderPackAction(state)}
+            ${renderMembershipCheckAction(state)}
             ${renderMembershipCallToAction(membership)}
           </div>
         </div>

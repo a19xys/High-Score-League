@@ -142,6 +142,25 @@ Documento especifico:
 Documento especifico:
 [`season-membership-check-1.md`](season-membership-check-1.md).
 
+## Season membership check 2
+
+- La GUI distingue `member`, `not_member`, `no_session`,
+  `unauthenticated`, `missing_week`, `invalid_week`, `error` y `unknown`.
+- `unauthenticated` se muestra como `Sesion no valida` y no cae en el mensaje
+  generico `No se pudo comprobar`.
+- `Herramientas de desarrollo > Detalles tecnicos` muestra URL consultada,
+  HTTP status, body status, body ok, mensaje, motivo tecnico, `weekId` y
+  `seasonId`.
+- Las respuestas no JSON se resumen como `non_json_response`; no se guarda HTML
+  completo.
+- `Comprobar de nuevo` recalcula la comprobacion del pack activo sin polling y
+  sin escanear todos los packs.
+- El renderer no recibe access token, refresh token ni cabecera
+  `Authorization`.
+
+Documento especifico:
+[`season-membership-check-2.md`](season-membership-check-2.md).
+
 ## Final UX blueprint 1
 
 - La dirección final de la GUI queda documentada en

@@ -84,6 +84,7 @@ function registerIpc() {
       state,
     };
   });
+  ipcMain.handle("launcher:check-membership", () => service.recheckSeasonMembership());
   ipcMain.handle("launcher:diagnose", () => service.runDiagnose());
   ipcMain.handle("launcher:play-competition", () => service.playCompetition());
   ipcMain.handle("launcher:practice", () => service.playPractice());

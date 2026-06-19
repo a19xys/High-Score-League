@@ -43,6 +43,15 @@ function jsonResponse(status, body) {
   });
 }
 
+function textResponse(status, body, contentType = "text/html") {
+  return new Response(body, {
+    status,
+    headers: {
+      "content-type": contentType,
+    },
+  });
+}
+
 test("sin sesion devuelve no_session y bloquea competicion", async () => {
   const result = await checkSeasonMembership(config(), { hasSession: false });
 
@@ -50,6 +59,19 @@ test("sin sesion devuelve no_session y bloquea competicion", async () => {
   assert.equal(result.canPlayCompetition, false);
   assert.equal(result.canSubmit, false);
   assert.equal(shouldBlockCompetition(result), true);
+});
+
+test("sesion local caducada devuelve unauthenticated", async () => {
+  const result = await checkSeasonMembership(config(), {
+    hasSession: false,
+    message: "La sesion ha caducado.",
+    status: "expired",
+  });
+
+  assert.equal(result.status, "unauthenticated");
+  assert.equal(result.canPlayCompetition, false);
+  assert.match(result.message, /sesion no es valida/i);
+  assert.equal(result.technicalReason, "La sesion ha caducado.");
 });
 
 test("sin weekId devuelve missing_week", async () => {
@@ -84,7 +106,12 @@ test("respuesta member permite competicion y subida", async () => {
   assert.equal(result.canPlayCompetition, true);
   assert.equal(result.canSubmit, true);
   assert.equal(result.joinUrl, "https://high-score-league.example/seasons/season-1");
+  assert.equal(result.request.url, "https://high-score-league.example/api/local/season-membership?weekId=week-1");
+  assert.equal(result.request.method, "GET");
+  assert.equal(result.response.httpStatus, 200);
+  assert.equal(result.response.bodyStatus, "member");
   assert.equal(JSON.stringify(result).includes("secret-access-token"), false);
+  assert.equal(JSON.stringify(result).includes("Authorization"), false);
 });
 
 test("respuesta not_member bloquea competicion y subida", async () => {
@@ -118,6 +145,44 @@ test("endpoint 401 devuelve unauthenticated", async () => {
 
   assert.equal(result.status, "unauthenticated");
   assert.equal(result.canPlayCompetition, false);
+  assert.equal(result.response.httpStatus, 401);
+  assert.equal(result.response.bodyStatus, "unauthenticated");
+});
+
+test("respuesta 500 JSON error devuelve error diagnostico", async () => {
+  const result = await checkSeasonMembership(config(), sessionState(), {
+    fetchImpl: async () => jsonResponse(500, {
+      ok: false,
+      status: "error",
+      message: "No se pudo comprobar la participacion.",
+    }),
+    storedSession: storedSession(),
+  });
+
+  assert.equal(result.status, "error");
+  assert.equal(result.canPlayCompetition, true);
+  assert.equal(result.canSubmit, false);
+  assert.equal(result.response.httpStatus, 500);
+  assert.equal(result.response.bodyStatus, "error");
+  assert.match(result.technicalReason, /HTTP 500/);
+});
+
+test("respuesta HTML no guarda HTML completo y devuelve error seguro", async () => {
+  const html = "<html><body><h1>Not Found</h1><script>secret</script></body></html>";
+  const result = await checkSeasonMembership(config(), sessionState(), {
+    fetchImpl: async () => textResponse(404, html),
+    storedSession: storedSession("very-secret-token"),
+  });
+
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result.status, "error");
+  assert.equal(result.response.httpStatus, 404);
+  assert.equal(result.response.bodyStatus, "non_json_response");
+  assert.equal(result.response.bodyMessage, "non_json_response");
+  assert.match(result.technicalReason, /non_json_response/);
+  assert.equal(serialized.includes("<html>"), false);
+  assert.equal(serialized.includes("very-secret-token"), false);
 });
 
 test("error de red devuelve unknown y permite competir con advertencia", async () => {
@@ -133,6 +198,9 @@ test("error de red devuelve unknown y permite competir con advertencia", async (
   assert.equal(result.canSubmit, false);
   assert.match(result.message, /No se pudo comprobar/);
   assert.equal(shouldBlockCompetition(result), false);
+  assert.equal(result.request.url, "https://high-score-league.example/api/local/season-membership?weekId=week-1");
+  assert.equal(result.response, null);
+  assert.equal(result.technicalReason, "network down");
 });
 
 test("invalid_week bloquea competicion", () => {

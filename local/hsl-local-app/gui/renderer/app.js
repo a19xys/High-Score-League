@@ -99,6 +99,7 @@ function resultToLog(title, response) {
       ? "Web abierta en el navegador."
       : "No se pudo abrir la web."),
     "add-library-location": response.summary || "Biblioteca actualizada.",
+    "check-membership": response.summary || "Comprobacion de temporada actualizada.",
     "remove-library-location": response.summary || "Biblioteca actualizada.",
     "use-library-pack": response.summary || (ok
       ? "Pack activado desde biblioteca."
@@ -257,6 +258,10 @@ function bindActions() {
 
     if (action === "open-membership-url") {
       runAction(action, "Abriendo web", "Abrir temporada en la web", () => window.hslLauncher.openMembershipUrl());
+    }
+
+    if (action === "check-membership") {
+      runAction(action, "Comprobando temporada", "Comprobar de nuevo", () => window.hslLauncher.checkMembership());
     }
 
     if (action === "diagnose") {

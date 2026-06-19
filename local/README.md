@@ -124,6 +124,8 @@ Pack library locations notes:
 [`docs/pack-library-locations-1.md`](docs/pack-library-locations-1.md).
 Season membership check notes:
 [`docs/season-membership-check-1.md`](docs/season-membership-check-1.md).
+Season membership diagnostics notes:
+[`docs/season-membership-check-2.md`](docs/season-membership-check-2.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is
@@ -537,7 +539,11 @@ connected account belongs to the season for the active pack `weekId`. Known
 non-members, invalid weeks, missing sessions, and packs without `weekId` block
 competition and submission. Practice remains available. Temporary network or
 server errors allow competition with a warning, but keep submission disabled
-until membership can be verified.
+until membership can be verified. `Herramientas de desarrollo > Detalles
+tecnicos` shows the safe membership diagnostics: final URL, HTTP status, body
+status, body message, checked time, `weekId`, `seasonId`, and technical reason.
+It never exposes tokens or the `Authorization` header. The action `Comprobar de
+nuevo` recalculates only the active pack membership.
 
 This prototype is not packaged, not an installer, and not the final pack picker.
 Pack opening is the first incremental step toward the final pack flow, not

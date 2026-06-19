@@ -11,6 +11,7 @@ const {
   eventResultToQueueItem,
   listPendingFileSnapshot,
   readPackForGui,
+  recheckSeasonMembership,
   resolveRememberedPack,
   summarizeDiagnoseReport,
 } = require("../gui/launcher-service");
@@ -77,6 +78,39 @@ test("summarizeDiagnoseReport keeps counts without exposing raw tokens", () => {
   assert.equal(summary.recommendationCount, 1);
   assert.deepEqual(summary.sections[0].counts, { OK: 1, WARN: 1 });
   assert.equal(JSON.stringify(summary).includes("access_token"), false);
+});
+
+test("launcher service exposes manual membership recheck action", () => {
+  assert.equal(typeof recheckSeasonMembership, "function");
+});
+
+test("renderer maps membership statuses and manual recheck action", async () => {
+  const gamePanel = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js"),
+    "utf8",
+  );
+  const app = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "app.js"),
+    "utf8",
+  );
+
+  assert.match(gamePanel, /unauthenticated: \["badge-error", "Sesion no valida"\]/);
+  assert.match(gamePanel, /error: \["badge-error", "Error de comprobacion"\]/);
+  assert.match(gamePanel, /data-action="check-membership"/);
+  assert.match(app, /window\.hslLauncher\.checkMembership\(\)/);
+});
+
+test("renderer technical details include safe membership diagnostics", async () => {
+  const devTools = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "dev-tools.js"),
+    "utf8",
+  );
+
+  assert.match(devTools, /URL consultada/);
+  assert.match(devTools, /HTTP status/);
+  assert.match(devTools, /Body status/);
+  assert.match(devTools, /Motivo tecnico/);
+  assert.equal(/access_token|refresh_token|Authorization|session\.json/.test(devTools), false);
 });
 
 test("eventResultToQueueItem maps local event files to renderer-safe rows", () => {

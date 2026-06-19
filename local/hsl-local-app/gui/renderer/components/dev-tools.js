@@ -1,5 +1,22 @@
 import { escapeHtml } from "./html.js";
 
+function valueOrDash(value) {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+
+  return String(value);
+}
+
+function detailRow(label, value) {
+  return `
+    <div>
+      <dt>${escapeHtml(label)}</dt>
+      <dd>${escapeHtml(valueOrDash(value))}</dd>
+    </div>
+  `;
+}
+
 export function renderDevTools(state) {
   const data = state.data;
   const disabled = state.busy ? "disabled" : "";
@@ -11,9 +28,6 @@ export function renderDevTools(state) {
       ? "metadata.json cargado"
       : "sin metadata local";
   const membership = data?.membership;
-  const membershipLabel = membership
-    ? `${membership.status}${membership.technicalReason ? `: ${membership.technicalReason}` : ""}`
-    : "sin comprobacion";
   const modeLabel = data?.bridge?.packOpened
     ? "pack abierto"
     : data?.bridge?.devBridge
@@ -55,10 +69,16 @@ export function renderDevTools(state) {
             <dt>Metadata</dt>
             <dd>${escapeHtml(metadataLabel)}</dd>
           </div>
-          <div>
-            <dt>Participacion</dt>
-            <dd>${escapeHtml(membershipLabel)}</dd>
-          </div>
+          ${detailRow("Comprobacion de temporada", membership?.status || "sin comprobacion")}
+          ${detailRow("URL consultada", membership?.request?.url)}
+          ${detailRow("HTTP status", membership?.response?.httpStatus)}
+          ${detailRow("Body status", membership?.response?.bodyStatus)}
+          ${detailRow("Body ok", membership?.response?.bodyOk)}
+          ${detailRow("Mensaje", membership?.response?.bodyMessage || membership?.message)}
+          ${detailRow("Motivo tecnico", membership?.technicalReason)}
+          ${detailRow("Comprobado", membership?.checkedAt)}
+          ${detailRow("WeekId", membership?.weekId)}
+          ${detailRow("SeasonId", membership?.seasonId)}
           <div>
             <dt>Cola</dt>
             <dd>${escapeHtml(data?.queue?.pending?.dir || "sin ruta activa")}</dd>

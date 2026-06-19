@@ -640,6 +640,16 @@ async function getLauncherState() {
   };
 }
 
+async function recheckSeasonMembership() {
+  return {
+    action: "check-membership",
+    lines: ["Comprobacion de temporada actualizada."],
+    ok: true,
+    summary: "Comprobacion de temporada actualizada.",
+    state: await getLauncherState(),
+  };
+}
+
 async function withFreshState(action, fn) {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
@@ -1082,6 +1092,7 @@ module.exports = {
   playCompetition,
   playPractice,
   readPackForGui,
+  recheckSeasonMembership,
   removeLibraryLocationFromGui,
   restoreFailedSubmission,
   resolveRememberedPack,

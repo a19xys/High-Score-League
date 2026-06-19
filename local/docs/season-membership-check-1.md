@@ -102,3 +102,21 @@ solo recibe estado normalizado y nunca recibe access tokens ni refresh tokens.
 
 La accion actual de actualizar estado de la GUI vuelve a consultar la
 membership porque la comprobacion no se cachea de forma persistente.
+
+## Diagnostico posterior
+
+`LOCAL-SEASON-MEMBERSHIP-CHECK-2` estabiliza la normalizacion de errores y anade
+detalles tecnicos seguros para diagnosticar la comprobacion sin exponer tokens:
+
+```text
+URL consultada
+HTTP status
+Body status
+Body ok
+Mensaje
+Motivo tecnico
+WeekId
+SeasonId
+```
+
+Ver [`season-membership-check-2.md`](season-membership-check-2.md).
