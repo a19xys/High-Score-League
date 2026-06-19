@@ -17,6 +17,7 @@
     "logout": "node app.js logout",
     "diagnose": "node app.js diagnose",
     "sync-plugin": "node app.js sync-plugin",
+    "gui": "electron gui/main.js",
     "play": "node app.js play",
     "practice": "node app.js practice",
     "submit": "node app.js submit",
@@ -25,5 +26,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.0.0"
+  },
+  "devDependencies": {
+    "electron": "^42.4.1"
   }
 }

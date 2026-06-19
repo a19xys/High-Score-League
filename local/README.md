@@ -365,12 +365,35 @@ Stability criteria:
 - events move to `sent` only after an accepted upload or accepted duplicate;
 - `practice` does not explicitly activate the score plugin.
 
-## Proxima etapa: GUI minima del launcher
+## GUI minima del launcher
 
-The future launcher GUI should wrap the validated CLI behavior instead of
-reinventing it. The first GUI design should lean on these proven operations:
-`diagnose`, development-only `sync-plugin`, `play`, `practice`, `scan pending`,
-`submit`/`submit-all`, and `auth-status`/`login`.
+The launcher GUI wraps the validated CLI behavior instead of reinventing it.
+The current prototype is an Electron development app that shows local session
+status, the effective dev bridge or pack config, the active Space Invaders
+week, pending/sent/failed counts, a pending list, actions, and command output.
+
+Design document: [`docs/launcher-gui-0.md`](docs/launcher-gui-0.md).
+Prototype notes: [`docs/launcher-gui-1.md`](docs/launcher-gui-1.md).
+
+Run it from the repository root:
+
+```powershell
+npm.cmd --prefix local/hsl-local-app run gui
+```
+
+Or from `local/hsl-local-app`:
+
+```powershell
+npm run gui
+```
+
+The GUI uses the same effective local config as the CLI. It can run
+`diagnose`, competition `play`, `practice`, `submit-all`, local `logout`, and
+development-only `sync-plugin`. Login remains a CLI action for now:
+
+```powershell
+npm.cmd --prefix local/hsl-local-app run login -- <email>
+```
 
 Architecture constraints for that GUI:
 
@@ -381,7 +404,7 @@ Architecture constraints for that GUI:
 - treat `sync-plugin` as temporary development tooling, not as an end-user
   feature.
 
-Detailed GUI screens belong to the later `LOCAL-LAUNCHER-GUI-0` design task.
+This prototype is not packaged, not an installer, and not the final pack picker.
 
 Configuration precedence is:
 

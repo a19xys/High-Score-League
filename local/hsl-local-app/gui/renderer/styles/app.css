@@ -1,0 +1,328 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 960px;
+  margin: 0;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--background) 88%, var(--surface-strong)), var(--background) 58%),
+    var(--background);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 28px;
+}
+
+.launcher-header,
+.panel-row,
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.launcher-header {
+  margin: 0 auto 22px;
+  max-width: 1280px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--circuit);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 34px;
+  line-height: 1.1;
+}
+
+h2 {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+p {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+main {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-button,
+.icon-button {
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.theme-button {
+  padding: 0 14px;
+}
+
+.icon-button {
+  width: 38px;
+  font-size: 18px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.main-grid {
+  display: grid;
+  grid-template-columns: minmax(440px, 0.92fr) minmax(420px, 1.08fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.left-column {
+  display: grid;
+  gap: 16px;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--shadow-panel);
+}
+
+.status-card,
+.action-panel,
+.queue-panel,
+.log-panel {
+  padding: 18px;
+}
+
+.status-card {
+  display: grid;
+  min-height: 170px;
+  align-content: space-between;
+  gap: 14px;
+}
+
+.meta-line {
+  overflow: hidden;
+  max-width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.badge,
+.busy-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.busy-chip,
+.badge-accent {
+  border-color: color-mix(in srgb, var(--circuit) 55%, var(--border));
+  background: color-mix(in srgb, var(--circuit) 16%, transparent);
+  color: var(--circuit);
+}
+
+.badge-ok {
+  border-color: color-mix(in srgb, var(--ok) 60%, var(--border));
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.badge-warn {
+  border-color: color-mix(in srgb, var(--warn) 60%, var(--border));
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.badge-error {
+  border-color: color-mix(in srgb, var(--error) 60%, var(--border));
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.panel-heading {
+  margin-bottom: 14px;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.command-button {
+  display: grid;
+  min-height: 82px;
+  align-content: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text);
+  cursor: pointer;
+  padding: 14px;
+  text-align: left;
+}
+
+.command-button span {
+  font-weight: 800;
+}
+
+.command-button small {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.command-button.primary {
+  border-color: var(--circuit-strong);
+  background: linear-gradient(180deg, var(--circuit), var(--circuit-strong));
+  color: var(--text-inverse);
+}
+
+.command-button.primary small {
+  color: color-mix(in srgb, var(--text-inverse) 76%, transparent);
+}
+
+.command-button.subtle {
+  background: transparent;
+}
+
+.command-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.queue-list,
+.log-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.queue-item,
+.log-entry {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 12px;
+}
+
+.queue-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.queue-item strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-error {
+  margin-top: 4px;
+  color: var(--error);
+  font-size: 12px;
+}
+
+.empty-state {
+  display: grid;
+  min-height: 118px;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.log-panel {
+  min-height: 504px;
+}
+
+.log-entry pre {
+  overflow: auto;
+  max-height: 210px;
+  margin: 10px 0 0;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.skeleton-panel {
+  min-height: 170px;
+  background: linear-gradient(90deg, var(--surface), var(--surface-muted), var(--surface));
+}
+
+@media (max-width: 1040px) {
+  .app-shell {
+    padding: 20px;
+  }
+
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
