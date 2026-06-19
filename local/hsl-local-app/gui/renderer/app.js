@@ -67,6 +67,9 @@ function resultToLog(title, response) {
     logout: ok
       ? "Sesión local cerrada. Tus puntuaciones guardadas no se han borrado."
       : "No se pudo cerrar la sesión local.",
+    "open-pack": response.summary || (ok
+      ? "Pack abierto correctamente. Cambiar de pack no borra puntuaciones locales."
+      : "No se pudo abrir el pack seleccionado."),
     "play-competition": ok
       ? "MAME se cerró correctamente. La cola local se ha actualizado."
       : "MAME terminó con aviso. Si jugaste una partida, revisa la cola local.",
@@ -144,6 +147,10 @@ function bindActions() {
           state: data,
         };
       });
+    }
+
+    if (action === "open-pack") {
+      runAction(action, "Abriendo pack", COPY.actions.openPack, () => window.hslLauncher.openPack());
     }
 
     if (action === "diagnose") {

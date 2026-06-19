@@ -5,15 +5,115 @@ const { buildDiagnoseReport } = require("../src/diagnose");
 const { listJsonFiles, readEventFile } = require("../src/event-files");
 const { listSupportedGames } = require("../src/games");
 const { launchMame } = require("../src/mame-launcher");
+const { loadPackFromDir, resolvePackMamePaths } = require("../src/pack");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
 const { submitAll } = require("../src/submission-service");
+
+let activeOpenedPack = null;
 
 function loadRuntimeConfig() {
   return loadConfig();
 }
 
+function getPackPluginName(pack) {
+  return pack?.mame?.pluginName || pack?.plugin?.name || "hsl-score";
+}
+
+function deriveOpenedPackConfig(baseConfig, pack) {
+  const pluginName = getPackPluginName(pack);
+  const mame = {
+    ...resolvePackMamePaths(
+      {
+        ...pack,
+        mame: {
+          ...pack.mame,
+          pluginName,
+        },
+      },
+      pack.packRoot
+    ),
+    pluginName,
+  };
+  const eventsBaseDirAbs = path.join(mame.workingDir, "plugins", pluginName, "events");
+
+  return {
+    ...baseConfig,
+    configSource: "pack abierto",
+    defaultWeekId: pack.weekId,
+    eventsBaseDirAbs,
+    eventsFailedDir: null,
+    eventsFailedDirAbs: path.join(eventsBaseDirAbs, "failed"),
+    eventsPendingDir: null,
+    eventsPendingDirAbs: path.join(eventsBaseDirAbs, "pending"),
+    eventsSentDir: null,
+    eventsSentDirAbs: path.join(eventsBaseDirAbs, "sent"),
+    eventsSource: "opened-pack",
+    mame,
+    mameSource: "opened-pack",
+    pack,
+    packErrors: [],
+    packLoaded: true,
+    packPath: pack.packPath,
+    packRoot: pack.packRoot,
+    webBaseUrl: pack.webBaseUrl || baseConfig.webBaseUrl,
+  };
+}
+
+function getEffectiveConfig() {
+  const baseConfig = loadRuntimeConfig();
+
+  if (!activeOpenedPack) {
+    return baseConfig;
+  }
+
+  return deriveOpenedPackConfig(baseConfig, activeOpenedPack.pack);
+}
+
 function normalizeMessage(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function readPackForGui(packDir) {
+  try {
+    const result = loadPackFromDir(packDir);
+
+    if (!result.loaded) {
+      return {
+        code: "missing_pack_json",
+        errors: ["No encuentro pack.json en esta carpeta. Elige la carpeta raíz del pack."],
+        ok: false,
+        packDir,
+        packPath: result.packPath,
+      };
+    }
+
+    if (result.errors.length > 0) {
+      return {
+        code: "invalid_pack",
+        errors: result.errors,
+        ok: false,
+        packDir,
+        packPath: result.packPath,
+      };
+    }
+
+    return {
+      code: "ok",
+      errors: [],
+      ok: true,
+      pack: result.pack,
+      packDir,
+      packPath: result.packPath,
+    };
+  } catch (error) {
+    return {
+      code: "invalid_pack",
+      errors: [normalizeMessage(error)],
+      ok: false,
+      packDir,
+      packPath: path.join(packDir, "pack.json"),
+    };
+  }
 }
 
 async function captureConsoleAsync(fn) {
@@ -187,18 +287,24 @@ function getGameState(config) {
 
 function getBridgeState(config) {
   const hasExternalMame = Boolean(config.mame?.executablePath && config.mame?.workingDir);
-  const mode = config.configExists && !config.packLoaded && hasExternalMame
+  const packOpened = config.configSource === "pack abierto";
+  const mode = packOpened
+    ? "opened-pack"
+    : config.configExists && !config.packLoaded && hasExternalMame
     ? "dev-bridge"
     : config.packLoaded
       ? "pack"
       : "defaults";
 
   return {
+    activePackName: config.pack?.packId || config.pack?.gameId || null,
     configSource: config.configSource,
     devBridge: mode === "dev-bridge",
     mode,
+    packOpened,
     packLoaded: config.packLoaded,
     packPath: config.packPath,
+    packRoot: config.packRoot || null,
     pluginName: config.mame?.pluginName || "hsl-score",
     webBaseUrl: config.webBaseUrl || null,
     workingDir: config.mame?.workingDir || null,
@@ -206,7 +312,7 @@ function getBridgeState(config) {
 }
 
 async function getLauncherState() {
-  const config = loadRuntimeConfig();
+  const config = getEffectiveConfig();
   const [queue, session] = await Promise.all([
     getQueueState(config),
     getSessionState(config),
@@ -223,7 +329,7 @@ async function getLauncherState() {
 }
 
 async function withFreshState(action, fn) {
-  const config = loadRuntimeConfig();
+  const config = getEffectiveConfig();
   const captured = await captureConsoleAsync(() => fn(config));
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
 
@@ -238,12 +344,14 @@ async function withFreshState(action, fn) {
 }
 
 async function runDiagnose() {
-  const config = loadRuntimeConfig();
+  const config = getEffectiveConfig();
   const report = await buildDiagnoseReport(config);
+  const source = config.configSource === "pack abierto" ? "pack abierto" : "configuración local";
 
   return {
     action: "diagnose",
     lines: [
+      `Origen: ${source}.`,
       `Diagnóstico: ${report.errors.length} errores, ${report.warnings.length} advertencias.`,
       ...[...new Set(report.recommendations)].map((item) => `Recomendación: ${item}`),
     ],
@@ -254,11 +362,11 @@ async function runDiagnose() {
 }
 
 function playCompetition() {
-  return withFreshState("play-competition", (config) => launchMame(config, "invaders", "competition"));
+  return withFreshState("play-competition", (config) => launchMame(config, config.pack?.rom || "invaders", "competition"));
 }
 
 function playPractice() {
-  return withFreshState("practice", (config) => launchMame(config, "invaders", "practice"));
+  return withFreshState("practice", (config) => launchMame(config, config.pack?.rom || "invaders", "practice"));
 }
 
 function submitAllPending() {
@@ -266,6 +374,21 @@ function submitAllPending() {
 }
 
 function syncPlugin() {
+  const config = getEffectiveConfig();
+
+  if (config.configSource === "pack abierto") {
+    return Promise.resolve({
+      action: "sync-plugin",
+      lines: ["Sync plugin está disponible solo para el modo desarrollo puente."],
+      ok: false,
+      summary: "Sync plugin está disponible solo para desarrollo.",
+      state: null,
+    }).then(async (result) => ({
+      ...result,
+      state: await getLauncherState(),
+    }));
+  }
+
   return withFreshState("sync-plugin", async (config) => {
     const result = await syncPluginToPack(config);
     printSyncPluginResult(result);
@@ -280,12 +403,67 @@ function logoutSession() {
   return withFreshState("logout", (config) => logout(config));
 }
 
+async function cancelOpenPack() {
+  return {
+    action: "open-pack",
+    canceled: true,
+    lines: ["No se seleccionó ningún pack."],
+    ok: true,
+    summary: "No se seleccionó ningún pack.",
+    state: await getLauncherState(),
+  };
+}
+
+async function openPackDirectory(packDir) {
+  const result = readPackForGui(packDir);
+
+  if (!result.ok) {
+    return {
+      action: "open-pack",
+      code: result.code,
+      lines: result.errors,
+      ok: false,
+      summary: result.code === "missing_pack_json"
+        ? "No encuentro pack.json en esta carpeta. Elige la carpeta raíz del pack."
+        : "El pack no parece válido para High Score League.",
+      state: await getLauncherState(),
+    };
+  }
+
+  activeOpenedPack = {
+    openedAt: new Date().toISOString(),
+    pack: result.pack,
+  };
+
+  return {
+    action: "open-pack",
+    lines: [
+      `Pack abierto correctamente: ${result.pack.packId || result.pack.gameId}.`,
+      "Cambiar de pack no borra puntuaciones locales.",
+    ],
+    ok: true,
+    pack: {
+      gameId: result.pack.gameId,
+      packId: result.pack.packId || null,
+      packRoot: result.pack.packRoot,
+      rom: result.pack.rom,
+      weekId: result.pack.weekId,
+    },
+    summary: "Pack abierto correctamente.",
+    state: await getLauncherState(),
+  };
+}
+
 module.exports = {
+  cancelOpenPack,
+  deriveOpenedPackConfig,
   eventResultToQueueItem,
   getLauncherState,
   logoutSession,
+  openPackDirectory,
   playCompetition,
   playPractice,
+  readPackForGui,
   runDiagnose,
   submitAllPending,
   summarizeDiagnoseReport,

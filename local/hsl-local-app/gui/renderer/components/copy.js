@@ -2,6 +2,7 @@ export const COPY = {
   actions: {
     diagnose: "Diagnóstico",
     logout: "Cerrar sesión",
+    openPack: "Abrir pack",
     play: "Jugar competición",
     practice: "Practicar",
     refresh: "Actualizar estado",
@@ -16,6 +17,10 @@ export function formatCount(value, singular, plural) {
 }
 
 export function getPackLabel(bridge) {
+  if (bridge?.packOpened) {
+    return "Pack abierto correctamente";
+  }
+
   if (bridge?.devBridge) {
     return "Pack de desarrollo cargado";
   }

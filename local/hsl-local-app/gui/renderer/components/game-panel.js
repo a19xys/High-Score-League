@@ -13,6 +13,18 @@ function renderSubmitState(state) {
   `;
 }
 
+function renderPackAction(state) {
+  const label = state.data?.bridge?.packOpened ? "Cambiar pack" : "Abrir pack";
+  const disabled = state.busy ? "disabled" : "";
+
+  return `
+    <button class="secondary-action pack-action" type="button" data-action="open-pack" ${disabled}>
+      <span>${label}</span>
+      <small>Elige la carpeta raíz del pack descargado.</small>
+    </button>
+  `;
+}
+
 export function renderGamePanel(state) {
   const data = state.data;
   const game = data?.game;
@@ -26,6 +38,7 @@ export function renderGamePanel(state) {
         <div class="badge-row">
           <span class="badge badge-accent">Competición</span>
           <span class="badge badge-ok">Activa</span>
+          ${bridge?.packOpened ? `<span class="badge badge-accent">Pack abierto</span>` : ""}
           ${bridge?.devBridge ? `<span class="badge badge-muted">Solo desarrollo</span>` : ""}
         </div>
         <div>
@@ -45,6 +58,7 @@ export function renderGamePanel(state) {
               <small>Entrena sin activar el plugin de puntuación.</small>
             </button>
             ${renderSubmitState(state)}
+            ${renderPackAction(state)}
           </div>
         </div>
       </div>

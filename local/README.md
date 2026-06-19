@@ -373,10 +373,14 @@ status, the effective dev bridge or pack config, the active Space Invaders
 week, pending/sent/failed counts, a pending list, actions, and command output.
 The polished first screen is centered on the player flow: active game, ready
 state, `Jugar competición`, practice, pending uploads, friendly messages, and a
-secondary development tools area for diagnostics and plugin sync.
+secondary development tools area for diagnostics and plugin sync. It can also
+open an external pack folder for the current GUI session without modifying the
+local `config.json`.
 
 Design document: [`docs/launcher-gui-0.md`](docs/launcher-gui-0.md).
 Prototype notes: [`docs/launcher-gui-1.md`](docs/launcher-gui-1.md).
+Pack opening notes:
+[`docs/launcher-pack-open-1.md`](docs/launcher-pack-open-1.md).
 
 Run it from the repository root:
 
@@ -398,6 +402,13 @@ development-only `sync-plugin`. Login remains a CLI action for now:
 npm.cmd --prefix local/hsl-local-app run login -- <email>
 ```
 
+To test the product-style flow, press `Abrir pack` in the launcher and select
+the root folder that contains `pack.json`. When the pack is valid, the GUI uses
+that pack's MAME paths, ROM, week, web URL, and plugin-local event queue for
+the current session. This is in-memory only for now: it does not create recent
+packs, does not persist selection, and changing packs does not delete pending
+events.
+
 Architecture constraints for that GUI:
 
 - do not store session/account data inside a disposable pack;
@@ -408,6 +419,8 @@ Architecture constraints for that GUI:
   feature.
 
 This prototype is not packaged, not an installer, and not the final pack picker.
+Pack opening is the first incremental step toward the final pack flow, not
+complete multi-pack management.
 
 Configuration precedence is:
 

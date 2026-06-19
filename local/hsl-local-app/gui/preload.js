@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   diagnose: invoke("launcher:diagnose"),
   getState: invoke("launcher:get-state"),
   logout: invoke("launcher:logout"),
+  openPack: invoke("launcher:open-pack"),
   playCompetition: invoke("launcher:play-competition"),
   practice: invoke("launcher:practice"),
   submitAll: invoke("launcher:submit-all"),

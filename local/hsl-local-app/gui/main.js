@@ -1,5 +1,5 @@
 const path = require("node:path");
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const service = require("./launcher-service");
 
 let mainWindow = null;
@@ -28,6 +28,20 @@ function createMainWindow() {
 
 function registerIpc() {
   ipcMain.handle("launcher:get-state", () => service.getLauncherState());
+  ipcMain.handle("launcher:open-pack", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      buttonLabel: "Abrir pack",
+      message: "Elige la carpeta raíz del pack",
+      properties: ["openDirectory"],
+      title: "Abrir pack de High Score League",
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return service.cancelOpenPack();
+    }
+
+    return service.openPackDirectory(result.filePaths[0]);
+  });
   ipcMain.handle("launcher:diagnose", () => service.runDiagnose());
   ipcMain.handle("launcher:play-competition", () => service.playCompetition());
   ipcMain.handle("launcher:practice", () => service.playPractice());

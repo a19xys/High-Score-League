@@ -297,6 +297,7 @@ async function buildDiagnoseReport(config) {
 
     if (
       config.configExists &&
+      config.mameSource !== "opened-pack" &&
       (looksLikePersonalAbsolutePath(config.mame.executablePath) || looksLikePersonalAbsolutePath(config.mame.workingDir))
     ) {
       add(report, "mame", "WARN", "config.json contiene rutas absolutas personales de MAME", [

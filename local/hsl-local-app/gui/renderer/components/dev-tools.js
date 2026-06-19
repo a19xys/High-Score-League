@@ -4,6 +4,11 @@ export function renderDevTools(state) {
   const data = state.data;
   const disabled = state.busy ? "disabled" : "";
   const syncDisabled = state.busy || !data?.bridge?.devBridge ? "disabled" : "";
+  const modeLabel = data?.bridge?.packOpened
+    ? "pack abierto"
+    : data?.bridge?.devBridge
+      ? "modo desarrollo puente"
+      : data?.bridge?.mode || "desconocido";
 
   return `
     <section class="panel dev-tools">
@@ -30,11 +35,11 @@ export function renderDevTools(state) {
         <dl>
           <div>
             <dt>Modo</dt>
-            <dd>${escapeHtml(data?.bridge?.devBridge ? "dev bridge" : data?.bridge?.mode || "desconocido")}</dd>
+            <dd>${escapeHtml(modeLabel)}</dd>
           </div>
           <div>
             <dt>Pack / MAME</dt>
-            <dd>${escapeHtml(data?.bridge?.workingDir || data?.bridge?.packPath || "sin ruta activa")}</dd>
+            <dd>${escapeHtml(data?.bridge?.workingDir || data?.bridge?.packRoot || data?.bridge?.packPath || "sin ruta activa")}</dd>
           </div>
           <div>
             <dt>Cola</dt>
