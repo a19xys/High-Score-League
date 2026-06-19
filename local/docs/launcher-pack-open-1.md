@@ -73,6 +73,26 @@ GUI. Las acciones de la GUI usan la configuración derivada del pack:
 - Cola local visible.
 - `Diagnóstico`.
 
+Desde `LOCAL-LAUNCHER-PACK-REMEMBER-1`, la GUI también recuerda el último pack
+válido abierto en:
+
+```text
+userData/packs/recent.json
+```
+
+El archivo solo guarda la ruta del pack y la fecha de actualización:
+
+```json
+{
+  "lastOpenedPackDir": "C:/Users/u/Downloads/hsl-invaders",
+  "updatedAt": "2026-06-19T00:00:00.000Z"
+}
+```
+
+Al iniciar de nuevo, la GUI intenta recargar ese pack. Si la carpeta ya no
+existe, falta `pack.json` o el pack dejó de ser válido, muestra un aviso y
+mantiene el fallback de desarrollo puente.
+
 La cola se resuelve de forma provisional dentro del pack:
 
 ```text
@@ -87,8 +107,7 @@ La cola se resuelve de forma provisional dentro del pack:
 - No se copian ROMs, MAME ni eventos.
 - No se borra `pending` al abrir o cambiar pack.
 - No se mueve la sesión al pack.
-- No hay lista de packs recientes.
-- No hay persistencia del pack abierto.
+- No hay lista de packs recientes completa.
 - No hay multi-pack completo.
 - `sync-plugin` sigue siendo solo herramienta de desarrollo puente.
 

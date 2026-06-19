@@ -14,6 +14,7 @@ const store = createStore({
   busyLabel: null,
   data: null,
   logs: [],
+  noticeIds: [],
   theme: savedTheme,
 });
 
@@ -46,7 +47,24 @@ function render() {
 
 async function refreshState() {
   const data = await window.hslLauncher.getState();
-  store.setState({ data });
+  const current = store.getState();
+  const noticeLogs = (data.notices || [])
+    .filter((notice) => !current.noticeIds.includes(notice.id))
+    .map((notice) => ({
+      details: notice.details || [],
+      ok: notice.level !== "warning",
+      summary: notice.summary,
+      title: "Pack recordado",
+    }));
+
+  store.setState({
+    data,
+    logs: noticeLogs.reduce((logs, notice) => appendLog(logs, notice), current.logs),
+    noticeIds: [
+      ...current.noticeIds,
+      ...(data.notices || []).map((notice) => notice.id),
+    ],
+  });
 }
 
 function resultToLog(title, response) {

@@ -383,6 +383,8 @@ Design document: [`docs/launcher-gui-0.md`](docs/launcher-gui-0.md).
 Prototype notes: [`docs/launcher-gui-1.md`](docs/launcher-gui-1.md).
 Pack opening notes:
 [`docs/launcher-pack-open-1.md`](docs/launcher-pack-open-1.md).
+Remembered-pack notes:
+[`docs/launcher-pack-remember-1.md`](docs/launcher-pack-remember-1.md).
 
 Run it from the repository root:
 
@@ -438,6 +440,18 @@ Then edit `weekId`. In this flat layout, MAME is resolved from the pack root:
 This is only for the current development pack. The cleaner final pack layout
 continues to be the one documented by `local/pack.example.json`, with MAME
 inside a `mame/` subfolder.
+
+When a pack opens successfully, the GUI remembers its folder in shared user
+data:
+
+```text
+userData/packs/recent.json
+```
+
+That file stores only `lastOpenedPackDir` and `updatedAt`. It does not copy the
+pack, does not store tokens, and does not delete pending events. On the next GUI
+start, the launcher tries to reload that pack; if it is missing or invalid, it
+shows an aviso and falls back to the local development bridge.
 
 Architecture constraints for that GUI:
 

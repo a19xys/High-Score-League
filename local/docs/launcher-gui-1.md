@@ -47,13 +47,22 @@ Documento específico: [`launcher-pack-open-1.md`](launcher-pack-open-1.md).
 - Este ejemplo plano no sustituye el layout final distribuible con MAME dentro
   de `mame/`.
 
+## Pack remember 1
+
+- Al abrir un pack válido, la GUI recuerda su carpeta en
+  `userData/packs/recent.json`.
+- Al iniciar, intenta recargar automáticamente el último pack si sigue
+  existiendo y su `pack.json` sigue siendo válido.
+- Si falla, muestra un aviso amable y mantiene el fallback de desarrollo puente.
+- No copia packs, no borra eventos y no implementa lista multi-pack.
+
 ## Limites
 
 - El juego fijo sigue siendo `invaders`, igual que el MVP local actual.
 - No hay selector de packs, multi-juego, auto-submit, capturas manuales ni reglas nuevas de partida.
 - `sync-plugin` solo se habilita cuando la configuración parece modo desarrollo puente.
 - No se cambia `config.json`; la GUI solo lee la configuración efectiva.
-- No hay packs recientes, persistencia de selección ni multi-pack completo.
+- No hay lista de packs recientes ni multi-pack completo.
 
 ## Estructura
 

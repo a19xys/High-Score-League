@@ -7,8 +7,10 @@ const {
   deriveOpenedPackConfig,
   eventResultToQueueItem,
   readPackForGui,
+  resolveRememberedPack,
   summarizeDiagnoseReport,
 } = require("../gui/launcher-service");
+const { writeLastOpenedPack } = require("../src/recent-packs");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-gui-pack-test-"));
@@ -18,6 +20,13 @@ async function withTempDir(fn) {
   } finally {
     await fsp.rm(dir, { recursive: true, force: true });
   }
+}
+
+async function writeValidPack(root) {
+  const packDir = path.join(root, "hsl-invaders");
+  await fsp.mkdir(packDir, { recursive: true });
+  await fsp.writeFile(path.join(packDir, "pack.json"), JSON.stringify(validPack()), "utf8");
+  return packDir;
 }
 
 function validPack() {
@@ -166,5 +175,41 @@ test("deriveOpenedPackConfig resolves MAME and plugin queue from the opened pack
     assert.equal(config.eventsFailedDirAbs, path.join(packMameRoot, "plugins", "hsl-score", "events", "failed"));
     assert.equal(config.sessionFileAbs, baseConfig.sessionFileAbs);
     assert.equal(config.configPath, baseConfig.configPath);
+  });
+});
+
+test("resolveRememberedPack loads a valid remembered pack", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const packDir = await writeValidPack(dir);
+    await writeLastOpenedPack(config, packDir, {
+      updatedAt: "2026-06-19T00:00:00.000Z",
+    });
+
+    const result = await resolveRememberedPack(config);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.reason, "ok");
+    assert.equal(result.pack.packRoot, packDir);
+    assert.equal(result.notice.summary, "Último pack cargado correctamente.");
+  });
+});
+
+test("resolveRememberedPack falls back when remembered pack folder is missing", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    await writeLastOpenedPack(config, path.join(dir, "missing-pack"), {
+      updatedAt: "2026-06-19T00:00:00.000Z",
+    });
+
+    const result = await resolveRememberedPack(config);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, "missing_dir");
+    assert.match(result.notice.summary, /No se pudo cargar el último pack/);
   });
 });

@@ -1,3 +1,4 @@
+const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { loadConfig } = require("../src/config");
 const { readSession, isSessionExpiringSoon, logout } = require("../src/auth");
@@ -6,10 +7,13 @@ const { listJsonFiles, readEventFile } = require("../src/event-files");
 const { listSupportedGames } = require("../src/games");
 const { launchMame } = require("../src/mame-launcher");
 const { loadPackFromDir, resolvePackMamePaths } = require("../src/pack");
+const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-packs");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
 const { submitAll } = require("../src/submission-service");
 
 let activeOpenedPack = null;
+let recentPackLoadAttempted = false;
+let recentPackNotices = [];
 
 function loadRuntimeConfig() {
   return loadConfig();
@@ -73,6 +77,24 @@ function normalizeMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function createNotice(level, summary, details = []) {
+  return {
+    details,
+    id: `${level}:${summary}:${details.join("|")}`,
+    level,
+    summary,
+  };
+}
+
+async function pathIsDirectory(targetPath) {
+  try {
+    const stat = await fsp.stat(targetPath);
+    return stat.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function readPackForGui(packDir) {
   try {
     const result = loadPackFromDir(packDir);
@@ -112,6 +134,86 @@ function readPackForGui(packDir) {
       ok: false,
       packDir,
       packPath: path.join(packDir, "pack.json"),
+    };
+  }
+}
+
+async function resolveRememberedPack(config) {
+  const recent = await readRecentPackState(config);
+
+  if (recent.error) {
+    return {
+      notice: createNotice("warning", "No se pudo leer el último pack recordado.", [recent.error]),
+      ok: false,
+      pack: null,
+      reason: "recent_read_error",
+    };
+  }
+
+  if (!recent.lastOpenedPackDir) {
+    return {
+      notice: null,
+      ok: false,
+      pack: null,
+      reason: "empty",
+    };
+  }
+
+  if (!(await pathIsDirectory(recent.lastOpenedPackDir))) {
+    return {
+      notice: createNotice(
+        "warning",
+        "No se pudo cargar el último pack. Puedes abrirlo de nuevo.",
+        ["La carpeta recordada ya no existe o no es accesible."]
+      ),
+      ok: false,
+      pack: null,
+      reason: "missing_dir",
+    };
+  }
+
+  const result = readPackForGui(recent.lastOpenedPackDir);
+
+  if (!result.ok) {
+    return {
+      notice: createNotice(
+        "warning",
+        "No se pudo cargar el último pack. Puedes abrirlo de nuevo.",
+        result.errors
+      ),
+      ok: false,
+      pack: null,
+      reason: result.code,
+    };
+  }
+
+  return {
+    notice: createNotice("ok", "Último pack cargado correctamente.", [
+      result.pack.packId || result.pack.gameId,
+    ]),
+    ok: true,
+    pack: result.pack,
+    reason: "ok",
+  };
+}
+
+async function ensureRememberedPackLoaded() {
+  if (activeOpenedPack || recentPackLoadAttempted) {
+    return;
+  }
+
+  recentPackLoadAttempted = true;
+  const remembered = await resolveRememberedPack(loadRuntimeConfig());
+
+  if (remembered.notice) {
+    recentPackNotices = [remembered.notice];
+  }
+
+  if (remembered.ok) {
+    activeOpenedPack = {
+      openedAt: new Date().toISOString(),
+      pack: remembered.pack,
+      remembered: true,
     };
   }
 }
@@ -302,6 +404,7 @@ function getBridgeState(config) {
     devBridge: mode === "dev-bridge",
     mode,
     packOpened,
+    packRemembered: Boolean(activeOpenedPack?.remembered),
     packLoaded: config.packLoaded,
     packPath: config.packPath,
     packRoot: config.packRoot || null,
@@ -312,6 +415,7 @@ function getBridgeState(config) {
 }
 
 async function getLauncherState() {
+  await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
   const [queue, session] = await Promise.all([
     getQueueState(config),
@@ -322,6 +426,7 @@ async function getLauncherState() {
     bridge: getBridgeState(config),
     configPath: config.configPath,
     game: getGameState(config),
+    notices: recentPackNotices,
     queue,
     session,
     timestamp: new Date().toISOString(),
@@ -329,6 +434,7 @@ async function getLauncherState() {
 }
 
 async function withFreshState(action, fn) {
+  await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
   const captured = await captureConsoleAsync(() => fn(config));
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
@@ -344,6 +450,7 @@ async function withFreshState(action, fn) {
 }
 
 async function runDiagnose() {
+  await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
   const report = await buildDiagnoseReport(config);
   const source = config.configSource === "pack abierto" ? "pack abierto" : "configuración local";
@@ -373,20 +480,18 @@ function submitAllPending() {
   return withFreshState("submit-all", (config) => submitAll(config));
 }
 
-function syncPlugin() {
+async function syncPlugin() {
+  await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
 
   if (config.configSource === "pack abierto") {
-    return Promise.resolve({
+    return {
       action: "sync-plugin",
       lines: ["Sync plugin está disponible solo para el modo desarrollo puente."],
       ok: false,
       summary: "Sync plugin está disponible solo para desarrollo.",
-      state: null,
-    }).then(async (result) => ({
-      ...result,
       state: await getLauncherState(),
-    }));
+    };
   }
 
   return withFreshState("sync-plugin", async (config) => {
@@ -433,13 +538,23 @@ async function openPackDirectory(packDir) {
   activeOpenedPack = {
     openedAt: new Date().toISOString(),
     pack: result.pack,
+    remembered: false,
   };
+  recentPackNotices = [];
+  let recentWriteWarning = null;
+
+  try {
+    await writeLastOpenedPack(loadRuntimeConfig(), result.pack.packRoot);
+  } catch (error) {
+    recentWriteWarning = `No se pudo recordar este pack para el próximo inicio: ${normalizeMessage(error)}`;
+  }
 
   return {
     action: "open-pack",
     lines: [
       `Pack abierto correctamente: ${result.pack.packId || result.pack.gameId}.`,
       "Cambiar de pack no borra puntuaciones locales.",
+      ...(recentWriteWarning ? [recentWriteWarning] : []),
     ],
     ok: true,
     pack: {
@@ -464,6 +579,7 @@ module.exports = {
   playCompetition,
   playPractice,
   readPackForGui,
+  resolveRememberedPack,
   runDiagnose,
   submitAllPending,
   summarizeDiagnoseReport,

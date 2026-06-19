@@ -39,6 +39,7 @@ export function renderGamePanel(state) {
           <span class="badge badge-accent">Competición</span>
           <span class="badge badge-ok">Activa</span>
           ${bridge?.packOpened ? `<span class="badge badge-accent">Pack abierto</span>` : ""}
+          ${bridge?.packRemembered ? `<span class="badge badge-muted">Último pack cargado</span>` : ""}
           ${bridge?.devBridge ? `<span class="badge badge-muted">Solo desarrollo</span>` : ""}
         </div>
         <div>
