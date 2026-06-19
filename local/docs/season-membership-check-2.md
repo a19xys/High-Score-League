@@ -165,13 +165,19 @@ No se muestran ni guardan en el estado renderer:
 La app local si usa el access token en el proceso principal para llamar al
 endpoint, pero el renderer solo recibe estado normalizado y detalles seguros.
 
+## Relacion con auto-sync
+
+`LOCAL-AUTO-SYNC-QUEUE-1` usa estos estados normalizados como puerta de
+seguridad. Solo `member` con `canSubmit === true` permite subir
+automaticamente pendientes. `error` y `unknown` pueden permitir competicion con
+aviso, pero bloquean auto-sync hasta que la participacion pueda comprobarse.
+
 ## Limites
 
 No se implementa en esta tarea:
 
 - unirse a temporada desde la app;
 - selector de cuentas;
-- auto-sync;
 - polling continuo;
 - deep link;
 - cambios en payload;

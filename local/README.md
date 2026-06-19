@@ -126,6 +126,8 @@ Season membership check notes:
 [`docs/season-membership-check-1.md`](docs/season-membership-check-1.md).
 Season membership diagnostics notes:
 [`docs/season-membership-check-2.md`](docs/season-membership-check-2.md).
+Auto-sync queue notes:
+[`docs/auto-sync-queue-1.md`](docs/auto-sync-queue-1.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is

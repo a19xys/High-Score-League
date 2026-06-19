@@ -252,6 +252,12 @@ No participas en esta temporada
 
 El botón manual `Subir pendientes` puede existir como herramienta avanzada durante desarrollo o recuperación, pero no debe ser el centro de la experiencia final. La app debe comunicar siempre que una puntuación guardada localmente no se ha perdido.
 
+Primer soporte implementado en `LOCAL-AUTO-SYNC-QUEUE-1`: la GUI intenta
+subir pendientes de forma oportunista cuando hay sesion, scope de cuenta/pack,
+membership `member`, `canSubmit === true` y cola scoped con `pending > 0`.
+No hay polling permanente ni servicio de fondo; estados `error` y `unknown`
+pueden permitir competir con aviso, pero no suben automaticamente.
+
 ## Temporada y participación
 
 Objetivo futuro para competición:
@@ -397,6 +403,9 @@ Orden recomendado:
   participacion en temporada para que la app local bloquee competicion con
   mensajes de jugador antes de llegar al ingest.
 
+- `auto-sync-queue-1.md` implementa la primera sincronizacion automatica
+  conservadora sobre la cola scoped activa, sin cambiar payloads ni endpoint.
+
 ## No se implementa en esta tarea
 
 - No se cambia auth.
@@ -412,6 +421,6 @@ Orden recomendado:
 - No se implementa biblioteca de ubicaciones.
 - No se implementa biblioteca de packs.
 - No se implementa selector de cuentas.
-- No se implementa auto-sync.
+- No se implementa polling permanente de auto-sync.
 - No se empaqueta Electron.
 - No se modifica configuración real.

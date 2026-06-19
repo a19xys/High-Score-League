@@ -28,6 +28,7 @@ export function renderDevTools(state) {
       ? "metadata.json cargado"
       : "sin metadata local";
   const membership = data?.membership;
+  const autoSync = data?.autoSync;
   const modeLabel = data?.bridge?.packOpened
     ? "pack abierto"
     : data?.bridge?.devBridge
@@ -79,6 +80,12 @@ export function renderDevTools(state) {
           ${detailRow("Comprobado", membership?.checkedAt)}
           ${detailRow("WeekId", membership?.weekId)}
           ${detailRow("SeasonId", membership?.seasonId)}
+          ${detailRow("Auto-sync estado", autoSync?.status)}
+          ${detailRow("Auto-sync motivo", autoSync?.reason)}
+          ${detailRow("Auto-sync ultimo intento", autoSync?.lastAttemptAt)}
+          ${detailRow("Auto-sync ultimo exito", autoSync?.lastSuccessAt)}
+          ${detailRow("Auto-sync pending antes", autoSync?.pendingBefore)}
+          ${detailRow("Auto-sync pending despues", autoSync?.pendingAfter)}
           <div>
             <dt>Cola</dt>
             <dd>${escapeHtml(data?.queue?.pending?.dir || "sin ruta activa")}</dd>

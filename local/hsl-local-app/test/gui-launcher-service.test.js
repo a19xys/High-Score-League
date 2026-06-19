@@ -13,6 +13,8 @@ const {
   readPackForGui,
   recheckSeasonMembership,
   resolveRememberedPack,
+  resetAutoSyncStateForTests,
+  runAutoSyncIfEligible,
   summarizeDiagnoseReport,
 } = require("../gui/launcher-service");
 const { addLibraryLocation } = require("../src/library-locations");
@@ -55,6 +57,46 @@ function validPack() {
   };
 }
 
+function autoSyncContext(overrides = {}) {
+  return {
+    config: {
+      eventsPendingDirAbs: "C:/pack/events/pending",
+    },
+    membership: {
+      canSubmit: true,
+      status: "member",
+    },
+    queue: {
+      totals: {
+        failed: 0,
+        pending: 1,
+        sent: 0,
+      },
+    },
+    scoped: {
+      scope: {
+        packKey: "pack",
+        playerKey: "player",
+        scopedQueueRoot: "C:/userData/players/player/packs/pack",
+      },
+    },
+    session: {
+      hasSession: true,
+    },
+    ...overrides,
+  };
+}
+
+function autoSyncQueue(totals) {
+  return {
+    totals: {
+      failed: totals.failed || 0,
+      pending: totals.pending || 0,
+      sent: totals.sent || 0,
+    },
+  };
+}
+
 test("summarizeDiagnoseReport keeps counts without exposing raw tokens", () => {
   const report = {
     errors: [{ level: "ERROR", message: "missing dir" }],
@@ -84,6 +126,121 @@ test("launcher service exposes manual membership recheck action", () => {
   assert.equal(typeof recheckSeasonMembership, "function");
 });
 
+test("runAutoSyncIfEligible submits eligible scoped pending queue", async () => {
+  resetAutoSyncStateForTests();
+  const context = autoSyncContext();
+  const calls = [];
+
+  const result = await runAutoSyncIfEligible(context, {
+    getQueueStateImpl: async () => autoSyncQueue({ pending: 0, sent: 1 }),
+    now: "2026-06-20T00:00:00.000Z",
+    submitAllImpl: async (config) => {
+      calls.push(config);
+      console.log("submitted");
+      return 0;
+    },
+  });
+
+  assert.equal(result.attempted, true);
+  assert.equal(result.ok, true);
+  assert.equal(result.autoSync.status, "synced");
+  assert.equal(result.autoSync.pendingBefore, 1);
+  assert.equal(result.autoSync.pendingAfter, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0], context.config);
+  assert.deepEqual(result.lines, ["submitted"]);
+});
+
+test("runAutoSyncIfEligible skips unsafe membership states", async () => {
+  resetAutoSyncStateForTests();
+  let calls = 0;
+
+  for (const status of ["not_member", "unknown", "error", "unauthenticated", "missing_week", "invalid_week"]) {
+    const result = await runAutoSyncIfEligible(autoSyncContext({
+      membership: {
+        canSubmit: false,
+        status,
+      },
+    }), {
+      submitAllImpl: async () => {
+        calls += 1;
+        return 0;
+      },
+    });
+
+    assert.equal(result.attempted, false);
+  }
+
+  assert.equal(calls, 0);
+});
+
+test("runAutoSyncIfEligible locks concurrent automatic attempts", async () => {
+  resetAutoSyncStateForTests();
+  let submitStarted;
+  let releaseSubmit;
+  const started = new Promise((resolve) => {
+    submitStarted = resolve;
+  });
+  const release = new Promise((resolve) => {
+    releaseSubmit = resolve;
+  });
+
+  const first = runAutoSyncIfEligible(autoSyncContext(), {
+    getQueueStateImpl: async () => autoSyncQueue({ pending: 0, sent: 1 }),
+    submitAllImpl: async () => {
+      submitStarted();
+      await release;
+      return 0;
+    },
+  });
+
+  await started;
+
+  const second = await runAutoSyncIfEligible(autoSyncContext(), {
+    submitAllImpl: async () => {
+      throw new Error("second submit should not run");
+    },
+  });
+
+  releaseSubmit();
+  const firstResult = await first;
+
+  assert.equal(second.attempted, false);
+  assert.equal(firstResult.attempted, true);
+  assert.equal(firstResult.autoSync.status, "synced");
+});
+
+test("runAutoSyncIfEligible reports partial failed queue after submit", async () => {
+  resetAutoSyncStateForTests();
+
+  const result = await runAutoSyncIfEligible(autoSyncContext({
+    queue: autoSyncQueue({ pending: 2, sent: 0 }),
+  }), {
+    getQueueStateImpl: async () => autoSyncQueue({ failed: 1, pending: 0, sent: 1 }),
+    submitAllImpl: async () => 1,
+  });
+
+  assert.equal(result.attempted, true);
+  assert.equal(result.ok, false);
+  assert.equal(result.autoSync.status, "partial_failed");
+  assert.equal(result.autoSync.failedCount, 1);
+});
+
+test("launcher service wires auto-sync to safe GUI state transitions", async () => {
+  const service = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "launcher-service.js"),
+    "utf8",
+  );
+
+  assert.match(service, /getLauncherState\(options = \{\}\)/);
+  assert.match(service, /runAutoSyncIfEligible\(context\)/);
+  assert.match(service, /getLauncherState\(\{ attemptAutoSync: result\.ok \}\)/);
+  assert.match(service, /getLauncherState\(\{ attemptAutoSync: true \}\)/);
+  assert.match(service, /Puntuacion guardada localmente\. Se sincronizara cuando pueda comprobarse la temporada\./);
+  assert.match(service, /autoSyncInProgress \|\| manualSyncInProgress/);
+  assert.match(service, /submitAll\(scoped\.config\)/);
+});
+
 test("renderer maps membership statuses and manual recheck action", async () => {
   const gamePanel = await fsp.readFile(
     path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js"),
@@ -97,6 +254,8 @@ test("renderer maps membership statuses and manual recheck action", async () => 
   assert.match(gamePanel, /unauthenticated: \["badge-error", "Sesion no valida"\]/);
   assert.match(gamePanel, /error: \["badge-error", "Error de comprobacion"\]/);
   assert.match(gamePanel, /data-action="check-membership"/);
+  assert.match(gamePanel, /autoSyncBadge/);
+  assert.match(gamePanel, /Sincronizando/);
   assert.match(app, /window\.hslLauncher\.checkMembership\(\)/);
 });
 
@@ -110,6 +269,8 @@ test("renderer technical details include safe membership diagnostics", async () 
   assert.match(devTools, /HTTP status/);
   assert.match(devTools, /Body status/);
   assert.match(devTools, /Motivo tecnico/);
+  assert.match(devTools, /Auto-sync estado/);
+  assert.match(devTools, /Auto-sync motivo/);
   assert.equal(/access_token|refresh_token|Authorization|session\.json/.test(devTools), false);
 });
 

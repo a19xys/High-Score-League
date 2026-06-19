@@ -161,6 +161,24 @@ Documento especifico:
 Documento especifico:
 [`season-membership-check-2.md`](season-membership-check-2.md).
 
+## Auto sync queue 1
+
+- La GUI intenta sincronizar pendientes de forma oportunista cuando la cuenta
+  activa participa en la temporada del pack activo.
+- Solo se activa con sesion, membership `member`, `canSubmit === true`, cola
+  scoped resuelta y `pending > 0`.
+- `not_member`, `no_session`, `unauthenticated`, `missing_week`,
+  `invalid_week`, `error` y `unknown` bloquean la subida automatica.
+- `error` y `unknown` pueden permitir jugar competicion con aviso, pero la
+  puntuacion queda local hasta verificar la temporada.
+- No hay polling permanente, no se cambia `config.json` y se reutiliza
+  `submitAll(scoped.config)`.
+- El panel del juego muestra un estado secundario de auto-sync y los detalles
+  tecnicos muestran motivo, ultimo intento y contadores sin secretos.
+
+Documento especifico:
+[`auto-sync-queue-1.md`](auto-sync-queue-1.md).
+
 ## Final UX blueprint 1
 
 - La dirección final de la GUI queda documentada en
@@ -177,7 +195,9 @@ Documento especifico:
 ## Limites
 
 - El juego fijo sigue siendo `invaders`, igual que el MVP local actual.
-- No hay selector de packs, multi-juego, auto-submit, capturas manuales ni reglas nuevas de partida.
+- No hay selector de packs, multi-juego, capturas manuales ni reglas nuevas de partida.
+- El auto-sync implementado es oportunista y conservador; no es un servicio de
+  fondo ni polling permanente.
 - `sync-plugin` solo se habilita cuando la configuración parece modo desarrollo puente.
 - No se cambia `config.json`; la GUI solo lee la configuración efectiva.
 - No hay lista de packs recientes ni multi-pack completo.

@@ -5,7 +5,17 @@ function renderSubmitState(state) {
   const pending = state.data?.queue?.totals?.pending || 0;
   const hasSession = Boolean(state.data?.session?.hasSession);
   const membership = state.data?.membership;
-  const disabled = state.busy || pending === 0 || !hasSession || membership?.canSubmit === false ? "disabled" : "";
+  const autoSyncing = state.data?.autoSync?.status === "syncing";
+  const disabled = state.busy || autoSyncing || pending === 0 || !hasSession || membership?.canSubmit === false ? "disabled" : "";
+
+  if (autoSyncing) {
+    return `
+      <button class="secondary-action" type="button" data-action="submit" disabled>
+        <span>Subir pendientes</span>
+        <small>Sincronizacion automatica en curso.</small>
+      </button>
+    `;
+  }
 
   if (!hasSession) {
     return `
@@ -62,6 +72,21 @@ function membershipBadge(membership) {
   }
 
   const [badgeClass, label] = labels[membership.status] || labels.unknown;
+
+  return `<span class="badge ${badgeClass}">${label}</span>`;
+}
+
+function autoSyncBadge(autoSync) {
+  const labels = {
+    blocked: ["badge-warn", "Pendiente de sincronizar"],
+    failed: ["badge-error", "No se pudo sincronizar"],
+    idle: ["badge-muted", "Auto-sync listo"],
+    not_eligible: ["badge-muted", "Sin pendientes"],
+    partial_failed: ["badge-warn", "Requiere atencion"],
+    synced: ["badge-ok", "Sincronizado"],
+    syncing: ["badge-accent", "Sincronizando"],
+  };
+  const [badgeClass, label] = labels[autoSync?.status] || labels.idle;
 
   return `<span class="badge ${badgeClass}">${label}</span>`;
 }
@@ -134,6 +159,7 @@ export function renderGamePanel(state) {
   const game = data?.game;
   const bridge = data?.bridge;
   const membership = data?.membership;
+  const autoSync = data?.autoSync;
   const disabled = state.busy ? "disabled" : "";
   const membershipBlocksCompetition = membership?.canPlayCompetition === false;
   const competitionDisabled = state.busy || !data?.session?.hasSession || membershipBlocksCompetition ? "disabled" : "";
@@ -153,6 +179,7 @@ export function renderGamePanel(state) {
         <div class="badge-row">
           <span class="badge badge-accent">Competición</span>
           ${membershipBadge(membership)}
+          ${autoSyncBadge(autoSync)}
           ${bridge?.packOpened ? `<span class="badge badge-accent">Pack abierto</span>` : ""}
           ${bridge?.packRemembered ? `<span class="badge badge-muted">Último pack cargado</span>` : ""}
           ${bridge?.scopedQueue ? `<span class="badge badge-ok">Cola cuenta + pack</span>` : ""}
@@ -170,6 +197,7 @@ export function renderGamePanel(state) {
           </div>
         </div>
         <p class="ready-copy">${escapeHtml(description)}</p>
+        ${autoSync?.message ? `<p class="sync-copy">${escapeHtml(autoSync.message)}</p>` : ""}
         <div class="primary-actions">
           <button class="play-button" type="button" data-action="play" ${competitionDisabled}>
             <span>${COPY.actions.play}</span>

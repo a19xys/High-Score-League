@@ -2,6 +2,12 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { loadConfig } = require("../src/config");
 const {
+  emptyAutoSyncState,
+  getAutoSyncDisplayState,
+  shouldAutoSync,
+  summarizeAutoSyncAttempt,
+} = require("../src/auto-sync");
+const {
   getAuthState,
   isSessionExpiringSoon,
   logoutLocal,
@@ -29,6 +35,9 @@ const {
 let activeOpenedPack = null;
 let recentPackLoadAttempted = false;
 let recentPackNotices = [];
+let autoSyncInProgress = false;
+let manualSyncInProgress = false;
+let autoSyncState = emptyAutoSyncState();
 
 function loadRuntimeConfig() {
   return loadConfig();
@@ -465,6 +474,137 @@ async function getScopedGuiConfig(baseConfig, session) {
   };
 }
 
+async function getLauncherContext() {
+  await ensureRememberedPackLoaded();
+  const baseConfig = getEffectiveConfig();
+  const session = await getAuthState(baseConfig);
+  const membership = await checkSeasonMembership(baseConfig, session);
+  const scoped = await getScopedGuiConfig(baseConfig, session);
+  const queue = scoped.scope
+    ? await getQueueState(scoped.config)
+    : getEmptyQueueState(baseConfig, scoped.reason);
+
+  return {
+    baseConfig,
+    config: scoped.config,
+    membership,
+    queue,
+    scoped,
+    session,
+  };
+}
+
+async function stateFromContext(context) {
+  const { baseConfig, config, membership, queue, scoped, session } = context;
+  const autoSync = getAutoSyncDisplayState({
+    autoSyncInProgress,
+    membership,
+    queue,
+    scope: scoped.scope,
+    session,
+  }, autoSyncState);
+
+  return {
+    autoSync,
+    bridge: getBridgeState(config),
+    configPath: config.configPath,
+    game: getGameState(config),
+    library: await scanPackLibrary(baseConfig),
+    membership,
+    notices: recentPackNotices,
+    queue,
+    scope: scoped.scope
+      ? {
+          packKey: scoped.scope.packKey,
+          playerKey: scoped.scope.playerKey,
+          scopedQueueRoot: scoped.scope.scopedQueueRoot,
+          stagingPendingDir: config.stagingEventsPendingDirAbs || null,
+        }
+      : null,
+    session,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function runAutoSyncIfEligible(context, options = {}) {
+  const eligibilityContext = {
+    autoSyncInProgress: autoSyncInProgress || manualSyncInProgress,
+    membership: context.membership,
+    queue: context.queue,
+    scope: context.scoped?.scope,
+    session: context.session,
+  };
+
+  if (!shouldAutoSync(eligibilityContext)) {
+    return {
+      attempted: false,
+      state: autoSyncState,
+    };
+  }
+
+  const now = options.now || new Date().toISOString();
+  autoSyncInProgress = true;
+  autoSyncState = emptyAutoSyncState({
+    lastAttemptAt: now,
+    message: "Subiendo puntuaciones pendientes...",
+    pendingBefore: context.queue?.totals?.pending || 0,
+    status: "syncing",
+  });
+
+  try {
+    const submitAllImpl = options.submitAllImpl || submitAll;
+    const getQueueStateImpl = options.getQueueStateImpl || getQueueState;
+    const captured = await captureConsoleAsync(() => submitAllImpl(context.config));
+    const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
+    const afterQueue = await getQueueStateImpl(context.config);
+
+    autoSyncState = summarizeAutoSyncAttempt({
+      afterQueue,
+      beforeQueue: context.queue,
+      now,
+      ok: exitCode === 0,
+    });
+
+    return {
+      attempted: true,
+      autoSync: autoSyncState,
+      exitCode,
+      lines: captured.lines,
+      ok: exitCode === 0,
+      queue: afterQueue,
+      result: captured.result || null,
+    };
+  } catch (error) {
+    const getQueueStateImpl = options.getQueueStateImpl || getQueueState;
+    const afterQueue = await getQueueStateImpl(context.config).catch(() => context.queue);
+
+    autoSyncState = emptyAutoSyncState({
+      lastAttemptAt: now,
+      message: "No se pudo sincronizar automaticamente. Las puntuaciones siguen guardadas localmente.",
+      pendingAfter: afterQueue?.totals?.pending ?? null,
+      pendingBefore: context.queue?.totals?.pending || 0,
+      reason: normalizeMessage(error),
+      status: "failed",
+    });
+
+    return {
+      attempted: true,
+      autoSync: autoSyncState,
+      error: normalizeMessage(error),
+      ok: false,
+      queue: afterQueue,
+    };
+  } finally {
+    autoSyncInProgress = false;
+  }
+}
+
+function resetAutoSyncStateForTests() {
+  autoSyncInProgress = false;
+  manualSyncInProgress = false;
+  autoSyncState = emptyAutoSyncState();
+}
+
 async function listPendingFileSnapshot(dir) {
   try {
     const files = await listJsonFiles(dir);
@@ -609,35 +749,18 @@ function getBridgeState(config) {
   };
 }
 
-async function getLauncherState() {
-  await ensureRememberedPackLoaded();
-  const baseConfig = getEffectiveConfig();
-  const session = await getAuthState(baseConfig);
-  const membership = await checkSeasonMembership(baseConfig, session);
-  const scoped = await getScopedGuiConfig(baseConfig, session);
-  const queue = scoped.scope
-    ? await getQueueState(scoped.config)
-    : getEmptyQueueState(baseConfig, scoped.reason);
+async function getLauncherState(options = {}) {
+  const context = await getLauncherContext();
 
-  return {
-    bridge: getBridgeState(scoped.config),
-    configPath: scoped.config.configPath,
-    game: getGameState(scoped.config),
-    library: await scanPackLibrary(baseConfig),
-    membership,
-    notices: recentPackNotices,
-    queue,
-    scope: scoped.scope
-      ? {
-          packKey: scoped.scope.packKey,
-          playerKey: scoped.scope.playerKey,
-          scopedQueueRoot: scoped.scope.scopedQueueRoot,
-          stagingPendingDir: scoped.config.stagingEventsPendingDirAbs || null,
-        }
-      : null,
-    session,
-    timestamp: new Date().toISOString(),
-  };
+  if (options.attemptAutoSync) {
+    const result = await runAutoSyncIfEligible(context);
+
+    if (result.attempted) {
+      return stateFromContext(await getLauncherContext());
+    }
+  }
+
+  return stateFromContext(context);
 }
 
 async function recheckSeasonMembership() {
@@ -646,7 +769,7 @@ async function recheckSeasonMembership() {
     lines: ["Comprobacion de temporada actualizada."],
     ok: true,
     summary: "Comprobacion de temporada actualizada.",
-    state: await getLauncherState(),
+    state: await getLauncherState({ attemptAutoSync: true }),
   };
 }
 
@@ -736,6 +859,9 @@ async function playCompetition() {
   const legacyLine = snapshot.size > 0
     ? `Hay ${snapshot.size} capturas antiguas sin asignar en staging; no se importaron automaticamente.`
     : null;
+  const savedLocallyLine = adoption.adopted.length > 0 && (membership.status === "unknown" || membership.status === "error")
+    ? "Puntuacion guardada localmente. Se sincronizara cuando pueda comprobarse la temporada."
+    : null;
 
   return {
     action: "play-competition",
@@ -749,11 +875,12 @@ async function playCompetition() {
       ...(adoption.adopted.length > 0
         ? [`${adoption.adopted.length} captura(s) nueva(s) movida(s) a la cola de esta cuenta y pack.`]
         : ["No se detectaron capturas nuevas para adoptar."]),
+      ...(savedLocallyLine ? [savedLocallyLine] : []),
       ...(legacyLine ? [legacyLine] : []),
     ],
     ok: exitCode === 0,
     result: captured.result || null,
-    state: await getLauncherState(),
+    state: await getLauncherState({ attemptAutoSync: true }),
   };
 }
 
@@ -763,6 +890,21 @@ function playPractice() {
 
 async function submitAllPending() {
   await ensureRememberedPackLoaded();
+
+  if (autoSyncInProgress || manualSyncInProgress) {
+    const summary = autoSyncInProgress
+      ? "La sincronizacion automatica ya esta en marcha."
+      : "Ya hay una subida en marcha.";
+
+    return {
+      action: "submit-all",
+      lines: [summary],
+      ok: false,
+      summary,
+      state: await getLauncherState(),
+    };
+  }
+
   const baseConfig = getEffectiveConfig();
   const session = await getAuthState(baseConfig);
   const membership = await checkSeasonMembership(baseConfig, session);
@@ -799,8 +941,18 @@ async function submitAllPending() {
     };
   }
 
-  const captured = await captureConsoleAsync(() => submitAll(scoped.config));
-  const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
+  manualSyncInProgress = true;
+
+  let captured;
+  let exitCode;
+
+  try {
+    captured = await captureConsoleAsync(() => submitAll(scoped.config));
+    exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
+  } finally {
+    manualSyncInProgress = false;
+  }
+
   const response = {
     action: "submit-all",
     exitCode,
@@ -861,7 +1013,7 @@ async function restoreFailedSubmission(filename) {
       ok: true,
       restored: result,
       summary: "Puntuacion restaurada a pendientes.",
-      state: await getLauncherState(),
+      state: await getLauncherState({ attemptAutoSync: true }),
     };
   } catch (error) {
     return {
@@ -911,7 +1063,7 @@ async function loginWithPassword(credentials = {}) {
     lines: [result.message],
     ok: result.ok,
     summary: result.message,
-    state: await getLauncherState(),
+    state: await getLauncherState({ attemptAutoSync: result.ok }),
   };
 }
 
@@ -992,7 +1144,7 @@ async function activatePackDirectory(packDir, options = {}) {
       weekId: result.pack.weekId,
     },
     summary: options.summary || "Pack abierto correctamente.",
-    state: options.includeState === false ? null : await getLauncherState(),
+    state: options.includeState === false ? null : await getLauncherState({ attemptAutoSync: true }),
   };
 }
 
@@ -1096,6 +1248,8 @@ module.exports = {
   removeLibraryLocationFromGui,
   restoreFailedSubmission,
   resolveRememberedPack,
+  resetAutoSyncStateForTests,
+  runAutoSyncIfEligible,
   runDiagnose,
   submitAllPending,
   summarizeDiagnoseReport,
