@@ -69,6 +69,20 @@ Documento específico: [`launcher-pack-open-1.md`](launcher-pack-open-1.md).
 
 Documento especifico: [`launcher-auth-gui-1.md`](launcher-auth-gui-1.md).
 
+## Submission recovery 1
+
+- La GUI muestra `failed` como `Puntuaciones con error`, no como papelera.
+- Cada puntuacion fallida intenta mostrar un motivo amable y deja los detalles
+  tecnicos plegados.
+- `Restaurar a pendientes` mueve el JSON desde `failed` a `pending` con nombre
+  seguro si ya existe otro archivo igual.
+- Si `pending` queda vacio pero `failed` tiene archivos, el jugador sigue
+  viendo una accion clara para recuperar la puntuacion.
+- No se implementan colas por cuenta ni se mueve la cola a `userData` todavia.
+
+Documento especifico:
+[`launcher-submission-recovery-1.md`](launcher-submission-recovery-1.md).
+
 ## Limites
 
 - El juego fijo sigue siendo `invaders`, igual que el MVP local actual.

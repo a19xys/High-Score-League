@@ -3,7 +3,13 @@ const assert = require("node:assert/strict");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { getNonClashingPath, moveFileSafe } = require("../src/file-queue");
+const {
+  getNonClashingPath,
+  moveFileSafe,
+  readFailureNote,
+  restoreBoxToPending,
+  writeFailureNote,
+} = require("../src/file-queue");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-queue-test-"));
@@ -47,5 +53,42 @@ test("moveFileSafe does not overwrite an existing target", async () => {
     assert.equal(await fsp.readFile(target, "utf8"), "existing");
     assert.equal(await fsp.readFile(expectedTarget, "utf8"), "new");
     await assert.rejects(() => fsp.access(source));
+  });
+});
+
+test("readFailureNote returns the stored failed reason", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      eventsFailedDirAbs: path.join(dir, "failed"),
+    };
+    await fsp.mkdir(config.eventsFailedDirAbs, { recursive: true });
+    await writeFailureNote(config, "score.json", "HTTP 403: player is not joined to season");
+
+    const note = await readFailureNote(config, "score.json");
+
+    assert.equal(note.exists, true);
+    assert.equal(note.reason, "HTTP 403: player is not joined to season");
+    assert.match(note.failedAt, /^\d{4}-/);
+  });
+});
+
+test("restoreBoxToPending restores failed without overwriting pending", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      eventsFailedDirAbs: path.join(dir, "failed"),
+      eventsPendingDirAbs: path.join(dir, "pending"),
+      eventsSentDirAbs: path.join(dir, "sent"),
+    };
+    await fsp.mkdir(config.eventsFailedDirAbs, { recursive: true });
+    await fsp.mkdir(config.eventsPendingDirAbs, { recursive: true });
+    await fsp.writeFile(path.join(config.eventsFailedDirAbs, "score.json"), "failed", "utf8");
+    await fsp.writeFile(path.join(config.eventsPendingDirAbs, "score.json"), "pending", "utf8");
+
+    const result = await restoreBoxToPending(config, "failed", "score.json");
+
+    assert.equal(result.restoredFilename, "score__2.json");
+    assert.equal(await fsp.readFile(path.join(config.eventsPendingDirAbs, "score.json"), "utf8"), "pending");
+    assert.equal(await fsp.readFile(path.join(config.eventsPendingDirAbs, "score__2.json"), "utf8"), "failed");
+    await assert.rejects(() => fsp.access(path.join(config.eventsFailedDirAbs, "score.json")));
   });
 });

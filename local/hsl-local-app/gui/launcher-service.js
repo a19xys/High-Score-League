@@ -16,6 +16,7 @@ const { loadPackFromDir, resolvePackMamePaths } = require("../src/pack");
 const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-packs");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
 const { submitAll } = require("../src/submission-service");
+const { readFailureNote, restoreBoxToPending } = require("../src/file-queue");
 
 let activeOpenedPack = null;
 let recentPackLoadAttempted = false;
@@ -89,6 +90,45 @@ function createNotice(level, summary, details = []) {
     id: `${level}:${summary}:${details.join("|")}`,
     level,
     summary,
+  };
+}
+
+function classifyFailureReason(reason, errors = []) {
+  const technicalReason = [reason, ...errors].filter(Boolean).join("; ");
+
+  if (!technicalReason) {
+    return {
+      friendlyReason: "No se pudo enviar esta puntuacion.",
+      technicalReason: null,
+    };
+  }
+
+  if (
+    /temporada|season|no pertenece|not joined|not a member|not member|not participant|not registered/i.test(technicalReason)
+  ) {
+    return {
+      friendlyReason: "Tu cuenta no esta unida a esta temporada. Unete desde la web y vuelve a intentarlo.",
+      technicalReason,
+    };
+  }
+
+  if (/401|auth|token|sesion|session|unauthorized|no autorizado/i.test(technicalReason)) {
+    return {
+      friendlyReason: "La sesion no es valida. Inicia sesion de nuevo y vuelve a intentarlo.",
+      technicalReason,
+    };
+  }
+
+  if (/JSON|schemaVersion|score|rom|detectedAt|source/i.test(technicalReason)) {
+    return {
+      friendlyReason: "El archivo de puntuacion necesita revision antes de enviarse.",
+      technicalReason,
+    };
+  }
+
+  return {
+    friendlyReason: technicalReason,
+    technicalReason,
   };
 }
 
@@ -278,12 +318,13 @@ function summarizeDiagnoseReport(report) {
   };
 }
 
-function eventResultToQueueItem(box, result) {
+function eventResultToQueueItem(box, result, metadata = {}) {
   return {
     box,
     detectedAt: result.event?.detectedAt || null,
     errors: result.errors || [],
     filename: result.filename,
+    failure: metadata.failure || null,
     fullPath: result.fullPath,
     game: result.event?.game || null,
     ok: result.ok,
@@ -294,14 +335,31 @@ function eventResultToQueueItem(box, result) {
   };
 }
 
-async function readQueueBox(dir, box) {
+async function readQueueBox(dir, box, config = null) {
   try {
     const files = await listJsonFiles(dir);
     const items = [];
 
     for (const filename of files) {
       const result = await readEventFile(dir, filename);
-      items.push(eventResultToQueueItem(box, result));
+      let metadata = {};
+
+      if (box === "failed" && config) {
+        const note = await readFailureNote(config, filename);
+        const reason = note.reason || (result.errors || []).join("; ") || null;
+        const classified = classifyFailureReason(reason, result.errors || []);
+        metadata = {
+          failure: {
+            failedAt: note.failedAt,
+            friendlyReason: classified.friendlyReason,
+            noteExists: note.exists,
+            notePath: note.notePath,
+            technicalReason: classified.technicalReason,
+          },
+        };
+      }
+
+      items.push(eventResultToQueueItem(box, result, metadata));
     }
 
     return {
@@ -327,9 +385,9 @@ async function readQueueBox(dir, box) {
 
 async function getQueueState(config) {
   const [pending, sent, failed] = await Promise.all([
-    readQueueBox(config.eventsPendingDirAbs, "pending"),
-    readQueueBox(config.eventsSentDirAbs, "sent"),
-    readQueueBox(config.eventsFailedDirAbs, "failed"),
+    readQueueBox(config.eventsPendingDirAbs, "pending", config),
+    readQueueBox(config.eventsSentDirAbs, "sent", config),
+    readQueueBox(config.eventsFailedDirAbs, "failed", config),
   ]);
 
   return {
@@ -497,7 +555,47 @@ async function submitAllPending() {
     };
   }
 
-  return withFreshState("submit-all", (config) => submitAll(config));
+  const response = await withFreshState("submit-all", (config) => submitAll(config));
+
+  if (response.state?.queue?.totals?.failed > 0) {
+    response.action = "submit-all-with-failed";
+    response.lines = [
+      ...response.lines,
+      "Las puntuaciones con error estan en Requieren atencion.",
+      "Puedes restaurarlas a pendientes cuando corrijas el problema.",
+    ];
+  }
+
+  return response;
+}
+
+async function restoreFailedSubmission(filename) {
+  await ensureRememberedPackLoaded();
+  const config = getEffectiveConfig();
+
+  try {
+    const result = await restoreBoxToPending(config, "failed", filename);
+
+    return {
+      action: "restore-failed",
+      lines: [
+        "Puntuacion restaurada a pendientes.",
+        "Ahora puedes volver a pulsar Subir pendientes cuando hayas corregido el problema.",
+      ],
+      ok: true,
+      restored: result,
+      summary: "Puntuacion restaurada a pendientes.",
+      state: await getLauncherState(),
+    };
+  } catch (error) {
+    return {
+      action: "restore-failed",
+      lines: [normalizeMessage(error)],
+      ok: false,
+      summary: "No se pudo restaurar la puntuacion.",
+      state: await getLauncherState(),
+    };
+  }
 }
 
 async function syncPlugin() {
@@ -623,6 +721,7 @@ async function openPackDirectory(packDir) {
 
 module.exports = {
   cancelOpenPack,
+  classifyFailureReason,
   deriveOpenedPackConfig,
   eventResultToQueueItem,
   getAuthStateForGui,
@@ -633,6 +732,7 @@ module.exports = {
   playCompetition,
   playPractice,
   readPackForGui,
+  restoreFailedSubmission,
   resolveRememberedPack,
   runDiagnose,
   submitAllPending,

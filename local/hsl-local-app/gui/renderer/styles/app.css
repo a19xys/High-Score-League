@@ -536,6 +536,35 @@ button:disabled {
   font-size: 12px;
 }
 
+.attention-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.attention-section h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.attention-copy {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.failed-item {
+  grid-template-columns: minmax(0, 1fr) minmax(160px, auto);
+}
+
+.restore-button {
+  align-self: start;
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
 .empty-state {
   display: grid;
   min-height: 116px;

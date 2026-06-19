@@ -54,6 +54,88 @@ async function writeFailureNote(config, jsonFilename, reason) {
   await fsp.writeFile(notePath, lines.join("\n"), "utf8");
 }
 
+function parseFailureNote(raw) {
+  const result = {
+    failedAt: null,
+    reason: null,
+  };
+
+  for (const line of String(raw || "").split(/\r?\n/)) {
+    const separator = line.indexOf("=");
+
+    if (separator === -1) {
+      continue;
+    }
+
+    const key = line.slice(0, separator);
+    const value = line.slice(separator + 1);
+
+    if (key === "failedAt") {
+      result.failedAt = value || null;
+    }
+
+    if (key === "reason") {
+      result.reason = value || null;
+    }
+  }
+
+  return result;
+}
+
+async function readFailureNote(config, jsonFilename) {
+  const safeName = path.basename(jsonFilename);
+  const notePath = path.join(config.eventsFailedDirAbs, `${safeName}.failed.txt`);
+
+  try {
+    const raw = await fsp.readFile(notePath, "utf8");
+
+    return {
+      exists: true,
+      notePath,
+      ...parseFailureNote(raw),
+    };
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return {
+        exists: false,
+        failedAt: null,
+        notePath,
+        reason: null,
+      };
+    }
+
+    throw error;
+  }
+}
+
+async function restoreBoxToPending(config, fromBox, filename) {
+  if (fromBox !== "sent" && fromBox !== "failed") {
+    throw new Error("Solo se puede restaurar desde sent o failed.");
+  }
+
+  const sourceDir = getBoxDir(config, fromBox);
+
+  await assertDirExists(sourceDir, fromBox);
+  await assertDirExists(config.eventsPendingDirAbs, "pending");
+
+  const safeName = path.basename(filename);
+  const sourcePath = path.join(sourceDir, safeName);
+
+  if (!(await pathExists(sourcePath))) {
+    throw new Error(`No existe en ${fromBox}: ${sourcePath}`);
+  }
+
+  const desiredTargetPath = path.join(config.eventsPendingDirAbs, safeName);
+  const finalPath = await moveFileSafe(sourcePath, desiredTargetPath);
+
+  return {
+    finalPath,
+    fromBox,
+    originalFilename: safeName,
+    restoredFilename: path.basename(finalPath),
+  };
+}
+
 async function markSent(config, filename) {
   printHeader(config);
 
@@ -145,25 +227,18 @@ async function restoreToPending(config, fromBox, filename) {
     return;
   }
 
-  const sourceDir = getBoxDir(config, fromBox);
+  let result;
 
-  await assertDirExists(sourceDir, fromBox);
-  await assertDirExists(config.eventsPendingDirAbs, "pending");
-
-  const safeName = path.basename(filename);
-  const sourcePath = path.join(sourceDir, safeName);
-
-  if (!(await pathExists(sourcePath))) {
-    console.error(`No existe en ${fromBox}: ${sourcePath}`);
+  try {
+    result = await restoreBoxToPending(config, fromBox, filename);
+  } catch (error) {
+    console.error(error.message);
     process.exitCode = 1;
     return;
   }
 
-  const desiredTargetPath = path.join(config.eventsPendingDirAbs, safeName);
-  const finalPath = await moveFileSafe(sourcePath, desiredTargetPath);
-
   console.log(`Evento restaurado desde ${fromBox} a pending:`);
-  console.log(finalPath);
+  console.log(result.finalPath);
   console.log("");
 }
 
@@ -193,6 +268,9 @@ module.exports = {
   moveFileSafe,
   movePendingToFailed,
   movePendingToSent,
+  parseFailureNote,
+  readFailureNote,
+  restoreBoxToPending,
   restoreToPending,
   writeFailureNote,
 };

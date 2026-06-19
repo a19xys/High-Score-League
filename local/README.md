@@ -387,6 +387,8 @@ Remembered-pack notes:
 [`docs/launcher-pack-remember-1.md`](docs/launcher-pack-remember-1.md).
 Auth GUI notes:
 [`docs/launcher-auth-gui-1.md`](docs/launcher-auth-gui-1.md).
+Submission recovery notes:
+[`docs/launcher-submission-recovery-1.md`](docs/launcher-submission-recovery-1.md).
 
 Run it from the repository root:
 
@@ -454,6 +456,12 @@ That file stores only `lastOpenedPackDir` and `updatedAt`. It does not copy the
 pack, does not store tokens, and does not delete pending events. On the next GUI
 start, the launcher tries to reload that pack; if it is missing or invalid, it
 shows an aviso and falls back to the local development bridge.
+
+If a submission is moved to `failed`, the GUI treats it as a score that
+requires attention, not as deleted data. The queue panel shows `Puntuaciones
+con error`, explains that the score is still saved, and lets the player restore
+the JSON to `pending` without overwriting existing files. Full queue separation
+by account and pack is still planned for a later task.
 
 Architecture constraints for that GUI:
 

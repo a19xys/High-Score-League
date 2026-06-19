@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   openPack: invoke("launcher:open-pack"),
   playCompetition: invoke("launcher:play-competition"),
   practice: invoke("launcher:practice"),
+  restoreFailed: (filename) => ipcRenderer.invoke("launcher:restore-failed", filename),
   submitAll: invoke("launcher:submit-all"),
   syncPlugin: invoke("launcher:sync-plugin"),
 });

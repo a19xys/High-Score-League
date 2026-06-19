@@ -48,6 +48,7 @@ function registerIpc() {
   ipcMain.handle("launcher:play-competition", () => service.playCompetition());
   ipcMain.handle("launcher:practice", () => service.playPractice());
   ipcMain.handle("launcher:submit-all", () => service.submitAllPending());
+  ipcMain.handle("launcher:restore-failed", (_event, filename) => service.restoreFailedSubmission(filename));
   ipcMain.handle("launcher:sync-plugin", () => service.syncPlugin());
   ipcMain.handle("launcher:logout", () => service.logoutSession());
 }

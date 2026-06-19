@@ -4,6 +4,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  classifyFailureReason,
   deriveOpenedPackConfig,
   eventResultToQueueItem,
   readPackForGui,
@@ -93,6 +94,7 @@ test("eventResultToQueueItem maps local event files to renderer-safe rows", () =
     box: "pending",
     detectedAt: "2026-05-24T22:08:00Z",
     errors: [],
+    failure: null,
     filename: "score.json",
     fullPath: "C:/pack/events/pending/score.json",
     game: "Space Invaders",
@@ -102,6 +104,41 @@ test("eventResultToQueueItem maps local event files to renderer-safe rows", () =
     source: "mame_memory",
     warnings: ["manual confirm"],
   });
+});
+
+test("classifyFailureReason explains season membership failures", () => {
+  const result = classifyFailureReason("HTTP 403: player is not joined to season");
+
+  assert.match(result.friendlyReason, /temporada|season/i);
+  assert.equal(result.technicalReason, "HTTP 403: player is not joined to season");
+});
+
+test("eventResultToQueueItem can include failed recovery metadata", () => {
+  const row = eventResultToQueueItem("failed", {
+    errors: [],
+    event: {
+      detectedAt: "2026-05-24T22:08:00Z",
+      game: "Space Invaders",
+      rom: "invaders",
+      score: 5210,
+      source: "mame_memory",
+    },
+    filename: "failed-score.json",
+    fullPath: "C:/pack/events/failed/failed-score.json",
+    ok: true,
+    warnings: [],
+  }, {
+    failure: {
+      failedAt: "2026-06-19T00:00:00.000Z",
+      friendlyReason: "Tu cuenta no esta unida a esta temporada.",
+      noteExists: true,
+      notePath: "C:/pack/events/failed/failed-score.json.failed.txt",
+      technicalReason: "HTTP 403: not joined",
+    },
+  });
+
+  assert.equal(row.failure.friendlyReason, "Tu cuenta no esta unida a esta temporada.");
+  assert.equal(JSON.stringify(row).includes("access_token"), false);
 });
 
 test("readPackForGui loads a valid external pack from a folder", async () => {

@@ -103,6 +103,10 @@ function resultToLog(title, response) {
     "submit-all": ok
       ? "Subida finalizada. Si había puntuaciones válidas, se movieron a enviadas."
       : "No se pudo completar la subida. Tus puntuaciones siguen guardadas localmente.",
+    "restore-failed": ok
+      ? "Puntuacion restaurada a pendientes. Puedes reintentar cuando el problema este corregido."
+      : "No se pudo restaurar la puntuacion.",
+    "submit-all-with-failed": "Hay puntuaciones en Requieren atencion. No se han perdido y puedes restaurarlas a pendientes.",
     "sync-plugin": ok
       ? "Plugin sincronizado con el pack de desarrollo."
       : "No se pudo sincronizar el plugin de desarrollo.",
@@ -241,6 +245,11 @@ function bindActions() {
 
     if (action === "submit") {
       runAction(action, "Subiendo puntuaciones", COPY.actions.submit, () => window.hslLauncher.submitAll());
+    }
+
+    if (action === "restore-failed") {
+      const filename = button.dataset.filename;
+      runAction(action, "Restaurando", "Restaurar a pendientes", () => window.hslLauncher.restoreFailed(filename));
     }
 
     if (action === "sync-plugin") {
