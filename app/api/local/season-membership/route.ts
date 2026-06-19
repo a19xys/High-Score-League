@@ -3,8 +3,15 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import type { SeasonMembershipRow, WeekRow } from "@/types/supabase";
 
+export const dynamic = "force-dynamic";
+
 function jsonResponse(body: Record<string, unknown>, status = 200) {
-  return NextResponse.json(body, { status });
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  });
 }
 
 function jsonError(statusValue: string, message: string, status = 400) {

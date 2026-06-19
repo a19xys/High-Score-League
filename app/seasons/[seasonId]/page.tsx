@@ -12,7 +12,7 @@ import { SeasonJoinButton } from "@/components/season-join-button";
 import { ActionLink } from "@/components/ui/action-link";
 import { formatCompactDateRange, formatWeekCount, formatWeekRange } from "@/lib/format";
 import { getSeasonDetailData } from "@/lib/data/season-detail";
-import { hasServerSession } from "@/lib/auth/session";
+import { getServerSession } from "@/lib/auth/session";
 import type { WeekSummary } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -23,23 +23,8 @@ type SeasonDetailPageProps = {
   }>;
 };
 
-export async function generateMetadata({
-  params,
-}: SeasonDetailPageProps): Promise<Metadata> {
-  if (!(await hasServerSession())) {
-    return { title: "Acceso privado | High Score League" };
-  }
-
-  const { seasonId } = await params;
-  const seasonData = await getSeasonDetailData(seasonId);
-
-  if (!seasonData) {
-    return { title: "Clasificación | High Score League" };
-  }
-
-  return {
-    title: `${seasonData.season.name} | High Score League`,
-  };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: "Clasificación | High Score League" };
 }
 
 function seasonStatusLabel(status: string) {
@@ -139,12 +124,14 @@ function RealSeasonWeeksTable({
 }
 
 export default async function SeasonDetailPage({ params }: SeasonDetailPageProps) {
-  if (!(await hasServerSession())) {
+  const session = await getServerSession();
+
+  if (session.status !== "signed-in") {
     return <AccessRequired />;
   }
 
   const { seasonId } = await params;
-  const seasonData = await getSeasonDetailData(seasonId);
+  const seasonData = await getSeasonDetailData(seasonId, session.userId);
 
   if (!seasonData) {
     notFound();

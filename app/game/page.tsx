@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { AccessRequired } from "@/components/auth/access-required";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
-import { hasServerSession } from "@/lib/auth/session";
+import { getServerSession } from "@/lib/auth/session";
 import { getRealWeeks } from "@/lib/data/weeks";
 import { getSynchronizedWeekStatus } from "@/lib/week-status";
 
@@ -37,7 +37,9 @@ async function getActiveWeekId() {
 }
 
 export default async function GamePage() {
-  if (!(await hasServerSession())) {
+  const session = await getServerSession();
+
+  if (session.status !== "signed-in") {
     return <AccessRequired />;
   }
 

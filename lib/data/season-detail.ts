@@ -24,6 +24,7 @@ export type SeasonDetailData = {
 
 export async function getSeasonDetailData(
   identifier: string,
+  currentUserIdOverride?: string | null,
 ): Promise<SeasonDetailData | null> {
   const supabase = await createSupabaseServerClient();
 
@@ -31,11 +32,10 @@ export async function getSeasonDetailData(
     return null;
   }
 
-  const { data: userData } = supabase
-    ? await supabase.auth.getUser()
-    : { data: { user: null } };
+  const userId =
+    currentUserIdOverride ?? (await supabase.auth.getUser()).data.user?.id ?? null;
 
-  if (!userData.user) {
+  if (!userId) {
     return null;
   }
 
@@ -121,7 +121,7 @@ export async function getSeasonDetailData(
     return status === "active" || status === "final_stretch";
   });
   const [memberships, standingsResult] = await Promise.all([
-    getUserSeasonMemberships(supabase, userData.user.id, [seasonRow.id]),
+    getUserSeasonMemberships(supabase, userId, [seasonRow.id]),
     getRealSeasonStandings(seasonRow.id),
   ]);
   const standingsWarning = standingsResult.error

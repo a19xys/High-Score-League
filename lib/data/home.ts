@@ -115,8 +115,10 @@ function findUpcomingWeek(
   };
 }
 
-export async function getHomePageData(): Promise<HomePageData> {
-  const currentUserId = await getCurrentUserId();
+export async function getHomePageData(
+  currentUserIdOverride?: string | null,
+): Promise<HomePageData> {
+  const currentUserId = currentUserIdOverride ?? await getCurrentUserId();
 
   if (!currentUserId) {
     return {
@@ -152,7 +154,7 @@ export async function getHomePageData(): Promise<HomePageData> {
     weeksResult,
     homePollResult,
   ] = await Promise.all([
-    getActiveWeekDetailData(),
+    getActiveWeekDetailData(currentUserId),
     getActiveRealSeason(),
     getRealLeagueChatMessages(),
     getRealWeeks(),

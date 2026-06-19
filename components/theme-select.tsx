@@ -17,8 +17,11 @@ function resolveTheme(preference: ThemePreference) {
 }
 
 function applyTheme(preference: ThemePreference) {
-  document.documentElement.dataset.theme = resolveTheme(preference);
+  const resolvedTheme = resolveTheme(preference);
+
+  document.documentElement.dataset.theme = resolvedTheme;
   document.documentElement.dataset.themePreference = preference;
+  document.documentElement.style.colorScheme = resolvedTheme;
 }
 
 function readStoredPreference(): ThemePreference {

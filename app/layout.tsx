@@ -9,16 +9,26 @@ export const metadata: Metadata = {
 
 const themeScript = `
 (() => {
-  try {
-    const storageKey = "hsl-theme";
-    const preference = localStorage.getItem(storageKey) || "system";
+  const applyTheme = (preference) => {
     const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const resolvedTheme = preference === "system" ? (systemDark ? "dark" : "light") : preference;
     document.documentElement.dataset.theme = resolvedTheme;
     document.documentElement.dataset.themePreference = preference;
+    document.documentElement.style.colorScheme = resolvedTheme;
+  };
+
+  try {
+    const storageKey = "hsl-theme";
+    const preference = localStorage.getItem(storageKey) || "system";
+    applyTheme(preference === "light" || preference === "dark" || preference === "system" ? preference : "system");
   } catch {
-    document.documentElement.dataset.theme = "light";
-    document.documentElement.dataset.themePreference = "system";
+    try {
+      applyTheme("system");
+    } catch {
+      document.documentElement.dataset.theme = "dark";
+      document.documentElement.dataset.themePreference = "system";
+      document.documentElement.style.colorScheme = "dark";
+    }
   }
 })();
 `;

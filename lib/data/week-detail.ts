@@ -269,8 +269,11 @@ async function buildRealWeekDetail(
   };
 }
 
-export async function getWeekDetailData(weekId: string): Promise<WeekDetailData | null> {
-  const currentUserId = await getCurrentUserId();
+export async function getWeekDetailData(
+  weekId: string,
+  currentUserIdOverride?: string | null,
+): Promise<WeekDetailData | null> {
+  const currentUserId = currentUserIdOverride ?? await getCurrentUserId();
 
   if (!currentUserId) {
     return null;
@@ -317,8 +320,10 @@ export async function getWeekDetailData(weekId: string): Promise<WeekDetailData 
   return buildRealWeekDetail(weekId, context, null, currentUserId);
 }
 
-export async function getActiveWeekDetailData(): Promise<ActiveWeekResult> {
-  const currentUserId = await getCurrentUserId();
+export async function getActiveWeekDetailData(
+  currentUserIdOverride?: string | null,
+): Promise<ActiveWeekResult> {
+  const currentUserId = currentUserIdOverride ?? await getCurrentUserId();
 
   if (!currentUserId) {
     return {

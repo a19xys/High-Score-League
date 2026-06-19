@@ -80,7 +80,7 @@ export default async function HomePage() {
     );
   }
 
-  const data = await getHomePageData();
+  const data = await getHomePageData(session.userId);
   const { season, week, game, leaderboard, benchmarks } = data;
   const topThree = leaderboard.slice(0, 3);
   const weekHref = week ? `/weeks/${week.id}` : null;

@@ -4,7 +4,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { ActionLink } from "@/components/ui/action-link";
 import { EmptyState } from "@/components/ui/state";
 import { WeekDetailView } from "@/components/week-detail-view";
-import { getServerSession, hasServerSession } from "@/lib/auth/session";
+import { getServerSession } from "@/lib/auth/session";
 import { getWeekDetailData } from "@/lib/data/week-detail";
 
 export const dynamic = "force-dynamic";
@@ -15,33 +15,19 @@ type WeekDetailPageProps = {
   }>;
 };
 
-export async function generateMetadata({
-  params,
-}: WeekDetailPageProps): Promise<Metadata> {
-  if (!(await hasServerSession())) {
-    return { title: "Acceso privado | High Score League" };
-  }
-
-  const { weekId } = await params;
-  const detail = await getWeekDetailData(weekId);
-
-  if (!detail) {
-    return { title: "Leaderboard | High Score League" };
-  }
-
-  return {
-    title: `Leaderboard · ${detail.game.title} | High Score League`,
-  };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: "Leaderboard | High Score League" };
 }
 
 export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
-  if (!(await hasServerSession())) {
+  const session = await getServerSession();
+
+  if (session.status !== "signed-in") {
     return <AccessRequired />;
   }
 
   const { weekId } = await params;
-  const session = await getServerSession();
-  const detail = await getWeekDetailData(weekId);
+  const detail = await getWeekDetailData(weekId, session.userId);
 
   if (!detail) {
     return (
