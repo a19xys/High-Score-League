@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { loadPackMetadata } = require("./pack-metadata");
 
 function getDefaultPackPath(appDir) {
   return path.join(path.resolve(appDir, ".."), "pack.json");
@@ -68,16 +69,23 @@ function loadPack(packPath) {
   const raw = fs.readFileSync(packPath, "utf8");
   const pack = JSON.parse(raw);
   const errors = validatePack(pack);
+  const packRoot = path.dirname(packPath);
+  const metadata = loadPackMetadata(packRoot);
 
   return {
     pack: {
       ...pack,
       packPath,
-      packRoot: path.dirname(packPath),
+      packRoot,
+      metadata: metadata.metadata,
+      metadataLoaded: metadata.loaded,
+      metadataPath: metadata.metadataPath,
+      metadataWarnings: metadata.warnings,
     },
     packPath,
     errors,
     loaded: true,
+    metadata,
   };
 }
 

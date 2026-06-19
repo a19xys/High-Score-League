@@ -183,6 +183,16 @@ test("adoptNewStagingEvents moves new staging files safely", async () => {
 test("readPackForGui loads a valid external pack from a folder", async () => {
   await withTempDir(async (dir) => {
     await fsp.writeFile(path.join(dir, "pack.json"), JSON.stringify(validPack()), "utf8");
+    await fsp.mkdir(path.join(dir, "assets"), { recursive: true });
+    await fsp.writeFile(path.join(dir, "assets", "hero.png"), "png", "utf8");
+    await fsp.writeFile(path.join(dir, "metadata.json"), JSON.stringify({
+      title: "Space Invaders Deluxe",
+      subtitle: "Pack de prueba",
+      shortDescription: "Descripcion local del pack.",
+      assets: {
+        hero: "assets/hero.png",
+      },
+    }), "utf8");
 
     const result = readPackForGui(dir);
 
@@ -190,6 +200,8 @@ test("readPackForGui loads a valid external pack from a folder", async () => {
     assert.equal(result.pack.packRoot, dir);
     assert.equal(result.pack.rom, "invaders");
     assert.equal(result.pack.weekId, "week-1");
+    assert.equal(result.pack.metadata.title, "Space Invaders Deluxe");
+    assert.equal(result.pack.metadata.assets.hero.relativePath, "assets/hero.png");
   });
 });
 

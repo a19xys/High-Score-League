@@ -14,7 +14,8 @@ It is separate from the main web app.
 - `mame-plugin/hsl-score/events/`: queue folders used by the local app.
 - `pack.example.json`: example metadata for a downloadable game/week pack.
 - `examples/`: extra local development manifests, including the flat
-  `hsl-invaders` pack example used to test `Abrir pack`.
+  `hsl-invaders` pack example used to test `Abrir pack`, plus optional
+  `metadata.json` examples for local pack presentation.
 
 ## Modelo de distribución
 
@@ -103,6 +104,22 @@ launch that pack's MAME.
 `pack.example.json` for the versioned example. It includes pack identity, game
 ID, ROM name, week ID, web URL, MAME paths relative to the pack root, and plugin
 metadata. It must not contain secrets, ROM files, or personal machine paths.
+
+Packs may also include optional presentation files next to `pack.json`:
+
+```text
+metadata.json
+assets/
+```
+
+`metadata.json` is not authority for competition. It can provide title,
+subtitle, description, credits, manual/ranking links, and local asset paths for
+the launcher UI. `assets/` can hold local `hero`, `logo`, `icon`, and `cover`
+images. If metadata or assets are missing or invalid, the app falls back to the
+technical pack/game data and keeps the pack playable.
+
+Metadata and assets notes:
+[`docs/pack-metadata-assets-1.md`](docs/pack-metadata-assets-1.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is
@@ -381,6 +398,8 @@ local `config.json`.
 
 Design document: [`docs/launcher-gui-0.md`](docs/launcher-gui-0.md).
 Prototype notes: [`docs/launcher-gui-1.md`](docs/launcher-gui-1.md).
+Final UX blueprint:
+[`docs/launcher-final-ux-blueprint-1.md`](docs/launcher-final-ux-blueprint-1.md).
 Pack opening notes:
 [`docs/launcher-pack-open-1.md`](docs/launcher-pack-open-1.md).
 Remembered-pack notes:
@@ -391,6 +410,8 @@ Submission recovery notes:
 [`docs/launcher-submission-recovery-1.md`](docs/launcher-submission-recovery-1.md).
 Scoped queue notes:
 [`docs/account-pack-scoped-queue-1.md`](docs/account-pack-scoped-queue-1.md).
+Pack metadata/assets notes:
+[`docs/pack-metadata-assets-1.md`](docs/pack-metadata-assets-1.md).
 
 Run it from the repository root:
 
@@ -486,9 +507,16 @@ Architecture constraints for that GUI:
 - treat `sync-plugin` as temporary development tooling, not as an end-user
   feature.
 
+If the active pack contains optional `metadata.json` and local files under
+`assets/`, the GUI uses them to improve the active pack presentation: title,
+subtitle, description, credits, hero/logo/cover/icon. Missing metadata or
+images are non-fatal and appear only as technical warnings.
+
 This prototype is not packaged, not an installer, and not the final pack picker.
 Pack opening is the first incremental step toward the final pack flow, not
 complete multi-pack management.
+The final direction is documented as a local pack library and player launcher
+in [`docs/launcher-final-ux-blueprint-1.md`](docs/launcher-final-ux-blueprint-1.md).
 
 Configuration precedence is:
 

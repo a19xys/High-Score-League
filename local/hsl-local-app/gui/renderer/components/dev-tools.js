@@ -4,6 +4,12 @@ export function renderDevTools(state) {
   const data = state.data;
   const disabled = state.busy ? "disabled" : "";
   const syncDisabled = state.busy || !data?.bridge?.devBridge ? "disabled" : "";
+  const metadataWarnings = data?.bridge?.packMetadataWarnings || data?.game?.metadataWarnings || [];
+  const metadataLabel = metadataWarnings.length > 0
+    ? metadataWarnings.join(" | ")
+    : data?.bridge?.packMetadataLoaded
+      ? "metadata.json cargado"
+      : "sin metadata local";
   const modeLabel = data?.bridge?.packOpened
     ? "pack abierto"
     : data?.bridge?.devBridge
@@ -40,6 +46,10 @@ export function renderDevTools(state) {
           <div>
             <dt>Pack / MAME</dt>
             <dd>${escapeHtml(data?.bridge?.workingDir || data?.bridge?.packRoot || data?.bridge?.packPath || "sin ruta activa")}</dd>
+          </div>
+          <div>
+            <dt>Metadata</dt>
+            <dd>${escapeHtml(metadataLabel)}</dd>
           </div>
           <div>
             <dt>Cola</dt>

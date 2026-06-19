@@ -96,6 +96,34 @@ Documento especifico:
 Documento especifico:
 [`account-pack-scoped-queue-1.md`](account-pack-scoped-queue-1.md).
 
+## Pack metadata assets 1
+
+- El pack activo puede incluir `metadata.json` junto a `pack.json`.
+- La GUI usa `title`, `subtitle`, `shortDescription`, creditos basicos y assets
+  locales si existen.
+- `pack.json` sigue siendo el contrato tecnico jugable; `metadata.json` solo
+  mejora la presentacion local.
+- Los assets se resuelven como rutas relativas dentro del pack y los warnings
+  quedan en detalles tecnicos.
+- Si falta metadata o una imagen, el pack sigue abriendo y el launcher mantiene
+  el fallback visual actual.
+
+Documento especifico:
+[`pack-metadata-assets-1.md`](pack-metadata-assets-1.md).
+
+## Final UX blueprint 1
+
+- La dirección final de la GUI queda documentada en
+  [`launcher-final-ux-blueprint-1.md`](launcher-final-ux-blueprint-1.md).
+- La app local debe evolucionar hacia biblioteca local de packs y launcher de
+  competición, no hacia una segunda web ni una herramienta de debug.
+- El prototipo actual se mantiene como MVP funcional: CLI estable, GUI
+  provisional, pack externo recordado, cuenta visual, cola scoped en `userData`
+  y recuperación de `failed`.
+- Las futuras tareas deberían priorizar metadata/assets de packs, ubicaciones,
+  biblioteca visual, participación de temporada, selector de cuentas y
+  sincronización automática.
+
 ## Limites
 
 - El juego fijo sigue siendo `invaders`, igual que el MVP local actual.

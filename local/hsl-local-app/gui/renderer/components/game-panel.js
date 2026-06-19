@@ -35,6 +35,43 @@ function renderPackAction(state) {
   `;
 }
 
+function renderPackLogo(game) {
+  const logo = game?.assets?.logo || game?.assets?.icon;
+
+  if (!logo?.url) {
+    return "";
+  }
+
+  return `
+    <img class="pack-logo" src="${escapeHtml(logo.url)}" alt="${escapeHtml(game?.displayName || "Logo del pack")}">
+  `;
+}
+
+function renderPackVisuals(game) {
+  const hero = game?.assets?.hero || game?.assets?.cover;
+
+  if (!hero?.url) {
+    return "";
+  }
+
+  return `<img class="game-panel__hero" src="${escapeHtml(hero.url)}" alt="">`;
+}
+
+function renderPackCredits(game) {
+  const credits = [
+    game?.developer,
+    game?.publisher && game.publisher !== game.developer ? game.publisher : null,
+    game?.year ? String(game.year) : null,
+    ...(game?.genre || []),
+  ].filter(Boolean);
+
+  if (credits.length === 0) {
+    return "";
+  }
+
+  return `<p class="pack-credits">${escapeHtml(credits.join(" · "))}</p>`;
+}
+
 export function renderGamePanel(state) {
   const data = state.data;
   const game = data?.game;
@@ -45,9 +82,14 @@ export function renderGamePanel(state) {
     ? "Inicia MAME en modo liga y registra tus intentos."
     : "Inicia sesion para competir y guardar en tu cola local.";
   const week = game?.weekId || "Semana actual";
+  const subtitle = game?.subtitle || week;
+  const description = game?.shortDescription || getReadyLabel(data);
+  const cover = game?.assets?.cover;
+  const icon = game?.assets?.icon;
 
   return `
     <section class="game-panel">
+      ${renderPackVisuals(game)}
       <div class="game-panel__content">
         <div class="badge-row">
           <span class="badge badge-accent">Competición</span>
@@ -59,10 +101,16 @@ export function renderGamePanel(state) {
         </div>
         <div>
           <p class="eyebrow">${escapeHtml(getPackLabel(bridge))}</p>
-          <h2>${escapeHtml(game?.displayName || "Space Invaders")}</h2>
-          <p class="game-week">${escapeHtml(week)}</p>
+          <div class="pack-title-row">
+            ${renderPackLogo(game)}
+            <div class="min-w-0">
+              <h2>${escapeHtml(game?.displayName || "Space Invaders")}</h2>
+              <p class="game-week">${escapeHtml(subtitle)}</p>
+              ${renderPackCredits(game)}
+            </div>
+          </div>
         </div>
-        <p class="ready-copy">${escapeHtml(getReadyLabel(data))}</p>
+        <p class="ready-copy">${escapeHtml(description)}</p>
         <div class="primary-actions">
           <button class="play-button" type="button" data-action="play" ${competitionDisabled}>
             <span>${COPY.actions.play}</span>
@@ -79,6 +127,8 @@ export function renderGamePanel(state) {
         </div>
       </div>
       <div class="game-panel__score">
+        ${cover?.url ? `<img class="pack-cover" src="${escapeHtml(cover.url)}" alt="${escapeHtml(game?.displayName || "Portada del pack")}">` : ""}
+        ${!cover?.url && icon?.url ? `<img class="pack-icon" src="${escapeHtml(icon.url)}" alt="${escapeHtml(game?.displayName || "Icono del pack")}">` : ""}
         <span class="score-label">Cola local</span>
         <strong>${data?.queue?.totals?.pending || 0}</strong>
         <span>${(data?.queue?.totals?.pending || 0) === 1 ? "puntuación" : "puntuaciones"}</span>

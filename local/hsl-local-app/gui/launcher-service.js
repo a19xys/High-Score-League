@@ -551,12 +551,24 @@ async function getSessionState(config) {
 function getGameState(config) {
   const supportedGame = listSupportedGames()[0] || null;
   const rom = config.pack?.rom || supportedGame?.launcher?.rom || supportedGame?.primaryRom || "invaders";
+  const metadata = config.pack?.metadata || null;
 
   return {
-    displayName: supportedGame?.title || config.pack?.gameId || "Space Invaders",
+    assets: metadata?.assets || {},
+    developer: metadata?.developer || null,
+    displayName: metadata?.title || supportedGame?.title || config.pack?.gameId || "Space Invaders",
+    genre: metadata?.genre || [],
     gameId: config.pack?.gameId || supportedGame?.gameId || "space-invaders",
+    manualUrl: metadata?.manualUrl || null,
+    metadataLoaded: Boolean(config.pack?.metadataLoaded),
+    metadataWarnings: config.pack?.metadataWarnings || [],
+    publisher: metadata?.publisher || null,
+    rankingUrl: metadata?.rankingUrl || null,
     rom,
+    shortDescription: metadata?.shortDescription || null,
+    subtitle: metadata?.subtitle || null,
     weekId: config.defaultWeekId || null,
+    year: metadata?.year || null,
   };
 }
 
@@ -579,6 +591,8 @@ function getBridgeState(config) {
     packOpened,
     packRemembered: Boolean(activeOpenedPack?.remembered),
     packLoaded: config.packLoaded,
+    packMetadataLoaded: Boolean(config.pack?.metadataLoaded),
+    packMetadataWarnings: config.pack?.metadataWarnings || [],
     packPath: config.packPath,
     packRoot: config.packRoot || null,
     pluginName: config.mame?.pluginName || "hsl-score",
