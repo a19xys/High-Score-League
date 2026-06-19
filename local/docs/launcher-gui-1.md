@@ -111,6 +111,22 @@ Documento especifico:
 Documento especifico:
 [`pack-metadata-assets-1.md`](pack-metadata-assets-1.md).
 
+## Pack library locations 1
+
+- La GUI anade una seccion basica `Biblioteca de packs`.
+- `+ Añadir ubicación` guarda carpetas raiz en
+  `userData/libraries/locations.json`.
+- El escaneo mira solo subcarpetas directas con `pack.json`.
+- Los packs detectados muestran titulo, subtitulo, estado simple y accion
+  `Usar este pack`.
+- Activar un pack desde biblioteca reutiliza el flujo de `Abrir pack` y lo
+  recuerda como ultimo pack.
+- `Quitar` elimina la ubicación de la biblioteca sin borrar carpetas reales.
+- No hay grid final, filtros, busqueda ni estados remotos.
+
+Documento especifico:
+[`pack-library-locations-1.md`](pack-library-locations-1.md).
+
 ## Final UX blueprint 1
 
 - La dirección final de la GUI queda documentada en

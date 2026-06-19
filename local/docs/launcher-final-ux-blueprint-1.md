@@ -122,6 +122,8 @@ userData/libraries/locations.json
 
 Esta tarea no implementa ubicaciones ni escaneo.
 
+Primer soporte implementado en `LOCAL-PACK-LIBRARY-LOCATIONS-1`: la GUI puede guardar ubicaciones en `userData/libraries/locations.json`, escanear subcarpetas directas con `pack.json`, listar packs detectados y activar uno reutilizando el flujo de `Abrir pack`. El grid visual final, filtros y busqueda siguen pendientes.
+
 ## Biblioteca de packs
 
 La vista principal final debe ser una biblioteca visual de packs reconocidos:

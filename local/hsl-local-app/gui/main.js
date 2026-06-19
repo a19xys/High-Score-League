@@ -44,6 +44,22 @@ function registerIpc() {
 
     return service.openPackDirectory(result.filePaths[0]);
   });
+  ipcMain.handle("launcher:add-library-location", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      buttonLabel: "Añadir ubicación",
+      message: "Elige una carpeta que contenga packs descomprimidos",
+      properties: ["openDirectory"],
+      title: "Añadir ubicación de biblioteca",
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return service.cancelAddLibraryLocation();
+    }
+
+    return service.addLibraryLocationFromGui(result.filePaths[0]);
+  });
+  ipcMain.handle("launcher:remove-library-location", (_event, locationId) => service.removeLibraryLocationFromGui(locationId));
+  ipcMain.handle("launcher:use-library-pack", (_event, packId) => service.activateLibraryPack(packId));
   ipcMain.handle("launcher:diagnose", () => service.runDiagnose());
   ipcMain.handle("launcher:play-competition", () => service.playCompetition());
   ipcMain.handle("launcher:practice", () => service.playPractice());

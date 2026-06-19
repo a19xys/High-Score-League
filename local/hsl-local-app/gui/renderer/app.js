@@ -3,6 +3,7 @@ import { COPY } from "./components/copy.js";
 import { renderDevTools } from "./components/dev-tools.js";
 import { renderGamePanel } from "./components/game-panel.js";
 import { renderHeader } from "./components/header.js";
+import { renderLibraryPanel } from "./components/library-panel.js";
 import { renderLogPanel } from "./components/log-panel.js";
 import { renderPlayerSummary } from "./components/player-summary.js";
 import { renderQueuePanel } from "./components/queue-panel.js";
@@ -40,6 +41,7 @@ function render() {
         </div>
         <div class="side-column">
           ${renderPlayerSummary(state)}
+          ${renderLibraryPanel(state)}
           ${renderDevTools(state)}
         </div>
       </div>
@@ -93,6 +95,11 @@ function resultToLog(title, response) {
     "open-pack": response.summary || (ok
       ? "Pack abierto correctamente. Cambiar de pack no borra puntuaciones locales."
       : "No se pudo abrir el pack seleccionado."),
+    "add-library-location": response.summary || "Biblioteca actualizada.",
+    "remove-library-location": response.summary || "Biblioteca actualizada.",
+    "use-library-pack": response.summary || (ok
+      ? "Pack activado desde biblioteca."
+      : "No se pudo activar el pack desde biblioteca."),
     "play-competition": ok
       ? "MAME se cerró correctamente. La cola local se ha actualizado."
       : "MAME terminó con aviso. Si jugaste una partida, revisa la cola local.",
@@ -229,6 +236,20 @@ function bindActions() {
 
     if (action === "open-pack") {
       runAction(action, "Abriendo pack", COPY.actions.openPack, () => window.hslLauncher.openPack());
+    }
+
+    if (action === "add-library-location") {
+      runAction(action, "Añadiendo ubicación", "Añadir ubicación", () => window.hslLauncher.addLibraryLocation());
+    }
+
+    if (action === "remove-library-location") {
+      const locationId = button.dataset.locationId;
+      runAction(action, "Quitando ubicación", "Quitar ubicación", () => window.hslLauncher.removeLibraryLocation(locationId));
+    }
+
+    if (action === "use-library-pack") {
+      const packId = button.dataset.packId;
+      runAction(action, "Activando pack", "Usar pack de biblioteca", () => window.hslLauncher.useLibraryPack(packId));
     }
 
     if (action === "diagnose") {

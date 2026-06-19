@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 const invoke = (channel) => () => ipcRenderer.invoke(channel);
 
 contextBridge.exposeInMainWorld("hslLauncher", {
+  addLibraryLocation: invoke("launcher:add-library-location"),
   diagnose: invoke("launcher:diagnose"),
   getAuthState: invoke("launcher:get-auth-state"),
   getState: invoke("launcher:get-state"),
@@ -11,7 +12,9 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   openPack: invoke("launcher:open-pack"),
   playCompetition: invoke("launcher:play-competition"),
   practice: invoke("launcher:practice"),
+  removeLibraryLocation: (locationId) => ipcRenderer.invoke("launcher:remove-library-location", locationId),
   restoreFailed: (filename) => ipcRenderer.invoke("launcher:restore-failed", filename),
+  useLibraryPack: (packId) => ipcRenderer.invoke("launcher:use-library-pack", packId),
   submitAll: invoke("launcher:submit-all"),
   syncPlugin: invoke("launcher:sync-plugin"),
 });

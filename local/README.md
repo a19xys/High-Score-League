@@ -120,6 +120,8 @@ technical pack/game data and keeps the pack playable.
 
 Metadata and assets notes:
 [`docs/pack-metadata-assets-1.md`](docs/pack-metadata-assets-1.md).
+Pack library locations notes:
+[`docs/pack-library-locations-1.md`](docs/pack-library-locations-1.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is
@@ -412,6 +414,8 @@ Scoped queue notes:
 [`docs/account-pack-scoped-queue-1.md`](docs/account-pack-scoped-queue-1.md).
 Pack metadata/assets notes:
 [`docs/pack-metadata-assets-1.md`](docs/pack-metadata-assets-1.md).
+Pack library locations notes:
+[`docs/pack-library-locations-1.md`](docs/pack-library-locations-1.md).
 
 Run it from the repository root:
 
@@ -511,6 +515,18 @@ If the active pack contains optional `metadata.json` and local files under
 `assets/`, the GUI uses them to improve the active pack presentation: title,
 subtitle, description, credits, hero/logo/cover/icon. Missing metadata or
 images are non-fatal and appear only as technical warnings.
+
+The GUI also has a minimal pack library. `+ Añadir ubicación` stores folders in
+shared user data:
+
+```text
+userData/libraries/locations.json
+```
+
+The launcher scans only direct subfolders with `pack.json`, lists detected
+packs, and lets the player activate one with `Usar este pack`. This reuses the
+same activation and remembered-pack flow as `Abrir pack`. The app does not copy,
+move, download, or delete packs.
 
 This prototype is not packaged, not an installer, and not the final pack picker.
 Pack opening is the first incremental step toward the final pack flow, not

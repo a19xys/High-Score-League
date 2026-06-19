@@ -11,7 +11,9 @@ const {
 const { buildDiagnoseReport } = require("../src/diagnose");
 const { listJsonFiles, readEventFile } = require("../src/event-files");
 const { listSupportedGames } = require("../src/games");
+const { addLibraryLocation, removeLibraryLocation } = require("../src/library-locations");
 const { launchMame } = require("../src/mame-launcher");
+const { scanPackLibrary } = require("../src/pack-library");
 const { loadPackFromDir, resolvePackMamePaths } = require("../src/pack");
 const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-packs");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
@@ -615,6 +617,7 @@ async function getLauncherState() {
     bridge: getBridgeState(scoped.config),
     configPath: scoped.config.configPath,
     game: getGameState(scoped.config),
+    library: await scanPackLibrary(baseConfig),
     notices: recentPackNotices,
     queue,
     scope: scoped.scope
@@ -900,19 +903,20 @@ async function cancelOpenPack() {
   };
 }
 
-async function openPackDirectory(packDir) {
+async function activatePackDirectory(packDir, options = {}) {
   const result = readPackForGui(packDir);
+  const action = options.action || "open-pack";
 
   if (!result.ok) {
     return {
-      action: "open-pack",
+      action,
       code: result.code,
       lines: result.errors,
       ok: false,
       summary: result.code === "missing_pack_json"
-        ? "No encuentro pack.json en esta carpeta. Elige la carpeta raíz del pack o crea un pack.json a partir del ejemplo de desarrollo."
-        : "El pack no parece válido para High Score League.",
-      state: await getLauncherState(),
+        ? "No encuentro pack.json en esta carpeta. Elige la carpeta raiz del pack o crea un pack.json a partir del ejemplo de desarrollo."
+        : "El pack no parece valido para High Score League.",
+      state: options.includeState === false ? null : await getLauncherState(),
     };
   }
 
@@ -925,13 +929,13 @@ async function openPackDirectory(packDir) {
   let recentWriteWarning = null;
 
   try {
-    await writeLastOpenedPack(loadRuntimeConfig(), result.pack.packRoot);
+    await writeLastOpenedPack(options.rememberConfig || loadRuntimeConfig(), result.pack.packRoot);
   } catch (error) {
-    recentWriteWarning = `No se pudo recordar este pack para el próximo inicio: ${normalizeMessage(error)}`;
+    recentWriteWarning = `No se pudo recordar este pack para el proximo inicio: ${normalizeMessage(error)}`;
   }
 
   return {
-    action: "open-pack",
+    action,
     lines: [
       `Pack abierto correctamente: ${result.pack.packId || result.pack.gameId}.`,
       "Cambiar de pack no borra puntuaciones locales.",
@@ -945,13 +949,94 @@ async function openPackDirectory(packDir) {
       rom: result.pack.rom,
       weekId: result.pack.weekId,
     },
-    summary: "Pack abierto correctamente.",
+    summary: options.summary || "Pack abierto correctamente.",
+    state: options.includeState === false ? null : await getLauncherState(),
+  };
+}
+
+async function openPackDirectory(packDir) {
+  return activatePackDirectory(packDir);
+}
+
+async function cancelAddLibraryLocation() {
+  return {
+    action: "add-library-location",
+    canceled: true,
+    lines: ["No se selecciono ninguna ubicacion."],
+    ok: true,
+    summary: "No se selecciono ninguna ubicacion.",
     state: await getLauncherState(),
+  };
+}
+
+async function addLibraryLocationFromGui(locationPath, options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  const result = await addLibraryLocation(config, locationPath);
+  const summary = result.duplicate ? "Esta ubicacion ya estaba anadida." : "Ubicacion anadida.";
+
+  return {
+    action: "add-library-location",
+    lines: [summary, "No se han copiado ni movido packs."],
+    ok: true,
+    result,
+    summary,
+    state: options.includeState === false ? null : await getLauncherState(),
+  };
+}
+
+async function removeLibraryLocationFromGui(locationId, options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  const result = await removeLibraryLocation(config, locationId);
+  const summary = result.removed
+    ? "Ubicacion quitada de la biblioteca. No se ha borrado ninguna carpeta."
+    : "No se encontro esa ubicacion en la biblioteca.";
+
+  return {
+    action: "remove-library-location",
+    lines: [summary],
+    ok: result.removed,
+    result,
+    summary,
+    state: options.includeState === false ? null : await getLauncherState(),
+  };
+}
+
+async function activateLibraryPack(packId, options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  const library = await scanPackLibrary(config);
+  const pack = library.packs.find((item) => item.id === packId);
+
+  if (!pack) {
+    return {
+      action: "use-library-pack",
+      lines: ["No se encontro ese pack en la biblioteca."],
+      ok: false,
+      summary: "No se encontro ese pack en la biblioteca.",
+      state: options.includeState === false ? null : await getLauncherState(),
+    };
+  }
+
+  const response = await activatePackDirectory(pack.packDir, {
+    action: "use-library-pack",
+    includeState: options.includeState,
+    rememberConfig: config,
+    summary: "Pack activado desde biblioteca.",
+  });
+
+  return {
+    ...response,
+    lines: response.ok
+      ? ["Pack activado desde biblioteca.", ...response.lines.slice(1)]
+      : response.lines,
   };
 }
 
 module.exports = {
   adoptNewStagingEvents,
+  activateLibraryPack,
+  activatePackDirectory,
+  addLibraryLocationFromGui,
+  cancelAddLibraryLocation,
   cancelOpenPack,
   classifyFailureReason,
   deriveOpenedPackConfig,
@@ -965,6 +1050,7 @@ module.exports = {
   playCompetition,
   playPractice,
   readPackForGui,
+  removeLibraryLocationFromGui,
   restoreFailedSubmission,
   resolveRememberedPack,
   runDiagnose,

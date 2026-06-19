@@ -14,6 +14,8 @@ assets/ = imagenes locales opcionales del pack
 
 Esto no implementa biblioteca de ubicaciones, grid de packs, filtros, busqueda ni descarga de assets. Solo permite que el pack abierto, el ultimo pack recordado o un pack cargado por fallback muestren mejor titulo, descripcion, creditos e imagenes si existen.
 
+Desde `LOCAL-PACK-LIBRARY-LOCATIONS-1`, los packs detectados por ubicaciones tambien usan esta misma metadata y assets para presentarse en la biblioteca basica.
+
 ## Estructura propuesta
 
 ```text

@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   adoptNewStagingEvents,
+  activateLibraryPack,
   classifyFailureReason,
   deriveOpenedPackConfig,
   eventResultToQueueItem,
@@ -13,6 +14,8 @@ const {
   resolveRememberedPack,
   summarizeDiagnoseReport,
 } = require("../gui/launcher-service");
+const { addLibraryLocation } = require("../src/library-locations");
+const { scanPackLibrary } = require("../src/pack-library");
 const { writeLastOpenedPack } = require("../src/recent-packs");
 
 async function withTempDir(fn) {
@@ -299,5 +302,29 @@ test("resolveRememberedPack falls back when remembered pack folder is missing", 
     assert.equal(result.ok, false);
     assert.equal(result.reason, "missing_dir");
     assert.match(result.notice.summary, /No se pudo cargar el último pack/);
+  });
+});
+
+test("activateLibraryPack activa un pack detectado y lo recuerda", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const packDir = await writeValidPack(libraryRoot);
+    await addLibraryLocation(config, libraryRoot);
+    const library = await scanPackLibrary(config);
+
+    const result = await activateLibraryPack(library.packs[0].id, {
+      config,
+      includeState: false,
+    });
+    const recentRaw = await fsp.readFile(path.join(config.userDataDir, "packs", "recent.json"), "utf8");
+    const recent = JSON.parse(recentRaw);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "use-library-pack");
+    assert.equal(result.pack.packRoot, packDir);
+    assert.equal(recent.lastOpenedPackDir, packDir);
   });
 });
