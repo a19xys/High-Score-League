@@ -38,6 +38,15 @@ Primer prototipo visual minimo del launcher local.
 
 Documento específico: [`launcher-pack-open-1.md`](launcher-pack-open-1.md).
 
+## Dev pack manifest 1
+
+- Se añade `local/examples/pack.hsl-invaders-flat.example.json` para el pack
+  de desarrollo actual con `mame.exe`, `roms/` y `plugins/` en la raíz.
+- Para probar `Abrir pack` con `C:/Users/u/Downloads/hsl-invaders/`, copia ese
+  ejemplo como `pack.json` en la raíz del pack y rellena `weekId`.
+- Este ejemplo plano no sustituye el layout final distribuible con MAME dentro
+  de `mame/`.
+
 ## Limites
 
 - El juego fijo sigue siendo `invaders`, igual que el MVP local actual.

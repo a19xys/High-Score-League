@@ -10,6 +10,14 @@ const {
   validatePack,
 } = require("../src/pack");
 
+const FLAT_PACK_EXAMPLE_PATH = path.resolve(
+  __dirname,
+  "..",
+  "..",
+  "examples",
+  "pack.hsl-invaders-flat.example.json"
+);
+
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-pack-test-"));
 
@@ -90,5 +98,25 @@ test("resolvePackMamePaths resolves paths relative to external pack dir", () => 
 
   assert.equal(mame.executablePath, path.resolve("C:/packs/HSL_SpaceInvaders_Semana12", "mame/mame.exe"));
   assert.equal(mame.workingDir, path.resolve("C:/packs/HSL_SpaceInvaders_Semana12", "mame"));
+  assert.equal(mame.pluginName, "hsl-score");
+});
+
+test("flat hsl-invaders development pack example is a valid pack manifest", async () => {
+  const raw = await fsp.readFile(FLAT_PACK_EXAMPLE_PATH, "utf8");
+  const pack = JSON.parse(raw);
+
+  assert.deepEqual(validatePack(pack), []);
+  assert.equal(pack.mame.relativeExecutablePath, "mame.exe");
+  assert.equal(pack.mame.workingDir, ".");
+});
+
+test("flat hsl-invaders development pack resolves MAME paths from the pack root", async () => {
+  const raw = await fsp.readFile(FLAT_PACK_EXAMPLE_PATH, "utf8");
+  const pack = JSON.parse(raw);
+  const packRoot = "C:/Users/u/Downloads/hsl-invaders";
+  const mame = resolvePackMamePaths(pack, packRoot);
+
+  assert.equal(mame.executablePath, path.resolve(packRoot, "mame.exe"));
+  assert.equal(mame.workingDir, path.resolve(packRoot, "."));
   assert.equal(mame.pluginName, "hsl-score");
 });

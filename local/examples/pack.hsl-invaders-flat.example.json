@@ -1,0 +1,17 @@
+{
+  "packVersion": 1,
+  "packId": "space-invaders-dev-pack",
+  "gameId": "space-invaders",
+  "rom": "invaders",
+  "weekId": "PON_AQUI_EL_WEEK_ID",
+  "webBaseUrl": "https://high-score-league.vercel.app",
+  "mame": {
+    "relativeExecutablePath": "mame.exe",
+    "workingDir": ".",
+    "pluginName": "hsl-score"
+  },
+  "plugin": {
+    "name": "hsl-score",
+    "version": "0.1.4"
+  }
+}

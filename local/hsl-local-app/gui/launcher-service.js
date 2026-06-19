@@ -80,7 +80,7 @@ function readPackForGui(packDir) {
     if (!result.loaded) {
       return {
         code: "missing_pack_json",
-        errors: ["No encuentro pack.json en esta carpeta. Elige la carpeta raíz del pack."],
+        errors: ["No encuentro pack.json en esta carpeta. Elige la carpeta raíz del pack o crea un pack.json a partir del ejemplo de desarrollo."],
         ok: false,
         packDir,
         packPath: result.packPath,
@@ -424,7 +424,7 @@ async function openPackDirectory(packDir) {
       lines: result.errors,
       ok: false,
       summary: result.code === "missing_pack_json"
-        ? "No encuentro pack.json en esta carpeta. Elige la carpeta raíz del pack."
+        ? "No encuentro pack.json en esta carpeta. Elige la carpeta raíz del pack o crea un pack.json a partir del ejemplo de desarrollo."
         : "El pack no parece válido para High Score League.",
       state: await getLauncherState(),
     };

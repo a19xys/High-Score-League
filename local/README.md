@@ -13,6 +13,8 @@ It is separate from the main web app.
   writes JSON events into `events/pending`.
 - `mame-plugin/hsl-score/events/`: queue folders used by the local app.
 - `pack.example.json`: example metadata for a downloadable game/week pack.
+- `examples/`: extra local development manifests, including the flat
+  `hsl-invaders` pack example used to test `Abrir pack`.
 
 ## Modelo de distribución
 
@@ -408,6 +410,34 @@ that pack's MAME paths, ROM, week, web URL, and plugin-local event queue for
 the current session. This is in-memory only for now: it does not create recent
 packs, does not persist selection, and changing packs does not delete pending
 events.
+
+For the current flat development pack at
+`C:/Users/u/Downloads/hsl-invaders/`, create the temporary manifest manually by
+copying:
+
+```text
+local/examples/pack.hsl-invaders-flat.example.json
+```
+
+to:
+
+```text
+C:/Users/u/Downloads/hsl-invaders/pack.json
+```
+
+Then edit `weekId`. In this flat layout, MAME is resolved from the pack root:
+
+```json
+"mame": {
+  "relativeExecutablePath": "mame.exe",
+  "workingDir": ".",
+  "pluginName": "hsl-score"
+}
+```
+
+This is only for the current development pack. The cleaner final pack layout
+continues to be the one documented by `local/pack.example.json`, with MAME
+inside a `mame/` subfolder.
 
 Architecture constraints for that GUI:
 
