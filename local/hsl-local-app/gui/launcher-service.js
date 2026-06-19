@@ -144,7 +144,7 @@ async function getSessionState(config) {
       return {
         email: null,
         hasSession: false,
-        message: "No hay sesion local. Usa npm run login -- <email> en CLI.",
+        message: "No hay sesión local. Usa npm run login -- <email> en CLI.",
         sessionFile: config.sessionFileAbs,
         status: "missing",
       };
@@ -156,7 +156,7 @@ async function getSessionState(config) {
       email: storedSession.user?.email || null,
       expiresAt: storedSession.session?.expires_at || null,
       hasSession: true,
-      message: expiringSoon ? "Sesion local encontrada, pero expira pronto." : "Sesion local encontrada.",
+      message: expiringSoon ? "Sesión local encontrada, pero expira pronto." : "Sesión local encontrada.",
       sessionFile: config.sessionFileAbs,
       status: expiringSoon ? "warning" : "ok",
       userId: storedSession.user?.id || null,
@@ -166,7 +166,7 @@ async function getSessionState(config) {
       email: null,
       error: normalizeMessage(error),
       hasSession: false,
-      message: "No se pudo leer la sesion local.",
+      message: "No se pudo leer la sesión local.",
       sessionFile: config.sessionFileAbs,
       status: "error",
     };
@@ -244,8 +244,8 @@ async function runDiagnose() {
   return {
     action: "diagnose",
     lines: [
-      `Diagnostico: ${report.errors.length} errores, ${report.warnings.length} advertencias.`,
-      ...[...new Set(report.recommendations)].map((item) => `Recomendacion: ${item}`),
+      `Diagnóstico: ${report.errors.length} errores, ${report.warnings.length} advertencias.`,
+      ...[...new Set(report.recommendations)].map((item) => `Recomendación: ${item}`),
     ],
     ok: report.errors.length === 0,
     report: summarizeDiagnoseReport(report),

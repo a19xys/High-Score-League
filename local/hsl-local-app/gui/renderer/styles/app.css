@@ -6,7 +6,7 @@ body {
   min-width: 960px;
   margin: 0;
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--background) 88%, var(--surface-strong)), var(--background) 58%),
+    linear-gradient(135deg, color-mix(in srgb, var(--background) 92%, var(--surface-strong)), var(--background) 58%),
     var(--background);
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -17,9 +17,21 @@ button {
   font: inherit;
 }
 
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--circuit);
+  outline-offset: 3px;
+}
+
 .app-shell {
   min-height: 100vh;
   padding: 28px;
+}
+
+main,
+.launcher-header {
+  max-width: 1280px;
+  margin-inline: auto;
 }
 
 .launcher-header,
@@ -32,8 +44,13 @@ button {
 }
 
 .launcher-header {
-  margin: 0 auto 22px;
-  max-width: 1280px;
+  margin-bottom: 24px;
+}
+
+.header-subtitle {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 15px;
 }
 
 .eyebrow {
@@ -52,8 +69,8 @@ p {
 }
 
 h1 {
-  font-size: 34px;
-  line-height: 1.1;
+  font-size: 32px;
+  line-height: 1.12;
 }
 
 h2 {
@@ -66,17 +83,15 @@ p {
   line-height: 1.5;
 }
 
-main {
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
 .header-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
+  max-width: 52%;
 }
 
+.session-chip,
 .theme-button,
 .icon-button {
   min-height: 38px;
@@ -84,8 +99,22 @@ main {
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
-  cursor: pointer;
   font-weight: 700;
+}
+
+.session-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 260px;
+  overflow: hidden;
+  padding-inline: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-button,
+.icon-button {
+  cursor: pointer;
 }
 
 .theme-button {
@@ -97,58 +126,204 @@ main {
   font-size: 18px;
 }
 
-.status-grid {
+.launcher-layout {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.main-grid {
-  display: grid;
-  grid-template-columns: minmax(440px, 0.92fr) minmax(420px, 1.08fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
+  gap: 18px;
   align-items: start;
 }
 
-.left-column {
+.main-column,
+.side-column {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
-.panel {
+.panel,
+.game-panel {
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: var(--shadow-panel);
 }
 
-.status-card,
-.action-panel,
-.queue-panel,
-.log-panel {
+.panel {
   padding: 18px;
 }
 
-.status-card {
+.game-panel {
+  position: relative;
   display: grid;
-  min-height: 170px;
-  align-content: space-between;
-  gap: 14px;
-}
-
-.meta-line {
+  grid-template-columns: minmax(0, 1fr) 170px;
+  min-height: 340px;
   overflow: hidden;
-  max-width: 100%;
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-strong) 86%, var(--circuit)), var(--surface-strong) 62%),
+    var(--surface-strong);
+  color: var(--text-inverse);
 }
 
-.muted {
+.game-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--circuit) 11%, transparent), transparent),
+    repeating-linear-gradient(90deg, transparent 0 28px, rgb(255 255 255 / 0.035) 29px 30px);
+  opacity: 0.42;
+}
+
+.game-panel__content,
+.game-panel__score {
+  position: relative;
+  z-index: 1;
+}
+
+.game-panel__content {
+  display: grid;
+  align-content: space-between;
+  gap: 22px;
+  padding: 28px;
+}
+
+.game-panel h2 {
+  color: var(--text-inverse);
+  font-size: 44px;
+  line-height: 1.04;
+  text-transform: uppercase;
+}
+
+.game-week,
+.ready-copy {
+  color: color-mix(in srgb, var(--text-inverse) 78%, transparent);
+}
+
+.game-week {
+  margin-top: 8px;
+  font-weight: 700;
+}
+
+.ready-copy {
+  max-width: 48rem;
+  font-size: 16px;
+}
+
+.badge-row,
+.primary-actions,
+.support-actions,
+.dev-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.primary-actions {
+  align-items: stretch;
+}
+
+.support-actions {
+  flex: 1 1 320px;
+}
+
+.play-button,
+.secondary-action,
+.tool-button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: filter 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
+}
+
+.play-button:hover:not(:disabled),
+.secondary-action:hover:not(:disabled),
+.tool-button:hover:not(:disabled),
+.theme-button:hover,
+.icon-button:hover {
+  filter: brightness(1.06);
+}
+
+.play-button:active:not(:disabled),
+.secondary-action:active:not(:disabled),
+.tool-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.play-button {
+  display: grid;
+  flex: 1 1 260px;
+  min-height: 114px;
+  align-content: center;
+  gap: 7px;
+  border-color: var(--circuit-strong);
+  background: linear-gradient(180deg, var(--circuit), var(--circuit-strong));
+  color: var(--text-inverse);
+  padding: 18px 20px;
+  text-align: left;
+}
+
+.play-button span {
+  font-size: 21px;
+  font-weight: 900;
+}
+
+.play-button small,
+.secondary-action small {
+  line-height: 1.35;
+}
+
+.play-button small {
+  color: color-mix(in srgb, var(--text-inverse) 78%, transparent);
+}
+
+.secondary-action {
+  display: grid;
+  flex: 1 1 180px;
+  min-height: 86px;
+  align-content: center;
+  gap: 5px;
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
+  color: var(--text);
+  padding: 14px;
+  text-align: left;
+}
+
+.secondary-action span,
+.tool-button {
+  font-weight: 800;
+}
+
+.secondary-action small {
   color: var(--text-muted);
   font-size: 12px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.game-panel__score {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  border-left: 1px solid rgb(255 255 255 / 0.14);
+  background: rgb(2 6 23 / 0.2);
+  text-align: center;
+}
+
+.game-panel__score strong {
+  color: var(--text-inverse);
+  font-size: 58px;
+  line-height: 1;
+}
+
+.score-label {
+  color: var(--circuit);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .badge,
@@ -174,6 +349,12 @@ main {
   color: var(--circuit);
 }
 
+.badge-muted {
+  border-color: rgb(255 255 255 / 0.18);
+  background: rgb(255 255 255 / 0.08);
+  color: color-mix(in srgb, var(--text-inverse) 70%, transparent);
+}
+
 .badge-ok {
   border-color: color-mix(in srgb, var(--ok) 60%, var(--border));
   background: var(--ok-bg);
@@ -196,54 +377,79 @@ main {
   margin-bottom: 14px;
 }
 
-.action-grid {
+.panel-heading.compact {
+  align-items: start;
+}
+
+.player-summary {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 16px;
 }
 
-.command-button {
+.summary-account {
   display: grid;
-  min-height: 82px;
-  align-content: center;
-  gap: 5px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-muted);
-  color: var(--text);
-  cursor: pointer;
-  padding: 14px;
-  text-align: left;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
 }
 
-.command-button span {
-  font-weight: 800;
+.avatar {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--circuit) 35%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--circuit) 13%, var(--surface));
+  color: var(--circuit);
+  font-weight: 900;
 }
 
-.command-button small {
-  overflow-wrap: anywhere;
+.min-w-0 {
+  min-width: 0;
+}
+
+.summary-account h2 {
+  overflow: hidden;
+  margin-top: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-list {
+  display: grid;
+  gap: 9px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.summary-row span,
+.technical-details dt {
   color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 13px;
 }
 
-.command-button.primary {
-  border-color: var(--circuit-strong);
-  background: linear-gradient(180deg, var(--circuit), var(--circuit-strong));
-  color: var(--text-inverse);
+.summary-row strong {
+  font-size: 20px;
 }
 
-.command-button.primary small {
-  color: color-mix(in srgb, var(--text-inverse) 76%, transparent);
+.soft-note {
+  border: 1px solid color-mix(in srgb, var(--circuit) 24%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--circuit) 8%, var(--surface));
+  padding: 12px;
 }
 
-.command-button.subtle {
-  background: transparent;
-}
-
-.command-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
+.soft-note strong {
+  display: block;
+  margin-bottom: 5px;
 }
 
 .queue-list,
@@ -285,7 +491,7 @@ main {
 
 .empty-state {
   display: grid;
-  min-height: 118px;
+  min-height: 116px;
   place-items: center;
   border: 1px dashed var(--border);
   border-radius: 8px;
@@ -294,7 +500,24 @@ main {
 }
 
 .log-panel {
-  min-height: 504px;
+  min-height: 230px;
+}
+
+.log-entry p {
+  margin-top: 9px;
+}
+
+.log-details,
+.technical-details {
+  margin-top: 10px;
+}
+
+.log-details summary,
+.technical-details summary {
+  cursor: pointer;
+  color: var(--circuit);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .log-entry pre {
@@ -308,21 +531,72 @@ main {
   white-space: pre-wrap;
 }
 
+.dev-tools {
+  color: var(--text-muted);
+}
+
+.dev-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.tool-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  background: var(--surface-muted);
+  color: var(--text);
+  padding: 0 12px;
+}
+
+.tool-button small {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.technical-details dl {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 0;
+}
+
+.technical-details div {
+  display: grid;
+  gap: 3px;
+}
+
+.technical-details dd {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .skeleton-panel {
   min-height: 170px;
   background: linear-gradient(90deg, var(--surface), var(--surface-muted), var(--surface));
 }
 
-@media (max-width: 1040px) {
+@media (max-width: 1080px) {
   .app-shell {
     padding: 20px;
   }
 
-  .status-grid {
+  .launcher-layout,
+  .game-panel {
     grid-template-columns: 1fr;
   }
 
-  .main-grid {
-    grid-template-columns: 1fr;
+  .game-panel__score {
+    min-height: 120px;
+    border-top: 1px solid rgb(255 255 255 / 0.14);
+    border-left: 0;
   }
 }

@@ -371,6 +371,9 @@ The launcher GUI wraps the validated CLI behavior instead of reinventing it.
 The current prototype is an Electron development app that shows local session
 status, the effective dev bridge or pack config, the active Space Invaders
 week, pending/sent/failed counts, a pending list, actions, and command output.
+The polished first screen is centered on the player flow: active game, ready
+state, `Jugar competición`, practice, pending uploads, friendly messages, and a
+secondary development tools area for diagnostics and plugin sync.
 
 Design document: [`docs/launcher-gui-0.md`](docs/launcher-gui-0.md).
 Prototype notes: [`docs/launcher-gui-1.md`](docs/launcher-gui-1.md).

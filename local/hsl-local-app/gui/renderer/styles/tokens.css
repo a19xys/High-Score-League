@@ -8,6 +8,7 @@
   --text: #111827;
   --text-muted: #64748b;
   --text-inverse: #ffffff;
+  --hover: #f1f5f9;
   --circuit: #0891b2;
   --circuit-strong: #0e7490;
   --ok: #16a34a;
@@ -29,6 +30,7 @@
   --text: #e5e7eb;
   --text-muted: #94a3b8;
   --text-inverse: #ffffff;
+  --hover: #263244;
   --circuit: #22d3ee;
   --circuit-strong: #06b6d4;
   --ok: #4ade80;

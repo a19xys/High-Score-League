@@ -1,16 +1,25 @@
+import { COPY } from "./copy.js";
+import { escapeHtml } from "./html.js";
+
 export function renderHeader(state) {
   const themeLabel = state.theme === "dark" ? "Claro" : "Oscuro";
-  const busyText = state.busy ? `<span class="busy-chip">${state.busyLabel || "Ejecutando"}</span>` : "";
+  const busyText = state.busy ? `<span class="busy-chip">${escapeHtml(state.busyLabel || "Ejecutando")}</span>` : "";
+  const session = state.data?.session;
+  const sessionText = session?.hasSession
+    ? session.email || "Cuenta conectada"
+    : "Sin cuenta conectada";
 
   return `
     <header class="launcher-header">
       <div>
-        <p class="eyebrow">High Score League</p>
-        <h1>Launcher local</h1>
+        <p class="eyebrow">HSL</p>
+        <h1>High Score League Launcher</h1>
+        <p class="header-subtitle">${COPY.launcherSubtitle}</p>
       </div>
       <div class="header-actions">
         ${busyText}
-        <button class="icon-button" type="button" data-action="refresh" title="Actualizar estado">↻</button>
+        <span class="session-chip">${escapeHtml(sessionText)}</span>
+        <button class="icon-button" type="button" data-action="refresh" title="Actualizar estado">&#8635;</button>
         <button class="theme-button" type="button" data-action="toggle-theme">${themeLabel}</button>
       </div>
     </header>
