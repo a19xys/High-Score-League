@@ -20,6 +20,11 @@ const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plu
 const { submitAll } = require("../src/submission-service");
 const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
 const { applyScopedQueue, ensureScopedQueue } = require("../src/scoped-queue");
+const {
+  checkSeasonMembership,
+  shouldBlockCompetition,
+  shouldBlockSubmit,
+} = require("../src/season-membership");
 
 let activeOpenedPack = null;
 let recentPackLoadAttempted = false;
@@ -608,6 +613,7 @@ async function getLauncherState() {
   await ensureRememberedPackLoaded();
   const baseConfig = getEffectiveConfig();
   const session = await getAuthState(baseConfig);
+  const membership = await checkSeasonMembership(baseConfig, session);
   const scoped = await getScopedGuiConfig(baseConfig, session);
   const queue = scoped.scope
     ? await getQueueState(scoped.config)
@@ -618,6 +624,7 @@ async function getLauncherState() {
     configPath: scoped.config.configPath,
     game: getGameState(scoped.config),
     library: await scanPackLibrary(baseConfig),
+    membership,
     notices: recentPackNotices,
     queue,
     scope: scoped.scope
@@ -672,6 +679,7 @@ async function playCompetition() {
   await ensureRememberedPackLoaded();
   const baseConfig = getEffectiveConfig();
   const session = await getAuthState(baseConfig);
+  const membership = await checkSeasonMembership(baseConfig, session);
 
   if (!session.hasSession) {
     return {
@@ -679,6 +687,16 @@ async function playCompetition() {
       lines: ["Inicia sesion para jugar en competicion y guardar puntuaciones en tu cola local."],
       ok: false,
       summary: "Inicia sesion para jugar en competicion.",
+      state: await getLauncherState(),
+    };
+  }
+
+  if (shouldBlockCompetition(membership)) {
+    return {
+      action: "play-competition",
+      lines: [membership.message],
+      ok: false,
+      summary: membership.message,
       state: await getLauncherState(),
     };
   }
@@ -714,6 +732,9 @@ async function playCompetition() {
     adoption,
     exitCode,
     lines: [
+      ...(membership.status === "unknown" || membership.status === "error"
+        ? [membership.message]
+        : []),
       ...captured.lines,
       ...(adoption.adopted.length > 0
         ? [`${adoption.adopted.length} captura(s) nueva(s) movida(s) a la cola de esta cuenta y pack.`]
@@ -734,6 +755,7 @@ async function submitAllPending() {
   await ensureRememberedPackLoaded();
   const baseConfig = getEffectiveConfig();
   const session = await getAuthState(baseConfig);
+  const membership = await checkSeasonMembership(baseConfig, session);
 
   if (!session.hasSession) {
     return {
@@ -741,6 +763,16 @@ async function submitAllPending() {
       lines: [session.message, "Inicia sesión para subir puntuaciones."],
       ok: false,
       summary: "Inicia sesión para subir puntuaciones.",
+      state: await getLauncherState(),
+    };
+  }
+
+  if (shouldBlockSubmit(membership)) {
+    return {
+      action: "submit-all",
+      lines: [membership.message],
+      ok: false,
+      summary: membership.message,
       state: await getLauncherState(),
     };
   }

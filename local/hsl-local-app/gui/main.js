@@ -1,5 +1,5 @@
 const path = require("node:path");
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const service = require("./launcher-service");
 
 let mainWindow = null;
@@ -60,6 +60,30 @@ function registerIpc() {
   });
   ipcMain.handle("launcher:remove-library-location", (_event, locationId) => service.removeLibraryLocationFromGui(locationId));
   ipcMain.handle("launcher:use-library-pack", (_event, packId) => service.activateLibraryPack(packId));
+  ipcMain.handle("launcher:open-membership-url", async () => {
+    const state = await service.getLauncherState();
+    const url = state.membership?.joinUrl || state.bridge?.webBaseUrl;
+
+    if (!url || !/^https?:\/\//i.test(url)) {
+      return {
+        action: "open-membership-url",
+        lines: ["No hay una URL web valida para abrir."],
+        ok: false,
+        summary: "No hay una URL web valida para abrir.",
+        state,
+      };
+    }
+
+    await shell.openExternal(url);
+
+    return {
+      action: "open-membership-url",
+      lines: [`Web abierta: ${url}`],
+      ok: true,
+      summary: "Web abierta en el navegador.",
+      state,
+    };
+  });
   ipcMain.handle("launcher:diagnose", () => service.runDiagnose());
   ipcMain.handle("launcher:play-competition", () => service.playCompetition());
   ipcMain.handle("launcher:practice", () => service.playPractice());

@@ -10,6 +10,10 @@ export function renderDevTools(state) {
     : data?.bridge?.packMetadataLoaded
       ? "metadata.json cargado"
       : "sin metadata local";
+  const membership = data?.membership;
+  const membershipLabel = membership
+    ? `${membership.status}${membership.technicalReason ? `: ${membership.technicalReason}` : ""}`
+    : "sin comprobacion";
   const modeLabel = data?.bridge?.packOpened
     ? "pack abierto"
     : data?.bridge?.devBridge
@@ -50,6 +54,10 @@ export function renderDevTools(state) {
           <div>
             <dt>Metadata</dt>
             <dd>${escapeHtml(metadataLabel)}</dd>
+          </div>
+          <div>
+            <dt>Participacion</dt>
+            <dd>${escapeHtml(membershipLabel)}</dd>
           </div>
           <div>
             <dt>Cola</dt>

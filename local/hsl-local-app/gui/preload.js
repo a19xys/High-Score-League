@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   login: (email, password) => ipcRenderer.invoke("launcher:login", { email, password }),
   logout: invoke("launcher:logout"),
   openPack: invoke("launcher:open-pack"),
+  openMembershipUrl: invoke("launcher:open-membership-url"),
   playCompetition: invoke("launcher:play-competition"),
   practice: invoke("launcher:practice"),
   removeLibraryLocation: (locationId) => ipcRenderer.invoke("launcher:remove-library-location", locationId),

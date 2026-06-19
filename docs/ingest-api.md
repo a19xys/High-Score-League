@@ -82,6 +82,20 @@ La app local debe tratar `NOT_SEASON_MEMBER` como un error recuperable de
 producto: informar al jugador de que debe unirse a la temporada desde la web y
 no reintentar en bucle la misma submission hasta que la membership exista.
 
+## Comprobacion previa para app local
+
+La app local puede consultar la misma regla antes de jugar competicion:
+
+```text
+GET /api/local/season-membership?weekId=<weekId>
+Authorization: Bearer <access_token>
+```
+
+Este endpoint usa la anon key y la sesion del usuario, no `service_role`.
+Devuelve estados normalizados como `member`, `not_member`, `invalid_week`,
+`unauthenticated` o `error`. Es solo una mejora de UX: el endpoint de ingest
+sigue siendo la comprobacion definitiva antes de aceptar una submission.
+
 ## Respuesta de éxito
 
 ```json

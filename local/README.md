@@ -122,6 +122,8 @@ Metadata and assets notes:
 [`docs/pack-metadata-assets-1.md`](docs/pack-metadata-assets-1.md).
 Pack library locations notes:
 [`docs/pack-library-locations-1.md`](docs/pack-library-locations-1.md).
+Season membership check notes:
+[`docs/season-membership-check-1.md`](docs/season-membership-check-1.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is
@@ -416,6 +418,8 @@ Pack metadata/assets notes:
 [`docs/pack-metadata-assets-1.md`](docs/pack-metadata-assets-1.md).
 Pack library locations notes:
 [`docs/pack-library-locations-1.md`](docs/pack-library-locations-1.md).
+Season membership check notes:
+[`docs/season-membership-check-1.md`](docs/season-membership-check-1.md).
 
 Run it from the repository root:
 
@@ -527,6 +531,13 @@ The launcher scans only direct subfolders with `pack.json`, lists detected
 packs, and lets the player activate one with `Usar este pack`. This reuses the
 same activation and remembered-pack flow as `Abrir pack`. The app does not copy,
 move, download, or delete packs.
+
+Before competition play and pending uploads, the GUI now checks whether the
+connected account belongs to the season for the active pack `weekId`. Known
+non-members, invalid weeks, missing sessions, and packs without `weekId` block
+competition and submission. Practice remains available. Temporary network or
+server errors allow competition with a warning, but keep submission disabled
+until membership can be verified.
 
 This prototype is not packaged, not an installer, and not the final pack picker.
 Pack opening is the first incremental step toward the final pack flow, not

@@ -95,6 +95,9 @@ function resultToLog(title, response) {
     "open-pack": response.summary || (ok
       ? "Pack abierto correctamente. Cambiar de pack no borra puntuaciones locales."
       : "No se pudo abrir el pack seleccionado."),
+    "open-membership-url": response.summary || (ok
+      ? "Web abierta en el navegador."
+      : "No se pudo abrir la web."),
     "add-library-location": response.summary || "Biblioteca actualizada.",
     "remove-library-location": response.summary || "Biblioteca actualizada.",
     "use-library-pack": response.summary || (ok
@@ -250,6 +253,10 @@ function bindActions() {
     if (action === "use-library-pack") {
       const packId = button.dataset.packId;
       runAction(action, "Activando pack", "Usar pack de biblioteca", () => window.hslLauncher.useLibraryPack(packId));
+    }
+
+    if (action === "open-membership-url") {
+      runAction(action, "Abriendo web", "Abrir temporada en la web", () => window.hslLauncher.openMembershipUrl());
     }
 
     if (action === "diagnose") {

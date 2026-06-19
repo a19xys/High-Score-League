@@ -4,13 +4,23 @@ import { escapeHtml } from "./html.js";
 function renderSubmitState(state) {
   const pending = state.data?.queue?.totals?.pending || 0;
   const hasSession = Boolean(state.data?.session?.hasSession);
-  const disabled = state.busy || pending === 0 || !hasSession ? "disabled" : "";
+  const membership = state.data?.membership;
+  const disabled = state.busy || pending === 0 || !hasSession || membership?.canSubmit === false ? "disabled" : "";
 
   if (!hasSession) {
     return `
       <button class="secondary-action" type="button" data-action="submit" disabled>
         <span>${pending > 0 ? "Subir pendientes" : "Sin pendientes"}</span>
-        <small>Inicia sesión para subir puntuaciones.</small>
+        <small>Inicia sesion para subir puntuaciones.</small>
+      </button>
+    `;
+  }
+
+  if (membership?.canSubmit === false && pending > 0) {
+    return `
+      <button class="secondary-action" type="button" data-action="submit" disabled>
+        <span>Subir pendientes</span>
+        <small>${escapeHtml(membership.message || "No se puede subir hasta comprobar la temporada.")}</small>
       </button>
     `;
   }
@@ -18,7 +28,7 @@ function renderSubmitState(state) {
   return `
     <button class="secondary-action" type="button" data-action="submit" ${disabled}>
       <span>${pending > 0 ? "Subir pendientes" : "Sin pendientes"}</span>
-      <small>${pending > 0 ? getQueueSummary(state.data.queue) : "La cola local está limpia"}</small>
+      <small>${pending > 0 ? getQueueSummary(state.data.queue) : "La cola local esta limpia"}</small>
     </button>
   `;
 }
@@ -31,6 +41,45 @@ function renderPackAction(state) {
     <button class="secondary-action pack-action" type="button" data-action="open-pack" ${disabled}>
       <span>${label}</span>
       <small>Elige la carpeta raíz del pack descargado.</small>
+    </button>
+  `;
+}
+
+function membershipBadge(membership) {
+  if (!membership) {
+    return `<span class="badge badge-muted">Participacion pendiente</span>`;
+  }
+
+  if (membership.status === "member") {
+    return `<span class="badge badge-ok">Participas</span>`;
+  }
+
+  if (membership.status === "not_member") {
+    return `<span class="badge badge-error">No participas</span>`;
+  }
+
+  if (membership.status === "no_session") {
+    return `<span class="badge badge-warn">Sin cuenta</span>`;
+  }
+
+  if (membership.status === "missing_week" || membership.status === "invalid_week") {
+    return `<span class="badge badge-error">Semana no valida</span>`;
+  }
+
+  return `<span class="badge badge-warn">No se pudo comprobar</span>`;
+}
+
+function renderMembershipCallToAction(membership) {
+  if (!membership?.joinUrl || membership.status === "member") {
+    return "";
+  }
+
+  const label = membership.status === "not_member" ? "Unirse desde la web" : "Abrir temporada en la web";
+
+  return `
+    <button class="secondary-action" type="button" data-action="open-membership-url">
+      <span>${label}</span>
+      <small>Abre High Score League en el navegador.</small>
     </button>
   `;
 }
@@ -76,11 +125,13 @@ export function renderGamePanel(state) {
   const data = state.data;
   const game = data?.game;
   const bridge = data?.bridge;
+  const membership = data?.membership;
   const disabled = state.busy ? "disabled" : "";
-  const competitionDisabled = state.busy || !data?.session?.hasSession ? "disabled" : "";
-  const competitionHint = data?.session?.hasSession
+  const membershipBlocksCompetition = membership?.canPlayCompetition === false;
+  const competitionDisabled = state.busy || !data?.session?.hasSession || membershipBlocksCompetition ? "disabled" : "";
+  const competitionHint = membership?.message || (data?.session?.hasSession
     ? "Inicia MAME en modo liga y registra tus intentos."
-    : "Inicia sesion para competir y guardar en tu cola local.";
+    : "Inicia sesion para competir y guardar en tu cola local.");
   const week = game?.weekId || "Semana actual";
   const subtitle = game?.subtitle || week;
   const description = game?.shortDescription || getReadyLabel(data);
@@ -93,7 +144,7 @@ export function renderGamePanel(state) {
       <div class="game-panel__content">
         <div class="badge-row">
           <span class="badge badge-accent">Competición</span>
-          <span class="badge badge-ok">Activa</span>
+          ${membershipBadge(membership)}
           ${bridge?.packOpened ? `<span class="badge badge-accent">Pack abierto</span>` : ""}
           ${bridge?.packRemembered ? `<span class="badge badge-muted">Último pack cargado</span>` : ""}
           ${bridge?.scopedQueue ? `<span class="badge badge-ok">Cola cuenta + pack</span>` : ""}
@@ -114,7 +165,7 @@ export function renderGamePanel(state) {
         <div class="primary-actions">
           <button class="play-button" type="button" data-action="play" ${competitionDisabled}>
             <span>${COPY.actions.play}</span>
-            <small>${competitionHint}</small>
+            <small>${escapeHtml(competitionHint)}</small>
           </button>
           <div class="support-actions">
             <button class="secondary-action" type="button" data-action="practice" ${disabled}>
@@ -123,6 +174,7 @@ export function renderGamePanel(state) {
             </button>
             ${renderSubmitState(state)}
             ${renderPackAction(state)}
+            ${renderMembershipCallToAction(membership)}
           </div>
         </div>
       </div>

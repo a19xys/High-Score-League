@@ -127,6 +127,21 @@ Documento especifico:
 Documento especifico:
 [`pack-library-locations-1.md`](pack-library-locations-1.md).
 
+## Season membership check 1
+
+- La GUI comprueba la participacion de la cuenta activa en la temporada del
+  `weekId` del pack antes de jugar competicion o subir pendientes.
+- `Participas` permite jugar competicion y subir.
+- `No participas`, `Sin cuenta`, `Semana no valida` o pack sin `weekId`
+  bloquean competicion y subida, pero no practica.
+- Errores de red o comprobacion desconocida permiten jugar competicion con
+  aviso y dejan la puntuacion local; la subida queda bloqueada hasta verificar.
+- La accion `Unirse desde la web` o `Abrir temporada en la web` abre el enlace
+  desde Electron main. El renderer no recibe tokens.
+
+Documento especifico:
+[`season-membership-check-1.md`](season-membership-check-1.md).
+
 ## Final UX blueprint 1
 
 - La dirección final de la GUI queda documentada en

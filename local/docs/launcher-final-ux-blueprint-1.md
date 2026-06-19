@@ -277,7 +277,11 @@ En una fase posterior podría existir:
 [Unirse a la temporada]
 ```
 
-Esta visión no implementa membership check. Solo define cómo debería sentirse y bloquearse el flujo cuando exista esa comprobación.
+Primer soporte implementado en `LOCAL-SEASON-MEMBERSHIP-CHECK-1`: la GUI
+consulta la membership de la temporada para el `weekId` activo, bloquea
+competicion y subida en estados conocidos no validos, mantiene practica
+disponible y abre la temporada en la web para unirse o revisar la cuenta. Los
+errores desconocidos permiten jugar con aviso, pero no subir hasta verificar.
 
 ## Cuentas múltiples
 
@@ -389,6 +393,9 @@ Orden recomendado:
 - `launcher-pack-remember-1.md` recuerda el último pack abierto en `userData/packs/recent.json`. Este blueprint lo considera un paso previo a `userData/libraries/locations.json`.
 - `launcher-submission-recovery-1.md` redefine `failed` como puntuaciones con error recuperables. Este blueprint conserva esa idea y la integra con sincronización automática y estados comprensibles.
 - `account-pack-scoped-queue-1.md` separa la cola por cuenta y pack en `userData`. Este blueprint usa esa decisión como base para cuentas múltiples, cambio de cuenta y seguridad de puntuaciones.
+- `season-membership-check-1.md` introduce la comprobacion previa de
+  participacion en temporada para que la app local bloquee competicion con
+  mensajes de jugador antes de llegar al ingest.
 
 ## No se implementa en esta tarea
 
