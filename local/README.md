@@ -385,6 +385,8 @@ Pack opening notes:
 [`docs/launcher-pack-open-1.md`](docs/launcher-pack-open-1.md).
 Remembered-pack notes:
 [`docs/launcher-pack-remember-1.md`](docs/launcher-pack-remember-1.md).
+Auth GUI notes:
+[`docs/launcher-auth-gui-1.md`](docs/launcher-auth-gui-1.md).
 
 Run it from the repository root:
 
@@ -399,12 +401,12 @@ npm run gui
 ```
 
 The GUI uses the same effective local config as the CLI. It can run
-`diagnose`, competition `play`, `practice`, `submit-all`, local `logout`, and
-development-only `sync-plugin`. Login remains a CLI action for now:
-
-```powershell
-npm.cmd --prefix local/hsl-local-app run login -- <email>
-```
+`diagnose`, competition `play`, `practice`, `submit-all`, local login/logout,
+and development-only `sync-plugin`. The account panel signs in with email and
+password through Supabase Auth, saves the session in the same
+`userData/session.json` used by the CLI, and never sends access or refresh
+tokens to the renderer. The password is used only for the login request and is
+not written to disk.
 
 To test the product-style flow, press `Abrir pack` in the launcher and select
 the root folder that contains `pack.json`. When the pack is valid, the GUI uses

@@ -56,6 +56,19 @@ Documento específico: [`launcher-pack-open-1.md`](launcher-pack-open-1.md).
 - Si falla, muestra un aviso amable y mantiene el fallback de desarrollo puente.
 - No copia packs, no borra eventos y no implementa lista multi-pack.
 
+## Auth GUI 1
+
+- La seccion `Cuenta` permite iniciar sesion con email y contrasena desde la
+  GUI.
+- El login usa Supabase Auth con la anon key configurada y guarda la sesion en
+  el mismo `userData/session.json` que usa la CLI.
+- El renderer no recibe `access_token`, `refresh_token` ni contrasena.
+- `Cerrar sesion` elimina solo la sesion local; no borra packs ni puntuaciones
+  pendientes.
+- `Subir pendientes` queda bloqueado visualmente si no hay cuenta conectada.
+
+Documento especifico: [`launcher-auth-gui-1.md`](launcher-auth-gui-1.md).
+
 ## Limites
 
 - El juego fijo sigue siendo `invaders`, igual que el MVP local actual.

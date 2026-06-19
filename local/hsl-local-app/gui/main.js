@@ -28,6 +28,8 @@ function createMainWindow() {
 
 function registerIpc() {
   ipcMain.handle("launcher:get-state", () => service.getLauncherState());
+  ipcMain.handle("launcher:get-auth-state", () => service.getAuthStateForGui());
+  ipcMain.handle("launcher:login", (_event, credentials) => service.loginWithPassword(credentials));
   ipcMain.handle("launcher:open-pack", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       buttonLabel: "Abrir pack",

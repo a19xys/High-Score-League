@@ -1,4 +1,5 @@
 const fsp = require("fs/promises");
+const path = require("node:path");
 const readline = require("node:readline/promises");
 const { stdin: input, stdout: output } = require("node:process");
 const { pathExists } = require("./file-utils");
@@ -93,6 +94,7 @@ async function saveSession(config, session, user) {
     },
   };
 
+  await fsp.mkdir(path.dirname(config.sessionFileAbs), { recursive: true });
   await fsp.writeFile(config.sessionFileAbs, JSON.stringify(data, null, 2), "utf8");
 }
 
@@ -163,6 +165,196 @@ async function getValidStoredSession(config) {
   }
 
   return storedSession;
+}
+
+function redactValues(text, values = []) {
+  let safeText = String(text || "");
+
+  for (const value of values) {
+    if (!value || typeof value !== "string") {
+      continue;
+    }
+
+    safeText = safeText.split(value).join("[redactado]");
+  }
+
+  return safeText;
+}
+
+function toSafeSessionState(storedSession, overrides = {}) {
+  return {
+    email: storedSession?.user?.email || overrides.email || null,
+    expiresAt: storedSession?.session?.expires_at || null,
+    hasSession: Boolean(storedSession),
+    message: overrides.message || "Sesión local activa.",
+    sessionFile: overrides.sessionFile || null,
+    status: overrides.status || "ok",
+    userId: storedSession?.user?.id || overrides.userId || null,
+  };
+}
+
+async function getAuthStateLegacy(config) {
+  try {
+    assertAuthConfig(config);
+  } catch {
+    return {
+      email: null,
+      hasSession: false,
+      message: "La autenticación local no está configurada.",
+      sessionFile: config.sessionFileAbs,
+      status: "not_configured",
+      userId: null,
+    };
+  }
+
+  try {
+    const storedSession = await getValidStoredSession(config);
+
+    return toSafeSessionState(storedSession, {
+      message: "Sesión local activa.",
+      sessionFile: config.sessionFileAbs,
+      status: "ok",
+    });
+  } catch (error) {
+    const missing = /No hay sesión guardada/i.test(error.message);
+
+    return {
+      email: null,
+      hasSession: false,
+      message: missing
+        ? "No hay sesión guardada."
+        : "La sesión ha caducado. Inicia sesión de nuevo.",
+      sessionFile: config.sessionFileAbs,
+      status: missing ? "missing" : "expired",
+      userId: null,
+    };
+  }
+}
+
+async function getAuthState(config) {
+  try {
+    assertAuthConfig(config);
+  } catch {
+    return {
+      email: null,
+      hasSession: false,
+      message: "La autenticación local no está configurada.",
+      sessionFile: config.sessionFileAbs,
+      status: "not_configured",
+      userId: null,
+    };
+  }
+
+  try {
+    let storedSession = await readSession(config);
+
+    if (!storedSession) {
+      return {
+        email: null,
+        hasSession: false,
+        message: "No hay sesión guardada.",
+        sessionFile: config.sessionFileAbs,
+        status: "missing",
+        userId: null,
+      };
+    }
+
+    if (isSessionExpiringSoon(storedSession)) {
+      storedSession = await refreshStoredSession(config, storedSession);
+    }
+
+    return toSafeSessionState(storedSession, {
+      message: "Sesión local activa.",
+      sessionFile: config.sessionFileAbs,
+      status: "ok",
+    });
+  } catch {
+    return {
+      email: null,
+      hasSession: false,
+      message: "La sesión ha caducado. Inicia sesión de nuevo.",
+      sessionFile: config.sessionFileAbs,
+      status: "expired",
+      userId: null,
+    };
+  }
+}
+
+async function signInWithPassword(config, credentials = {}, options = {}) {
+  const email = typeof credentials.email === "string" ? credentials.email.trim() : "";
+  const password = typeof credentials.password === "string" ? credentials.password : "";
+
+  if (!email || !password) {
+    return {
+      message: "Email y contraseña son obligatorios.",
+      ok: false,
+      status: "invalid_input",
+    };
+  }
+
+  try {
+    assertAuthConfig(config);
+  } catch {
+    return {
+      message: "La autenticación local no está configurada.",
+      ok: false,
+      status: "not_configured",
+    };
+  }
+
+  const supabase = options.supabaseClient || createSupabaseClient(config);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    return {
+      message: "No he podido iniciar sesión. Revisa email y contraseña.",
+      ok: false,
+      status: "auth_failed",
+      technicalMessage: redactValues(error.message, [password]),
+    };
+  }
+
+  if (!data?.session) {
+    return {
+      message: "Login realizado, pero Supabase no devolvió sesión.",
+      ok: false,
+      status: "missing_session",
+    };
+  }
+
+  await saveSession(config, data.session, data.user);
+  const storedSession = await readSession(config);
+
+  return {
+    message: "Login correcto.",
+    ok: true,
+    session: toSafeSessionState(storedSession, {
+      message: "Sesión local activa.",
+      sessionFile: config.sessionFileAbs,
+      status: "ok",
+    }),
+    status: "ok",
+  };
+}
+
+async function logoutLocal(config) {
+  await deleteSession(config);
+
+  return {
+    message: "Sesión cerrada.",
+    ok: true,
+    session: {
+      email: null,
+      hasSession: false,
+      message: "No hay sesión guardada.",
+      sessionFile: config.sessionFileAbs,
+      status: "missing",
+      userId: null,
+    },
+  };
 }
 
 async function login(config, emailArg) {
@@ -275,12 +467,15 @@ module.exports = {
   authToken,
   createSupabaseClient,
   deleteSession,
+  getAuthState,
   getValidStoredSession,
   isSessionExpiringSoon,
   login,
   logout,
+  logoutLocal,
   maskToken,
   readSession,
   refreshStoredSession,
   saveSession,
+  signInWithPassword,
 };

@@ -10,6 +10,8 @@ import { renderQueuePanel } from "./components/queue-panel.js";
 const root = document.getElementById("app");
 const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
 const store = createStore({
+  authError: null,
+  authFormOpen: false,
   busy: false,
   busyLabel: null,
   data: null,
@@ -79,6 +81,9 @@ function resultToLog(title, response) {
   const ok = response.ok !== false && response.exitCode !== 1;
   const details = [...lines, ...extra];
   const friendly = {
+    login: ok
+      ? "Login correcto."
+      : "No he podido iniciar sesión. Revisa email y contraseña.",
     diagnose: ok
       ? "Diagnóstico completado. El launcher puede seguir usándose."
       : "El diagnóstico encontró algo que conviene revisar.",
@@ -143,7 +148,50 @@ async function runAction(action, busyLabel, title, fn) {
   }
 }
 
+async function submitLogin(form) {
+  if (store.getState().busy) return;
+
+  const fields = new FormData(form);
+  const email = String(fields.get("email") || "").trim();
+  const password = String(fields.get("password") || "");
+
+  store.setState({ authError: null, busy: true, busyLabel: "Conectando" });
+
+  try {
+    const response = await window.hslLauncher.login(email, password);
+
+    store.setState({
+      authError: response.ok ? null : response.summary || "No he podido iniciar sesión.",
+      authFormOpen: !response.ok,
+      busy: false,
+      busyLabel: null,
+      data: response.state || store.getState().data,
+      logs: appendLog(store.getState().logs, resultToLog("Iniciar sesión", response)),
+    });
+  } catch {
+    store.setState({
+      authError: "No he podido iniciar sesión. Revisa email y contraseña.",
+      busy: false,
+      busyLabel: null,
+      logs: appendLog(store.getState().logs, {
+        details: [],
+        ok: false,
+        summary: "No he podido iniciar sesión. Revisa email y contraseña.",
+        title: "Iniciar sesión",
+      }),
+    });
+  }
+}
+
 function bindActions() {
+  root.addEventListener("submit", (event) => {
+    const form = event.target instanceof Element ? event.target.closest("[data-auth-form]") : null;
+    if (!form) return;
+
+    event.preventDefault();
+    submitLogin(form);
+  });
+
   root.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : event.target.parentElement;
     const button = target?.closest("[data-action]");
@@ -153,6 +201,14 @@ function bindActions() {
 
     if (action === "toggle-theme") {
       store.setState({ theme: store.getState().theme === "dark" ? "light" : "dark" });
+    }
+
+    if (action === "show-login") {
+      store.setState({ authError: null, authFormOpen: true });
+    }
+
+    if (action === "cancel-login") {
+      store.setState({ authError: null, authFormOpen: false });
     }
 
     if (action === "refresh") {

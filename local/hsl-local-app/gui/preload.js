@@ -4,7 +4,9 @@ const invoke = (channel) => () => ipcRenderer.invoke(channel);
 
 contextBridge.exposeInMainWorld("hslLauncher", {
   diagnose: invoke("launcher:diagnose"),
+  getAuthState: invoke("launcher:get-auth-state"),
   getState: invoke("launcher:get-state"),
+  login: (email, password) => ipcRenderer.invoke("launcher:login", { email, password }),
   logout: invoke("launcher:logout"),
   openPack: invoke("launcher:open-pack"),
   playCompetition: invoke("launcher:play-competition"),

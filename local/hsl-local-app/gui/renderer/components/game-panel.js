@@ -3,7 +3,17 @@ import { escapeHtml } from "./html.js";
 
 function renderSubmitState(state) {
   const pending = state.data?.queue?.totals?.pending || 0;
-  const disabled = state.busy || pending === 0 ? "disabled" : "";
+  const hasSession = Boolean(state.data?.session?.hasSession);
+  const disabled = state.busy || pending === 0 || !hasSession ? "disabled" : "";
+
+  if (!hasSession) {
+    return `
+      <button class="secondary-action" type="button" data-action="submit" disabled>
+        <span>${pending > 0 ? "Subir pendientes" : "Sin pendientes"}</span>
+        <small>Inicia sesión para subir puntuaciones.</small>
+      </button>
+    `;
+  }
 
   return `
     <button class="secondary-action" type="button" data-action="submit" ${disabled}>

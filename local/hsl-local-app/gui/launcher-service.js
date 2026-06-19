@@ -1,7 +1,13 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { loadConfig } = require("../src/config");
-const { readSession, isSessionExpiringSoon, logout } = require("../src/auth");
+const {
+  getAuthState,
+  isSessionExpiringSoon,
+  logoutLocal,
+  readSession,
+  signInWithPassword,
+} = require("../src/auth");
 const { buildDiagnoseReport } = require("../src/diagnose");
 const { listJsonFiles, readEventFile } = require("../src/event-files");
 const { listSupportedGames } = require("../src/games");
@@ -419,7 +425,7 @@ async function getLauncherState() {
   const config = getEffectiveConfig();
   const [queue, session] = await Promise.all([
     getQueueState(config),
-    getSessionState(config),
+    getAuthState(config),
   ]);
 
   return {
@@ -476,7 +482,21 @@ function playPractice() {
   return withFreshState("practice", (config) => launchMame(config, config.pack?.rom || "invaders", "practice"));
 }
 
-function submitAllPending() {
+async function submitAllPending() {
+  await ensureRememberedPackLoaded();
+  const config = getEffectiveConfig();
+  const session = await getAuthState(config);
+
+  if (!session.hasSession) {
+    return {
+      action: "submit-all",
+      lines: [session.message, "Inicia sesión para subir puntuaciones."],
+      ok: false,
+      summary: "Inicia sesión para subir puntuaciones.",
+      state: await getLauncherState(),
+    };
+  }
+
   return withFreshState("submit-all", (config) => submitAll(config));
 }
 
@@ -504,8 +524,40 @@ async function syncPlugin() {
   });
 }
 
-function logoutSession() {
-  return withFreshState("logout", (config) => logout(config));
+async function loginWithPassword(credentials = {}) {
+  await ensureRememberedPackLoaded();
+  const config = getEffectiveConfig();
+  const result = await signInWithPassword(config, {
+    email: credentials.email,
+    password: credentials.password,
+  });
+
+  return {
+    action: "login",
+    lines: [result.message],
+    ok: result.ok,
+    summary: result.message,
+    state: await getLauncherState(),
+  };
+}
+
+async function logoutSession() {
+  await ensureRememberedPackLoaded();
+  const config = getEffectiveConfig();
+  const result = await logoutLocal(config);
+
+  return {
+    action: "logout",
+    lines: [result.message, "Cerrar sesión no borra puntuaciones locales."],
+    ok: result.ok,
+    summary: result.message,
+    state: await getLauncherState(),
+  };
+}
+
+async function getAuthStateForGui() {
+  await ensureRememberedPackLoaded();
+  return getAuthState(getEffectiveConfig());
 }
 
 async function cancelOpenPack() {
@@ -573,7 +625,9 @@ module.exports = {
   cancelOpenPack,
   deriveOpenedPackConfig,
   eventResultToQueueItem,
+  getAuthStateForGui,
   getLauncherState,
+  loginWithPassword,
   logoutSession,
   openPackDirectory,
   playCompetition,
