@@ -4,9 +4,11 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  adoptNewStagingEvents,
   classifyFailureReason,
   deriveOpenedPackConfig,
   eventResultToQueueItem,
+  listPendingFileSnapshot,
   readPackForGui,
   resolveRememberedPack,
   summarizeDiagnoseReport,
@@ -139,6 +141,43 @@ test("eventResultToQueueItem can include failed recovery metadata", () => {
 
   assert.equal(row.failure.friendlyReason, "Tu cuenta no esta unida a esta temporada.");
   assert.equal(JSON.stringify(row).includes("access_token"), false);
+});
+
+test("adoptNewStagingEvents leaves legacy staging files in place", async () => {
+  await withTempDir(async (dir) => {
+    const staging = path.join(dir, "staging");
+    const scoped = path.join(dir, "scoped");
+    await fsp.mkdir(staging, { recursive: true });
+    await fsp.mkdir(scoped, { recursive: true });
+    await fsp.writeFile(path.join(staging, "old.json"), JSON.stringify({ score: 1 }), "utf8");
+    const snapshot = await listPendingFileSnapshot(staging);
+
+    const result = await adoptNewStagingEvents(staging, scoped, snapshot, Date.now());
+
+    assert.deepEqual(result.adopted, []);
+    assert.deepEqual(result.skippedLegacy, ["old.json"]);
+    assert.equal(await fsp.readFile(path.join(staging, "old.json"), "utf8"), JSON.stringify({ score: 1 }));
+  });
+});
+
+test("adoptNewStagingEvents moves new staging files safely", async () => {
+  await withTempDir(async (dir) => {
+    const staging = path.join(dir, "staging");
+    const scoped = path.join(dir, "scoped");
+    await fsp.mkdir(staging, { recursive: true });
+    await fsp.mkdir(scoped, { recursive: true });
+    await fsp.writeFile(path.join(scoped, "new.json"), "existing", "utf8");
+    const snapshot = await listPendingFileSnapshot(staging);
+    await fsp.writeFile(path.join(staging, "new.json"), "new-score", "utf8");
+
+    const result = await adoptNewStagingEvents(staging, scoped, snapshot, Date.now() - 1000);
+
+    assert.equal(result.adopted.length, 1);
+    assert.equal(result.adopted[0].restoredFilename, "new__2.json");
+    assert.equal(await fsp.readFile(path.join(scoped, "new.json"), "utf8"), "existing");
+    assert.equal(await fsp.readFile(path.join(scoped, "new__2.json"), "utf8"), "new-score");
+    await assert.rejects(() => fsp.access(path.join(staging, "new.json")));
+  });
 });
 
 test("readPackForGui loads a valid external pack from a folder", async () => {

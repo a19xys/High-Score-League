@@ -83,6 +83,7 @@ function renderFailedSection(failed) {
 export function renderQueuePanel(state) {
   const pending = state.data?.queue?.pending;
   const failed = state.data?.queue?.failed;
+  const scoped = Boolean(state.data?.scope);
 
   if (!pending) {
     return `<section class="panel queue-panel"><h2>Puntuaciones pendientes</h2><p class="muted">Cargando cola local...</p></section>`;
@@ -100,7 +101,7 @@ export function renderQueuePanel(state) {
           <h2>Puntuaciones pendientes</h2>
           <p>Cola de seguridad · ${pending.count} guardadas · ${pending.validCount} válidas</p>
         </div>
-        <span class="badge">${pending.exists ? "Cola local" : "No disponible"}</span>
+        <span class="badge">${scoped ? "Cuenta + pack" : pending.exists ? "Cola local" : "No disponible"}</span>
       </div>
       ${body}
       ${renderFailedSection(failed)}

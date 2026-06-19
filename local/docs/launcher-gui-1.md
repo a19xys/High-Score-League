@@ -83,6 +83,19 @@ Documento especifico: [`launcher-auth-gui-1.md`](launcher-auth-gui-1.md).
 Documento especifico:
 [`launcher-submission-recovery-1.md`](launcher-submission-recovery-1.md).
 
+## Account pack scoped queue 1
+
+- La GUI usa una cola separada por cuenta activa y pack activo en `userData`.
+- La estructura es `players/<playerKey>/packs/<packKey>/events/{pending,failed,sent}`.
+- La carpeta `events/pending` del plugin queda como staging de capturas.
+- Al cerrar MAME en competicion, solo se adoptan capturas nuevas de esa sesion.
+- Capturas antiguas en staging no se importan automaticamente para evitar
+  mezclar cuentas.
+- La CLI sigue usando la cola configurada tradicional por compatibilidad.
+
+Documento especifico:
+[`account-pack-scoped-queue-1.md`](account-pack-scoped-queue-1.md).
+
 ## Limites
 
 - El juego fijo sigue siendo `invaders`, igual que el MVP local actual.

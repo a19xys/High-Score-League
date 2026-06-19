@@ -40,6 +40,10 @@ export function renderGamePanel(state) {
   const game = data?.game;
   const bridge = data?.bridge;
   const disabled = state.busy ? "disabled" : "";
+  const competitionDisabled = state.busy || !data?.session?.hasSession ? "disabled" : "";
+  const competitionHint = data?.session?.hasSession
+    ? "Inicia MAME en modo liga y registra tus intentos."
+    : "Inicia sesion para competir y guardar en tu cola local.";
   const week = game?.weekId || "Semana actual";
 
   return `
@@ -50,6 +54,7 @@ export function renderGamePanel(state) {
           <span class="badge badge-ok">Activa</span>
           ${bridge?.packOpened ? `<span class="badge badge-accent">Pack abierto</span>` : ""}
           ${bridge?.packRemembered ? `<span class="badge badge-muted">Último pack cargado</span>` : ""}
+          ${bridge?.scopedQueue ? `<span class="badge badge-ok">Cola cuenta + pack</span>` : ""}
           ${bridge?.devBridge ? `<span class="badge badge-muted">Solo desarrollo</span>` : ""}
         </div>
         <div>
@@ -59,9 +64,9 @@ export function renderGamePanel(state) {
         </div>
         <p class="ready-copy">${escapeHtml(getReadyLabel(data))}</p>
         <div class="primary-actions">
-          <button class="play-button" type="button" data-action="play" ${disabled}>
+          <button class="play-button" type="button" data-action="play" ${competitionDisabled}>
             <span>${COPY.actions.play}</span>
-            <small>Inicia MAME en modo liga y registra tus intentos.</small>
+            <small>${competitionHint}</small>
           </button>
           <div class="support-actions">
             <button class="secondary-action" type="button" data-action="practice" ${disabled}>

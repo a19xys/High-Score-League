@@ -15,6 +15,16 @@ Una puntuacion en `failed` sigue guardada localmente. Normalmente llego ahi por
 un error controlado: cuenta no unida a la temporada, sesion no valida, evento
 rechazado por el endpoint o JSON local invalido.
 
+Desde `LOCAL-ACCOUNT-PACK-SCOPED-QUEUE-1`, la GUI interpreta `failed` dentro
+del scope activo:
+
+```text
+userData/players/<playerKey>/packs/<packKey>/events/failed
+```
+
+Restaurar una puntuacion fallida la devuelve al `pending` del mismo scope. No se
+restauran puntuaciones de otra cuenta ni de otro pack.
+
 ## Como se ve en la GUI
 
 Cuando hay archivos en `failed`, el panel de cola muestra una seccion visible
@@ -67,8 +77,7 @@ Despues de restaurar, el jugador puede corregir el problema y pulsar
 
 - No se borran eventos.
 - No se reenvian archivos `sent` como flujo principal.
-- No se mueve la cola a `userData` todavia.
-- No se crean carpetas por cuenta.
+- La CLI puede seguir usando la cola configurada tradicional.
 - No se cambia el plugin MAME.
 - No se cambia el contrato JSON ni `duplicateKey`.
 

@@ -16,7 +16,8 @@ const { loadPackFromDir, resolvePackMamePaths } = require("../src/pack");
 const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-packs");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
 const { submitAll } = require("../src/submission-service");
-const { readFailureNote, restoreBoxToPending } = require("../src/file-queue");
+const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
+const { applyScopedQueue, ensureScopedQueue } = require("../src/scoped-queue");
 
 let activeOpenedPack = null;
 let recentPackLoadAttempted = false;
@@ -383,6 +384,18 @@ async function readQueueBox(dir, box, config = null) {
   }
 }
 
+function emptyQueueBox(dir, box, reason = null) {
+  return {
+    box,
+    count: 0,
+    dir,
+    error: reason,
+    exists: false,
+    items: [],
+    validCount: 0,
+  };
+}
+
 async function getQueueState(config) {
   const [pending, sent, failed] = await Promise.all([
     readQueueBox(config.eventsPendingDirAbs, "pending", config),
@@ -399,6 +412,102 @@ async function getQueueState(config) {
       pending: pending.count,
       sent: sent.count,
     },
+  };
+}
+
+function getEmptyQueueState(config, reason) {
+  const pending = emptyQueueBox(config.eventsPendingDirAbs, "pending", reason);
+  const sent = emptyQueueBox(config.eventsSentDirAbs, "sent", reason);
+  const failed = emptyQueueBox(config.eventsFailedDirAbs, "failed", reason);
+
+  return {
+    failed,
+    pending,
+    sent,
+    totals: {
+      failed: 0,
+      pending: 0,
+      sent: 0,
+    },
+  };
+}
+
+async function getScopedGuiConfig(baseConfig, session) {
+  if (!session?.hasSession) {
+    return {
+      config: baseConfig,
+      reason: "Inicia sesion para usar la cola local separada por cuenta y pack.",
+      scope: null,
+    };
+  }
+
+  const scope = await ensureScopedQueue(baseConfig, session);
+
+  if (!scope) {
+    return {
+      config: baseConfig,
+      reason: "No se pudo resolver la cola local de esta cuenta.",
+      scope: null,
+    };
+  }
+
+  return {
+    config: applyScopedQueue(baseConfig, scope),
+    reason: null,
+    scope,
+  };
+}
+
+async function listPendingFileSnapshot(dir) {
+  try {
+    const files = await listJsonFiles(dir);
+    const snapshot = new Map();
+
+    for (const filename of files) {
+      const fullPath = path.join(dir, filename);
+      const stat = await fsp.stat(fullPath);
+      snapshot.set(filename, {
+        filename,
+        mtimeMs: stat.mtimeMs,
+      });
+    }
+
+    return snapshot;
+  } catch {
+    return new Map();
+  }
+}
+
+async function adoptNewStagingEvents(stagingPendingDir, scopedPendingDir, snapshot, startedAtMs) {
+  const files = await listJsonFiles(stagingPendingDir).catch(() => []);
+  const adopted = [];
+  const skippedLegacy = [];
+
+  await fsp.mkdir(scopedPendingDir, { recursive: true });
+
+  for (const filename of files) {
+    const sourcePath = path.join(stagingPendingDir, filename);
+    const stat = await fsp.stat(sourcePath);
+    const previous = snapshot.get(filename);
+    const isNew = !previous;
+    const isUpdatedDuringRun = Boolean(previous && stat.mtimeMs > previous.mtimeMs && stat.mtimeMs >= startedAtMs);
+
+    if (!isNew && !isUpdatedDuringRun) {
+      skippedLegacy.push(filename);
+      continue;
+    }
+
+    const finalPath = await moveFileSafe(sourcePath, path.join(scopedPendingDir, filename));
+    adopted.push({
+      filename,
+      finalPath,
+      restoredFilename: path.basename(finalPath),
+    });
+  }
+
+  return {
+    adopted,
+    skippedLegacy,
   };
 }
 
@@ -473,6 +582,7 @@ function getBridgeState(config) {
     packPath: config.packPath,
     packRoot: config.packRoot || null,
     pluginName: config.mame?.pluginName || "hsl-score",
+    scopedQueue: config.eventsSource === "scoped-user-pack",
     webBaseUrl: config.webBaseUrl || null,
     workingDir: config.mame?.workingDir || null,
   };
@@ -480,18 +590,27 @@ function getBridgeState(config) {
 
 async function getLauncherState() {
   await ensureRememberedPackLoaded();
-  const config = getEffectiveConfig();
-  const [queue, session] = await Promise.all([
-    getQueueState(config),
-    getAuthState(config),
-  ]);
+  const baseConfig = getEffectiveConfig();
+  const session = await getAuthState(baseConfig);
+  const scoped = await getScopedGuiConfig(baseConfig, session);
+  const queue = scoped.scope
+    ? await getQueueState(scoped.config)
+    : getEmptyQueueState(baseConfig, scoped.reason);
 
   return {
-    bridge: getBridgeState(config),
-    configPath: config.configPath,
-    game: getGameState(config),
+    bridge: getBridgeState(scoped.config),
+    configPath: scoped.config.configPath,
+    game: getGameState(scoped.config),
     notices: recentPackNotices,
     queue,
+    scope: scoped.scope
+      ? {
+          packKey: scoped.scope.packKey,
+          playerKey: scoped.scope.playerKey,
+          scopedQueueRoot: scoped.scope.scopedQueueRoot,
+          stagingPendingDir: scoped.config.stagingEventsPendingDirAbs || null,
+        }
+      : null,
     session,
     timestamp: new Date().toISOString(),
   };
@@ -532,8 +651,62 @@ async function runDiagnose() {
   };
 }
 
-function playCompetition() {
-  return withFreshState("play-competition", (config) => launchMame(config, config.pack?.rom || "invaders", "competition"));
+async function playCompetition() {
+  await ensureRememberedPackLoaded();
+  const baseConfig = getEffectiveConfig();
+  const session = await getAuthState(baseConfig);
+
+  if (!session.hasSession) {
+    return {
+      action: "play-competition",
+      lines: ["Inicia sesion para jugar en competicion y guardar puntuaciones en tu cola local."],
+      ok: false,
+      summary: "Inicia sesion para jugar en competicion.",
+      state: await getLauncherState(),
+    };
+  }
+
+  const scoped = await getScopedGuiConfig(baseConfig, session);
+
+  if (!scoped.scope) {
+    return {
+      action: "play-competition",
+      lines: [scoped.reason || "No se pudo preparar la cola local de esta cuenta."],
+      ok: false,
+      summary: "No se pudo preparar la cola local.",
+      state: await getLauncherState(),
+    };
+  }
+
+  const snapshot = await listPendingFileSnapshot(baseConfig.eventsPendingDirAbs);
+  const startedAtMs = Date.now();
+  const captured = await captureConsoleAsync(() => launchMame(baseConfig, baseConfig.pack?.rom || "invaders", "competition"));
+  const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
+  const adoption = await adoptNewStagingEvents(
+    baseConfig.eventsPendingDirAbs,
+    scoped.config.eventsPendingDirAbs,
+    snapshot,
+    startedAtMs
+  );
+  const legacyLine = snapshot.size > 0
+    ? `Hay ${snapshot.size} capturas antiguas sin asignar en staging; no se importaron automaticamente.`
+    : null;
+
+  return {
+    action: "play-competition",
+    adoption,
+    exitCode,
+    lines: [
+      ...captured.lines,
+      ...(adoption.adopted.length > 0
+        ? [`${adoption.adopted.length} captura(s) nueva(s) movida(s) a la cola de esta cuenta y pack.`]
+        : ["No se detectaron capturas nuevas para adoptar."]),
+      ...(legacyLine ? [legacyLine] : []),
+    ],
+    ok: exitCode === 0,
+    result: captured.result || null,
+    state: await getLauncherState(),
+  };
 }
 
 function playPractice() {
@@ -542,8 +715,8 @@ function playPractice() {
 
 async function submitAllPending() {
   await ensureRememberedPackLoaded();
-  const config = getEffectiveConfig();
-  const session = await getAuthState(config);
+  const baseConfig = getEffectiveConfig();
+  const session = await getAuthState(baseConfig);
 
   if (!session.hasSession) {
     return {
@@ -555,7 +728,28 @@ async function submitAllPending() {
     };
   }
 
-  const response = await withFreshState("submit-all", (config) => submitAll(config));
+  const scoped = await getScopedGuiConfig(baseConfig, session);
+
+  if (!scoped.scope) {
+    return {
+      action: "submit-all",
+      lines: [scoped.reason || "No se pudo preparar la cola local de esta cuenta."],
+      ok: false,
+      summary: "No se pudo preparar la cola local.",
+      state: await getLauncherState(),
+    };
+  }
+
+  const captured = await captureConsoleAsync(() => submitAll(scoped.config));
+  const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
+  const response = {
+    action: "submit-all",
+    exitCode,
+    lines: captured.lines,
+    ok: exitCode === 0,
+    result: captured.result || null,
+    state: await getLauncherState(),
+  };
 
   if (response.state?.queue?.totals?.failed > 0) {
     response.action = "submit-all-with-failed";
@@ -571,10 +765,33 @@ async function submitAllPending() {
 
 async function restoreFailedSubmission(filename) {
   await ensureRememberedPackLoaded();
-  const config = getEffectiveConfig();
+  const baseConfig = getEffectiveConfig();
+  const session = await getAuthState(baseConfig);
+
+  if (!session.hasSession) {
+    return {
+      action: "restore-failed",
+      lines: ["Inicia sesion para restaurar puntuaciones de esta cuenta."],
+      ok: false,
+      summary: "Inicia sesion para restaurar puntuaciones.",
+      state: await getLauncherState(),
+    };
+  }
+
+  const scoped = await getScopedGuiConfig(baseConfig, session);
+
+  if (!scoped.scope) {
+    return {
+      action: "restore-failed",
+      lines: [scoped.reason || "No se pudo preparar la cola local de esta cuenta."],
+      ok: false,
+      summary: "No se pudo preparar la cola local.",
+      state: await getLauncherState(),
+    };
+  }
 
   try {
-    const result = await restoreBoxToPending(config, "failed", filename);
+    const result = await restoreBoxToPending(scoped.config, "failed", filename);
 
     return {
       action: "restore-failed",
@@ -720,6 +937,7 @@ async function openPackDirectory(packDir) {
 }
 
 module.exports = {
+  adoptNewStagingEvents,
   cancelOpenPack,
   classifyFailureReason,
   deriveOpenedPackConfig,
@@ -727,6 +945,7 @@ module.exports = {
   getAuthStateForGui,
   getLauncherState,
   loginWithPassword,
+  listPendingFileSnapshot,
   logoutSession,
   openPackDirectory,
   playCompetition,

@@ -38,7 +38,7 @@ export function getReadyLabel(data) {
   }
 
   if (!data.session?.hasSession) {
-    return "Puedes jugar; conecta tu cuenta para subir puntuaciones.";
+    return "Inicia sesion para competir; puedes practicar sin cuenta.";
   }
 
   if (data.queue?.totals?.pending > 0) {

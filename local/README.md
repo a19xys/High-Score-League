@@ -389,6 +389,8 @@ Auth GUI notes:
 [`docs/launcher-auth-gui-1.md`](docs/launcher-auth-gui-1.md).
 Submission recovery notes:
 [`docs/launcher-submission-recovery-1.md`](docs/launcher-submission-recovery-1.md).
+Scoped queue notes:
+[`docs/account-pack-scoped-queue-1.md`](docs/account-pack-scoped-queue-1.md).
 
 Run it from the repository root:
 
@@ -462,6 +464,18 @@ requires attention, not as deleted data. The queue panel shows `Puntuaciones
 con error`, explains that the score is still saved, and lets the player restore
 the JSON to `pending` without overwriting existing files. Full queue separation
 by account and pack is still planned for a later task.
+
+The GUI now separates the active queue by account and pack under shared
+userData:
+
+```text
+userData/players/<playerKey>/packs/<packKey>/events/{pending,failed,sent}
+```
+
+The MAME plugin may still write captures into the pack-local pending folder.
+For the GUI, that folder is staging: after competition play, only new captures
+created during that session are adopted into the scoped queue. Existing staging
+JSON is left untouched to avoid mixing accounts.
 
 Architecture constraints for that GUI:
 

@@ -46,6 +46,14 @@ export function renderDevTools(state) {
             <dd>${escapeHtml(data?.queue?.pending?.dir || "sin ruta activa")}</dd>
           </div>
           <div>
+            <dt>Scope</dt>
+            <dd>${escapeHtml(data?.scope?.scopedQueueRoot || "sin scope activo")}</dd>
+          </div>
+          <div>
+            <dt>Staging plugin</dt>
+            <dd>${escapeHtml(data?.scope?.stagingPendingDir || "sin staging activo")}</dd>
+          </div>
+          <div>
             <dt>Sesión</dt>
             <dd>${escapeHtml(data?.session?.sessionFile || "sin archivo local")}</dd>
           </div>
