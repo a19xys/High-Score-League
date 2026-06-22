@@ -179,6 +179,22 @@ Documento especifico:
 Documento especifico:
 [`auto-sync-queue-1.md`](auto-sync-queue-1.md).
 
+## Pack readiness 1
+
+- La GUI resume si el pack activo esta listo para practicar, competir, capturar
+  puntuaciones y sincronizarlas.
+- La tarjeta principal muestra un estado de jugador: `ready`, `warning`,
+  `blocked` o `unknown`.
+- La evaluacion revisa pack, MAME, ROM, plugin, staging, sesion, cola scoped,
+  membership y auto-sync sin ejecutar MAME ni modificar archivos.
+- Practica puede seguir disponible aunque competicion o subida esten
+  bloqueadas.
+- Los detalles tecnicos muestran checks seguros sin tokens ni cabeceras
+  sensibles.
+
+Documento especifico:
+[`pack-readiness-1.md`](pack-readiness-1.md).
+
 ## Final UX blueprint 1
 
 - La dirección final de la GUI queda documentada en

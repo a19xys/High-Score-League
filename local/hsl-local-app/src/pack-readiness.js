@@ -1,0 +1,303 @@
+const fs = require("node:fs");
+const path = require("node:path");
+
+function exists(targetPath) {
+  return Boolean(targetPath) && fs.existsSync(targetPath);
+}
+
+function isDirectory(targetPath) {
+  if (!targetPath) {
+    return false;
+  }
+
+  try {
+    return fs.statSync(targetPath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function isFile(targetPath) {
+  if (!targetPath) {
+    return false;
+  }
+
+  try {
+    return fs.statSync(targetPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function check(id, level, label, message, technicalDetails = []) {
+  return {
+    id,
+    label,
+    level,
+    message,
+    technicalDetails: technicalDetails.filter(Boolean),
+  };
+}
+
+function firstBlockingMessage(checks) {
+  return checks.find((item) => item.level === "error")?.message || null;
+}
+
+function summarizeStatus(checks) {
+  if (checks.some((item) => item.level === "error")) {
+    return "blocked";
+  }
+
+  if (checks.some((item) => item.level === "warning")) {
+    return "warning";
+  }
+
+  if (checks.length === 0) {
+    return "unknown";
+  }
+
+  return "ready";
+}
+
+function getPluginName(config) {
+  return config?.mame?.pluginName || config?.pack?.plugin?.name || "hsl-score";
+}
+
+function inferRomPath(config, rom) {
+  if (!config?.mame?.workingDir || !rom) {
+    return null;
+  }
+
+  return path.join(config.mame.workingDir, "roms", `${rom}.zip`);
+}
+
+function buildTitle(status) {
+  if (status === "ready") {
+    return "Listo para jugar";
+  }
+
+  if (status === "warning") {
+    return "Listo con avisos";
+  }
+
+  if (status === "blocked") {
+    return "Requiere atencion";
+  }
+
+  return "Estado del pack desconocido";
+}
+
+function buildMessage({ checks, status, canPlayCompetition, canPractice, canSubmit }) {
+  const blocker = firstBlockingMessage(checks);
+
+  if (blocker) {
+    return blocker;
+  }
+
+  if (status === "warning") {
+    if (canPlayCompetition && !canSubmit) {
+      return "Puedes jugar, pero la subida automatica no esta lista todavia.";
+    }
+
+    return "Puedes usar el pack, pero hay avisos que conviene revisar.";
+  }
+
+  if (canPlayCompetition && canPractice && canSubmit) {
+    return "Puedes practicar, competir y sincronizar puntuaciones.";
+  }
+
+  if (canPractice && !canPlayCompetition) {
+    return "Puedes practicar, pero la competicion necesita atencion.";
+  }
+
+  return "No se pudo determinar si el pack esta listo.";
+}
+
+function evaluatePackReadiness({ config = {}, session = {}, membership = {}, scope = null, queue = {}, autoSync = {} } = {}) {
+  const checks = [];
+  const pack = config.pack || null;
+  const rom = pack?.rom || config.rom || null;
+  const weekId = config.defaultWeekId || pack?.weekId || null;
+  const pluginName = getPluginName(config);
+  const pluginDir = config.mame?.workingDir && pluginName
+    ? path.join(config.mame.workingDir, "plugins", pluginName)
+    : null;
+  const stagingRoot = config.eventsBaseDirAbs || (
+    config.mame?.workingDir && pluginName
+      ? path.join(config.mame.workingDir, "plugins", pluginName, "events")
+      : null
+  );
+  const stagingDirs = [
+    config.stagingEventsPendingDirAbs || config.eventsPendingDirAbs || (stagingRoot ? path.join(stagingRoot, "pending") : null),
+    config.stagingEventsSentDirAbs || config.eventsSentDirAbs || (stagingRoot ? path.join(stagingRoot, "sent") : null),
+    config.stagingEventsFailedDirAbs || config.eventsFailedDirAbs || (stagingRoot ? path.join(stagingRoot, "failed") : null),
+  ];
+  const romPath = inferRomPath(config, rom);
+
+  if (config.packLoaded || pack) {
+    checks.push(check("pack-json", "ok", "Pack", "pack.json cargado.", [config.packPath]));
+  } else {
+    checks.push(check("pack-json", "warning", "Pack", "No hay pack.json activo.", [config.packPath]));
+  }
+
+  if (config.packErrors?.length > 0) {
+    checks.push(check("pack-valid", "error", "Pack", "El pack tiene errores de configuracion.", config.packErrors));
+  } else {
+    checks.push(check("pack-valid", "ok", "Pack", "Configuracion basica del pack valida."));
+  }
+
+  if (config.packRoot && isDirectory(config.packRoot)) {
+    checks.push(check("pack-root", "ok", "Pack", "La carpeta del pack existe.", [config.packRoot]));
+  } else if (config.packRoot) {
+    checks.push(check("pack-root", "error", "Pack", "No encuentro la carpeta raiz del pack.", [config.packRoot]));
+  }
+
+  if (config.packPath && isFile(config.packPath)) {
+    checks.push(check("pack-path", "ok", "Pack", "El archivo pack.json existe.", [config.packPath]));
+  } else if (config.packPath && (config.packLoaded || pack)) {
+    checks.push(check("pack-path", "error", "Pack", "No encuentro el archivo pack.json.", [config.packPath]));
+  }
+
+  for (const [id, label, value] of [
+    ["pack-id", "Pack", pack?.packId || pack?.gameId || config.gameId],
+    ["rom", "ROM", rom],
+    ["week-id", "Competicion", weekId],
+  ]) {
+    checks.push(
+      value
+        ? check(id, "ok", label, `${label} configurado.`, [value])
+        : check(id, id === "week-id" ? "error" : "error", label, `Falta ${label === "ROM" ? "ROM" : "un dato obligatorio del pack"}.`)
+    );
+  }
+
+  if (pack?.metadataWarnings?.length > 0) {
+    checks.push(check("metadata", "warning", "Metadata", "metadata.json tiene avisos no bloqueantes.", pack.metadataWarnings));
+  } else {
+    checks.push(check("metadata", "ok", "Metadata", pack?.metadataLoaded ? "metadata.json cargado." : "metadata.json no es obligatorio."));
+  }
+
+  if (isFile(config.mame?.executablePath)) {
+    checks.push(check("mame-executable", "ok", "MAME", "mame.exe encontrado.", [config.mame.executablePath]));
+  } else {
+    checks.push(check("mame-executable", "error", "MAME", "No encuentro mame.exe. Revisa la carpeta del pack.", [config.mame?.executablePath]));
+  }
+
+  if (isDirectory(config.mame?.workingDir)) {
+    checks.push(check("mame-working-dir", "ok", "MAME", "Carpeta de trabajo de MAME encontrada.", [config.mame.workingDir]));
+  } else {
+    checks.push(check("mame-working-dir", "error", "MAME", "No encuentro la carpeta de trabajo de MAME.", [config.mame?.workingDir]));
+  }
+
+  if (pluginName) {
+    checks.push(check("plugin-name", "ok", "Plugin", `Plugin configurado: ${pluginName}.`));
+  } else {
+    checks.push(check("plugin-name", "error", "Plugin", "No hay plugin configurado para capturar puntuaciones."));
+  }
+
+  if (pluginDir && isDirectory(pluginDir)) {
+    checks.push(check("plugin-folder", "ok", "Plugin", "Carpeta del plugin encontrada.", [pluginDir]));
+  } else if (pluginDir && isDirectory(config.mame?.workingDir)) {
+    checks.push(check("plugin-folder", "error", "Plugin", "No encuentro la carpeta del plugin en el pack.", [pluginDir]));
+  }
+
+  if (romPath && exists(romPath)) {
+    checks.push(check("rom-file", "ok", "ROM", "ROM encontrada en roms/.", [romPath]));
+  } else if (romPath && isDirectory(config.mame?.workingDir)) {
+    checks.push(check("rom-file", "warning", "ROM", "No pude confirmar la ROM en roms/. MAME podria usar otra ruta.", [romPath]));
+  }
+
+  for (const [index, dir] of stagingDirs.entries()) {
+    const box = ["pending", "sent", "failed"][index];
+
+    if (isDirectory(dir)) {
+      checks.push(check(`staging-${box}`, "ok", "Captura", `Staging ${box} existe.`, [dir]));
+    } else if (dir && isDirectory(path.dirname(dir))) {
+      checks.push(check(`staging-${box}`, "warning", "Captura", `Staging ${box} no existe todavia, pero parece creable.`, [dir]));
+    } else {
+      checks.push(check(`staging-${box}`, "warning", "Captura", `Staging ${box} no esta preparado.`, [dir]));
+    }
+  }
+
+  if (session?.hasSession) {
+    checks.push(check("session", "ok", "Sesion", "Sesion local encontrada.", [session.email]));
+  } else {
+    checks.push(check("session", "error", "Sesion", "Inicia sesion para jugar competicion."));
+  }
+
+  if (scope?.scopedQueueRoot) {
+    checks.push(check("scope", "ok", "Cola scoped", "Cola separada por cuenta y pack preparada.", [scope.scopedQueueRoot]));
+  } else {
+    checks.push(check("scope", "error", "Cola scoped", "No se pudo preparar la cola local de esta cuenta y pack."));
+  }
+
+  if (membership?.status === "member") {
+    checks.push(check("membership", "ok", "Participacion", "Participas en la temporada."));
+  } else if (membership?.status === "unknown" || membership?.status === "error") {
+    checks.push(check("membership", "warning", "Participacion", membership.message || "No se pudo comprobar la participacion.", [membership.technicalReason]));
+  } else {
+    checks.push(check("membership", "error", "Participacion", membership?.message || "No participas en esta temporada."));
+  }
+
+  if (config.webBaseUrl) {
+    checks.push(check("web-base-url", "ok", "Sync", "Web configurada.", [config.webBaseUrl]));
+  } else {
+    checks.push(check("web-base-url", "error", "Sync", "Falta webBaseUrl para sincronizar puntuaciones."));
+  }
+
+  if (queue?.totals?.failed > 0) {
+    checks.push(check("failed-queue", "warning", "Cola", "Hay puntuaciones con error que requieren atencion.", [`failed=${queue.totals.failed}`]));
+  }
+
+  if (autoSync?.status === "blocked" || autoSync?.status === "failed" || autoSync?.status === "partial_failed") {
+    checks.push(check("auto-sync", "warning", "Auto-sync", autoSync.message || "Auto-sync requiere atencion.", [autoSync.reason]));
+  } else {
+    checks.push(check("auto-sync", "ok", "Auto-sync", autoSync?.message || "Auto-sync listo."));
+  }
+
+  const hasMame = checks.find((item) => item.id === "mame-executable")?.level === "ok" &&
+    checks.find((item) => item.id === "mame-working-dir")?.level === "ok";
+  const hasRom = Boolean(rom);
+  const hasPlugin = Boolean(pluginName) && checks.find((item) => item.id === "plugin-folder")?.level !== "error";
+  const hasSession = Boolean(session?.hasSession);
+  const hasScope = Boolean(scope?.scopedQueueRoot);
+  const hasWeek = Boolean(weekId);
+  const membershipStatus = membership?.status || "unknown";
+  const membershipAllowsCompetition = membershipStatus === "member" || membershipStatus === "unknown" || membershipStatus === "error";
+  const canPractice = hasMame && hasRom;
+  const canCapture = hasPlugin;
+  const canPlayCompetition = canPractice && canCapture && hasSession && hasScope && hasWeek && membershipAllowsCompetition;
+  const canSubmit = Boolean(hasSession && hasScope && hasWeek && config.webBaseUrl && membership?.canSubmit === true);
+  const status = summarizeStatus(checks.filter((item) => {
+    if (item.id === "session" || item.id === "scope" || item.id === "membership" || item.id === "web-base-url") {
+      return false;
+    }
+
+    return true;
+  }));
+  const effectiveStatus = !canPractice || (!canPlayCompetition && hasSession && membershipStatus !== "unknown" && membershipStatus !== "error")
+    ? "blocked"
+    : status === "blocked"
+      ? "blocked"
+      : checks.some((item) => item.level === "warning") || !canSubmit
+        ? "warning"
+        : "ready";
+  const blockers = checks.filter((item) => item.level === "error").map((item) => item.message);
+  const warnings = checks.filter((item) => item.level === "warning").map((item) => item.message);
+
+  return {
+    blockers,
+    canCapture,
+    canPlayCompetition,
+    canPractice,
+    canSubmit,
+    checks,
+    message: buildMessage({ checks, status: effectiveStatus, canPlayCompetition, canPractice, canSubmit }),
+    status: effectiveStatus,
+    title: buildTitle(effectiveStatus),
+    warnings,
+  };
+}
+
+module.exports = {
+  evaluatePackReadiness,
+};

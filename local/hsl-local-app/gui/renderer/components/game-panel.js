@@ -5,8 +5,10 @@ function renderSubmitState(state) {
   const pending = state.data?.queue?.totals?.pending || 0;
   const hasSession = Boolean(state.data?.session?.hasSession);
   const membership = state.data?.membership;
+  const readiness = state.data?.readiness;
   const autoSyncing = state.data?.autoSync?.status === "syncing";
-  const disabled = state.busy || autoSyncing || pending === 0 || !hasSession || membership?.canSubmit === false ? "disabled" : "";
+  const readinessBlocksSubmit = readiness?.canSubmit === false;
+  const disabled = state.busy || autoSyncing || pending === 0 || !hasSession || membership?.canSubmit === false || readinessBlocksSubmit ? "disabled" : "";
 
   if (autoSyncing) {
     return `
@@ -31,6 +33,15 @@ function renderSubmitState(state) {
       <button class="secondary-action" type="button" data-action="submit" disabled>
         <span>Subir pendientes</span>
         <small>${escapeHtml(membership.message || "No se puede subir hasta comprobar la temporada.")}</small>
+      </button>
+    `;
+  }
+
+  if (readinessBlocksSubmit && pending > 0) {
+    return `
+      <button class="secondary-action" type="button" data-action="submit" disabled>
+        <span>Subir pendientes</span>
+        <small>${escapeHtml(readiness.message || "La subida necesita atencion.")}</small>
       </button>
     `;
   }
@@ -106,6 +117,41 @@ function renderMembershipCallToAction(membership) {
   `;
 }
 
+function readinessBadge(status) {
+  const classes = {
+    blocked: "badge-error",
+    ready: "badge-ok",
+    unknown: "badge-muted",
+    warning: "badge-warn",
+  };
+
+  return `<span class="badge ${classes[status] || classes.unknown}">${escapeHtml(status || "unknown")}</span>`;
+}
+
+function renderReadinessSummary(readiness) {
+  if (!readiness) {
+    return "";
+  }
+
+  const messages = [
+    readiness.message,
+    ...(readiness.warnings || []).slice(0, 2),
+  ].filter(Boolean).slice(0, 3);
+
+  return `
+    <div class="readiness-card readiness-card--${escapeHtml(readiness.status)}">
+      <div class="readiness-card__header">
+        <span>Estado del pack</span>
+        ${readinessBadge(readiness.status)}
+      </div>
+      <strong>${escapeHtml(readiness.title)}</strong>
+      <ul>
+        ${messages.map((message) => `<li>${escapeHtml(message)}</li>`).join("")}
+      </ul>
+    </div>
+  `;
+}
+
 function renderMembershipCheckAction(state) {
   const disabled = state.busy ? "disabled" : "";
 
@@ -160,12 +206,20 @@ export function renderGamePanel(state) {
   const bridge = data?.bridge;
   const membership = data?.membership;
   const autoSync = data?.autoSync;
+  const readiness = data?.readiness;
   const disabled = state.busy ? "disabled" : "";
   const membershipBlocksCompetition = membership?.canPlayCompetition === false;
-  const competitionDisabled = state.busy || !data?.session?.hasSession || membershipBlocksCompetition ? "disabled" : "";
-  const competitionHint = membership?.message || (data?.session?.hasSession
+  const readinessBlocksCompetition = readiness?.canPlayCompetition === false;
+  const practiceDisabled = state.busy || readiness?.canPractice === false ? "disabled" : "";
+  const competitionDisabled = state.busy || !data?.session?.hasSession || membershipBlocksCompetition || readinessBlocksCompetition ? "disabled" : "";
+  const competitionHint = readinessBlocksCompetition
+    ? readiness?.message || "El pack necesita atencion antes de competir."
+    : membership?.message || (data?.session?.hasSession
     ? "Inicia MAME en modo liga y registra tus intentos."
     : "Inicia sesion para competir y guardar en tu cola local.");
+  const practiceHint = readiness?.canPractice === false
+    ? readiness.message || "Revisa MAME y la ROM antes de practicar."
+    : "Entrena sin activar el plugin de puntuacion.";
   const week = game?.weekId || "Semana actual";
   const subtitle = game?.subtitle || week;
   const description = game?.shortDescription || getReadyLabel(data);
@@ -197,6 +251,7 @@ export function renderGamePanel(state) {
           </div>
         </div>
         <p class="ready-copy">${escapeHtml(description)}</p>
+        ${renderReadinessSummary(readiness)}
         ${autoSync?.message ? `<p class="sync-copy">${escapeHtml(autoSync.message)}</p>` : ""}
         <div class="primary-actions">
           <button class="play-button" type="button" data-action="play" ${competitionDisabled}>
@@ -204,9 +259,9 @@ export function renderGamePanel(state) {
             <small>${escapeHtml(competitionHint)}</small>
           </button>
           <div class="support-actions">
-            <button class="secondary-action" type="button" data-action="practice" ${disabled}>
+            <button class="secondary-action" type="button" data-action="practice" ${practiceDisabled}>
               <span>Practicar</span>
-              <small>Entrena sin activar el plugin de puntuación.</small>
+              <small>${escapeHtml(practiceHint)}</small>
             </button>
             ${renderSubmitState(state)}
             ${renderPackAction(state)}

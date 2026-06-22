@@ -17,6 +17,32 @@ function detailRow(label, value) {
   `;
 }
 
+function renderReadinessChecks(readiness) {
+  if (!readiness?.checks?.length) {
+    return "";
+  }
+
+  return `
+    <div>
+      <dt>Preparacion del pack</dt>
+      <dd>
+        <ul class="readiness-check-list">
+          ${readiness.checks.map((check) => `
+            <li>
+              <span class="check-level check-level--${escapeHtml(check.level)}">${escapeHtml(check.level)}</span>
+              <strong>${escapeHtml(check.label)}</strong>
+              <span>${escapeHtml(check.message)}</span>
+              ${check.technicalDetails?.length
+                ? `<small>${escapeHtml(check.technicalDetails.join(" | "))}</small>`
+                : ""}
+            </li>
+          `).join("")}
+        </ul>
+      </dd>
+    </div>
+  `;
+}
+
 export function renderDevTools(state) {
   const data = state.data;
   const disabled = state.busy ? "disabled" : "";
@@ -29,6 +55,7 @@ export function renderDevTools(state) {
       : "sin metadata local";
   const membership = data?.membership;
   const autoSync = data?.autoSync;
+  const readiness = data?.readiness;
   const modeLabel = data?.bridge?.packOpened
     ? "pack abierto"
     : data?.bridge?.devBridge
@@ -86,6 +113,7 @@ export function renderDevTools(state) {
           ${detailRow("Auto-sync ultimo exito", autoSync?.lastSuccessAt)}
           ${detailRow("Auto-sync pending antes", autoSync?.pendingBefore)}
           ${detailRow("Auto-sync pending despues", autoSync?.pendingAfter)}
+          ${renderReadinessChecks(readiness)}
           <div>
             <dt>Cola</dt>
             <dd>${escapeHtml(data?.queue?.pending?.dir || "sin ruta activa")}</dd>

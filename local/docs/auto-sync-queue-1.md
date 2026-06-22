@@ -85,6 +85,11 @@ Los detalles tecnicos muestran estado, motivo, ultimo intento, ultimo exito y
 contadores `pending` antes/despues. No muestran tokens, password, cabeceras de
 autorizacion ni `session.json`.
 
+`LOCAL-PACK-READINESS-1` consume este estado para resumir si el pack esta listo
+para practicar, competir y sincronizar. Ese resumen no cambia la elegibilidad
+ni dispara subidas nuevas; solo presenta la misma informacion en una capa mas
+comprensible para el jugador.
+
 ## Fallos
 
 Si la subida automatica falla, las puntuaciones siguen en la cola local o pasan

@@ -128,6 +128,8 @@ Season membership diagnostics notes:
 [`docs/season-membership-check-2.md`](docs/season-membership-check-2.md).
 Auto-sync queue notes:
 [`docs/auto-sync-queue-1.md`](docs/auto-sync-queue-1.md).
+Pack readiness notes:
+[`docs/pack-readiness-1.md`](docs/pack-readiness-1.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is
@@ -424,6 +426,8 @@ Pack library locations notes:
 [`docs/pack-library-locations-1.md`](docs/pack-library-locations-1.md).
 Season membership check notes:
 [`docs/season-membership-check-1.md`](docs/season-membership-check-1.md).
+Pack readiness notes:
+[`docs/pack-readiness-1.md`](docs/pack-readiness-1.md).
 
 Run it from the repository root:
 
@@ -546,6 +550,12 @@ tecnicos` shows the safe membership diagnostics: final URL, HTTP status, body
 status, body message, checked time, `weekId`, `seasonId`, and technical reason.
 It never exposes tokens or the `Authorization` header. The action `Comprobar de
 nuevo` recalculates only the active pack membership.
+
+The GUI also summarizes whether the active pack is ready before play. It checks
+pack metadata, MAME, ROM, plugin folders, staging folders, local session,
+scoped queue, membership and auto-sync state, then shows a player-friendly
+status for practice, competition and upload readiness. Technical checks stay in
+development details and never expose secrets.
 
 This prototype is not packaged, not an installer, and not the final pack picker.
 Pack opening is the first incremental step toward the final pack flow, not

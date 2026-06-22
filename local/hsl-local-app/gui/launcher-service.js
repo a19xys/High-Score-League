@@ -19,6 +19,7 @@ const { listJsonFiles, readEventFile } = require("../src/event-files");
 const { listSupportedGames } = require("../src/games");
 const { addLibraryLocation, removeLibraryLocation } = require("../src/library-locations");
 const { launchMame } = require("../src/mame-launcher");
+const { evaluatePackReadiness } = require("../src/pack-readiness");
 const { scanPackLibrary } = require("../src/pack-library");
 const { loadPackFromDir, resolvePackMamePaths } = require("../src/pack");
 const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-packs");
@@ -503,6 +504,14 @@ async function stateFromContext(context) {
     scope: scoped.scope,
     session,
   }, autoSyncState);
+  const readiness = evaluatePackReadiness({
+    autoSync,
+    config,
+    membership,
+    queue,
+    scope: scoped.scope,
+    session,
+  });
 
   return {
     autoSync,
@@ -513,6 +522,7 @@ async function stateFromContext(context) {
     membership,
     notices: recentPackNotices,
     queue,
+    readiness,
     scope: scoped.scope
       ? {
           packKey: scoped.scope.packKey,

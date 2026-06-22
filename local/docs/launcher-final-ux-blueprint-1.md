@@ -258,6 +258,11 @@ membership `member`, `canSubmit === true` y cola scoped con `pending > 0`.
 No hay polling permanente ni servicio de fondo; estados `error` y `unknown`
 pueden permitir competir con aviso, pero no suben automaticamente.
 
+Primer soporte implementado en `LOCAL-PACK-READINESS-1`: la GUI resume si el
+pack activo esta listo para practicar, competir, capturar y sincronizar. Esta
+capa ordena checks de pack, MAME, plugin, staging, sesion, cola scoped,
+membership y auto-sync sin cambiar payloads, endpoint, cola ni configuracion.
+
 ## Temporada y participación
 
 Objetivo futuro para competición:
