@@ -103,6 +103,14 @@ userData/players/<playerKey>/packs/<packKey>/events/{pending,failed,sent}
 Readiness solo comprueba que exista un scope activo para poder competir y subir.
 No mueve archivos ni adopta staging.
 
+## Relacion con el selector de cuenta
+
+`LOCAL-ACCOUNT-SWITCHER-GUI-2` permite recordar sesiones locales por cuenta,
+pero `session.json` sigue siendo la sesion activa. Readiness usa siempre esa
+sesion activa y el scope derivado de esa cuenta + pack. Al cerrar sesion,
+readiness puede dejar practica disponible si MAME y ROM estan listos, pero
+bloquea competicion y subida hasta activar o iniciar sesion con una cuenta.
+
 ## Lo que no implementa
 
 - No ejecuta MAME.
@@ -112,6 +120,6 @@ No mueve archivos ni adopta staging.
 - No cambia payloads ni `duplicateKey`.
 - No cambia `/api/submissions/ingest`.
 - No toca migraciones ni RLS.
-- No implementa selector de cuentas.
+- No implementa multi-sesion compleja ni vinculacion web.
 - No implementa grid final de biblioteca.
 - No implementa installer ni empaquetado.

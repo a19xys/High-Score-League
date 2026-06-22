@@ -274,6 +274,43 @@ test("renderer technical details include safe membership diagnostics", async () 
   assert.equal(/access_token|refresh_token|Authorization|session\.json/.test(devTools), false);
 });
 
+test("launcher service and renderer expose account switcher without tokens", async () => {
+  const service = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "launcher-service.js"),
+    "utf8",
+  );
+  const playerSummary = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "player-summary.js"),
+    "utf8",
+  );
+  const app = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "app.js"),
+    "utf8",
+  );
+  const preload = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "preload.js"),
+    "utf8",
+  );
+
+  assert.match(service, /rememberSessionAccount/);
+  assert.match(service, /saveRememberedSession/);
+  assert.match(service, /switchKnownAccountFromGui/);
+  assert.match(service, /toSafeAccountsState/);
+  assert.match(service, /removeKnownAccountFromGui/);
+  assert.match(playerSummary, /Cuentas recordadas/);
+  assert.match(playerSummary, /data-action="switch-account"/);
+  assert.match(playerSummary, /data-action="add-account"/);
+  assert.match(playerSummary, /data-action="remove-known-account"/);
+  assert.match(playerSummary, /hasSavedSession/);
+  assert.match(playerSummary, /Cambio rápido disponible/);
+  assert.match(app, /authEmail/);
+  assert.match(app, /window\.hslLauncher\.switchAccount/);
+  assert.match(app, /window\.hslLauncher\.removeKnownAccount/);
+  assert.match(preload, /removeKnownAccount/);
+  assert.match(preload, /switchAccount/);
+  assert.equal(/access_token|refresh_token|Authorization/.test(playerSummary), false);
+});
+
 test("eventResultToQueueItem maps local event files to renderer-safe rows", () => {
   const row = eventResultToQueueItem("pending", {
     errors: [],

@@ -59,6 +59,8 @@ function registerIpc() {
     return service.addLibraryLocationFromGui(result.filePaths[0]);
   });
   ipcMain.handle("launcher:remove-library-location", (_event, locationId) => service.removeLibraryLocationFromGui(locationId));
+  ipcMain.handle("launcher:remove-known-account", (_event, userId) => service.removeKnownAccountFromGui(userId));
+  ipcMain.handle("launcher:switch-account", (_event, userId) => service.switchKnownAccountFromGui(userId));
   ipcMain.handle("launcher:use-library-pack", (_event, packId) => service.activateLibraryPack(packId));
   ipcMain.handle("launcher:open-membership-url", async () => {
     const state = await service.getLauncherState();

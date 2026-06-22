@@ -609,6 +609,108 @@ button:disabled {
   font-size: 13px;
 }
 
+.auth-help,
+.account-note,
+.account-safety-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.account-note {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-muted);
+}
+
+.account-note strong,
+.known-accounts > strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.known-accounts {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.known-accounts ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.known-accounts li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--surface);
+}
+
+.account-mini-avatar {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--circuit) 16%, transparent);
+  color: var(--circuit);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.known-accounts span,
+.known-accounts small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.known-accounts span {
+  display: block;
+  font-weight: 800;
+}
+
+.known-accounts small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.mini-action {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 8px;
+  background: var(--surface-muted);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mini-action.muted {
+  color: var(--text-muted);
+}
+
+.mini-action:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
 .queue-list,
 .log-list {
   display: grid;

@@ -195,6 +195,34 @@ Documento especifico:
 Documento especifico:
 [`pack-readiness-1.md`](pack-readiness-1.md).
 
+## Account switcher GUI 1
+
+- La GUI muestra la cuenta activa y cuentas recordadas del dispositivo.
+- `known-accounts.json` guarda solo datos de presentacion: user id, email,
+  siglas, display name/avatar opcionales y fechas.
+- No guarda contrasenas, access tokens ni refresh tokens de varias cuentas.
+- Cambiar cuenta prellena el email y pide login de nuevo.
+- Cerrar sesion no borra puntuaciones locales ni colas scoped.
+- Quitar una cuenta recordada no borra `userData/players/...`.
+
+Documento especifico:
+[`account-switcher-gui-1.md`](account-switcher-gui-1.md).
+
+## Account switcher GUI 2
+
+- La GUI puede guardar una sesion local recordada por cuenta en
+  `userData/accounts/sessions/<playerKey>.json`.
+- `session.json` sigue siendo la unica sesion activa compatible con CLI y GUI.
+- `Cambiar` activa la sesion recordada sin pedir contrasena si sigue siendo
+  valida o refrescable.
+- Si la sesion recordada falta o caduca, se abre login con email prellenado.
+- `Quitar` elimina la cuenta recordada y su sesion guardada, pero no borra
+  colas ni puntuaciones locales.
+- El renderer solo recibe `hasSavedSession`, nunca tokens.
+
+Documento especifico:
+[`account-switcher-gui-2.md`](account-switcher-gui-2.md).
+
 ## Final UX blueprint 1
 
 - La dirección final de la GUI queda documentada en

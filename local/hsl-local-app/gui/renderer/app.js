@@ -12,6 +12,7 @@ const root = document.getElementById("app");
 const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
 const store = createStore({
   authError: null,
+  authEmail: "",
   authFormOpen: false,
   busy: false,
   busyLabel: null,
@@ -101,6 +102,9 @@ function resultToLog(title, response) {
     "add-library-location": response.summary || "Biblioteca actualizada.",
     "check-membership": response.summary || "Comprobacion de temporada actualizada.",
     "remove-library-location": response.summary || "Biblioteca actualizada.",
+    "remove-known-account": response.summary || (ok
+      ? "Cuenta quitada de este dispositivo. No se han borrado puntuaciones locales."
+      : "No se pudo quitar la cuenta recordada."),
     "use-library-pack": response.summary || (ok
       ? "Pack activado desde biblioteca."
       : "No se pudo activar el pack desde biblioteca."),
@@ -121,6 +125,10 @@ function resultToLog(title, response) {
     "sync-plugin": ok
       ? "Plugin sincronizado con el pack de desarrollo."
       : "No se pudo sincronizar el plugin de desarrollo.",
+    "switch-account": response.summary || (ok
+      ? "Cuenta cambiada. La cola visible corresponde a esta cuenta y pack."
+      : "No se pudo cambiar de cuenta."),
+    "switch-account-login-required": response.summary || "Inicia sesión de nuevo para esta cuenta.",
   };
 
   return {
@@ -177,6 +185,7 @@ async function submitLogin(form) {
 
     store.setState({
       authError: response.ok ? null : response.summary || "No he podido iniciar sesión.",
+      authEmail: response.ok ? "" : email,
       authFormOpen: !response.ok,
       busy: false,
       busyLabel: null,
@@ -193,6 +202,56 @@ async function submitLogin(form) {
         ok: false,
         summary: "No he podido iniciar sesión. Revisa email y contraseña.",
         title: "Iniciar sesión",
+      }),
+    });
+  }
+}
+
+async function switchAccount(button) {
+  if (store.getState().busy) return;
+
+  const email = button.dataset.email || "";
+  const userId = button.dataset.userId;
+
+  if (!userId) {
+    store.setState({ authEmail: email, authError: null, authFormOpen: true });
+    return;
+  }
+
+  store.setState({ busy: true, busyLabel: "Cambiando cuenta" });
+
+  try {
+    const response = await window.hslLauncher.switchAccount(userId);
+    const nextState = {
+      busy: false,
+      busyLabel: null,
+      data: response.state || store.getState().data,
+      logs: appendLog(store.getState().logs, resultToLog("Cambiar cuenta", response)),
+    };
+
+    if (response.requiresLogin) {
+      nextState.authEmail = response.email || email;
+      nextState.authError = response.summary || "Inicia sesión de nuevo para esta cuenta.";
+      nextState.authFormOpen = true;
+    } else {
+      nextState.authEmail = "";
+      nextState.authError = null;
+      nextState.authFormOpen = false;
+    }
+
+    store.setState(nextState);
+  } catch (error) {
+    store.setState({
+      authEmail: email,
+      authError: "No se pudo cambiar de cuenta. Inicia sesión de nuevo.",
+      authFormOpen: true,
+      busy: false,
+      busyLabel: null,
+      logs: appendLog(store.getState().logs, {
+        details: [error.message || String(error)],
+        ok: false,
+        summary: "No se pudo cambiar de cuenta.",
+        title: "Cambiar cuenta",
       }),
     });
   }
@@ -219,11 +278,19 @@ function bindActions() {
     }
 
     if (action === "show-login") {
-      store.setState({ authError: null, authFormOpen: true });
+      store.setState({ authEmail: "", authError: null, authFormOpen: true });
+    }
+
+    if (action === "add-account") {
+      store.setState({ authEmail: "", authError: null, authFormOpen: true });
+    }
+
+    if (action === "switch-account") {
+      switchAccount(button);
     }
 
     if (action === "cancel-login") {
-      store.setState({ authError: null, authFormOpen: false });
+      store.setState({ authEmail: "", authError: null, authFormOpen: false });
     }
 
     if (action === "refresh") {
@@ -283,6 +350,11 @@ function bindActions() {
     if (action === "restore-failed") {
       const filename = button.dataset.filename;
       runAction(action, "Restaurando", "Restaurar a pendientes", () => window.hslLauncher.restoreFailed(filename));
+    }
+
+    if (action === "remove-known-account") {
+      const userId = button.dataset.userId;
+      runAction(action, "Quitando cuenta", "Quitar cuenta", () => window.hslLauncher.removeKnownAccount(userId));
     }
 
     if (action === "sync-plugin") {

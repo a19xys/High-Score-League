@@ -130,6 +130,10 @@ Auto-sync queue notes:
 [`docs/auto-sync-queue-1.md`](docs/auto-sync-queue-1.md).
 Pack readiness notes:
 [`docs/pack-readiness-1.md`](docs/pack-readiness-1.md).
+Account switcher notes:
+[`docs/account-switcher-gui-1.md`](docs/account-switcher-gui-1.md).
+Remembered sessions notes:
+[`docs/account-switcher-gui-2.md`](docs/account-switcher-gui-2.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is
@@ -428,6 +432,10 @@ Season membership check notes:
 [`docs/season-membership-check-1.md`](docs/season-membership-check-1.md).
 Pack readiness notes:
 [`docs/pack-readiness-1.md`](docs/pack-readiness-1.md).
+Account switcher notes:
+[`docs/account-switcher-gui-1.md`](docs/account-switcher-gui-1.md).
+Remembered sessions notes:
+[`docs/account-switcher-gui-2.md`](docs/account-switcher-gui-2.md).
 
 Run it from the repository root:
 
@@ -513,6 +521,17 @@ The MAME plugin may still write captures into the pack-local pending folder.
 For the GUI, that folder is staging: after competition play, only new captures
 created during that session are adopted into the scoped queue. Existing staging
 JSON is left untouched to avoid mixing accounts.
+
+The GUI also has a basic account switcher. It remembers known accounts in
+`userData/accounts/known-accounts.json` using only safe presentation data:
+email, user id, initials, optional display name/avatar and timestamps. It does
+not store passwords in any account file, and `known-accounts.json` never stores
+tokens. The GUI can also keep per-account remembered sessions in
+`userData/accounts/sessions/<playerKey>.json`, using the same local trust model
+as the active `session.json`, so players can switch accounts without typing a
+password while the saved session remains valid. Closing session clears only the
+active `session.json`; removing a remembered account removes its quick access
+session but does not delete local scores.
 
 Architecture constraints for that GUI:
 

@@ -98,6 +98,22 @@ automaticamente para no atribuir capturas antiguas a la cuenta actual.
 La GUI bloquea `Jugar competicion` y `Subir pendientes` si no hay cuenta
 conectada. `Practicar`, `Abrir pack` y `Diagnosticar` siguen disponibles.
 
+## Selector basico de cuenta
+
+`LOCAL-ACCOUNT-SWITCHER-GUI-1` anade cuentas recordadas sin cambiar esta
+estructura. `known-accounts.json` guarda solo datos seguros de presentacion y
+la sesion activa sigue siendo una sola. Al cambiar cuenta, el usuario inicia
+sesion de nuevo y la GUI recalcula `playerKey`, `packKey` y la cola visible.
+
+`LOCAL-ACCOUNT-SWITCHER-GUI-2` permite que cada cuenta tenga una sesion local
+recordada en `userData/accounts/sessions/<playerKey>.json`. Al cambiar cuenta,
+esa sesion se convierte en el `session.json` activo y la cola visible vuelve a
+derivarse de la cuenta activa + pack activo.
+
+Cerrar sesion o quitar una cuenta recordada no borra `userData/players/...` ni
+mueve puntuaciones entre cuentas. Quitar cuenta solo elimina la entrada
+recordada y su sesion local guardada.
+
 ## CLI
 
 La CLI se mantiene con la cola configurada tradicional por compatibilidad:
@@ -117,7 +133,7 @@ para una tarea explicita posterior si hace falta.
 
 ## Limites
 
-- No hay selector de cuentas.
+- No hay fusion, migracion ni borrado automatico de colas antiguas.
 - No hay multi-pack completo.
 - No hay migracion masiva de historico.
 - No se importan capturas antiguas automaticamente.

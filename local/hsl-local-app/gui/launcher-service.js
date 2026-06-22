@@ -1,5 +1,16 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
+const {
+  clearActiveAccount,
+  deleteRememberedSession,
+  listSavedSessionUserIds,
+  readKnownAccounts,
+  readRememberedSession,
+  rememberSessionAccount,
+  removeKnownAccount,
+  saveRememberedSession,
+  toSafeAccountsState,
+} = require("../src/account-store");
 const { loadConfig } = require("../src/config");
 const {
   emptyAutoSyncState,
@@ -12,6 +23,8 @@ const {
   isSessionExpiringSoon,
   logoutLocal,
   readSession,
+  refreshStoredSession,
+  saveSession,
   signInWithPassword,
 } = require("../src/auth");
 const { buildDiagnoseReport } = require("../src/diagnose");
@@ -479,6 +492,9 @@ async function getLauncherContext() {
   await ensureRememberedPackLoaded();
   const baseConfig = getEffectiveConfig();
   const session = await getAuthState(baseConfig);
+  const accountsStore = session.hasSession
+    ? await rememberSessionAccount(baseConfig, session)
+    : await readKnownAccounts(baseConfig);
   const membership = await checkSeasonMembership(baseConfig, session);
   const scoped = await getScopedGuiConfig(baseConfig, session);
   const queue = scoped.scope
@@ -486,6 +502,7 @@ async function getLauncherContext() {
     : getEmptyQueueState(baseConfig, scoped.reason);
 
   return {
+    accountsStore,
     baseConfig,
     config: scoped.config,
     membership,
@@ -496,7 +513,7 @@ async function getLauncherContext() {
 }
 
 async function stateFromContext(context) {
-  const { baseConfig, config, membership, queue, scoped, session } = context;
+  const { accountsStore, baseConfig, config, membership, queue, scoped, session } = context;
   const autoSync = getAutoSyncDisplayState({
     autoSyncInProgress,
     membership,
@@ -504,6 +521,7 @@ async function stateFromContext(context) {
     scope: scoped.scope,
     session,
   }, autoSyncState);
+  const savedSessionUserIds = await listSavedSessionUserIds(baseConfig, accountsStore.accounts);
   const readiness = evaluatePackReadiness({
     autoSync,
     config,
@@ -514,6 +532,7 @@ async function stateFromContext(context) {
   });
 
   return {
+    accounts: toSafeAccountsState(accountsStore, session, { savedSessionUserIds }),
     autoSync,
     bridge: getBridgeState(config),
     configPath: config.configPath,
@@ -1068,6 +1087,12 @@ async function loginWithPassword(credentials = {}) {
     password: credentials.password,
   });
 
+  if (result.ok) {
+    const storedSession = await readSession(config);
+    await saveRememberedSession(config, storedSession);
+    await rememberSessionAccount(config, result.session, { touch: true });
+  }
+
   return {
     action: "login",
     lines: [result.message],
@@ -1081,12 +1106,117 @@ async function logoutSession() {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
   const result = await logoutLocal(config);
+  await clearActiveAccount(config);
 
   return {
     action: "logout",
-    lines: [result.message, "Cerrar sesión no borra puntuaciones locales."],
+    lines: [result.message, "Cerrar sesión no borra puntuaciones locales.", "Las colas siguen separadas por cuenta y pack."],
     ok: result.ok,
-    summary: result.message,
+    summary: "Sesión cerrada. Tus puntuaciones locales siguen guardadas.",
+    state: await getLauncherState(),
+  };
+}
+
+async function switchKnownAccountFromGui(userId) {
+  await ensureRememberedPackLoaded();
+  const config = getEffectiveConfig();
+  const accounts = await readKnownAccounts(config);
+  const account = accounts.accounts.find((item) => item.userId === userId);
+
+  if (!account) {
+    return {
+      action: "switch-account",
+      lines: ["No se encontro esa cuenta recordada."],
+      ok: false,
+      summary: "No se encontro esa cuenta recordada.",
+      state: await getLauncherState(),
+    };
+  }
+
+  const remembered = await readRememberedSession(config, account);
+
+  if (!remembered.ok || !remembered.session) {
+    return {
+      action: "switch-account-login-required",
+      email: account.email,
+      lines: ["No hay una sesion guardada para esta cuenta. Inicia sesion de nuevo."],
+      ok: false,
+      requiresLogin: true,
+      summary: "Inicia sesion de nuevo para esta cuenta.",
+      state: await getLauncherState(),
+    };
+  }
+
+  let storedSession = remembered.session;
+
+  try {
+    if (isSessionExpiringSoon(storedSession)) {
+      storedSession = await refreshStoredSession({
+        ...config,
+        sessionFileAbs: remembered.filePath,
+      }, storedSession);
+    }
+
+    await saveSession(config, storedSession.session, storedSession.user);
+    await rememberSessionAccount(config, {
+      email: storedSession.user?.email || account.email,
+      hasSession: true,
+      userId: storedSession.user?.id || account.userId,
+    }, { touch: true });
+
+    return {
+      action: "switch-account",
+      lines: [
+        `Cuenta activa: ${storedSession.user?.email || account.email || account.userId}.`,
+        "Cambiar cuenta no mezcla puntuaciones locales.",
+      ],
+      ok: true,
+      summary: "Cuenta cambiada.",
+      state: await getLauncherState({ attemptAutoSync: true }),
+    };
+  } catch (error) {
+    await deleteRememberedSession(config, account).catch(() => null);
+
+    return {
+      action: "switch-account-login-required",
+      email: account.email,
+      lines: [
+        "La sesion guardada ha caducado. Inicia sesion de nuevo.",
+        normalizeMessage(error),
+      ],
+      ok: false,
+      requiresLogin: true,
+      summary: "La sesion guardada ha caducado.",
+      state: await getLauncherState(),
+    };
+  }
+}
+
+async function removeKnownAccountFromGui(userId) {
+  await ensureRememberedPackLoaded();
+  const config = getEffectiveConfig();
+  const session = await getAuthState(config);
+
+  if (session.hasSession && session.userId === userId) {
+    return {
+      action: "remove-known-account",
+      lines: ["Cierra sesión antes de quitar la cuenta activa de este dispositivo."],
+      ok: false,
+      summary: "Primero cierra sesión.",
+      state: await getLauncherState(),
+    };
+  }
+
+  const result = await removeKnownAccount(config, userId);
+  const summary = result.removed
+    ? "Cuenta quitada de este dispositivo. No se han borrado puntuaciones locales."
+    : "No se encontró esa cuenta recordada.";
+
+  return {
+    action: "remove-known-account",
+    lines: [summary, "Las colas locales no se han borrado ni mezclado."],
+    ok: result.removed,
+    summary,
     state: await getLauncherState(),
   };
 }
@@ -1255,6 +1385,7 @@ module.exports = {
   playPractice,
   readPackForGui,
   recheckSeasonMembership,
+  removeKnownAccountFromGui,
   removeLibraryLocationFromGui,
   restoreFailedSubmission,
   resolveRememberedPack,
@@ -1263,5 +1394,6 @@ module.exports = {
   runDiagnose,
   submitAllPending,
   summarizeDiagnoseReport,
+  switchKnownAccountFromGui,
   syncPlugin,
 };

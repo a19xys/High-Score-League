@@ -60,7 +60,13 @@ y despues de acciones que pueden hacer viable una subida:
 - restaurar una puntuacion desde `failed` a `pending`.
 
 No se dispara desde diagnostico, practica, `sync-plugin`, cerrar sesion,
-anadir/quitar ubicaciones de biblioteca ni al abrir enlaces web.
+quitar una cuenta recordada, anadir/quitar ubicaciones de biblioteca ni al
+abrir enlaces web.
+
+Con `LOCAL-ACCOUNT-SWITCHER-GUI-2`, cambiar cuenta puede activar una sesion
+local recordada sin pedir contrasena. Tras el cambio, el estado completo se
+recalcula y auto-sync puede actuar si la nueva cuenta es `member`, hay scope y
+existen pendientes.
 
 ## Estado visible
 

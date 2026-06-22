@@ -311,11 +311,16 @@ Gracias a la cola por cuenta y pack en `userData`, cambiar de cuenta no debe mez
 userData/players/<playerKey>/packs/<packKey>/events/{pending,failed,sent}
 ```
 
-Tarea futura sugerida:
+Primer soporte implementado en `LOCAL-ACCOUNT-SWITCHER-GUI-1`: la GUI recuerda
+cuentas conocidas con datos seguros de presentacion, mantiene una sola sesion
+activa real, permite cambiar cuenta iniciando sesion de nuevo y deja claro que
+cerrar sesion o quitar una cuenta recordada no borra puntuaciones locales.
 
-```text
-LOCAL-ACCOUNT-SWITCHER-GUI-1
-```
+Segundo soporte implementado en `LOCAL-ACCOUNT-SWITCHER-GUI-2`: la GUI guarda
+sesiones recordadas por cuenta bajo `userData/accounts/sessions/` para cambiar
+sin volver a introducir contrasena cuando la sesion local sigue siendo valida o
+refrescable. `session.json` sigue siendo la sesion activa compatible con el
+resto del launcher.
 
 ## Iconos y marca
 
