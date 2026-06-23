@@ -7,10 +7,12 @@ const {
   adoptNewStagingEvents,
   activateLibraryPack,
   classifyFailureReason,
+  chooseSharedMameRuntimeFromGui,
   deriveOpenedPackConfig,
   eventResultToQueueItem,
   listPendingFileSnapshot,
   openConfiguredPackDirectory,
+  openSharedMameRuntimeDirectory,
   readPackForGui,
   recheckSeasonMembership,
   resolveRememberedPack,
@@ -312,6 +314,9 @@ test("renderer technical details include safe membership diagnostics", async () 
   assert.match(devTools, /Biblioteca packs/);
   assert.match(devTools, /Biblioteca packs invalidos/);
   assert.match(devTools, /Biblioteca warnings/);
+  assert.match(devTools, /Runtime MAME compartido/);
+  assert.match(devTools, /data-action="choose-shared-mame-runtime"/);
+  assert.match(devTools, /data-action="open-shared-mame-runtime"/);
   assert.equal(/access_token|refresh_token|Authorization|session\.json/.test(devTools), false);
 });
 
@@ -409,12 +414,18 @@ test("pack directory actions are exposed without legacy location UI", async () =
 
   assert.match(main, /launcher:choose-pack-directory/);
   assert.match(main, /launcher:open-pack-directory/);
+  assert.match(main, /launcher:choose-shared-mame-runtime/);
+  assert.match(main, /launcher:open-shared-mame-runtime/);
   assert.match(main, /launcher:rescan-pack-directory/);
   assert.match(preload, /choosePackDirectory/);
   assert.match(preload, /openPackDirectory/);
+  assert.match(preload, /chooseSharedMameRuntime/);
+  assert.match(preload, /openSharedMameRuntime/);
   assert.match(preload, /rescanPackDirectory/);
   assert.match(app, /window\.hslLauncher\.choosePackDirectory/);
   assert.match(app, /window\.hslLauncher\.openPackDirectory/);
+  assert.match(app, /window\.hslLauncher\.chooseSharedMameRuntime/);
+  assert.match(app, /window\.hslLauncher\.openSharedMameRuntime/);
   assert.match(app, /window\.hslLauncher\.rescanPackDirectory/);
   assert.equal(/addLibraryLocation|removeLibraryLocation|launcher:add-library-location|launcher:remove-library-location/.test(main + preload + app), false);
 });
@@ -732,6 +743,51 @@ test("openConfiguredPackDirectory calls shell opener for existing directory", as
 
     assert.equal(result.ok, true);
     assert.deepEqual(opened, [libraryRoot]);
+  });
+});
+
+test("chooseSharedMameRuntimeFromGui guarda runtime MAME compartido", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const mamePath = path.join(dir, "runtime", "mame.exe");
+    await fsp.mkdir(path.dirname(mamePath), { recursive: true });
+    await fsp.writeFile(mamePath, "binary", "utf8");
+
+    const result = await chooseSharedMameRuntimeFromGui(mamePath, {
+      config,
+      includeState: false,
+      selectedAt: "2026-06-20T00:00:00.000Z",
+      updatedAt: "2026-06-20T00:00:00.000Z",
+    });
+    const raw = JSON.parse(await fsp.readFile(path.join(config.userDataDir, "runtime", "mame-runtime.json"), "utf8"));
+
+    assert.equal(result.ok, true);
+    assert.equal(result.runtime.available, true);
+    assert.equal(raw.mameExecutablePath, mamePath);
+  });
+});
+
+test("openSharedMameRuntimeDirectory abre carpeta configurada", async () => {
+  await withTempDir(async (dir) => {
+    const opened = [];
+    const mamePath = path.join(dir, "runtime", "mame.exe");
+    const result = await openSharedMameRuntimeDirectory({
+      config: {
+        sharedMameRuntime: {
+          mameExecutablePath: mamePath,
+        },
+      },
+      includeState: false,
+      openPathImpl: async (runtimeDir) => {
+        opened.push(runtimeDir);
+        return "";
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(opened, [path.dirname(mamePath)]);
   });
 });
 

@@ -121,3 +121,31 @@ test("loadConfig resolves sessionFile inside userData", async () => {
     assert.equal(config.sessionFileAbs, path.join(dir, "user-data", "session.json"));
   });
 });
+
+test("loadConfig reads shared MAME runtime state from userData", async () => {
+  await withTempDir(async (dir) => {
+    const userDataDir = path.join(dir, "user-data");
+    const mamePath = path.join(dir, "runtime", "mame.exe");
+    const configPath = path.join(dir, "config.json");
+    await fsp.mkdir(path.dirname(mamePath), { recursive: true });
+    await fsp.mkdir(path.join(userDataDir, "runtime"), { recursive: true });
+    await fsp.writeFile(mamePath, "binary", "utf8");
+    await fsp.writeFile(
+      path.join(userDataDir, "runtime", "mame-runtime.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        mameExecutablePath: mamePath,
+        selectedAt: "2026-06-20T00:00:00.000Z",
+        updatedAt: "2026-06-20T00:00:00.000Z",
+      }),
+      "utf8"
+    );
+    await fsp.writeFile(configPath, JSON.stringify({ userDataDir }), "utf8");
+
+    const config = loadConfig(configPath, dir);
+
+    assert.equal(config.sharedMameRuntime.configured, true);
+    assert.equal(config.sharedMameRuntime.available, true);
+    assert.equal(config.sharedMameRuntime.mameExecutablePath, mamePath);
+  });
+});

@@ -121,6 +121,7 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
   const checks = [];
   const pack = config.pack || null;
   const isPackV2 = pack?.packVersion === 2 || pack?.contract?.version === 2 || config.requiresSharedMameRuntime === true;
+  const sharedRuntime = config.sharedMameRuntime || {};
   const rom = pack?.rom || config.rom || null;
   const weekId = config.defaultWeekId || pack?.weekId || null;
   const pluginName = getPluginName(config);
@@ -204,13 +205,16 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
   }
 
   if (isPackV2) {
-    checks.push(check(
-      "runtime-shared",
-      "error",
-      "MAME",
-      "Este pack usa packVersion 2 y requiere el runtime MAME compartido, que aun no esta implementado.",
-      [pack?.contract?.runtimeType ? `runtime.type=${pack.contract.runtimeType}` : null]
-    ));
+    if (sharedRuntime.available) {
+      checks.push(check("runtime-shared", "ok", "MAME", "Runtime MAME compartido encontrado.", [sharedRuntime.mameExecutablePath]));
+    } else if (sharedRuntime.configured) {
+      checks.push(check("runtime-shared", "error", "MAME", "No se encontro mame.exe en el runtime compartido.", [
+        sharedRuntime.mameExecutablePath,
+        ...(sharedRuntime.errors || []),
+      ]));
+    } else {
+      checks.push(check("runtime-shared", "error", "MAME", "Runtime MAME compartido no configurado."));
+    }
   } else if (isFile(config.mame?.executablePath)) {
     checks.push(check("mame-executable", "ok", "MAME", "mame.exe encontrado.", [config.mame.executablePath]));
   } else {
@@ -218,14 +222,19 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
   }
 
   if (isPackV2) {
-    checks.push(check("mame-working-dir", "warning", "MAME", "packVersion 2 no usa mame.workingDir del pack; el runtime compartido lo resolvera en una tarea futura."));
+    checks.push(check("mame-working-dir", "ok", "MAME", "packVersion 2 usa MAME compartido, no mame.workingDir del pack."));
   } else if (isDirectory(config.mame?.workingDir)) {
     checks.push(check("mame-working-dir", "ok", "MAME", "Carpeta de trabajo de MAME encontrada.", [config.mame.workingDir]));
   } else {
     checks.push(check("mame-working-dir", "error", "MAME", "No encuentro la carpeta de trabajo de MAME.", [config.mame?.workingDir]));
   }
 
-  if (pluginName) {
+  if (isPackV2) {
+    checks.push(check("capture-v2", "error", "Captura", "Competicion pendiente de plugin/adaptador v2.", [
+      pack?.contract?.capture?.mode ? `capture.mode=${pack.contract.capture.mode}` : null,
+      pack?.contract?.capture?.adapter ? `adapter=${pack.contract.capture.adapter}` : null,
+    ]));
+  } else if (pluginName) {
     checks.push(check("plugin-name", "ok", "Plugin", `Plugin configurado: ${pluginName}.`));
   } else {
     checks.push(check("plugin-name", "error", "Plugin", "No hay plugin configurado para capturar puntuaciones."));
@@ -237,10 +246,20 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
     checks.push(check("plugin-folder", "error", "Plugin", "No encuentro la carpeta del plugin en el pack.", [pluginDir]));
   }
 
+  if (isPackV2 && pack?.contract?.mame?.romDir) {
+    if (isDirectory(pack.contract.mame.romDir)) {
+      checks.push(check("rom-dir", "ok", "ROM", "Directorio de ROMs del pack encontrado.", [pack.contract.mame.romDir]));
+    } else {
+      checks.push(check("rom-dir", "error", "ROM", "No encuentro el directorio de ROMs del pack v2.", [pack.contract.mame.romDir]));
+    }
+  }
+
   if (romPath && exists(romPath)) {
     checks.push(check("rom-file", "ok", "ROM", "ROM encontrada en roms/.", [romPath]));
-  } else if (romPath && isDirectory(config.mame?.workingDir)) {
+  } else if (!isPackV2 && romPath && isDirectory(config.mame?.workingDir)) {
     checks.push(check("rom-file", "warning", "ROM", "No pude confirmar la ROM en roms/. MAME podria usar otra ruta.", [romPath]));
+  } else if (isPackV2 && romPath && isDirectory(pack?.contract?.mame?.romDir)) {
+    checks.push(check("rom-file", "warning", "ROM", "No pude confirmar la ROM concreta, pero el directorio romPath existe.", [romPath]));
   }
 
   for (const [index, dir] of stagingDirs.entries()) {
@@ -291,16 +310,19 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
     checks.push(check("auto-sync", "ok", "Auto-sync", autoSync?.message || "Auto-sync listo."));
   }
 
-  const hasMame = checks.find((item) => item.id === "mame-executable")?.level === "ok" &&
-    checks.find((item) => item.id === "mame-working-dir")?.level === "ok";
+  const hasMame = isPackV2
+    ? checks.find((item) => item.id === "runtime-shared")?.level === "ok"
+    : checks.find((item) => item.id === "mame-executable")?.level === "ok" &&
+      checks.find((item) => item.id === "mame-working-dir")?.level === "ok";
   const hasRom = Boolean(rom);
-  const hasPlugin = Boolean(pluginName) && checks.find((item) => item.id === "plugin-folder")?.level !== "error";
+  const hasRomDir = !isPackV2 || checks.find((item) => item.id === "rom-dir")?.level === "ok";
+  const hasPlugin = !isPackV2 && Boolean(pluginName) && checks.find((item) => item.id === "plugin-folder")?.level !== "error";
   const hasSession = Boolean(session?.hasSession);
   const hasScope = Boolean(scope?.scopedQueueRoot);
   const hasWeek = Boolean(weekId);
   const membershipStatus = membership?.status || "unknown";
   const membershipAllowsCompetition = membershipStatus === "member" || membershipStatus === "unknown" || membershipStatus === "error";
-  const canPractice = hasMame && hasRom;
+  const canPractice = hasMame && hasRom && hasRomDir;
   const canCapture = hasPlugin;
   const canPlayCompetition = canPractice && canCapture && hasSession && hasScope && hasWeek && membershipAllowsCompetition;
   const canSubmit = Boolean(hasSession && hasScope && hasWeek && config.webBaseUrl && membership?.canSubmit === true);

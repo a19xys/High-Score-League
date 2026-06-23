@@ -155,5 +155,7 @@ Este directorio unico sera el destino futuro para:
 - verificacion de checksums.
 
 `LOCAL-PACK-CONTRACT-2` define `pack.json` v2 para packs ligeros dentro de este
-directorio. Este modelo de directorio sigue sin implementar catalogo remoto,
-descargas, updates ni runtime MAME global.
+directorio. `LOCAL-SHARED-MAME-RUNTIME-1` guarda el runtime MAME compartido por
+separado en `userData/runtime/mame-runtime.json`; no vive dentro del directorio
+de packs. Este modelo de directorio sigue sin implementar catalogo remoto,
+descargas ni updates.

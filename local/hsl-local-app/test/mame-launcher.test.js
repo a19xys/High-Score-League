@@ -54,18 +54,74 @@ test("incomplete MAME config is rejected before launching MAME", () => {
   );
 });
 
-test("packVersion 2 is rejected with shared runtime pending message", () => {
-  assert.throws(
-    () => buildMameArgs({
-      pack: {
-        packVersion: 2,
-        contract: {
-          version: 2,
+function packV2Config(overrides = {}) {
+  return {
+    pack: {
+      packVersion: 2,
+      rom: "invaders",
+      contract: {
+        version: 2,
+        mame: {
+          romDir: "C:/Packs/space-invaders/roms",
+          artworkDir: "C:/Packs/space-invaders/artwork",
+          sampleDir: "C:/Packs/space-invaders/samples",
+          cfgDir: "C:/Packs/space-invaders/cfg",
+          launchArgs: ["-window"],
+        },
+        capture: {
+          pluginName: "hsl-score",
         },
       },
-      requiresSharedMameRuntime: true,
-    }, "invaders", "competition"),
-    /runtime MAME compartido todavia no esta disponible/
+    },
+    sharedMameRuntime: {
+      available: true,
+      configured: true,
+      mameExecutablePath: "C:/HSL/runtime/mame/mame.exe",
+    },
+    ...overrides,
+  };
+}
+
+test("packVersion 2 practice builds MAME args with shared runtime resources", () => {
+  const launch = buildMameArgs(packV2Config(), "invaders", "practice");
+
+  assert.equal(launch.command, "C:/HSL/runtime/mame/mame.exe");
+  assert.equal(launch.cwd, "C:/HSL/runtime/mame");
+  assert.equal(launch.runtime, "shared-mame");
+  assert.deepEqual(launch.args, [
+    "invaders",
+    "-rompath",
+    "C:/Packs/space-invaders/roms",
+    "-artpath",
+    "C:/Packs/space-invaders/artwork",
+    "-samplepath",
+    "C:/Packs/space-invaders/samples",
+    "-cfg_directory",
+    "C:/Packs/space-invaders/cfg",
+    "-window",
+  ]);
+});
+
+test("packVersion 2 competition is blocked until capture adapter loading exists", () => {
+  assert.throws(
+    () => buildMameArgs(packV2Config(), "invaders", "competition"),
+    /captura competitiva con MAME compartido/
+  );
+});
+
+test("packVersion 2 practice requires shared runtime", () => {
+  assert.throws(
+    () => buildMameArgs(packV2Config({ sharedMameRuntime: { configured: false, available: false } }), "invaders", "practice"),
+    /Runtime MAME compartido no configurado/
+  );
+});
+
+test("packVersion 2 launch requires an existing romDir before spawn", async () => {
+  assert.throws(
+    () => launchMame(packV2Config(), "invaders", "practice", () => {
+      throw new Error("spawn should not run");
+    }),
+    /directorio de ROMs/
   );
 });
 

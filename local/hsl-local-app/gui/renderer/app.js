@@ -100,8 +100,10 @@ function resultToLog(title, response) {
       ? "Web abierta en el navegador."
       : "No se pudo abrir la web."),
     "choose-pack-directory": response.summary || "Directorio de packs actualizado.",
+    "choose-shared-mame-runtime": response.summary || "Runtime MAME actualizado.",
     "check-membership": response.summary || "Comprobacion de temporada actualizada.",
     "open-pack-directory": response.summary || "Directorio de packs abierto.",
+    "open-shared-mame-runtime": response.summary || "Carpeta MAME abierta.",
     "remove-known-account": response.summary || (ok
       ? "Cuenta quitada de este dispositivo. No se han borrado puntuaciones locales."
       : "No se pudo quitar la cuenta recordada."),
@@ -314,8 +316,16 @@ function bindActions() {
       runAction(action, "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory());
     }
 
+    if (action === "choose-shared-mame-runtime") {
+      runAction(action, "Eligiendo MAME", "Elegir mame.exe", () => window.hslLauncher.chooseSharedMameRuntime());
+    }
+
     if (action === "open-pack-directory") {
       runAction(action, "Abriendo directorio", "Abrir directorio", () => window.hslLauncher.openPackDirectory());
+    }
+
+    if (action === "open-shared-mame-runtime") {
+      runAction(action, "Abriendo MAME", "Abrir carpeta MAME", () => window.hslLauncher.openSharedMameRuntime());
     }
 
     if (action === "rescan-pack-directory") {

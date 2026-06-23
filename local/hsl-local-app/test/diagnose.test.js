@@ -182,9 +182,10 @@ test("diagnose does not error only because no pack or MAME is active", async () 
   });
 });
 
-test("diagnose reports packVersion 2 contract without treating it as embedded MAME", async () => {
+test("diagnose reports packVersion 2 missing shared runtime without treating it as embedded MAME", async () => {
   await withTempDir(async (dir) => {
     const config = await createBaseConfig(dir);
+    config.userDataDir = path.join(dir, "userData");
     config.requiresSharedMameRuntime = true;
     config.mame = {
       pluginName: "hsl-score",
@@ -213,9 +214,54 @@ test("diagnose reports packVersion 2 contract without treating it as embedded MA
 
     assert.ok(hasEntry(report.sections.pack, "INFO", /packVersion = 2/));
     assert.ok(hasEntry(report.sections.pack, "OK", /contractStatus = current/));
-    assert.ok(hasEntry(report.sections.mame, "WARN", /runtime MAME compartido/));
-    assert.ok(hasEntry(report.sections.launcher, "INFO", /No se construyen argumentos/));
+    assert.ok(hasEntry(report.sections.runtime, "INFO", /runtime MAME compartido no configurado/));
+    assert.ok(hasEntry(report.sections.mame, "ERROR", /requiere runtime MAME compartido configurado/));
     assert.equal(report.sections.mame.some((entry) => /mame\.executablePath falta/.test(entry.message)), false);
+  });
+});
+
+test("diagnose reports packVersion 2 shared runtime and practice args", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createBaseConfig(dir);
+    const sharedMame = path.join(dir, "runtime", "mame.exe");
+    const romDir = path.join(dir, "pack", "roms");
+    await fsp.mkdir(path.dirname(sharedMame), { recursive: true });
+    await fsp.mkdir(romDir, { recursive: true });
+    await fsp.writeFile(sharedMame, "binary", "utf8");
+    config.sharedMameRuntime = {
+      available: true,
+      configured: true,
+      mameExecutablePath: sharedMame,
+      runtimeFile: path.join(config.userDataDir || dir, "runtime", "mame-runtime.json"),
+      warnings: [],
+    };
+    config.requiresSharedMameRuntime = true;
+    config.packLoaded = true;
+    config.pack = {
+      packVersion: 2,
+      rom: "invaders",
+      contractStatus: "current",
+      deprecated: false,
+      contract: {
+        version: 2,
+        runtimeType: "mame",
+        mame: {
+          romDir,
+          romPath: "roms",
+        },
+        capture: {
+          mode: "plugin",
+          pluginName: "hsl-score",
+        },
+      },
+    };
+
+    const report = await buildDiagnoseReport(config);
+
+    assert.ok(hasEntry(report.sections.runtime, "OK", /mame\.exe compartido encontrado/));
+    assert.ok(hasEntry(report.sections.mame, "OK", /runtime MAME compartido para practica/));
+    assert.ok(hasEntry(report.sections.launcher, "OK", /practice v2 construye argumentos/));
+    assert.ok(hasEntry(report.sections.launcher, "INFO", /competition v2 queda pendiente/));
   });
 });
 

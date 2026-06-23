@@ -300,7 +300,9 @@ pack activo esta listo para practicar, competir, capturar y sincronizar. Esta
 capa ordena checks de pack, MAME, plugin, staging, sesion, cola scoped,
 membership y auto-sync sin cambiar payloads, endpoint, cola ni configuracion.
 Con `LOCAL-PACK-CONTRACT-2`, los packs v2 cargan en biblioteca y readiness, pero
-la ejecucion queda bloqueada con aviso claro hasta `LOCAL-SHARED-MAME-RUNTIME-1`.
+`LOCAL-SHARED-MAME-RUNTIME-1` permite resolver practica v2 con MAME compartido.
+La competicion v2 queda bloqueada con aviso claro hasta
+`LOCAL-MAME-PACK-PLUGIN-LOADING-1`.
 
 ## Temporada y participación
 

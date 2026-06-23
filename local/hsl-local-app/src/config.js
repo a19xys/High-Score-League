@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { loadDefaultPack } = require("./pack");
 const { resolveRuntimePaths } = require("./runtime-paths");
+const { readSharedMameRuntime } = require("./shared-mame-runtime");
 
 const APP_DIR = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(APP_DIR, "config.json");
@@ -30,6 +31,10 @@ function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR) {
     webBaseUrl: config.webBaseUrl || pack?.webBaseUrl,
   };
   const runtimePaths = resolveRuntimePaths(mergedConfig, pack, { appDir });
+  const sharedMameRuntime = readSharedMameRuntime({
+    ...mergedConfig,
+    ...runtimePaths,
+  });
 
   return {
     ...mergedConfig,
@@ -45,6 +50,7 @@ function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR) {
     packPath: packResult.packPath,
     packLoaded: packResult.loaded,
     sessionFile,
+    sharedMameRuntime,
     ...runtimePaths,
   };
 }

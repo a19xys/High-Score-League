@@ -4,6 +4,7 @@ const invoke = (channel) => () => ipcRenderer.invoke(channel);
 
 contextBridge.exposeInMainWorld("hslLauncher", {
   choosePackDirectory: invoke("launcher:choose-pack-directory"),
+  chooseSharedMameRuntime: invoke("launcher:choose-shared-mame-runtime"),
   checkMembership: invoke("launcher:check-membership"),
   diagnose: invoke("launcher:diagnose"),
   getAuthState: invoke("launcher:get-auth-state"),
@@ -11,6 +12,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   login: (email, password) => ipcRenderer.invoke("launcher:login", { email, password }),
   logout: invoke("launcher:logout"),
   openPackDirectory: invoke("launcher:open-pack-directory"),
+  openSharedMameRuntime: invoke("launcher:open-shared-mame-runtime"),
   openPack: invoke("launcher:open-pack"),
   openMembershipUrl: invoke("launcher:open-membership-url"),
   playCompetition: invoke("launcher:play-competition"),

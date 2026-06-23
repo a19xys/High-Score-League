@@ -35,6 +35,8 @@ shared persistent userData
 
 Final shared MAME runtime blueprint:
 [`docs/shared-mame-runtime-blueprint-1.md`](docs/shared-mame-runtime-blueprint-1.md).
+Implemented shared MAME runtime notes:
+[`docs/shared-mame-runtime-1.md`](docs/shared-mame-runtime-1.md).
 
 ### App instalada
 
@@ -165,6 +167,11 @@ identity, competition fields, runtime type, relative MAME resource paths and
 capture mode. The v1 `mame.relativeExecutablePath` field remains temporary
 compatibility for current tests, examples and the development bridge.
 
+The app now stores the shared MAME executable path in
+`userData/runtime/mame-runtime.json`. Practice for v2 packs can use that shared
+runtime with pack-local resources. Competition for v2 remains blocked until the
+plugin/adaptor loading task is implemented.
+
 Pack contract notes:
 [`docs/pack-contract-2.md`](docs/pack-contract-2.md).
 
@@ -197,6 +204,8 @@ Pack directory model notes:
 [`docs/pack-directory-model-1.md`](docs/pack-directory-model-1.md).
 Pack contract v2 notes:
 [`docs/pack-contract-2.md`](docs/pack-contract-2.md).
+Shared MAME runtime implementation notes:
+[`docs/shared-mame-runtime-1.md`](docs/shared-mame-runtime-1.md).
 Pack library grid notes:
 [`docs/pack-library-grid-1.md`](docs/pack-library-grid-1.md).
 Account switcher notes:

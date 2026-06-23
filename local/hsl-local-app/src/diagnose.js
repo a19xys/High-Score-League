@@ -1,6 +1,7 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { buildMameArgs, DEFAULT_PLUGIN_NAME } = require("./mame-launcher");
+const { readSharedMameRuntime } = require("./shared-mame-runtime");
 
 const REQUIRED_CONFIG_FIELDS = [
   "sessionFile",
@@ -186,6 +187,7 @@ async function readSessionSummary(sessionFileAbs) {
 
 async function buildDiagnoseReport(config) {
   const appDir = getConfigAppDir(config);
+  const sharedMameRuntime = config.sharedMameRuntime || (config.userDataDir ? readSharedMameRuntime(config) : null);
   const checkedEventDirs = [];
   let mameExecutableExists = false;
   let mameWorkingDirExists = false;
@@ -232,6 +234,29 @@ async function buildDiagnoseReport(config) {
 
   add(report, "runtime", "OK", `eventos resueltos desde ${config.eventsSource || "rutas finales"}`);
   add(report, "runtime", "OK", "sessionFile final", config.sessionFileAbs);
+
+  if (sharedMameRuntime) {
+    add(report, "runtime", sharedMameRuntime.configured ? "OK" : "INFO", sharedMameRuntime.configured
+      ? "runtime MAME compartido configurado"
+      : "runtime MAME compartido no configurado", sharedMameRuntime.runtimeFile);
+
+    if (sharedMameRuntime.mameExecutablePath) {
+      add(report, "runtime", "INFO", "mameExecutablePath compartido", sharedMameRuntime.mameExecutablePath);
+    }
+
+    if (sharedMameRuntime.available) {
+      add(report, "runtime", "OK", "mame.exe compartido encontrado", sharedMameRuntime.mameExecutablePath);
+    } else if (sharedMameRuntime.configured) {
+      add(report, "runtime", "ERROR", "mame.exe compartido no disponible", [
+        sharedMameRuntime.mameExecutablePath,
+        ...(sharedMameRuntime.errors || []),
+      ]);
+    }
+
+    for (const warning of sharedMameRuntime.warnings || []) {
+      add(report, "runtime", "WARN", warning);
+    }
+  }
 
   for (const field of REQUIRED_CONFIG_FIELDS) {
     if (isNonEmptyString(config[field])) {
@@ -313,9 +338,26 @@ async function buildDiagnoseReport(config) {
     }
   }
 
-  if (config.requiresSharedMameRuntime || config.pack?.contract?.version === 2) {
-    add(report, "mame", "WARN", "packVersion 2 requiere runtime MAME compartido pendiente de implementar");
-    add(report, "launcher", "INFO", "No se construyen argumentos de MAME para packVersion 2 hasta LOCAL-SHARED-MAME-RUNTIME-1");
+  if (config.pack?.contract?.version === 2) {
+    if (sharedMameRuntime?.available) {
+      add(report, "mame", "OK", "packVersion 2 usara runtime MAME compartido para practica", sharedMameRuntime.mameExecutablePath);
+    } else {
+      add(report, "mame", "ERROR", sharedMameRuntime?.configured
+        ? "packVersion 2 requiere mame.exe compartido disponible"
+        : "packVersion 2 requiere runtime MAME compartido configurado");
+    }
+
+    try {
+      const practice = buildMameArgs({
+        ...config,
+        sharedMameRuntime,
+      }, config.pack.rom || "invaders", "practice");
+      add(report, "launcher", "OK", "practice v2 construye argumentos con MAME compartido", practice.args);
+    } catch (error) {
+      add(report, "launcher", "ERROR", `No se pudieron construir argumentos practice v2: ${error.message}`);
+    }
+
+    add(report, "launcher", "INFO", "competition v2 queda pendiente de plugin/adaptador de captura");
   } else if (!config.mame || typeof config.mame !== "object") {
     add(report, "mame", "INFO", "No hay MAME activo en config global ni pack cargado");
     add(report, "launcher", "INFO", "No se comprueban argumentos de launcher sin pack activo o configuración MAME de desarrollo");

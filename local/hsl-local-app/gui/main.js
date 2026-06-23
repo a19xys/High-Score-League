@@ -61,6 +61,26 @@ function registerIpc() {
   ipcMain.handle("launcher:open-pack-directory", () => service.openConfiguredPackDirectory({
     openPathImpl: (directoryPath) => shell.openPath(directoryPath),
   }));
+  ipcMain.handle("launcher:choose-shared-mame-runtime", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      buttonLabel: "Elegir mame.exe",
+      filters: [
+        { name: "MAME", extensions: process.platform === "win32" ? ["exe"] : ["*"] },
+      ],
+      message: "Elige el ejecutable mame.exe del runtime compartido",
+      properties: ["openFile"],
+      title: "Runtime MAME compartido",
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return service.cancelChooseSharedMameRuntime();
+    }
+
+    return service.chooseSharedMameRuntimeFromGui(result.filePaths[0]);
+  });
+  ipcMain.handle("launcher:open-shared-mame-runtime", () => service.openSharedMameRuntimeDirectory({
+    openPathImpl: (directoryPath) => shell.openPath(directoryPath),
+  }));
   ipcMain.handle("launcher:rescan-pack-directory", () => service.rescanPackDirectory());
   ipcMain.handle("launcher:remove-known-account", (_event, userId) => service.removeKnownAccountFromGui(userId));
   ipcMain.handle("launcher:switch-account", (_event, userId) => service.switchKnownAccountFromGui(userId));

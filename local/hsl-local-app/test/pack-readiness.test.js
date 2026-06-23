@@ -236,10 +236,14 @@ test("packVersion 1 deprecated queda como warning no destructivo", async () => {
   });
 });
 
-test("packVersion 2 carga pero bloquea juego hasta runtime compartido", async () => {
+test("packVersion 2 sin runtime compartido bloquea practica", async () => {
   await withTempDir(async (dir) => {
     const context = await createReadyFixture(dir);
     context.config.requiresSharedMameRuntime = true;
+    context.config.sharedMameRuntime = {
+      available: false,
+      configured: false,
+    };
     context.config.mame = {
       pluginName: "hsl-score",
       requiresSharedMameRuntime: true,
@@ -268,8 +272,57 @@ test("packVersion 2 carga pero bloquea juego hasta runtime compartido", async ()
     assert.equal(result.status, "blocked");
     assert.equal(result.canPractice, false);
     assert.equal(result.canPlayCompetition, false);
-    assert.match(result.message, /runtime MAME compartido/i);
+    assert.match(result.message, /Runtime MAME compartido/i);
     assert.ok(result.checks.some((item) => item.id === "runtime-shared" && item.level === "error"));
+  });
+});
+
+test("packVersion 2 con runtime y romDir permite practica pero no competicion", async () => {
+  await withTempDir(async (dir) => {
+    const context = await createReadyFixture(dir);
+    const sharedMame = path.join(dir, "runtime", "mame.exe");
+    const romDir = path.join(context.config.packRoot, "roms");
+    await fsp.mkdir(path.dirname(sharedMame), { recursive: true });
+    await fsp.mkdir(romDir, { recursive: true });
+    await fsp.writeFile(sharedMame, "binary", "utf8");
+
+    context.config.requiresSharedMameRuntime = true;
+    context.config.sharedMameRuntime = {
+      available: true,
+      configured: true,
+      mameExecutablePath: sharedMame,
+    };
+    context.config.mame = {
+      pluginName: "hsl-score",
+      requiresSharedMameRuntime: true,
+    };
+    context.config.pack = {
+      ...context.config.pack,
+      packVersion: 2,
+      contractStatus: "current",
+      deprecated: false,
+      contract: {
+        version: 2,
+        runtimeType: "mame",
+        mame: {
+          romDir,
+          romPath: "roms",
+        },
+        capture: {
+          mode: "plugin",
+          pluginName: "hsl-score",
+        },
+      },
+    };
+
+    const result = evaluatePackReadiness(context);
+
+    assert.equal(result.status, "blocked");
+    assert.equal(result.canPractice, true);
+    assert.equal(result.canCapture, false);
+    assert.equal(result.canPlayCompetition, false);
+    assert.ok(result.checks.some((item) => item.id === "runtime-shared" && item.level === "ok"));
+    assert.ok(result.checks.some((item) => item.id === "capture-v2" && item.level === "error"));
   });
 });
 

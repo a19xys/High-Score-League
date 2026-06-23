@@ -1,12 +1,19 @@
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
 const { getGameByRom } = require("./games");
 
 const DEFAULT_PLUGIN_NAME = "hsl-score";
 const MODES = new Set(["competition", "practice"]);
 
+function isPackV2Config(config) {
+  return config?.pack?.packVersion === 2 || config?.pack?.contract?.version === 2;
+}
+
 function assertMameConfig(config) {
-  if (config?.requiresSharedMameRuntime === true || config?.pack?.packVersion === 2 || config?.pack?.contract?.version === 2) {
-    throw new Error("Este pack usa packVersion 2. El runtime MAME compartido todavia no esta disponible en esta version del launcher.");
+  if (isPackV2Config(config)) {
+    assertSharedMameRuntimeConfig(config);
+    return;
   }
 
   // Legacy bridge for packVersion 1/dev packs with MAME embedded in the pack.
@@ -23,6 +30,22 @@ function assertMameConfig(config) {
   }
 }
 
+function assertSharedMameRuntimeConfig(config) {
+  const runtime = config?.sharedMameRuntime;
+
+  if (!runtime?.configured) {
+    throw new Error("Runtime MAME compartido no configurado.");
+  }
+
+  if (!runtime.available) {
+    throw new Error("No se encontro mame.exe en el runtime compartido.");
+  }
+
+  if (typeof runtime.mameExecutablePath !== "string" || runtime.mameExecutablePath.trim() === "") {
+    throw new Error("Runtime MAME compartido no configurado.");
+  }
+}
+
 function resolveLaunchRom(rom) {
   const game = getGameByRom(rom);
 
@@ -36,9 +59,74 @@ function resolveLaunchRom(rom) {
   };
 }
 
+function validateLaunchArgs(launchArgs) {
+  if (launchArgs === undefined || launchArgs === null) {
+    return [];
+  }
+
+  if (!Array.isArray(launchArgs)) {
+    throw new Error("pack.json mame.launchArgs debe ser un array");
+  }
+
+  return launchArgs.map((value) => {
+    if (typeof value !== "string" || value.includes("\0")) {
+      throw new Error("pack.json mame.launchArgs solo puede incluir strings seguros");
+    }
+
+    return value;
+  });
+}
+
+function buildPackV2MameArgs(config, rom, mode) {
+  if (mode === "competition") {
+    throw new Error("Este pack usa packVersion 2. La captura competitiva con MAME compartido se implementara en LOCAL-MAME-PACK-PLUGIN-LOADING-1.");
+  }
+
+  assertSharedMameRuntimeConfig(config);
+
+  const launch = resolveLaunchRom(rom);
+  const mame = config.pack?.contract?.mame || {};
+  const args = [launch.rom];
+
+  if (!mame.romDir) {
+    throw new Error("pack.json v2 debe incluir mame.romPath para lanzar MAME.");
+  }
+
+  args.push("-rompath", mame.romDir);
+
+  if (mame.artworkDir) {
+    args.push("-artpath", mame.artworkDir);
+  }
+
+  if (mame.sampleDir) {
+    args.push("-samplepath", mame.sampleDir);
+  }
+
+  if (mame.cfgDir) {
+    args.push("-cfg_directory", mame.cfgDir);
+  }
+
+  args.push(...validateLaunchArgs(mame.launchArgs));
+
+  return {
+    args,
+    command: config.sharedMameRuntime.mameExecutablePath.trim(),
+    cwd: path.dirname(config.sharedMameRuntime.mameExecutablePath.trim()),
+    game: launch.game,
+    mode,
+    pluginName: config.pack?.contract?.capture?.pluginName || DEFAULT_PLUGIN_NAME,
+    rom: launch.rom,
+    runtime: "shared-mame",
+  };
+}
+
 function buildMameArgs(config, rom, mode) {
   if (!MODES.has(mode)) {
     throw new Error(`Modo de MAME desconocido: ${mode}`);
+  }
+
+  if (isPackV2Config(config)) {
+    return buildPackV2MameArgs(config, rom, mode);
   }
 
   assertMameConfig(config);
@@ -58,6 +146,7 @@ function buildMameArgs(config, rom, mode) {
     mode,
     pluginName: config.mame.pluginName || DEFAULT_PLUGIN_NAME,
     rom: launch.rom,
+    runtime: "legacy-pack-mame",
   };
 }
 
@@ -77,11 +166,29 @@ function printLaunchSummary(launch) {
 
   console.log(`Ejecutable: ${launch.command}`);
   console.log(`Working dir: ${launch.cwd}`);
+
+  if (launch.runtime === "shared-mame") {
+    console.log("Runtime: MAME compartido");
+  }
+
   console.log("");
+}
+
+function assertLaunchResources(config, launch) {
+  if (launch.runtime !== "shared-mame") {
+    return;
+  }
+
+  const romDir = config.pack?.contract?.mame?.romDir;
+
+  if (!romDir || !fs.existsSync(romDir) || !fs.statSync(romDir).isDirectory()) {
+    throw new Error("No encuentro el directorio de ROMs del pack v2.");
+  }
 }
 
 function launchMame(config, rom, mode, spawnImpl = spawn) {
   const launch = buildMameArgs(config, rom, mode);
+  assertLaunchResources(config, launch);
   printLaunchSummary(launch);
 
   return new Promise((resolve, reject) => {

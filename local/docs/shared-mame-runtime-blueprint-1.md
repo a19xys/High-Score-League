@@ -14,7 +14,7 @@ Este documento define el destino arquitectonico para:
 - plugin comun y adaptadores/configuracion por juego o pack;
 - readiness, diagnose, instalador, actualizaciones y catalogo futuro.
 
-No implementa el runtime global. El codigo actual puede seguir usando el bridge de desarrollo y packs `packVersion: 1` con `mame.relativeExecutablePath` mientras se planifica la migracion. Desde `LOCAL-PACK-CONTRACT-2`, ese contrato v1 queda legacy/deprecated y `packVersion: 2` es el contrato actual de pack ligero.
+Este blueprint define el destino global. `LOCAL-SHARED-MAME-RUNTIME-1` implementa la primera capa: ruta persistida a `mame.exe`, diagnostico y practica v2 basica con recursos del pack. El codigo actual puede seguir usando el bridge de desarrollo y packs `packVersion: 1` con `mame.relativeExecutablePath` mientras se completa la migracion. Desde `LOCAL-PACK-CONTRACT-2`, ese contrato v1 queda legacy/deprecated y `packVersion: 2` es el contrato actual de pack ligero.
 
 ## 2. Por que MAME no debe ir en cada pack
 
@@ -251,7 +251,7 @@ El launcher futuro no deberia depender de `cwd` dentro del pack MAME. Debe const
 Futura tarea:
 
 ```text
-LOCAL-SHARED-MAME-RUNTIME-1
+LOCAL-MAME-PACK-PLUGIN-LOADING-1
 ```
 
 ## 8. Opciones para plugin/captura

@@ -57,6 +57,10 @@ export function renderDevTools(state) {
   const autoSync = data?.autoSync;
   const readiness = data?.readiness;
   const library = data?.library;
+  const runtime = data?.runtime;
+  const runtimeConfigured = Boolean(runtime?.configured);
+  const runtimeAvailable = Boolean(runtime?.available);
+  const runtimeButtonLabel = runtimeConfigured ? "Cambiar MAME" : "Elegir mame.exe";
   const packDirectory = library?.directory || {};
   const libraryWarnings = [
     library?.error,
@@ -83,6 +87,14 @@ export function renderDevTools(state) {
         <button class="tool-button" type="button" data-action="sync-plugin" ${syncDisabled}>
           Sincronizar plugin
           <small>Solo desarrollo</small>
+        </button>
+        <button class="tool-button" type="button" data-action="choose-shared-mame-runtime" ${disabled}>
+          ${escapeHtml(runtimeButtonLabel)}
+          <small>Runtime MAME compartido</small>
+        </button>
+        <button class="tool-button" type="button" data-action="open-shared-mame-runtime" ${disabled || !runtime?.mameExecutablePath ? "disabled" : ""}>
+          Abrir carpeta MAME
+          <small>${runtimeAvailable ? "mame.exe encontrado" : "Revisar ruta"}</small>
         </button>
         <button class="tool-button" type="button" data-action="logout" ${disabled}>
           Cerrar sesión local
@@ -111,6 +123,11 @@ export function renderDevTools(state) {
           ${detailRow("Locations legacy detectadas", library?.legacy?.locationsDetected || 0)}
           ${detailRow("Migracion legacy", library?.legacy?.migration)}
           ${detailRow("Biblioteca warnings", libraryWarnings.length ? libraryWarnings.join(" | ") : "sin warnings")}
+          ${detailRow("Runtime MAME compartido", runtimeConfigured ? "configurado" : "no configurado")}
+          ${detailRow("mame.exe compartido", runtimeAvailable ? "encontrado" : "no disponible")}
+          ${detailRow("Ruta MAME compartido", runtime?.mameExecutablePath)}
+          ${detailRow("Version MAME", runtime?.version)}
+          ${detailRow("Runtime warnings", runtime?.warnings?.length ? runtime.warnings.join(" | ") : "sin warnings")}
           ${detailRow("Comprobacion de temporada", membership?.status || "sin comprobacion")}
           ${detailRow("URL consultada", membership?.request?.url)}
           ${detailRow("HTTP status", membership?.response?.httpStatus)}

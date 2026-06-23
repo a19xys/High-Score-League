@@ -98,6 +98,10 @@ invalido, solo esa card queda en `Requiere atencion`; el escaneo de otros packs
 continua. Los packs v1 siguen apareciendo, pero sus detalles tecnicos incluyen
 el aviso legacy/deprecated.
 
+El runtime MAME compartido no convierte un pack v2 valido en invalido. Si falta
+MAME compartido, readiness del pack activo lo explica como runtime pendiente,
+pero la biblioteca sigue mostrando el contrato del pack.
+
 ## Pack activo
 
 La card activa se marca con:

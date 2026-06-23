@@ -36,6 +36,7 @@ const { readPackDirectory, setPackDirectory } = require("../src/pack-directory")
 const { scanPackLibrary } = require("../src/pack-library");
 const { loadPackFromDir, resolvePackMamePaths } = require("../src/pack");
 const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-packs");
+const { writeSharedMameRuntime } = require("../src/shared-mame-runtime");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
 const { submitAll } = require("../src/submission-service");
 const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
@@ -555,6 +556,7 @@ async function stateFromContext(context) {
     notices: recentPackNotices,
     queue,
     readiness,
+    runtime: config.sharedMameRuntime || baseConfig.sharedMameRuntime || null,
     scope: scoped.scope
       ? {
           packKey: scoped.scope.packKey,
@@ -786,6 +788,8 @@ function getBridgeState(config) {
     packRoot: config.packRoot || null,
     pluginName: config.mame?.pluginName || "hsl-score",
     scopedQueue: config.eventsSource === "scoped-user-pack",
+    sharedMameRuntimeAvailable: Boolean(config.sharedMameRuntime?.available),
+    sharedMameRuntimeConfigured: Boolean(config.sharedMameRuntime?.configured),
     webBaseUrl: config.webBaseUrl || null,
     workingDir: config.mame?.workingDir || null,
   };
@@ -853,6 +857,17 @@ async function runDiagnose() {
 async function playCompetition() {
   await ensureRememberedPackLoaded();
   const baseConfig = getEffectiveConfig();
+
+  if (baseConfig.pack?.packVersion === 2 || baseConfig.pack?.contract?.version === 2) {
+    return {
+      action: "play-competition",
+      lines: ["Este pack usa packVersion 2. La captura competitiva con MAME compartido se implementara en LOCAL-MAME-PACK-PLUGIN-LOADING-1."],
+      ok: false,
+      summary: "Competicion v2 pendiente de adaptador de captura.",
+      state: await getLauncherState(),
+    };
+  }
+
   const session = await getAuthState(baseConfig);
   const membership = await checkSeasonMembership(baseConfig, session);
 
@@ -1334,6 +1349,96 @@ async function choosePackDirectoryFromGui(directoryPath, options = {}) {
   };
 }
 
+async function chooseSharedMameRuntimeFromGui(mameExecutablePath, options = {}) {
+  const config = options.config || loadRuntimeConfig();
+
+  try {
+    const runtime = await writeSharedMameRuntime(config, mameExecutablePath, options);
+    const summary = runtime.available
+      ? "Runtime MAME compartido configurado."
+      : "Runtime MAME guardado, pero mame.exe no esta disponible.";
+
+    return {
+      action: "choose-shared-mame-runtime",
+      lines: [
+        summary,
+        ...(runtime.warnings || []),
+        ...(runtime.errors || []),
+      ],
+      ok: runtime.available,
+      runtime,
+      summary,
+      state: options.includeState === false ? null : await getLauncherState(),
+    };
+  } catch (error) {
+    return {
+      action: "choose-shared-mame-runtime",
+      lines: [normalizeMessage(error)],
+      ok: false,
+      summary: "No se pudo configurar MAME compartido.",
+      state: options.includeState === false ? null : await getLauncherState(),
+    };
+  }
+}
+
+async function cancelChooseSharedMameRuntime() {
+  return {
+    action: "choose-shared-mame-runtime",
+    canceled: true,
+    lines: ["No se selecciono mame.exe."],
+    ok: true,
+    summary: "No se selecciono mame.exe.",
+    state: await getLauncherState(),
+  };
+}
+
+async function openSharedMameRuntimeDirectory(options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  const runtime = config.sharedMameRuntime;
+
+  if (!runtime?.mameExecutablePath) {
+    return {
+      action: "open-shared-mame-runtime",
+      lines: ["Todavia no has configurado MAME compartido."],
+      ok: false,
+      summary: "Todavia no has configurado MAME compartido.",
+      state: options.includeState === false ? null : await getLauncherState(),
+    };
+  }
+
+  const runtimeDir = path.dirname(runtime.mameExecutablePath);
+
+  try {
+    const result = await (options.openPathImpl || (() => Promise.resolve("")))(runtimeDir);
+
+    if (typeof result === "string" && result.trim() !== "") {
+      return {
+        action: "open-shared-mame-runtime",
+        lines: [result],
+        ok: false,
+        summary: "No se pudo abrir la carpeta de MAME.",
+        state: options.includeState === false ? null : await getLauncherState(),
+      };
+    }
+  } catch (error) {
+    return {
+      action: "open-shared-mame-runtime",
+      lines: [normalizeMessage(error)],
+      ok: false,
+      summary: "No se pudo abrir la carpeta de MAME.",
+      state: options.includeState === false ? null : await getLauncherState(),
+    };
+  }
+
+  return {
+    action: "open-shared-mame-runtime",
+    lines: [`Carpeta MAME abierta: ${runtimeDir}`],
+    ok: true,
+    summary: "Carpeta MAME abierta.",
+    state: options.includeState === false ? null : await getLauncherState(),
+  };
+}
+
 async function openConfiguredPackDirectory(options = {}) {
   const config = options.config || loadRuntimeConfig();
   const directory = await readPackDirectory(config);
@@ -1428,7 +1533,9 @@ module.exports = {
   activateLibraryPack,
   activatePackDirectory,
   cancelChoosePackDirectory,
+  cancelChooseSharedMameRuntime,
   cancelOpenPack,
+  chooseSharedMameRuntimeFromGui,
   choosePackDirectoryFromGui,
   classifyFailureReason,
   deriveOpenedPackConfig,
@@ -1439,6 +1546,7 @@ module.exports = {
   listPendingFileSnapshot,
   logoutSession,
   openPackDirectory,
+  openSharedMameRuntimeDirectory,
   playCompetition,
   playPractice,
   readPackForGui,

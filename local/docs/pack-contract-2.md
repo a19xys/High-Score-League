@@ -120,8 +120,10 @@ Para v2:
 ## Estado actual de ejecucion
 
 La biblioteca puede detectar y mostrar packs v2 validos. Readiness puede cargar
-el pack y explicar su estado. El launcher no ejecuta v2 todavia: muestra que el
-runtime MAME compartido esta pendiente hasta `LOCAL-SHARED-MAME-RUNTIME-1`.
+el pack y explicar su estado. Desde `LOCAL-SHARED-MAME-RUNTIME-1`, practica v2
+puede usar el runtime MAME compartido si esta configurado y `mame.romPath`
+existe. Competicion v2 sigue bloqueada hasta
+`LOCAL-MAME-PACK-PLUGIN-LOADING-1`.
 
 ## Compatibilidad legacy
 
@@ -135,4 +137,3 @@ El soporte v1 se conserva para no romper:
 
 La eliminacion de v1 queda para `LOCAL-REMOVE-PACK-V1-LEGACY`, despues de tener
 runtime compartido estable, carga de plugin/adaptador y migracion de packs.
-

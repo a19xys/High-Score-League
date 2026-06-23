@@ -63,8 +63,10 @@ instala y gestiona MAME una sola vez, y los packs no incluyen `mame.exe`.
 
 Desde `LOCAL-PACK-CONTRACT-2`, readiness entiende `packVersion: 2` como contrato
 actual de pack ligero. Un pack v2 puede estar cargado y visible en la
-biblioteca, pero queda bloqueado para jugar con el mensaje de runtime MAME
-compartido pendiente hasta `LOCAL-SHARED-MAME-RUNTIME-1`.
+biblioteca. Desde `LOCAL-SHARED-MAME-RUNTIME-1`, practica v2 puede quedar lista
+si el runtime MAME compartido esta configurado, `mame.exe` existe y `romPath`
+apunta a un directorio del pack. Competicion v2 queda bloqueada hasta que
+`LOCAL-MAME-PACK-PLUGIN-LOADING-1` implemente plugin/adaptadores de captura.
 
 `packVersion: 1` sigue funcionando para el dev bridge y packs antiguos, pero se
 muestra como legacy/deprecated en detalles tecnicos.
