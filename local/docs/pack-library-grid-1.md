@@ -84,12 +84,19 @@ Estados visibles:
 
 - `Activo`: el pack ya esta abierto o coincide con el pack activo.
 - `Listo`: pack valido sin warnings.
-- `Con avisos`: pack valido con warnings, normalmente metadata/assets.
+- `Con avisos`: pack valido con warnings, normalmente metadata/assets o
+  `packVersion: 1` deprecated.
 - `Requiere atencion`: pack invalido o pack activo bloqueado por readiness.
 - `No disponible`: directorio o pack no accesible cuando aplique.
 
 La readiness completa solo se muestra para el pack activo si ya existe en el
 estado del launcher. No se calcula readiness para todos los packs.
+
+Desde `LOCAL-PACK-CONTRACT-2`, la biblioteca puede detectar packs
+`packVersion: 2` validos y mostrarlos como cards normales. Si el contrato v2 es
+invalido, solo esa card queda en `Requiere atencion`; el escaneo de otros packs
+continua. Los packs v1 siguen apareciendo, pero sus detalles tecnicos incluyen
+el aviso legacy/deprecated.
 
 ## Pack activo
 

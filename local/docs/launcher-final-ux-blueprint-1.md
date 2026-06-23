@@ -250,12 +250,13 @@ Mínimo sugerido:
 }
 ```
 
-`pack.json` mantiene identidad, ROM, week, season y datos de runtime/captura. En
-el contrato MVP actual todavia incluye rutas MAME relativas y plugin. Los
-ejemplos actuales `local/pack.example.json` y
-`local/examples/pack.hsl-invaders-flat.example.json` siguen siendo el contrato
-minimo tecnico v1 hasta que exista `packVersion: 2`; el destino final es que
-esas rutas apunten a recursos del pack y no a `mame.exe` dentro del pack.
+`pack.json` mantiene identidad, ROM, week, season y datos de runtime/captura.
+Desde `LOCAL-PACK-CONTRACT-2`, `packVersion: 2` es el contrato actual de pack
+ligero: no declara `mame.exe` dentro del pack, usa rutas relativas de recursos y
+queda listo para catalogo e instalacion futura. Los ejemplos v1
+`local/pack.example.json` y `local/examples/pack.hsl-invaders-flat.example.json`
+siguen funcionando como contrato legacy/deprecated para el dev bridge hasta que
+exista runtime MAME compartido estable.
 
 Primer soporte implementado en `LOCAL-PACK-METADATA-ASSETS-1`: el pack activo puede cargar `metadata.json`, resolver assets locales dentro del pack y usarlos en la GUI con fallbacks seguros. La biblioteca de ubicaciones y el grid de packs siguen pendientes.
 
@@ -298,6 +299,8 @@ Primer soporte implementado en `LOCAL-PACK-READINESS-1`: la GUI resume si el
 pack activo esta listo para practicar, competir, capturar y sincronizar. Esta
 capa ordena checks de pack, MAME, plugin, staging, sesion, cola scoped,
 membership y auto-sync sin cambiar payloads, endpoint, cola ni configuracion.
+Con `LOCAL-PACK-CONTRACT-2`, los packs v2 cargan en biblioteca y readiness, pero
+la ejecucion queda bloqueada con aviso claro hasta `LOCAL-SHARED-MAME-RUNTIME-1`.
 
 ## Temporada y participación
 

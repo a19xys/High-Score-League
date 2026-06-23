@@ -31,12 +31,15 @@ function getPackSubtitle(pack) {
 function buildLibraryPackItem(directory, packDir, packResult) {
   const pack = packResult.pack || {};
   const errors = packResult.errors || [];
-  const warnings = pack.metadataWarnings || [];
+  const warnings = pack.warnings || packResult.warnings || pack.metadataWarnings || [];
   const status = errors.length > 0 ? "error" : warnings.length > 0 ? "warning" : "ok";
   const assets = pack.metadata?.assets || {};
 
   return {
+    contractStatus: pack.contractStatus || null,
     cover: assetForLibrary(assets.cover),
+    deprecated: pack.deprecated === true,
+    deprecationReason: pack.deprecationReason || null,
     errors,
     gameId: pack.gameId || null,
     icon: assetForLibrary(assets.icon),
@@ -46,6 +49,8 @@ function buildLibraryPackItem(directory, packDir, packResult) {
     packDir,
     packId: pack.packId || null,
     packPath: pack.packPath || path.join(packDir, "pack.json"),
+    packVersion: pack.packVersion || null,
+    replacement: pack.replacement || null,
     rom: pack.rom || null,
     status,
     subtitle: getPackSubtitle(pack),

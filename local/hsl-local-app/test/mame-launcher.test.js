@@ -54,6 +54,21 @@ test("incomplete MAME config is rejected before launching MAME", () => {
   );
 });
 
+test("packVersion 2 is rejected with shared runtime pending message", () => {
+  assert.throws(
+    () => buildMameArgs({
+      pack: {
+        packVersion: 2,
+        contract: {
+          version: 2,
+        },
+      },
+      requiresSharedMameRuntime: true,
+    }, "invaders", "competition"),
+    /runtime MAME compartido todavia no esta disponible/
+  );
+});
+
 test("play defaults to the hsl-score plugin when pluginName is omitted", () => {
   const launch = buildMameArgs(mameConfig({ pluginName: undefined }), "invaders", "competition");
 

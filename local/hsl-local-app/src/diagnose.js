@@ -287,7 +287,36 @@ async function buildDiagnoseReport(config) {
     }
   }
 
-  if (!config.mame || typeof config.mame !== "object") {
+  if (config.packLoaded || config.pack) {
+    add(report, "pack", "INFO", `packVersion = ${config.pack?.packVersion || "desconocida"}`);
+
+    if (config.pack?.contractStatus) {
+      add(report, "pack", config.pack.deprecated ? "WARN" : "OK", `contractStatus = ${config.pack.contractStatus}`);
+    }
+
+    if (config.pack?.deprecated) {
+      add(report, "pack", "WARN", "packVersion 1 esta deprecated", config.pack.deprecationReason);
+    }
+
+    if (config.pack?.contract?.version === 2) {
+      add(report, "pack", "OK", `runtime.type = ${config.pack.contract.runtimeType || "desconocido"}`);
+      add(report, "pack", "OK", `mame.romPath = ${config.pack.contract.mame?.romPath || "sin romPath"}`);
+      add(report, "pack", "OK", `capture.mode = ${config.pack.contract.capture?.mode || "sin capture.mode"}`);
+
+      if (config.pack.contract.capture?.pluginName) {
+        add(report, "pack", "OK", `capture.pluginName = ${config.pack.contract.capture.pluginName}`);
+      }
+
+      if (config.pack.contract.capture?.adapter) {
+        add(report, "pack", "OK", `capture.adapter = ${config.pack.contract.capture.adapter}`);
+      }
+    }
+  }
+
+  if (config.requiresSharedMameRuntime || config.pack?.contract?.version === 2) {
+    add(report, "mame", "WARN", "packVersion 2 requiere runtime MAME compartido pendiente de implementar");
+    add(report, "launcher", "INFO", "No se construyen argumentos de MAME para packVersion 2 hasta LOCAL-SHARED-MAME-RUNTIME-1");
+  } else if (!config.mame || typeof config.mame !== "object") {
     add(report, "mame", "INFO", "No hay MAME activo en config global ni pack cargado");
     add(report, "launcher", "INFO", "No se comprueban argumentos de launcher sin pack activo o configuración MAME de desarrollo");
   } else {

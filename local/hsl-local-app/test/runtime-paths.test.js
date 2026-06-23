@@ -78,3 +78,29 @@ test("resolveRuntimePaths resolves MAME paths from pack metadata", () => {
   assert.equal(paths.mame.workingDir, path.resolve("/tmp/pack", "mame"));
   assert.equal(paths.mame.pluginName, "hsl-score");
 });
+
+test("resolveRuntimePaths does not treat packVersion 2 as embedded MAME", () => {
+  const paths = resolveRuntimePaths(
+    {},
+    {
+      packVersion: 2,
+      packRoot: "/tmp/pack",
+      contract: {
+        version: 2,
+        capture: {
+          pluginName: "hsl-score",
+        },
+      },
+    },
+    {
+      appDir: "/tmp/pack/hsl-local-app",
+      platform: "linux",
+      env: {},
+      homeDir: "/home/player",
+    }
+  );
+
+  assert.equal(paths.mame.executablePath, null);
+  assert.equal(paths.mame.workingDir, null);
+  assert.equal(paths.mame.requiresSharedMameRuntime, true);
+});

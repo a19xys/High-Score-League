@@ -17,6 +17,8 @@ sesion, no hay membership verificada, hay errores de red o la subida falla.
 - Reutiliza el flujo existente de `submitAll(scoped.config)`.
 - No cambia payloads, `duplicateKey`, ingest, plugin MAME ni estructura de
   scoped queue.
+- `LOCAL-PACK-CONTRACT-2` no cambia estas reglas: v1 y v2 sincronizan solo
+  desde la cola scoped del pack activo cuando membership permite subir.
 - No anade polling permanente ni sincronizacion en segundo plano.
 - No cambia `config.json`.
 

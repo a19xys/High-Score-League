@@ -218,6 +218,61 @@ test("metadata warnings y failed generan warnings no bloqueantes para practica",
   });
 });
 
+test("packVersion 1 deprecated queda como warning no destructivo", async () => {
+  await withTempDir(async (dir) => {
+    const context = await createReadyFixture(dir);
+    context.config.pack.packVersion = 1;
+    context.config.pack.contractStatus = "deprecated";
+    context.config.pack.deprecated = true;
+    context.config.pack.deprecationReason = "packVersion 1 puede declarar MAME dentro del pack.";
+    context.config.pack.replacement = "packVersion 2";
+    context.config.pack.warnings = ["Este pack usa packVersion 1, un contrato legacy/deprecated."];
+
+    const result = evaluatePackReadiness(context);
+
+    assert.equal(result.status, "warning");
+    assert.equal(result.canPractice, true);
+    assert.ok(result.checks.some((item) => item.id === "pack-contract" && item.level === "warning"));
+  });
+});
+
+test("packVersion 2 carga pero bloquea juego hasta runtime compartido", async () => {
+  await withTempDir(async (dir) => {
+    const context = await createReadyFixture(dir);
+    context.config.requiresSharedMameRuntime = true;
+    context.config.mame = {
+      pluginName: "hsl-score",
+      requiresSharedMameRuntime: true,
+    };
+    context.config.pack = {
+      ...context.config.pack,
+      packVersion: 2,
+      contractStatus: "current",
+      deprecated: false,
+      contract: {
+        version: 2,
+        runtimeType: "mame",
+        mame: {
+          romDir: path.join(context.config.packRoot, "roms"),
+          romPath: "roms",
+        },
+        capture: {
+          mode: "plugin",
+          pluginName: "hsl-score",
+        },
+      },
+    };
+
+    const result = evaluatePackReadiness(context);
+
+    assert.equal(result.status, "blocked");
+    assert.equal(result.canPractice, false);
+    assert.equal(result.canPlayCompetition, false);
+    assert.match(result.message, /runtime MAME compartido/i);
+    assert.ok(result.checks.some((item) => item.id === "runtime-shared" && item.level === "error"));
+  });
+});
+
 test("renderer expone resumen y checks tecnicos sin secretos", async () => {
   const [gamePanel, devTools] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js"), "utf8"),

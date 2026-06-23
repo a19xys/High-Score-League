@@ -15,7 +15,8 @@ It is separate from the main web app.
 - `pack.example.json`: example metadata for a downloadable game/week pack.
 - `examples/`: extra local development manifests, including the flat
   `hsl-invaders` pack example used to test `Abrir pack`, plus optional
-  `metadata.json` examples for local pack presentation.
+  `metadata.json` examples for local pack presentation and a lightweight
+  `packVersion: 2` example.
 
 ## Modelo de distribución
 
@@ -117,7 +118,7 @@ The current multi-location library is useful as an implementation step, but the
 preferred product direction is one pack directory with actions to choose,
 change, open and rescan it.
 
-### Pack externo v1 y bridge de desarrollo
+### Pack externo v1 y bridge de desarrollo deprecated
 
 Each player downloads one ZIP per game/week and can extract it anywhere:
 Downloads, Desktop, an external disk, or a games folder.
@@ -144,6 +145,9 @@ In this v1/dev model, the pack brings MAME, the ROM, the `hsl-score` plugin,
 and pack metadata. It is disposable: deleting it must not delete the player's
 session, linked account, pending submissions, logs, or preferences.
 
+This model is legacy/deprecated. It remains supported only for the current dev
+bridge and old tests until the shared MAME runtime is implemented.
+
 In the final shared-runtime model, the installed app will read the active
 pack's `pack.json`, resolve ROM/artwork/sample/config paths inside the pack,
 and launch the app-managed MAME runtime.
@@ -155,10 +159,14 @@ and launch the app-managed MAME runtime.
 ID, ROM name, week ID, web URL, MAME paths relative to the pack root, and plugin
 metadata. It must not contain secrets, ROM files, or personal machine paths.
 
-For `packVersion: 2`, `pack.json` should stop declaring `mame.exe` inside the
-pack as the primary runtime path. The proposed direction is documented in the
-shared runtime blueprint. The v1 `mame.relativeExecutablePath` field remains
-temporary compatibility for current tests, examples and the development bridge.
+`packVersion: 2` is the current lightweight pack contract. It does not declare
+`mame.exe` inside the pack as the primary runtime path. It declares pack
+identity, competition fields, runtime type, relative MAME resource paths and
+capture mode. The v1 `mame.relativeExecutablePath` field remains temporary
+compatibility for current tests, examples and the development bridge.
+
+Pack contract notes:
+[`docs/pack-contract-2.md`](docs/pack-contract-2.md).
 
 Packs may also include optional presentation files next to `pack.json`:
 
@@ -187,6 +195,8 @@ Pack readiness notes:
 [`docs/pack-readiness-1.md`](docs/pack-readiness-1.md).
 Pack directory model notes:
 [`docs/pack-directory-model-1.md`](docs/pack-directory-model-1.md).
+Pack contract v2 notes:
+[`docs/pack-contract-2.md`](docs/pack-contract-2.md).
 Pack library grid notes:
 [`docs/pack-library-grid-1.md`](docs/pack-library-grid-1.md).
 Account switcher notes:
@@ -762,11 +772,12 @@ That mode can generate pending JSON events through the plugin. `practice`
 starts MAME without `hsl-score`, so it is intended for free play and should not
 generate pending score events.
 
-The current CLI launcher reads the effective development config. The product
-launcher will receive an external pack path, read that pack's `pack.json`,
-resolve `mame.relativeExecutablePath` relative to the pack, and launch MAME from
-the pack. Uploads still require `submit` or `submit-all`. Future phases can add
-pack opening, GUI, F12 capture, automatic Game Over capture, official DIP
+The current CLI launcher reads the effective development config. For legacy v1
+packs it can still resolve `mame.relativeExecutablePath` relative to the pack,
+but that model is deprecated. The product launcher should read `packVersion: 2`,
+combine the active pack resources with the shared MAME runtime, and avoid
+shipping MAME per pack. Uploads still require `submit` or `submit-all`. Future
+phases can add F12 capture, automatic Game Over capture, official DIP
 enforcement, and explicit save/load/rewind handling.
 
 ## MAME plugin setup

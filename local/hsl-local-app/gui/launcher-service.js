@@ -58,11 +58,12 @@ function loadRuntimeConfig() {
 }
 
 function getPackPluginName(pack) {
-  return pack?.mame?.pluginName || pack?.plugin?.name || "hsl-score";
+  return pack?.mame?.pluginName || pack?.capture?.pluginName || pack?.contract?.capture?.pluginName || pack?.plugin?.name || "hsl-score";
 }
 
 function deriveOpenedPackConfig(baseConfig, pack) {
   const pluginName = getPackPluginName(pack);
+  const requiresSharedMameRuntime = pack?.packVersion === 2 || pack?.contract?.version === 2;
   const mame = {
     ...resolvePackMamePaths(
       {
@@ -76,7 +77,18 @@ function deriveOpenedPackConfig(baseConfig, pack) {
     ),
     pluginName,
   };
-  const eventsBaseDirAbs = path.join(mame.workingDir, "plugins", pluginName, "events");
+  const eventsBaseDirAbs = requiresSharedMameRuntime
+    ? baseConfig.eventsBaseDirAbs || path.join(baseConfig.userDataDir, "events")
+    : path.join(mame.workingDir, "plugins", pluginName, "events");
+  const eventsFailedDirAbs = requiresSharedMameRuntime
+    ? baseConfig.eventsFailedDirAbs || path.join(eventsBaseDirAbs, "failed")
+    : path.join(eventsBaseDirAbs, "failed");
+  const eventsPendingDirAbs = requiresSharedMameRuntime
+    ? baseConfig.eventsPendingDirAbs || path.join(eventsBaseDirAbs, "pending")
+    : path.join(eventsBaseDirAbs, "pending");
+  const eventsSentDirAbs = requiresSharedMameRuntime
+    ? baseConfig.eventsSentDirAbs || path.join(eventsBaseDirAbs, "sent")
+    : path.join(eventsBaseDirAbs, "sent");
 
   return {
     ...baseConfig,
@@ -84,19 +96,20 @@ function deriveOpenedPackConfig(baseConfig, pack) {
     defaultWeekId: pack.weekId,
     eventsBaseDirAbs,
     eventsFailedDir: null,
-    eventsFailedDirAbs: path.join(eventsBaseDirAbs, "failed"),
+    eventsFailedDirAbs,
     eventsPendingDir: null,
-    eventsPendingDirAbs: path.join(eventsBaseDirAbs, "pending"),
+    eventsPendingDirAbs,
     eventsSentDir: null,
-    eventsSentDirAbs: path.join(eventsBaseDirAbs, "sent"),
-    eventsSource: "opened-pack",
+    eventsSentDirAbs,
+    eventsSource: requiresSharedMameRuntime ? baseConfig.eventsSource || "userData" : "opened-pack",
     mame,
-    mameSource: "opened-pack",
+    mameSource: requiresSharedMameRuntime ? "shared-runtime-pending" : "opened-pack",
     pack,
-    packErrors: [],
+    packErrors: pack.errors || [],
     packLoaded: true,
     packPath: pack.packPath,
     packRoot: pack.packRoot,
+    requiresSharedMameRuntime,
     webBaseUrl: pack.webBaseUrl || baseConfig.webBaseUrl,
   };
 }

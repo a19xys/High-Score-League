@@ -60,10 +60,14 @@ function summarizeStatus(checks) {
 }
 
 function getPluginName(config) {
-  return config?.mame?.pluginName || config?.pack?.plugin?.name || "hsl-score";
+  return config?.mame?.pluginName || config?.pack?.capture?.pluginName || config?.pack?.contract?.capture?.pluginName || config?.pack?.plugin?.name || "hsl-score";
 }
 
 function inferRomPath(config, rom) {
+  if (config?.pack?.contract?.version === 2 && config.pack.contract.mame?.romDir && rom) {
+    return path.join(config.pack.contract.mame.romDir, `${rom}.zip`);
+  }
+
   if (!config?.mame?.workingDir || !rom) {
     return null;
   }
@@ -116,14 +120,15 @@ function buildMessage({ checks, status, canPlayCompetition, canPractice, canSubm
 function evaluatePackReadiness({ config = {}, session = {}, membership = {}, scope = null, queue = {}, autoSync = {} } = {}) {
   const checks = [];
   const pack = config.pack || null;
+  const isPackV2 = pack?.packVersion === 2 || pack?.contract?.version === 2 || config.requiresSharedMameRuntime === true;
   const rom = pack?.rom || config.rom || null;
   const weekId = config.defaultWeekId || pack?.weekId || null;
   const pluginName = getPluginName(config);
-  const pluginDir = config.mame?.workingDir && pluginName
+  const pluginDir = !isPackV2 && config.mame?.workingDir && pluginName
     ? path.join(config.mame.workingDir, "plugins", pluginName)
     : null;
   const stagingRoot = config.eventsBaseDirAbs || (
-    config.mame?.workingDir && pluginName
+    !isPackV2 && config.mame?.workingDir && pluginName
       ? path.join(config.mame.workingDir, "plugins", pluginName, "events")
       : null
   );
@@ -144,6 +149,28 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
     checks.push(check("pack-valid", "error", "Pack", "El pack tiene errores de configuracion.", config.packErrors));
   } else {
     checks.push(check("pack-valid", "ok", "Pack", "Configuracion basica del pack valida."));
+  }
+
+  if (pack?.contractStatus) {
+    checks.push(check(
+      "pack-contract",
+      pack.deprecated ? "warning" : "ok",
+      "Contrato",
+      pack.deprecated
+        ? "Este pack usa un contrato legacy/deprecated."
+        : `Contrato ${pack.contractStatus}.`,
+      [
+        `packVersion=${pack.packVersion}`,
+        pack.deprecationReason,
+        pack.replacement ? `replacement=${pack.replacement}` : null,
+      ]
+    ));
+  }
+
+  const contractWarnings = (pack?.warnings || []).filter((item) => !(pack?.metadataWarnings || []).includes(item));
+
+  if (contractWarnings.length > 0) {
+    checks.push(check("pack-contract-warnings", "warning", "Contrato", "El contrato del pack tiene avisos no bloqueantes.", contractWarnings));
   }
 
   if (config.packRoot && isDirectory(config.packRoot)) {
@@ -176,13 +203,23 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
     checks.push(check("metadata", "ok", "Metadata", pack?.metadataLoaded ? "metadata.json cargado." : "metadata.json no es obligatorio."));
   }
 
-  if (isFile(config.mame?.executablePath)) {
+  if (isPackV2) {
+    checks.push(check(
+      "runtime-shared",
+      "error",
+      "MAME",
+      "Este pack usa packVersion 2 y requiere el runtime MAME compartido, que aun no esta implementado.",
+      [pack?.contract?.runtimeType ? `runtime.type=${pack.contract.runtimeType}` : null]
+    ));
+  } else if (isFile(config.mame?.executablePath)) {
     checks.push(check("mame-executable", "ok", "MAME", "mame.exe encontrado.", [config.mame.executablePath]));
   } else {
     checks.push(check("mame-executable", "error", "MAME", "No encuentro mame.exe. Revisa la carpeta del pack.", [config.mame?.executablePath]));
   }
 
-  if (isDirectory(config.mame?.workingDir)) {
+  if (isPackV2) {
+    checks.push(check("mame-working-dir", "warning", "MAME", "packVersion 2 no usa mame.workingDir del pack; el runtime compartido lo resolvera en una tarea futura."));
+  } else if (isDirectory(config.mame?.workingDir)) {
     checks.push(check("mame-working-dir", "ok", "MAME", "Carpeta de trabajo de MAME encontrada.", [config.mame.workingDir]));
   } else {
     checks.push(check("mame-working-dir", "error", "MAME", "No encuentro la carpeta de trabajo de MAME.", [config.mame?.workingDir]));

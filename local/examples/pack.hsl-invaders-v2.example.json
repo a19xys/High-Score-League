@@ -1,0 +1,29 @@
+{
+  "packVersion": 2,
+  "packId": "space-invaders-season-1-week-1",
+  "gameId": "space-invaders",
+  "rom": "invaders",
+  "seasonId": "PON_AQUI_EL_SEASON_ID",
+  "seasonSlug": "season-1",
+  "seasonName": "Temporada 1",
+  "weekId": "PON_AQUI_EL_WEEK_ID",
+  "weekNumber": 1,
+  "webBaseUrl": "https://high-score-league.vercel.app",
+  "runtime": {
+    "type": "mame",
+    "minVersion": "0.287",
+    "recommendedVersion": "0.287"
+  },
+  "mame": {
+    "romPath": "roms",
+    "artworkPath": "artwork",
+    "samplePath": "samples",
+    "cfgPath": "cfg",
+    "launchArgs": []
+  },
+  "capture": {
+    "mode": "plugin",
+    "pluginName": "hsl-score",
+    "adapter": "scripts/space-invaders.lua"
+  }
+}

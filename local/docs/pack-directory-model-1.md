@@ -154,6 +154,6 @@ Este directorio unico sera el destino futuro para:
 - actualizaciones de packs;
 - verificacion de checksums.
 
-Esta tarea no implementa catalogo remoto, descargas, updates, `pack.json` v2 ni
-runtime MAME global.
-
+`LOCAL-PACK-CONTRACT-2` define `pack.json` v2 para packs ligeros dentro de este
+directorio. Este modelo de directorio sigue sin implementar catalogo remoto,
+descargas, updates ni runtime MAME global.

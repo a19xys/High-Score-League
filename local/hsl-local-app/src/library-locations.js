@@ -2,6 +2,11 @@ const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 
+/**
+ * @deprecated Multiple library locations are legacy. Keep this module only as
+ * a non-destructive migration/fallback until the single pack-directory model is
+ * the only supported storage shape.
+ */
 function getLibraryLocationsFile(config) {
   if (!config?.userDataDir) {
     throw new Error("No se pudo resolver userDataDir para library locations.");

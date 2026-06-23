@@ -59,6 +59,38 @@ function validPack() {
   };
 }
 
+function validV2Pack() {
+  return {
+    packVersion: 2,
+    packId: "space-invaders-season-1-week-1",
+    gameId: "space-invaders",
+    rom: "invaders",
+    seasonId: "season-1",
+    seasonSlug: "season-1",
+    seasonName: "Temporada 1",
+    weekId: "week-1",
+    weekNumber: 1,
+    webBaseUrl: "https://high-score-league.example",
+    runtime: {
+      type: "mame",
+      minVersion: "0.287",
+      recommendedVersion: "0.287",
+    },
+    mame: {
+      romPath: "roms",
+      artworkPath: "artwork",
+      samplePath: "samples",
+      cfgPath: "cfg",
+      launchArgs: [],
+    },
+    capture: {
+      mode: "plugin",
+      pluginName: "hsl-score",
+      adapter: "scripts/space-invaders.lua",
+    },
+  };
+}
+
 function autoSyncContext(overrides = {}) {
   return {
     config: {
@@ -634,6 +666,48 @@ test("activateLibraryPack activa un pack detectado y lo recuerda", async () => {
     assert.equal(result.action, "use-library-pack");
     assert.equal(result.pack.packRoot, packDir);
     assert.equal(recent.lastOpenedPackDir, packDir);
+  });
+});
+
+test("deriveOpenedPackConfig keeps packVersion 2 on shared-runtime pending paths", async () => {
+  await withTempDir(async (dir) => {
+    await fsp.writeFile(path.join(dir, "pack.json"), JSON.stringify(validV2Pack()), "utf8");
+    const loaded = readPackForGui(dir);
+    const baseConfig = {
+      eventsBaseDirAbs: path.join(dir, "userData", "events"),
+      eventsPendingDirAbs: path.join(dir, "userData", "events", "pending"),
+      eventsSentDirAbs: path.join(dir, "userData", "events", "sent"),
+      eventsFailedDirAbs: path.join(dir, "userData", "events", "failed"),
+      sessionFileAbs: path.join(dir, "userData", "session.json"),
+      userDataDir: path.join(dir, "userData"),
+      webBaseUrl: "https://dev.example",
+    };
+
+    assert.equal(loaded.ok, true);
+
+    const config = deriveOpenedPackConfig(baseConfig, loaded.pack);
+
+    assert.equal(config.requiresSharedMameRuntime, true);
+    assert.equal(config.mame.executablePath, null);
+    assert.equal(config.mame.workingDir, null);
+    assert.equal(config.mame.pluginName, "hsl-score");
+    assert.equal(config.mameSource, "shared-runtime-pending");
+    assert.equal(config.eventsPendingDirAbs, baseConfig.eventsPendingDirAbs);
+    assert.equal(config.pack.contractStatus, "current");
+  });
+});
+
+test("readPackForGui loads a valid packVersion 2 folder", async () => {
+  await withTempDir(async (dir) => {
+    await fsp.writeFile(path.join(dir, "pack.json"), JSON.stringify(validV2Pack()), "utf8");
+
+    const result = readPackForGui(dir);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.pack.packVersion, 2);
+    assert.equal(result.pack.contractStatus, "current");
+    assert.equal(result.pack.contract.mame.romDir, path.join(dir, "roms"));
+    assert.equal(result.pack.contract.capture.adapterPath, path.join(dir, "scripts", "space-invaders.lua"));
   });
 });
 

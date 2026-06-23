@@ -182,6 +182,43 @@ test("diagnose does not error only because no pack or MAME is active", async () 
   });
 });
 
+test("diagnose reports packVersion 2 contract without treating it as embedded MAME", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createBaseConfig(dir);
+    config.requiresSharedMameRuntime = true;
+    config.mame = {
+      pluginName: "hsl-score",
+      requiresSharedMameRuntime: true,
+    };
+    config.packLoaded = true;
+    config.pack = {
+      packVersion: 2,
+      contractStatus: "current",
+      deprecated: false,
+      contract: {
+        version: 2,
+        runtimeType: "mame",
+        mame: {
+          romPath: "roms",
+        },
+        capture: {
+          mode: "plugin",
+          pluginName: "hsl-score",
+          adapter: "scripts/space-invaders.lua",
+        },
+      },
+    };
+
+    const report = await buildDiagnoseReport(config);
+
+    assert.ok(hasEntry(report.sections.pack, "INFO", /packVersion = 2/));
+    assert.ok(hasEntry(report.sections.pack, "OK", /contractStatus = current/));
+    assert.ok(hasEntry(report.sections.mame, "WARN", /runtime MAME compartido/));
+    assert.ok(hasEntry(report.sections.launcher, "INFO", /No se construyen argumentos/));
+    assert.equal(report.sections.mame.some((entry) => /mame\.executablePath falta/.test(entry.message)), false);
+  });
+});
+
 test("diagnose detects dev bridge with external MAME pack and existing event dirs", async () => {
   await withTempDir(async (dir) => {
     const config = await createDevBridgeConfig(dir);

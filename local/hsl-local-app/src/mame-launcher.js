@@ -5,6 +5,11 @@ const DEFAULT_PLUGIN_NAME = "hsl-score";
 const MODES = new Set(["competition", "practice"]);
 
 function assertMameConfig(config) {
+  if (config?.requiresSharedMameRuntime === true || config?.pack?.packVersion === 2 || config?.pack?.contract?.version === 2) {
+    throw new Error("Este pack usa packVersion 2. El runtime MAME compartido todavia no esta disponible en esta version del launcher.");
+  }
+
+  // Legacy bridge for packVersion 1/dev packs with MAME embedded in the pack.
   if (!config.mame || typeof config.mame !== "object") {
     throw new Error("config.json debe incluir mame.executablePath y mame.workingDir");
   }

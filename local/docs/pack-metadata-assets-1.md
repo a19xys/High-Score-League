@@ -47,6 +47,11 @@ ligero sin MAME. `metadata.json` y `assets/` siguen siendo solo presentacion
 local; `pack.json` v2 debera referenciar recursos del pack, no un `mame.exe`
 incluido dentro del pack.
 
+`LOCAL-PACK-CONTRACT-2` fija esa separacion: `pack.json` v2 contiene identidad,
+competicion, runtime, rutas relativas de recursos MAME y captura; `metadata.json`
+contiene presentacion; `manifest.json` queda reservado para versionado,
+checksums, integridad e instalacion con un click.
+
 ## Campos iniciales
 
 ```json

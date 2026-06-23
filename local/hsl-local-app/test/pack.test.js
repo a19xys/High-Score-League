@@ -17,6 +17,13 @@ const FLAT_PACK_EXAMPLE_PATH = path.resolve(
   "examples",
   "pack.hsl-invaders-flat.example.json"
 );
+const V2_PACK_EXAMPLE_PATH = path.resolve(
+  __dirname,
+  "..",
+  "..",
+  "examples",
+  "pack.hsl-invaders-v2.example.json"
+);
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-pack-test-"));
@@ -67,6 +74,26 @@ test("loadPack loads and annotates pack root", async () => {
     assert.equal(result.errors.length, 0);
     assert.equal(result.pack.packRoot, dir);
     assert.equal(result.pack.rom, "invaders");
+    assert.equal(result.pack.contractStatus, "deprecated");
+    assert.equal(result.pack.deprecated, true);
+  });
+});
+
+test("loadPack loads a packVersion 2 lightweight pack", async () => {
+  await withTempDir(async (dir) => {
+    const raw = await fsp.readFile(V2_PACK_EXAMPLE_PATH, "utf8");
+    const packPath = path.join(dir, "pack.json");
+    await fsp.writeFile(packPath, raw, "utf8");
+
+    const result = loadPack(packPath);
+
+    assert.equal(result.loaded, true);
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.pack.packVersion, 2);
+    assert.equal(result.pack.contractStatus, "current");
+    assert.equal(result.pack.deprecated, false);
+    assert.equal(result.pack.contract.mame.romDir, path.join(dir, "roms"));
+    assert.equal(result.pack.contract.capture.adapterPath, path.join(dir, "scripts", "space-invaders.lua"));
   });
 });
 
@@ -108,6 +135,18 @@ test("flat hsl-invaders development pack example is a valid pack manifest", asyn
   assert.deepEqual(validatePack(pack), []);
   assert.equal(pack.mame.relativeExecutablePath, "mame.exe");
   assert.equal(pack.mame.workingDir, ".");
+});
+
+test("v2 hsl-invaders example is a valid lightweight pack manifest", async () => {
+  const raw = await fsp.readFile(V2_PACK_EXAMPLE_PATH, "utf8");
+  const pack = JSON.parse(raw);
+
+  assert.deepEqual(validatePack(pack), []);
+  assert.equal(JSON.stringify(pack).includes("mame.exe"), false);
+  assert.equal(/^[A-Za-z]:[\\/]|^\.\.|^[\\/]|:\/\//.test(pack.mame.romPath), false);
+  assert.equal(/^[A-Za-z]:[\\/]|^\.\.|^[\\/]|:\/\//.test(pack.capture.adapter), false);
+  assert.equal(pack.runtime.type, "mame");
+  assert.equal(pack.mame.romPath, "roms");
 });
 
 test("flat hsl-invaders development pack resolves MAME paths from the pack root", async () => {

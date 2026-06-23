@@ -14,7 +14,7 @@ Este documento define el destino arquitectonico para:
 - plugin comun y adaptadores/configuracion por juego o pack;
 - readiness, diagnose, instalador, actualizaciones y catalogo futuro.
 
-No implementa el runtime global. El codigo actual puede seguir usando el bridge de desarrollo y packs `packVersion: 1` con `mame.relativeExecutablePath` mientras se planifica la migracion.
+No implementa el runtime global. El codigo actual puede seguir usando el bridge de desarrollo y packs `packVersion: 1` con `mame.relativeExecutablePath` mientras se planifica la migracion. Desde `LOCAL-PACK-CONTRACT-2`, ese contrato v1 queda legacy/deprecated y `packVersion: 2` es el contrato actual de pack ligero.
 
 ## 2. Por que MAME no debe ir en cada pack
 
@@ -164,9 +164,9 @@ Funcion de cada bloque:
 
 `metadata.json` no sustituye al contrato competitivo ni a los datos oficiales de la web. `manifest.json` no debe contener secretos.
 
-## 6. Propuesta de pack.json v2
+## 6. pack.json v2
 
-Propuesta orientativa, no definitiva:
+Contrato inicial definido por `LOCAL-PACK-CONTRACT-2`:
 
 ```json
 {
@@ -208,11 +208,11 @@ pack.json ya no debe declarar mame.exe dentro del pack como ruta principal final
 
 Compatibilidad temporal:
 
-- `packVersion: 1` puede seguir declarando `mame.relativeExecutablePath` y `mame.workingDir`.
+- `packVersion: 1` puede seguir declarando `mame.relativeExecutablePath` y `mame.workingDir`, pero queda deprecated.
 - El pack plano de desarrollo puede seguir usando `relativeExecutablePath: "mame.exe"`.
 - El launcher actual puede seguir resolviendo rutas de MAME desde el pack hasta `LOCAL-SHARED-MAME-RUNTIME-1`.
 
-La migracion real debe crear `LOCAL-PACK-CONTRACT-2` antes de exigir v2.
+La migracion real a ejecucion v2 queda pendiente de `LOCAL-SHARED-MAME-RUNTIME-1`.
 
 ## 7. Lanzamiento futuro con MAME global
 

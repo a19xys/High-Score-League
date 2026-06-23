@@ -93,7 +93,7 @@ function resolveRuntimePaths(config = {}, pack = null, options = {}) {
   const sessionFileAbs = resolvePathValue(config.sessionFile || "userData/session.json", context);
   let mame = config.mame;
 
-  if (!mame && pack?.mame) {
+  if (!mame && (pack?.mame || pack?.packVersion === 2 || pack?.contract?.version === 2)) {
     mame = resolvePackMamePaths(pack, context.packRoot);
   }
 

@@ -55,6 +55,10 @@ No se usa email crudo como carpeta cuando solo esta el email.
 Esto separa juegos, ROMs, semanas y packs distintos sin depender de rutas
 absolutas como clave principal.
 
+`LOCAL-PACK-CONTRACT-2` no cambia esta regla: `packVersion: 1` y
+`packVersion: 2` siguen usando prioritariamente `packId`, por lo que activar un
+pack v2 no reatribuye puntuaciones ni mueve colas existentes.
+
 ## meta.json
 
 Cada scope tiene `meta.json` con datos minimos de cuenta y pack:

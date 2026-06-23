@@ -10,6 +10,11 @@ function getRepoPluginDir(appDir = APP_DIR) {
   return path.resolve(appDir, "..", "mame-plugin", "hsl-score");
 }
 
+/**
+ * @deprecated Development bridge helper for packVersion 1 packs with embedded
+ * MAME. Replace with shared-runtime plugin/adaptor preparation after
+ * LOCAL-SHARED-MAME-RUNTIME-1.
+ */
 function getConfiguredPackPluginDir(config) {
   const workingDir = config?.mame?.workingDir;
   const pluginName = config?.mame?.pluginName;
@@ -92,6 +97,10 @@ async function assertWorkingDirExists(workingDir) {
   }
 }
 
+/**
+ * @deprecated Copies the plugin into a pack-local MAME tree for the temporary
+ * dev bridge. packVersion 2 should use the shared MAME runtime path.
+ */
 async function syncPluginToPack(config, options = {}) {
   const sourceDir = options.sourceDir || getRepoPluginDir(config.appDir);
   const targetDir = options.targetDir || getConfiguredPackPluginDir(config);

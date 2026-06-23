@@ -39,6 +39,39 @@ function validPack(overrides = {}) {
   };
 }
 
+function validV2Pack(overrides = {}) {
+  return {
+    packVersion: 2,
+    packId: "space-invaders-season-1-week-1",
+    gameId: "space-invaders",
+    rom: "invaders",
+    seasonId: "season-1",
+    seasonSlug: "season-1",
+    seasonName: "Temporada 1",
+    weekId: "week-1",
+    weekNumber: 1,
+    webBaseUrl: "https://high-score-league.example",
+    runtime: {
+      type: "mame",
+      minVersion: "0.287",
+      recommendedVersion: "0.287",
+    },
+    mame: {
+      romPath: "roms",
+      artworkPath: "artwork",
+      samplePath: "samples",
+      cfgPath: "cfg",
+      launchArgs: [],
+    },
+    capture: {
+      mode: "plugin",
+      pluginName: "hsl-score",
+      adapter: "scripts/space-invaders.lua",
+    },
+    ...overrides,
+  };
+}
+
 async function writeJson(filePath, value) {
   await fsp.mkdir(path.dirname(filePath), { recursive: true });
   await fsp.writeFile(filePath, JSON.stringify(value, null, 2), "utf8");
@@ -48,7 +81,7 @@ test("escaneo detecta subcarpeta directa con pack.json", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");
     const packDir = path.join(libraryRoot, "Space Invaders");
-    await writeJson(path.join(packDir, "pack.json"), validPack());
+    await writeJson(path.join(packDir, "pack.json"), validV2Pack());
     await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));
@@ -56,6 +89,8 @@ test("escaneo detecta subcarpeta directa con pack.json", async () => {
     assert.equal(library.packs.length, 1);
     assert.equal(library.packs[0].packDir, packDir);
     assert.equal(library.packs[0].status, "ok");
+    assert.equal(library.packs[0].packVersion, 2);
+    assert.equal(library.packs[0].contractStatus, "current");
   });
 });
 
@@ -74,8 +109,8 @@ test("escaneo ignora subcarpetas sin pack.json", async () => {
 test("escaneo devuelve error por pack invalido sin romper otros packs", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");
-    await writeJson(path.join(libraryRoot, "Valid", "pack.json"), validPack());
-    await writeJson(path.join(libraryRoot, "Invalid", "pack.json"), { packVersion: 1 });
+    await writeJson(path.join(libraryRoot, "Valid", "pack.json"), validV2Pack());
+    await writeJson(path.join(libraryRoot, "Invalid", "pack.json"), { packVersion: 2 });
     await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));
@@ -84,6 +119,40 @@ test("escaneo devuelve error por pack invalido sin romper otros packs", async ()
     assert.equal(library.packs.filter((pack) => pack.status === "ok").length, 1);
     assert.equal(library.packs.filter((pack) => pack.status === "error").length, 1);
     assert.equal(library.totals.packsWithErrors, 1);
+  });
+});
+
+test("escaneo marca packVersion 1 como deprecated sin romper compatibilidad", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = path.join(dir, "library");
+    await writeJson(path.join(libraryRoot, "Legacy", "pack.json"), validPack());
+    await setPackDirectory(config(dir), libraryRoot);
+
+    const library = await scanPackLibrary(config(dir));
+
+    assert.equal(library.packs.length, 1);
+    assert.equal(library.packs[0].status, "warning");
+    assert.equal(library.packs[0].deprecated, true);
+    assert.equal(library.packs[0].contractStatus, "deprecated");
+    assert.ok(library.packs[0].warnings.some((item) => /packVersion 1/i.test(item)));
+  });
+});
+
+test("escaneo marca packVersion 2 invalido como requiere atencion", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = path.join(dir, "library");
+    await writeJson(path.join(libraryRoot, "Invalid V2", "pack.json"), validV2Pack({
+      mame: {
+        romPath: "../roms",
+      },
+    }));
+    await setPackDirectory(config(dir), libraryRoot);
+
+    const library = await scanPackLibrary(config(dir));
+
+    assert.equal(library.packs.length, 1);
+    assert.equal(library.packs[0].status, "error");
+    assert.ok(library.packs[0].errors.some((item) => /mame\.romPath/.test(item)));
   });
 });
 

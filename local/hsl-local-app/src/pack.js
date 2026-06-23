@@ -1,12 +1,26 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { normalizePackContract } = require("./pack-contract");
 const { loadPackMetadata } = require("./pack-metadata");
 
 function getDefaultPackPath(appDir) {
   return path.join(path.resolve(appDir, ".."), "pack.json");
 }
 
+/**
+ * @deprecated packVersion 1 puede declarar MAME dentro del pack. Mantener solo
+ * hasta LOCAL-SHARED-MAME-RUNTIME-1 y la migracion completa a packVersion 2.
+ */
 function resolvePackMamePaths(pack, packDir) {
+  if (pack?.packVersion === 2 || pack?.contract?.version === 2) {
+    return {
+      executablePath: null,
+      workingDir: null,
+      pluginName: pack?.capture?.pluginName || pack?.contract?.capture?.pluginName || "hsl-score",
+      requiresSharedMameRuntime: true,
+    };
+  }
+
   const mame = pack?.mame || {};
 
   return {
@@ -29,31 +43,7 @@ function resolvePackRelativePath(value, packDir) {
 }
 
 function validatePack(pack) {
-  const errors = [];
-
-  if (!pack || typeof pack !== "object") {
-    return ["pack.json debe contener un objeto JSON"];
-  }
-
-  for (const field of ["packVersion", "gameId", "rom", "weekId", "webBaseUrl", "mame"]) {
-    if (pack[field] === undefined || pack[field] === null || pack[field] === "") {
-      errors.push(`pack.json debe incluir ${field}`);
-    }
-  }
-
-  if (pack.mame && typeof pack.mame !== "object") {
-    errors.push("pack.json mame debe ser un objeto");
-  } else if (pack.mame) {
-    if (!pack.mame.relativeExecutablePath && !pack.mame.executablePath) {
-      errors.push("pack.json mame debe incluir relativeExecutablePath");
-    }
-
-    if (!pack.mame.workingDir) {
-      errors.push("pack.json mame debe incluir workingDir");
-    }
-  }
-
-  return errors;
+  return normalizePackContract(pack).errors;
 }
 
 function loadPack(packPath) {
@@ -68,24 +58,44 @@ function loadPack(packPath) {
 
   const raw = fs.readFileSync(packPath, "utf8");
   const pack = JSON.parse(raw);
-  const errors = validatePack(pack);
   const packRoot = path.dirname(packPath);
+  const contract = normalizePackContract(pack, {
+    packPath,
+    packRoot,
+  });
+  const errors = contract.errors;
   const metadata = loadPackMetadata(packRoot);
+  const normalized = contract.normalized || {};
 
   return {
     pack: {
       ...pack,
+      ...normalized,
+      contract: normalized.contract || null,
+      contractStatus: normalized.contractStatus || null,
+      deprecated: normalized.deprecated === true,
+      deprecationReason: normalized.deprecationReason || null,
+      errors,
       packPath,
       packRoot,
+      replacement: normalized.replacement || null,
       metadata: metadata.metadata,
       metadataLoaded: metadata.loaded,
       metadataPath: metadata.metadataPath,
       metadataWarnings: metadata.warnings,
+      warnings: [
+        ...contract.warnings,
+        ...metadata.warnings,
+      ],
     },
     packPath,
     errors,
     loaded: true,
     metadata,
+    warnings: [
+      ...contract.warnings,
+      ...metadata.warnings,
+    ],
   };
 }
 
@@ -106,6 +116,7 @@ module.exports = {
   loadDefaultPack,
   loadPack,
   loadPackFromDir,
+  normalizePackContract,
   resolvePackMamePaths,
   validatePack,
 };

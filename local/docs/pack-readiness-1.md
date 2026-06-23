@@ -61,6 +61,14 @@ cabeceras `Authorization`, access tokens ni refresh tokens.
 `LOCAL-SHARED-MAME-RUNTIME-BLUEPRINT-1` define el destino final: la app local
 instala y gestiona MAME una sola vez, y los packs no incluyen `mame.exe`.
 
+Desde `LOCAL-PACK-CONTRACT-2`, readiness entiende `packVersion: 2` como contrato
+actual de pack ligero. Un pack v2 puede estar cargado y visible en la
+biblioteca, pero queda bloqueado para jugar con el mensaje de runtime MAME
+compartido pendiente hasta `LOCAL-SHARED-MAME-RUNTIME-1`.
+
+`packVersion: 1` sigue funcionando para el dev bridge y packs antiguos, pero se
+muestra como legacy/deprecated en detalles tecnicos.
+
 Cuando se implemente `LOCAL-SHARED-MAME-RUNTIME-1`, readiness debera separar:
 
 - runtime global: MAME instalado, `mame.exe` existe y version compatible;

@@ -5,7 +5,7 @@ Soporte minimo para ubicaciones de biblioteca y escaneo basico de packs locales.
 > Documento historico. Desde `LOCAL-PACK-DIRECTORY-MODEL-1`, la experiencia de
 > producto usa un unico directorio guardado en
 > `userData/libraries/pack-directory.json`. `locations.json` queda solo como
-> compatibilidad temporal no destructiva.
+> compatibilidad temporal no destructiva y esta legacy/deprecated.
 
 ## Que es una ubicacion
 
