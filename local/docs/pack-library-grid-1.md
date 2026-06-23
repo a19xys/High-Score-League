@@ -26,7 +26,7 @@ y solo se combina con el pack activo al jugar o calcular readiness completa.
 
 ## Cards de packs
 
-Cada pack detectado por ubicaciones se muestra como una card con:
+Cada pack detectado en el directorio unico de packs se muestra como una card con:
 
 - imagen local `cover`, `icon` o `logo` si existe;
 - placeholder visual HSL si no hay assets;
@@ -86,7 +86,7 @@ Estados visibles:
 - `Listo`: pack valido sin warnings.
 - `Con avisos`: pack valido con warnings, normalmente metadata/assets.
 - `Requiere atencion`: pack invalido o pack activo bloqueado por readiness.
-- `No disponible`: ubicacion o pack no accesible cuando aplique.
+- `No disponible`: directorio o pack no accesible cuando aplique.
 
 La readiness completa solo se muestra para el pack activo si ya existe en el
 estado del launcher. No se calcula readiness para todos los packs.
@@ -102,26 +102,29 @@ La card activa se marca con:
 La comparacion usa `packDir` frente a `bridge.packRoot` y, como fallback, la
 identidad `packId` o `gameId` frente a `bridge.activePackName`.
 
-## Ubicaciones
+## Directorio de packs
 
-La seccion de ubicaciones sigue existiendo pero queda en segundo plano. Muestra:
+Desde `LOCAL-PACK-DIRECTORY-MODEL-1`, la seccion de biblioteca muestra un unico
+directorio de packs:
 
-- `+ Anadir ubicacion`;
-- `Refrescar`;
-- ubicaciones guardadas;
-- cantidad de packs detectados por ubicacion;
-- aviso suave si una ubicacion no esta disponible;
-- `Quitar`, que elimina solo la entrada de `locations.json`.
+- `Elegir directorio` si no hay directorio configurado;
+- `Cambiar directorio`;
+- `Abrir directorio`;
+- `Reescanear`;
+- aviso suave si el directorio no existe;
+- aviso si la carpeta elegida parece ser un pack root.
 
-No se borran carpetas reales ni packs.
+No se borran carpetas reales ni packs. `locations.json` queda como fallback
+legacy y solo aparece en detalles tecnicos.
 
 ## Empty states
 
 Se anaden mensajes claros:
 
-- sin ubicaciones: invita a anadir una carpeta de packs;
-- ubicaciones sin packs: explica que cada pack debe tener `pack.json` en una
+- sin directorio: invita a elegir el directorio de packs;
+- directorio sin packs: explica que cada pack debe tener `pack.json` en una
   subcarpeta directa;
+- carpeta de pack elegida por error: pide elegir la carpeta contenedora;
 - pack invalido: muestra `Este pack necesita revision.`
 
 No se muestra JSON ni rutas como primera capa.
@@ -146,10 +149,12 @@ No se mezclan colas y no se muestran colas de otras cuentas en las cards.
 
 `Herramientas de desarrollo > Detalles tecnicos` anade resumen de biblioteca:
 
-- numero de ubicaciones;
+- directorio configurado;
+- si el directorio existe;
+- si parece pack root;
 - numero de packs detectados;
 - packs invalidos;
-- ubicaciones no disponibles;
+- `locations.json` legacy detectado;
 - warnings agregados.
 
 No se muestran tokens ni sesiones completas.

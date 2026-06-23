@@ -30,9 +30,9 @@ const {
 const { buildDiagnoseReport } = require("../src/diagnose");
 const { listJsonFiles, readEventFile } = require("../src/event-files");
 const { listSupportedGames } = require("../src/games");
-const { addLibraryLocation, removeLibraryLocation } = require("../src/library-locations");
 const { launchMame } = require("../src/mame-launcher");
 const { evaluatePackReadiness } = require("../src/pack-readiness");
+const { readPackDirectory, setPackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
 const { loadPackFromDir, resolvePackMamePaths } = require("../src/pack");
 const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-packs");
@@ -1292,45 +1292,90 @@ async function openPackDirectory(packDir) {
   return activatePackDirectory(packDir);
 }
 
-async function cancelAddLibraryLocation() {
+async function cancelChoosePackDirectory() {
   return {
-    action: "add-library-location",
+    action: "choose-pack-directory",
     canceled: true,
-    lines: ["No se selecciono ninguna ubicacion."],
+    lines: ["No se selecciono ningun directorio de packs."],
     ok: true,
-    summary: "No se selecciono ninguna ubicacion.",
+    summary: "No se selecciono ningun directorio de packs.",
     state: await getLauncherState(),
   };
 }
 
-async function addLibraryLocationFromGui(locationPath, options = {}) {
+async function choosePackDirectoryFromGui(directoryPath, options = {}) {
   const config = options.config || loadRuntimeConfig();
-  const result = await addLibraryLocation(config, locationPath);
-  const summary = result.duplicate ? "Esta ubicacion ya estaba anadida." : "Ubicacion anadida.";
+  const result = await setPackDirectory(config, directoryPath, options);
 
   return {
-    action: "add-library-location",
-    lines: [summary, "No se han copiado ni movido packs."],
-    ok: true,
+    action: "choose-pack-directory",
+    lines: [
+      result.summary,
+      "No se han copiado, movido ni borrado packs.",
+      "Cambiar directorio no borra puntuaciones locales.",
+    ],
+    ok: result.ok,
     result,
-    summary,
+    summary: result.summary,
     state: options.includeState === false ? null : await getLauncherState(),
   };
 }
 
-async function removeLibraryLocationFromGui(locationId, options = {}) {
+async function openConfiguredPackDirectory(options = {}) {
   const config = options.config || loadRuntimeConfig();
-  const result = await removeLibraryLocation(config, locationId);
-  const summary = result.removed
-    ? "Ubicacion quitada de la biblioteca. No se ha borrado ninguna carpeta."
-    : "No se encontro esa ubicacion en la biblioteca.";
+  const directory = await readPackDirectory(config);
+
+  if (!directory.directoryPath) {
+    return {
+      action: "open-pack-directory",
+      lines: ["Todavia no has elegido un directorio de packs."],
+      ok: false,
+      summary: "Todavia no has elegido un directorio de packs.",
+      state: options.includeState === false ? null : await getLauncherState(),
+    };
+  }
+
+  if (!directory.exists) {
+    return {
+      action: "open-pack-directory",
+      lines: ["No encuentro el directorio de packs. Puedes cambiarlo o volver a crearlo."],
+      ok: false,
+      summary: "No encuentro el directorio de packs.",
+      state: options.includeState === false ? null : await getLauncherState(),
+    };
+  }
+
+  const openPath = options.openPathImpl;
+
+  if (openPath) {
+    const result = await openPath(directory.directoryPath);
+
+    if (result) {
+      return {
+        action: "open-pack-directory",
+        lines: [result],
+        ok: false,
+        summary: "No se pudo abrir el directorio de packs.",
+        state: options.includeState === false ? null : await getLauncherState(),
+      };
+    }
+  }
 
   return {
-    action: "remove-library-location",
-    lines: [summary],
-    ok: result.removed,
-    result,
-    summary,
+    action: "open-pack-directory",
+    lines: [`Directorio abierto: ${directory.directoryPath}`],
+    ok: true,
+    summary: "Directorio de packs abierto.",
+    state: options.includeState === false ? null : await getLauncherState(),
+  };
+}
+
+async function rescanPackDirectory(options = {}) {
+  return {
+    action: "rescan-pack-directory",
+    lines: ["Biblioteca reescaneada."],
+    ok: true,
+    summary: "Biblioteca reescaneada.",
     state: options.includeState === false ? null : await getLauncherState(),
   };
 }
@@ -1369,9 +1414,9 @@ module.exports = {
   adoptNewStagingEvents,
   activateLibraryPack,
   activatePackDirectory,
-  addLibraryLocationFromGui,
-  cancelAddLibraryLocation,
+  cancelChoosePackDirectory,
   cancelOpenPack,
+  choosePackDirectoryFromGui,
   classifyFailureReason,
   deriveOpenedPackConfig,
   eventResultToQueueItem,
@@ -1386,7 +1431,8 @@ module.exports = {
   readPackForGui,
   recheckSeasonMembership,
   removeKnownAccountFromGui,
-  removeLibraryLocationFromGui,
+  openConfiguredPackDirectory,
+  rescanPackDirectory,
   restoreFailedSubmission,
   resolveRememberedPack,
   resetAutoSyncStateForTests,

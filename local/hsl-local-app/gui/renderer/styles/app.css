@@ -908,6 +908,47 @@ button:disabled {
   justify-content: center;
 }
 
+.pack-directory {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 12px;
+}
+
+.pack-directory--warning {
+  border-color: color-mix(in srgb, var(--warn) 42%, var(--border));
+  background: color-mix(in srgb, var(--warn-bg) 32%, var(--surface-muted));
+}
+
+.pack-directory h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pack-directory__path {
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pack-directory__warning {
+  margin-top: 6px;
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.pack-directory__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .library-location-list {
   display: grid;
   gap: 10px;

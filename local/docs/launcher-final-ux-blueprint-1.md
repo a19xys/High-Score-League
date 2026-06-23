@@ -146,6 +146,11 @@ el revamp completo.
 debe listar packs ligeros sin MAME en un unico directorio, mientras la app
 instalada gestiona un runtime MAME compartido.
 
+Primer soporte implementado en `LOCAL-PACK-DIRECTORY-MODEL-1`: la GUI guarda un
+solo directorio en `userData/libraries/pack-directory.json`, permite elegirlo,
+cambiarlo, abrirlo y reescanearlo, y conserva `locations.json` solo como
+compatibilidad temporal no destructiva.
+
 ## Biblioteca de packs
 
 La vista principal final debe ser una biblioteca visual de packs reconocidos:
@@ -437,7 +442,7 @@ Orden recomendado:
 - `launcher-gui-1.md` documenta el prototipo Electron actual. Este blueprint no lo contradice: lo trata como MVP técnico que debe evolucionar hacia biblioteca y launcher de jugador.
 - `launcher-auth-gui-1.md` introduce login/logout visual con sesión en `userData`. Este blueprint mantiene ese MVP y propone vinculación web como dirección final.
 - `launcher-pack-open-1.md` permite abrir un pack externo por carpeta. Este blueprint lo convierte en una futura biblioteca de ubicaciones y packs detectados.
-- `launcher-pack-remember-1.md` recuerda el último pack abierto en `userData/packs/recent.json`. Este blueprint lo considera un paso previo a `userData/libraries/locations.json`.
+- `launcher-pack-remember-1.md` recuerda el ultimo pack abierto en `userData/packs/recent.json`. Este blueprint lo considera un paso previo a `userData/libraries/pack-directory.json`.
 - `launcher-submission-recovery-1.md` redefine `failed` como puntuaciones con error recuperables. Este blueprint conserva esa idea y la integra con sincronización automática y estados comprensibles.
 - `account-pack-scoped-queue-1.md` separa la cola por cuenta y pack en `userData`. Este blueprint usa esa decisión como base para cuentas múltiples, cambio de cuenta y seguridad de puntuaciones.
 - `season-membership-check-1.md` introduce la comprobacion previa de
@@ -449,6 +454,8 @@ Orden recomendado:
 - `shared-mame-runtime-blueprint-1.md` define el destino final de runtime MAME
   compartido, packs ligeros, directorio unico de packs y carga futura de
   plugin/adaptadores.
+- `pack-directory-model-1.md` sustituye la experiencia de multiples ubicaciones
+  por un unico directorio de packs y deja `locations.json` como fallback legacy.
 
 ## No se implementa en esta tarea
 

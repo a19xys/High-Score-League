@@ -185,6 +185,8 @@ Auto-sync queue notes:
 [`docs/auto-sync-queue-1.md`](docs/auto-sync-queue-1.md).
 Pack readiness notes:
 [`docs/pack-readiness-1.md`](docs/pack-readiness-1.md).
+Pack directory model notes:
+[`docs/pack-directory-model-1.md`](docs/pack-directory-model-1.md).
 Pack library grid notes:
 [`docs/pack-library-grid-1.md`](docs/pack-library-grid-1.md).
 Account switcher notes:
@@ -490,6 +492,8 @@ Season membership check notes:
 [`docs/season-membership-check-1.md`](docs/season-membership-check-1.md).
 Pack readiness notes:
 [`docs/pack-readiness-1.md`](docs/pack-readiness-1.md).
+Pack directory model notes:
+[`docs/pack-directory-model-1.md`](docs/pack-directory-model-1.md).
 Pack library grid notes:
 [`docs/pack-library-grid-1.md`](docs/pack-library-grid-1.md).
 Account switcher notes:
@@ -608,25 +612,26 @@ If the active pack contains optional `metadata.json` and local files under
 subtitle, description, credits, hero/logo/cover/icon. Missing metadata or
 images are non-fatal and appear only as technical warnings.
 
-The GUI also has a minimal pack library. `+ Añadir ubicación` stores folders in
-shared user data:
+The GUI also has a minimal pack library. `Elegir directorio` stores one pack
+directory in shared user data:
 
 ```text
-userData/libraries/locations.json
+userData/libraries/pack-directory.json
 ```
 
 The launcher scans only direct subfolders with `pack.json`, lists detected
-packs, and lets the player activate one with `Usar este pack`. This reuses the
-same activation and remembered-pack flow as `Abrir pack`. The app does not copy,
-move, download, or delete packs.
+packs, and lets the player activate one with `Usar este pack`. `Cambiar
+directorio`, `Abrir directorio` and `Reescanear` operate on that single
+directory. This reuses the same activation and remembered-pack flow as `Abrir
+pack`. The app does not copy, move, download, or delete packs.
 
 The library now presents detected packs as visual cards instead of a technical
 list. Cards use local `metadata.json` assets when available, fall back to an HSL
 placeholder when no cover/icon/logo exists, show simple local states
 (`Listo`, `Con avisos`, `Requiere atencion`, `No disponible`) and mark the
 active pack with an `Activo` badge plus a disabled `Ya activo` action. The
-location list stays available but secondary; detailed paths and warnings remain
-in development details.
+configured directory stays compact in the UI; full paths, legacy
+`locations.json` fallback and warnings remain in development details.
 
 Before competition play and pending uploads, the GUI now checks whether the
 connected account belongs to the season for the active pack `weekId`. Known

@@ -1,7 +1,7 @@
 const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
-const { readLibraryLocations } = require("./library-locations");
+const { readPackDirectory } = require("./pack-directory");
 const { loadPackFromDir } = require("./pack");
 
 function hashId(value, prefix) {
@@ -28,7 +28,7 @@ function getPackSubtitle(pack) {
   return pack?.metadata?.subtitle || pack?.weekId || null;
 }
 
-function buildLibraryPackItem(location, packDir, packResult) {
+function buildLibraryPackItem(directory, packDir, packResult) {
   const pack = packResult.pack || {};
   const errors = packResult.errors || [];
   const warnings = pack.metadataWarnings || [];
@@ -40,8 +40,8 @@ function buildLibraryPackItem(location, packDir, packResult) {
     errors,
     gameId: pack.gameId || null,
     icon: assetForLibrary(assets.icon),
-    id: hashId(`${location.id}|${packDir}`, "pack"),
-    locationId: location.id,
+    id: hashId(`${directory.id}|${packDir}`, "pack"),
+    locationId: directory.id,
     logo: assetForLibrary(assets.logo),
     packDir,
     packId: pack.packId || null,
@@ -64,20 +64,45 @@ async function pathExistsAsDirectory(targetPath) {
   }
 }
 
-async function scanLocation(location) {
-  const exists = await pathExistsAsDirectory(location.path);
+async function scanDirectory(directoryState) {
+  const directoryPath = directoryState.directoryPath;
+  const directory = {
+    error: directoryState.error,
+    exists: directoryState.exists,
+    id: "pack-directory",
+    looksLikePackRoot: directoryState.looksLikePackRoot,
+    packCount: 0,
+    path: directoryPath,
+    status: !directoryPath
+      ? "unconfigured"
+      : !directoryState.exists
+        ? "missing"
+        : directoryState.looksLikePackRoot
+          ? "pack-root"
+          : "ok",
+    warnings: directoryState.warnings || [],
+  };
+
+  if (!directoryPath || !directoryState.exists || directoryState.looksLikePackRoot) {
+    return {
+      directory,
+      packs: [],
+    };
+  }
+
+  const exists = await pathExistsAsDirectory(directoryPath);
   const status = {
-    ...location,
+    ...directory,
     error: null,
     exists,
     packCount: 0,
     status: exists ? "ok" : "missing",
-    warnings: exists ? [] : ["Esta ubicacion no esta disponible."],
+    warnings: exists ? directory.warnings : ["No encuentro el directorio de packs. Puedes cambiarlo o volver a crearlo."],
   };
 
   if (!exists) {
     return {
-      location: status,
+      directory: status,
       packs: [],
     };
   }
@@ -85,14 +110,14 @@ async function scanLocation(location) {
   let entries;
 
   try {
-    entries = await fsp.readdir(location.path, { withFileTypes: true });
+    entries = await fsp.readdir(directoryPath, { withFileTypes: true });
   } catch (error) {
     return {
-      location: {
+      directory: {
         ...status,
         error: error.message,
         status: "warning",
-        warnings: [`No se pudo escanear esta ubicacion: ${error.message}`],
+        warnings: [`No se pudo escanear el directorio de packs: ${error.message}`],
       },
       packs: [],
     };
@@ -105,7 +130,7 @@ async function scanLocation(location) {
       continue;
     }
 
-    const packDir = path.join(location.path, entry.name);
+    const packDir = path.join(directoryPath, entry.name);
     const packPath = path.join(packDir, "pack.json");
 
     try {
@@ -121,15 +146,15 @@ async function scanLocation(location) {
         continue;
       }
 
-      packs.push(buildLibraryPackItem(location, packDir, result));
+      packs.push(buildLibraryPackItem(directory, packDir, result));
     } catch (error) {
       packs.push({
         cover: null,
         errors: [error.message],
         gameId: null,
         icon: null,
-        id: hashId(`${location.id}|${packDir}`, "pack"),
-        locationId: location.id,
+        id: hashId(`${directory.id}|${packDir}`, "pack"),
+        locationId: directory.id,
         logo: null,
         packDir,
         packId: null,
@@ -145,7 +170,7 @@ async function scanLocation(location) {
   }
 
   return {
-    location: {
+    directory: {
       ...status,
       packCount: packs.length,
       status: packs.some((pack) => pack.status === "error") ? "warning" : "ok",
@@ -155,28 +180,45 @@ async function scanLocation(location) {
 }
 
 async function scanPackLibrary(config) {
-  const state = await readLibraryLocations(config);
-  const scans = await Promise.all(state.locations.map(scanLocation));
-  const locations = scans.map((scan) => scan.location);
-  const packs = scans.flatMap((scan) => scan.packs);
+  const state = await readPackDirectory(config);
+  const scan = await scanDirectory(state);
+  const directory = scan.directory;
+  const packs = scan.packs;
+  const warnings = [
+    state.error,
+    ...(directory?.warnings || []),
+  ].filter(Boolean);
 
   return {
     error: state.error,
-    locations,
-    locationsFile: state.locationsFile,
+    directory,
+    locations: directory.path ? [directory] : [],
+    locationsFile: state.legacyLocationsFile,
+    packDirectoryFile: state.packDirectoryFile,
+    packDirectoryPath: state.directoryPath,
     packs,
+    source: state.source,
     totals: {
-      locations: locations.length,
-      missingLocations: locations.filter((location) => location.status === "missing").length,
+      directoryConfigured: directory.path ? 1 : 0,
+      directoryMissing: directory.status === "missing" ? 1 : 0,
+      legacyLocations: state.legacyLocationsDetected || 0,
+      locations: directory.path ? 1 : 0,
+      missingLocations: directory.status === "missing" ? 1 : 0,
       packs: packs.length,
       packsWithErrors: packs.filter((pack) => pack.status === "error").length,
     },
     updatedAt: state.updatedAt,
+    warnings,
+    legacy: {
+      locationsDetected: state.legacyLocationsDetected || 0,
+      locationsFile: state.legacyLocationsFile,
+      migration: state.legacyMigration || "none",
+    },
   };
 }
 
 module.exports = {
   buildLibraryPackItem,
-  scanLocation,
+  scanDirectory,
   scanPackLibrary,
 };

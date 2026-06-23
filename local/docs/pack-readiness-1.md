@@ -140,6 +140,12 @@ mostrar un resumen de `state.readiness` si ya esta disponible, pero la
 biblioteca no ejecuta MAME, no evalua ROM/plugin/staging para todos los packs y
 no consulta membership remota para cada card.
 
+Desde `LOCAL-PACK-DIRECTORY-MODEL-1`, la biblioteca depende de
+`userData/libraries/pack-directory.json`. Si no hay directorio configurado, la
+biblioteca muestra empty state, pero un pack abierto manualmente puede seguir
+teniendo readiness propia. Cambiar directorio no borra colas scoped ni invalida
+el pack activo por fuerza.
+
 ## Relacion con el selector de cuenta
 
 `LOCAL-ACCOUNT-SWITCHER-GUI-2` permite recordar sesiones locales por cuenta,

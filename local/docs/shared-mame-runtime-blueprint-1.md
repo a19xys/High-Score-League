@@ -119,7 +119,11 @@ La UI final debe sustituir conceptualmente `Anadir pack` por:
 - `Abrir directorio` para inspeccion local;
 - `Reescanear` para detectar cambios.
 
-El codigo actual soporta varias ubicaciones con `userData/libraries/locations.json`. Esa capacidad puede mantenerse temporalmente, pero el producto final preferido es un unico directorio para reducir ambiguedad, soporte y mezcla accidental de packs.
+`LOCAL-PACK-DIRECTORY-MODEL-1` implementa este modelo en
+`userData/libraries/pack-directory.json`. El antiguo
+`userData/libraries/locations.json` queda como compatibilidad temporal: si hay
+una sola ubicacion se migra de forma no destructiva, y si hay varias se usa una
+con warning hasta que el jugador elija el directorio definitivo.
 
 ## 5. Estructura final de pack ligero
 
@@ -443,4 +447,3 @@ Orden logico:
 - despues implementar runtime global y carga plugin/adaptador;
 - luego preparar catalogo e instalacion;
 - finalmente empaquetar instalador y actualizaciones controladas.
-

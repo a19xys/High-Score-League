@@ -2,55 +2,88 @@ import { escapeHtml } from "./html.js";
 import { renderLibraryEmptyState } from "./library-empty-state.js";
 import { renderPackCard } from "./pack-card.js";
 
-function renderLocations(state) {
-  const locations = state.data?.library?.locations || [];
+function compactPath(value) {
+  if (!value) {
+    return "";
+  }
 
-  if (locations.length === 0) {
+  const normalized = String(value).replaceAll("\\", "/");
+  const parts = normalized.split("/").filter(Boolean);
+
+  if (parts.length <= 3) {
+    return normalized;
+  }
+
+  return `.../${parts.slice(-2).join("/")}`;
+}
+
+function renderDirectoryPanel(state) {
+  const directory = state.data?.library?.directory || {};
+  const disabled = state.busy ? "disabled" : "";
+
+  if (!directory.path) {
     return renderLibraryEmptyState({
       action: {
-        label: "+ Anadir ubicacion",
-        type: "add-library-location",
+        label: "Elegir directorio",
+        type: "choose-pack-directory",
       },
-      body: "Anade una ubicacion para que High Score League detecte tus packs locales.",
+      body: "Elige una carpeta donde High Score League guardara y buscara tus packs locales.",
       state,
-      title: "Todavia no hay carpetas de packs.",
+      title: "Todavia no has elegido un directorio de packs.",
     });
   }
 
+  const warning = directory.status === "missing"
+    ? "No encuentro el directorio de packs. Puedes cambiarlo o volver a crearlo."
+    : directory.status === "pack-root"
+      ? "Parece que has elegido una carpeta de pack. Elige la carpeta que contiene todos tus packs."
+      : directory.warnings?.[0] || null;
+
   return `
-    <ul class="library-location-list">
-      ${locations.map((location) => `
-        <li class="library-location ${location.status === "missing" ? "library-location--missing" : ""}">
-          <div class="min-w-0">
-            <div class="library-location__title">
-              <strong>${escapeHtml(location.path)}</strong>
-              ${location.status === "missing" ? `<span class="badge badge-warn">No disponible</span>` : ""}
-            </div>
-            <p>${escapeHtml(location.packCount === 1 ? "1 pack detectado" : `${location.packCount || 0} packs detectados`)}</p>
-            ${location.warnings?.length ? `<p class="library-location__warning">${escapeHtml(location.warnings[0])}</p>` : ""}
-          </div>
-          <button class="text-button" type="button" data-action="remove-library-location" data-location-id="${escapeHtml(location.id)}" ${state.busy ? "disabled" : ""}>
-            Quitar
-          </button>
-        </li>
-      `).join("")}
-    </ul>
+    <div class="pack-directory ${directory.status === "missing" || directory.status === "pack-root" ? "pack-directory--warning" : ""}">
+      <div class="min-w-0">
+        <h3>Directorio de packs</h3>
+        <p class="pack-directory__path" title="${escapeHtml(directory.path)}">${escapeHtml(compactPath(directory.path))}</p>
+        ${warning ? `<p class="pack-directory__warning">${escapeHtml(warning)}</p>` : ""}
+      </div>
+      <div class="pack-directory__actions">
+        <button class="text-button" type="button" data-action="choose-pack-directory" ${disabled}>
+          Cambiar directorio
+        </button>
+        <button class="text-button" type="button" data-action="open-pack-directory" ${disabled || !directory.exists ? "disabled" : ""}>
+          Abrir directorio
+        </button>
+        <button class="text-button" type="button" data-action="rescan-pack-directory" ${disabled}>
+          Reescanear
+        </button>
+      </div>
+    </div>
   `;
 }
 
 function renderPacks(state) {
   const packs = state.data?.library?.packs || [];
-  const locations = state.data?.library?.locations || [];
+  const directory = state.data?.library?.directory || {};
+
+  if (!directory.path) {
+    return "";
+  }
+
+  if (directory.status === "pack-root") {
+    return renderLibraryEmptyState({
+      body: "Has seleccionado la carpeta de un juego. Cambia al directorio que contiene todos tus packs.",
+      state,
+      title: "Ese directorio parece un pack.",
+    });
+  }
 
   if (packs.length === 0) {
-    if (locations.length === 0) {
-      return "";
-    }
-
     return renderLibraryEmptyState({
-      body: "Cada pack debe tener un pack.json en una subcarpeta directa.",
+      body: "Cada pack debe estar en una subcarpeta directa con pack.json.",
       state,
-      title: "No se han encontrado packs en estas ubicaciones.",
+      title: directory.status === "missing"
+        ? "No puedo escanear el directorio de packs."
+        : "No se han encontrado packs en este directorio.",
     });
   }
 
@@ -63,13 +96,14 @@ function renderPacks(state) {
 
 function renderLibrarySummary(data) {
   const totals = data?.library?.totals || {};
+  const directory = data?.library?.directory || {};
 
   return `
     <div class="library-summary" aria-label="Resumen de biblioteca">
-      <span><strong>${totals.locations || 0}</strong> ubicaciones</span>
+      <span><strong>${directory.path ? "1" : "0"}</strong> directorio</span>
       <span><strong>${totals.packs || 0}</strong> packs</span>
       ${totals.packsWithErrors ? `<span><strong>${totals.packsWithErrors}</strong> requieren atencion</span>` : ""}
-      ${totals.missingLocations ? `<span><strong>${totals.missingLocations}</strong> no disponibles</span>` : ""}
+      ${totals.directoryMissing ? `<span><strong>${totals.directoryMissing}</strong> no disponible</span>` : ""}
     </div>
   `;
 }
@@ -87,19 +121,13 @@ export function renderLibraryPanel(state) {
       <div class="panel-heading compact">
         <div>
           <h2>Biblioteca local</h2>
-          <p>Packs detectados en tus carpetas locales.</p>
+          <p>Packs detectados en tu directorio local.</p>
         </div>
-        <button class="text-button" type="button" data-action="refresh" ${disabled}>Refrescar</button>
+        <button class="text-button" type="button" data-action="rescan-pack-directory" ${disabled}>Reescanear</button>
       </div>
       ${renderLibrarySummary(data)}
-      <div class="library-toolbar">
-        <button class="tool-button account-primary" type="button" data-action="add-library-location" ${disabled}>
-          + Anadir ubicacion
-        </button>
-      </div>
-      <div class="library-section library-section--locations">
-        <h3>Ubicaciones</h3>
-        ${renderLocations(state)}
+      <div class="library-section library-section--directory">
+        ${renderDirectoryPanel(state)}
       </div>
       <div class="library-section library-section--packs">
         <h3>Packs detectados</h3>
@@ -108,3 +136,7 @@ export function renderLibraryPanel(state) {
     </section>
   `;
 }
+
+export const libraryPanelTestApi = {
+  compactPath,
+};

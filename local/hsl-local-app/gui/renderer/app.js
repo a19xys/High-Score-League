@@ -99,9 +99,9 @@ function resultToLog(title, response) {
     "open-membership-url": response.summary || (ok
       ? "Web abierta en el navegador."
       : "No se pudo abrir la web."),
-    "add-library-location": response.summary || "Biblioteca actualizada.",
+    "choose-pack-directory": response.summary || "Directorio de packs actualizado.",
     "check-membership": response.summary || "Comprobacion de temporada actualizada.",
-    "remove-library-location": response.summary || "Biblioteca actualizada.",
+    "open-pack-directory": response.summary || "Directorio de packs abierto.",
     "remove-known-account": response.summary || (ok
       ? "Cuenta quitada de este dispositivo. No se han borrado puntuaciones locales."
       : "No se pudo quitar la cuenta recordada."),
@@ -115,6 +115,7 @@ function resultToLog(title, response) {
       ? "Práctica cerrada. No se activó el plugin de puntuación desde el launcher."
       : "La práctica terminó con aviso.",
     refresh: "Estado local actualizado.",
+    "rescan-pack-directory": response.summary || "Biblioteca reescaneada.",
     "submit-all": ok
       ? "Subida finalizada. Si había puntuaciones válidas, se movieron a enviadas."
       : "No se pudo completar la subida. Tus puntuaciones siguen guardadas localmente.",
@@ -309,13 +310,16 @@ function bindActions() {
       runAction(action, "Abriendo pack", COPY.actions.openPack, () => window.hslLauncher.openPack());
     }
 
-    if (action === "add-library-location") {
-      runAction(action, "Añadiendo ubicación", "Añadir ubicación", () => window.hslLauncher.addLibraryLocation());
+    if (action === "choose-pack-directory") {
+      runAction(action, "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory());
     }
 
-    if (action === "remove-library-location") {
-      const locationId = button.dataset.locationId;
-      runAction(action, "Quitando ubicación", "Quitar ubicación", () => window.hslLauncher.removeLibraryLocation(locationId));
+    if (action === "open-pack-directory") {
+      runAction(action, "Abriendo directorio", "Abrir directorio", () => window.hslLauncher.openPackDirectory());
+    }
+
+    if (action === "rescan-pack-directory") {
+      runAction(action, "Reescaneando", "Reescanear", () => window.hslLauncher.rescanPackDirectory());
     }
 
     if (action === "use-library-pack") {

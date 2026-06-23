@@ -3,19 +3,20 @@ const { contextBridge, ipcRenderer } = require("electron");
 const invoke = (channel) => () => ipcRenderer.invoke(channel);
 
 contextBridge.exposeInMainWorld("hslLauncher", {
-  addLibraryLocation: invoke("launcher:add-library-location"),
+  choosePackDirectory: invoke("launcher:choose-pack-directory"),
   checkMembership: invoke("launcher:check-membership"),
   diagnose: invoke("launcher:diagnose"),
   getAuthState: invoke("launcher:get-auth-state"),
   getState: invoke("launcher:get-state"),
   login: (email, password) => ipcRenderer.invoke("launcher:login", { email, password }),
   logout: invoke("launcher:logout"),
+  openPackDirectory: invoke("launcher:open-pack-directory"),
   openPack: invoke("launcher:open-pack"),
   openMembershipUrl: invoke("launcher:open-membership-url"),
   playCompetition: invoke("launcher:play-competition"),
   practice: invoke("launcher:practice"),
   removeKnownAccount: (userId) => ipcRenderer.invoke("launcher:remove-known-account", userId),
-  removeLibraryLocation: (locationId) => ipcRenderer.invoke("launcher:remove-library-location", locationId),
+  rescanPackDirectory: invoke("launcher:rescan-pack-directory"),
   restoreFailed: (filename) => ipcRenderer.invoke("launcher:restore-failed", filename),
   switchAccount: (userId) => ipcRenderer.invoke("launcher:switch-account", userId),
   useLibraryPack: (packId) => ipcRenderer.invoke("launcher:use-library-pack", packId),

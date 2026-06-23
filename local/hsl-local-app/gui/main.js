@@ -44,21 +44,24 @@ function registerIpc() {
 
     return service.openPackDirectory(result.filePaths[0]);
   });
-  ipcMain.handle("launcher:add-library-location", async () => {
+  ipcMain.handle("launcher:choose-pack-directory", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
-      buttonLabel: "Añadir ubicación",
-      message: "Elige una carpeta que contenga packs descomprimidos",
+      buttonLabel: "Elegir directorio",
+      message: "Elige la carpeta que contiene todos tus packs locales",
       properties: ["openDirectory"],
-      title: "Añadir ubicación de biblioteca",
+      title: "Directorio de packs de High Score League",
     });
 
     if (result.canceled || result.filePaths.length === 0) {
-      return service.cancelAddLibraryLocation();
+      return service.cancelChoosePackDirectory();
     }
 
-    return service.addLibraryLocationFromGui(result.filePaths[0]);
+    return service.choosePackDirectoryFromGui(result.filePaths[0]);
   });
-  ipcMain.handle("launcher:remove-library-location", (_event, locationId) => service.removeLibraryLocationFromGui(locationId));
+  ipcMain.handle("launcher:open-pack-directory", () => service.openConfiguredPackDirectory({
+    openPathImpl: (directoryPath) => shell.openPath(directoryPath),
+  }));
+  ipcMain.handle("launcher:rescan-pack-directory", () => service.rescanPackDirectory());
   ipcMain.handle("launcher:remove-known-account", (_event, userId) => service.removeKnownAccountFromGui(userId));
   ipcMain.handle("launcher:switch-account", (_event, userId) => service.switchKnownAccountFromGui(userId));
   ipcMain.handle("launcher:use-library-pack", (_event, packId) => service.activateLibraryPack(packId));

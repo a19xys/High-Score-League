@@ -57,9 +57,10 @@ export function renderDevTools(state) {
   const autoSync = data?.autoSync;
   const readiness = data?.readiness;
   const library = data?.library;
+  const packDirectory = library?.directory || {};
   const libraryWarnings = [
     library?.error,
-    ...(library?.locations || []).flatMap((location) => location.warnings || []),
+    ...(library?.warnings || []),
   ].filter(Boolean);
   const modeLabel = data?.bridge?.packOpened
     ? "pack abierto"
@@ -102,10 +103,13 @@ export function renderDevTools(state) {
             <dt>Metadata</dt>
             <dd>${escapeHtml(metadataLabel)}</dd>
           </div>
-          ${detailRow("Biblioteca ubicaciones", library?.totals?.locations || 0)}
+          ${detailRow("Directorio de packs", packDirectory.path)}
+          ${detailRow("Directorio existe", packDirectory.exists === undefined ? null : String(Boolean(packDirectory.exists)))}
+          ${detailRow("Directorio parece pack", packDirectory.looksLikePackRoot === undefined ? null : String(Boolean(packDirectory.looksLikePackRoot)))}
           ${detailRow("Biblioteca packs", library?.totals?.packs || 0)}
           ${detailRow("Biblioteca packs invalidos", library?.totals?.packsWithErrors || 0)}
-          ${detailRow("Biblioteca ubicaciones no disponibles", library?.totals?.missingLocations || 0)}
+          ${detailRow("Locations legacy detectadas", library?.legacy?.locationsDetected || 0)}
+          ${detailRow("Migracion legacy", library?.legacy?.migration)}
           ${detailRow("Biblioteca warnings", libraryWarnings.length ? libraryWarnings.join(" | ") : "sin warnings")}
           ${detailRow("Comprobacion de temporada", membership?.status || "sin comprobacion")}
           ${detailRow("URL consultada", membership?.request?.url)}

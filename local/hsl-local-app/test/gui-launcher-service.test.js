@@ -10,14 +10,16 @@ const {
   deriveOpenedPackConfig,
   eventResultToQueueItem,
   listPendingFileSnapshot,
+  openConfiguredPackDirectory,
   readPackForGui,
   recheckSeasonMembership,
   resolveRememberedPack,
+  rescanPackDirectory,
   resetAutoSyncStateForTests,
   runAutoSyncIfEligible,
   summarizeDiagnoseReport,
 } = require("../gui/launcher-service");
-const { addLibraryLocation } = require("../src/library-locations");
+const { setPackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
 const { writeLastOpenedPack } = require("../src/recent-packs");
 
@@ -271,7 +273,10 @@ test("renderer technical details include safe membership diagnostics", async () 
   assert.match(devTools, /Motivo tecnico/);
   assert.match(devTools, /Auto-sync estado/);
   assert.match(devTools, /Auto-sync motivo/);
-  assert.match(devTools, /Biblioteca ubicaciones/);
+  assert.match(devTools, /Directorio de packs/);
+  assert.match(devTools, /Directorio existe/);
+  assert.match(devTools, /Locations legacy detectadas/);
+  assert.match(devTools, /Migracion legacy/);
   assert.match(devTools, /Biblioteca packs/);
   assert.match(devTools, /Biblioteca packs invalidos/);
   assert.match(devTools, /Biblioteca warnings/);
@@ -297,10 +302,13 @@ test("renderer pack library renders visual cards and empty states", async () => 
   );
 
   assert.match(libraryPanel, /Biblioteca local/);
-  assert.match(libraryPanel, /Todavia no hay carpetas de packs/);
-  assert.match(libraryPanel, /No se han encontrado packs en estas ubicaciones/);
-  assert.match(libraryPanel, /data-action="refresh"/);
+  assert.match(libraryPanel, /Todavia no has elegido un directorio de packs/);
+  assert.match(libraryPanel, /No se han encontrado packs en este directorio/);
+  assert.match(libraryPanel, /data-action="choose-pack-directory"/);
+  assert.match(libraryPanel, /data-action="open-pack-directory"/);
+  assert.match(libraryPanel, /data-action="rescan-pack-directory"/);
   assert.match(libraryPanel, /renderPackCard\(pack, state\)/);
+  assert.equal(/Anadir ubicacion|Añadir ubicación|Ubicaciones/.test(libraryPanel), false);
   assert.match(emptyState, /library-empty-state/);
   assert.match(packCard, /pack\.cover \|\| pack\.icon \|\| pack\.logo/);
   assert.match(packCard, /pack-card__placeholder/);
@@ -351,6 +359,32 @@ test("launcher service and renderer expose account switcher without tokens", asy
   assert.match(preload, /removeKnownAccount/);
   assert.match(preload, /switchAccount/);
   assert.equal(/access_token|refresh_token|Authorization/.test(playerSummary), false);
+});
+
+test("pack directory actions are exposed without legacy location UI", async () => {
+  const main = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "main.js"),
+    "utf8",
+  );
+  const preload = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "preload.js"),
+    "utf8",
+  );
+  const app = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "app.js"),
+    "utf8",
+  );
+
+  assert.match(main, /launcher:choose-pack-directory/);
+  assert.match(main, /launcher:open-pack-directory/);
+  assert.match(main, /launcher:rescan-pack-directory/);
+  assert.match(preload, /choosePackDirectory/);
+  assert.match(preload, /openPackDirectory/);
+  assert.match(preload, /rescanPackDirectory/);
+  assert.match(app, /window\.hslLauncher\.choosePackDirectory/);
+  assert.match(app, /window\.hslLauncher\.openPackDirectory/);
+  assert.match(app, /window\.hslLauncher\.rescanPackDirectory/);
+  assert.equal(/addLibraryLocation|removeLibraryLocation|launcher:add-library-location|launcher:remove-library-location/.test(main + preload + app), false);
 });
 
 test("eventResultToQueueItem maps local event files to renderer-safe rows", () => {
@@ -586,7 +620,7 @@ test("activateLibraryPack activa un pack detectado y lo recuerda", async () => {
     };
     const libraryRoot = path.join(dir, "library");
     const packDir = await writeValidPack(libraryRoot);
-    await addLibraryLocation(config, libraryRoot);
+    await setPackDirectory(config, libraryRoot);
     const library = await scanPackLibrary(config);
 
     const result = await activateLibraryPack(library.packs[0].id, {
@@ -601,4 +635,37 @@ test("activateLibraryPack activa un pack detectado y lo recuerda", async () => {
     assert.equal(result.pack.packRoot, packDir);
     assert.equal(recent.lastOpenedPackDir, packDir);
   });
+});
+
+test("openConfiguredPackDirectory calls shell opener for existing directory", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const opened = [];
+    await fsp.mkdir(libraryRoot);
+    await setPackDirectory(config, libraryRoot);
+
+    const result = await openConfiguredPackDirectory({
+      config,
+      includeState: false,
+      openPathImpl: async (directoryPath) => {
+        opened.push(directoryPath);
+        return "";
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(opened, [libraryRoot]);
+  });
+});
+
+test("rescanPackDirectory returns fresh state action", async () => {
+  const result = await rescanPackDirectory({
+    includeState: false,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.action, "rescan-pack-directory");
 });

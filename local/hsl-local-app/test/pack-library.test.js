@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { addLibraryLocation } = require("../src/library-locations");
+const { setPackDirectory, writePackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
 
 async function withTempDir(fn) {
@@ -49,7 +49,7 @@ test("escaneo detecta subcarpeta directa con pack.json", async () => {
     const libraryRoot = path.join(dir, "library");
     const packDir = path.join(libraryRoot, "Space Invaders");
     await writeJson(path.join(packDir, "pack.json"), validPack());
-    await addLibraryLocation(config(dir), libraryRoot);
+    await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));
 
@@ -63,7 +63,7 @@ test("escaneo ignora subcarpetas sin pack.json", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");
     await fsp.mkdir(path.join(libraryRoot, "No Pack"), { recursive: true });
-    await addLibraryLocation(config(dir), libraryRoot);
+    await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));
 
@@ -76,7 +76,7 @@ test("escaneo devuelve error por pack invalido sin romper otros packs", async ()
     const libraryRoot = path.join(dir, "library");
     await writeJson(path.join(libraryRoot, "Valid", "pack.json"), validPack());
     await writeJson(path.join(libraryRoot, "Invalid", "pack.json"), { packVersion: 1 });
-    await addLibraryLocation(config(dir), libraryRoot);
+    await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));
 
@@ -91,7 +91,34 @@ test("escaneo no entra recursivamente mas de un nivel", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");
     await writeJson(path.join(libraryRoot, "Nested", "Too Deep", "pack.json"), validPack());
-    await addLibraryLocation(config(dir), libraryRoot);
+    await setPackDirectory(config(dir), libraryRoot);
+
+    const library = await scanPackLibrary(config(dir));
+
+    assert.equal(library.packs.length, 0);
+  });
+});
+
+test("escaneo avisa si el directorio configurado parece un pack root", async () => {
+  await withTempDir(async (dir) => {
+    const packRoot = path.join(dir, "space-invaders");
+    await writeJson(path.join(packRoot, "pack.json"), validPack());
+    await writePackDirectory(config(dir), packRoot);
+
+    const library = await scanPackLibrary(config(dir));
+
+    assert.equal(library.packs.length, 0);
+    assert.equal(library.directory.status, "pack-root");
+    assert.match(library.directory.warnings[0], /carpeta de pack/);
+  });
+});
+
+test("escaneo ignora pack.json dentro de recursos del pack", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = path.join(dir, "library");
+    await writeJson(path.join(libraryRoot, "space-invaders", "roms", "pack.json"), validPack());
+    await writeJson(path.join(libraryRoot, "space-invaders", "assets", "pack.json"), validPack());
+    await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));
 
@@ -108,7 +135,7 @@ test("pack detectado usa metadata.title como titulo", async () => {
       title: "Space Invaders Deluxe",
       subtitle: "Semana especial",
     });
-    await addLibraryLocation(config(dir), libraryRoot);
+    await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));
 
@@ -132,7 +159,7 @@ test("pack detectado expone cover e icon locales si existen", async () => {
       },
       title: "Space Invaders Deluxe",
     });
-    await addLibraryLocation(config(dir), libraryRoot);
+    await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));
 
@@ -148,7 +175,7 @@ test("pack detectado usa fallback sin metadata", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");
     await writeJson(path.join(libraryRoot, "Space Invaders", "pack.json"), validPack({ packId: null }));
-    await addLibraryLocation(config(dir), libraryRoot);
+    await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));
 
@@ -157,14 +184,14 @@ test("pack detectado usa fallback sin metadata", async () => {
   });
 });
 
-test("ubicacion inexistente genera warning", async () => {
+test("directorio inexistente genera warning", async () => {
   await withTempDir(async (dir) => {
     const missing = path.join(dir, "missing-library");
-    await addLibraryLocation(config(dir), missing);
+    await writePackDirectory(config(dir), missing);
 
     const library = await scanPackLibrary(config(dir));
 
-    assert.equal(library.locations[0].status, "missing");
-    assert.match(library.locations[0].warnings[0], /no esta disponible/);
+    assert.equal(library.directory.status, "missing");
+    assert.match(library.directory.warnings[0], /No encuentro el directorio/);
   });
 });

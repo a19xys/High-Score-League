@@ -145,6 +145,17 @@ Documento especifico:
 Documento especifico:
 [`pack-library-grid-1.md`](pack-library-grid-1.md).
 
+## Pack directory model 1
+
+- La biblioteca deja de presentar multiples ubicaciones como experiencia final.
+- La GUI guarda un unico directorio en `userData/libraries/pack-directory.json`.
+- `Elegir directorio`, `Cambiar directorio`, `Abrir directorio` y `Reescanear`
+  reemplazan `+ Anadir ubicacion` como flujo principal.
+- `locations.json` queda como compatibilidad temporal no destructiva.
+
+Documento especifico:
+[`pack-directory-model-1.md`](pack-directory-model-1.md).
+
 ## Season membership check 1
 
 - La GUI comprueba la participacion de la cuenta activa en la temporada del
