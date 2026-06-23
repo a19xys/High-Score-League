@@ -56,6 +56,32 @@ La evaluacion revisa, sin efectos secundarios:
 Los detalles muestran rutas y motivos tecnicos, pero no tokens, passwords,
 cabeceras `Authorization`, access tokens ni refresh tokens.
 
+## Modelo futuro con MAME compartido
+
+`LOCAL-SHARED-MAME-RUNTIME-BLUEPRINT-1` define el destino final: la app local
+instala y gestiona MAME una sola vez, y los packs no incluyen `mame.exe`.
+
+Cuando se implemente `LOCAL-SHARED-MAME-RUNTIME-1`, readiness debera separar:
+
+- runtime global: MAME instalado, `mame.exe` existe y version compatible;
+- directorio unico de packs: configurado, accesible y escaneable;
+- pack activo: instalado, `pack.json` valido, `metadata.json`/assets opcionales
+  y `manifest.json` valido si existe;
+- recursos MAME del pack: `roms`, `artwork`, `samples` y `cfg` esperados;
+- captura: plugin global o adaptador/config del pack disponible;
+- experiencia: manual local si existe boton `Ver manual`;
+- competicion/sync: `weekId`, `seasonId`, `webBaseUrl`, cuenta + pack scoped,
+  membership y auto-sync.
+
+Clasificacion futura:
+
+- bloquea practica: falta runtime MAME, ROM o recursos minimos para ejecutar;
+- bloquea competicion: falta cuenta, scope, week, membership segura o captura;
+- bloquea captura: falta plugin/adaptador o configuracion de salida;
+- bloquea sync: falta sesion, membership `member`, `webBaseUrl` o cola scoped;
+- warning no bloqueante: metadata/assets/manual incompletos o manifest ausente
+  en modo desarrollo.
+
 ## Reglas de disponibilidad
 
 `canPractice` requiere MAME y ROM configurados.
@@ -102,6 +128,17 @@ userData/players/<playerKey>/packs/<packKey>/events/{pending,failed,sent}
 
 Readiness solo comprueba que exista un scope activo para poder competir y subir.
 No mueve archivos ni adopta staging.
+
+## Relacion con la biblioteca visual
+
+`LOCAL-PACK-LIBRARY-GRID-1` muestra estados simples para todos los packs
+detectados: `Listo`, `Con avisos`, `Requiere atencion` y `No disponible`.
+Esos estados salen del escaneo local de `pack.json`, metadata y assets.
+
+La readiness completa sigue siendo solo del pack activo. La card activa puede
+mostrar un resumen de `state.readiness` si ya esta disponible, pero la
+biblioteca no ejecuta MAME, no evalua ROM/plugin/staging para todos los packs y
+no consulta membership remota para cada card.
 
 ## Relacion con el selector de cuenta
 

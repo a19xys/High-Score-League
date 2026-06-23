@@ -14,6 +14,12 @@ Disco externo/HSL Packs/
 
 La app no copia, mueve ni borra packs. Solo recuerda la carpeta y escanea sus subcarpetas directas.
 
+Nota de direccion final: `LOCAL-SHARED-MAME-RUNTIME-BLUEPRINT-1` prefiere un
+unico directorio de packs para el producto final. Este soporte de multiples
+ubicaciones queda como paso intermedio y como herramienta util durante el MVP,
+pero la instalacion con un click y el catalogo futuro deberian colocar packs
+ligeros sin MAME dentro de un unico directorio elegido por el usuario.
+
 ## Persistencia
 
 Las ubicaciones se guardan en `userData`:
@@ -114,6 +120,20 @@ Estados iniciales:
 - `error`: `pack.json` invalido o no legible.
 - `missing`: ubicacion guardada no disponible.
 
+## Vista visual de cards
+
+Desde `LOCAL-PACK-LIBRARY-GRID-1`, los packs detectados se presentan como cards:
+
+- `cover`, `icon` o `logo` si existen;
+- placeholder HSL si faltan assets;
+- titulo y subtitulo de metadata/fallback;
+- estado local simple;
+- badge `Activo` si coincide con el pack abierto;
+- boton `Usar este pack` o `Ya activo`.
+
+Las rutas `packDir` y `packPath` siguen en los datos para activar packs y para
+detalles tecnicos, pero no se muestran en la primera capa de la card.
+
 ## Activar un pack
 
 `Usar este pack` activa el pack detectado reutilizando el flujo de `Abrir pack`:
@@ -131,11 +151,15 @@ Estados iniciales:
 
 Si una ubicacion guardada no existe o no esta disponible, la GUI muestra un aviso en la seccion de biblioteca. No se borra automaticamente.
 
+La lista de ubicaciones queda como informacion secundaria: muestra conteo de
+packs, aviso suave de `No disponible` y accion `Quitar`. No domina la pantalla
+principal de la biblioteca visual.
+
 ## Limites
 
 Esta tarea no implementa:
 
-- grid visual final;
+- grid final con filtros, ordenacion y estados remotos;
 - filtros;
 - busqueda;
 - estados remotos `activa`, `cerrada`, `proxima`;

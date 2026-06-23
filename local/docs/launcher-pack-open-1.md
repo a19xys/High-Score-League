@@ -114,7 +114,7 @@ La cola se resuelve de forma provisional dentro del pack:
 Si no se abre ningún pack, la GUI mantiene el fallback actual de `config.json`
 en modo desarrollo puente.
 
-## Pack plano vs pack final
+## Pack plano, pack v1 y pack final compartido
 
 El pack plano de desarrollo existe para aprovechar el layout actual:
 
@@ -126,8 +126,8 @@ hsl-invaders/
   plugins/
 ```
 
-El layout final distribuible documentado por `local/pack.example.json` seguirá
-siendo más limpio:
+El layout v1 distribuible documentado por `local/pack.example.json` sigue
+siendo mas limpio para compatibilidad actual:
 
 ```text
 HSL_SpaceInvaders_Semana1/
@@ -137,6 +137,11 @@ HSL_SpaceInvaders_Semana1/
     roms/
     plugins/
 ```
+
+El destino final posterior es el runtime compartido documentado en
+`shared-mame-runtime-blueprint-1.md`: MAME vive instalado una sola vez con la
+app local y el pack contiene solo recursos del juego, presentacion, manual y
+configuracion competitiva.
 
 Esta tarea no migra ni reestructura el pack real. Solo documenta cómo añadir el
 manifiesto mínimo para que la GUI pueda abrirlo.

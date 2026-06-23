@@ -25,10 +25,15 @@ player app and not a weekly pack. The intended product model is:
 ```text
 High Score League Launcher installed once
 +
-external game/week packs
+shared MAME runtime installed once with the app
++
+lightweight game/week packs
 +
 shared persistent userData
 ```
+
+Final shared MAME runtime blueprint:
+[`docs/shared-mame-runtime-blueprint-1.md`](docs/shared-mame-runtime-blueprint-1.md).
 
 ### App instalada
 
@@ -67,7 +72,52 @@ packs/
 The current MVP prepares these paths but does not create or migrate them
 automatically.
 
-### Pack externo por juego/semana
+### Pack ligero por juego/semana
+
+Final packs should be lightweight. They should not include MAME. The installed
+app owns the shared MAME runtime and launches it with resources from the active
+pack.
+
+Preferred final pack layout:
+
+```text
+HSL_SpaceInvaders_Semana12/
+  pack.json
+  metadata.json
+  manifest.json
+  assets/
+  manual/
+  roms/
+  artwork/
+  samples/
+  cfg/
+  scripts/
+```
+
+Final pack responsibility:
+
+- `pack.json`: technical/play/competition contract.
+- `metadata.json` and `assets/`: local presentation.
+- `manifest.json`: pack version and integrity.
+- `roms/`, `artwork/`, `samples/`: resources consumed by shared MAME.
+- `manual/`: local player documentation.
+- `scripts/` or `plugins/`: capture adapter/config if the final MAME loading
+  model needs it.
+
+The final app should manage one configured pack directory, for example:
+
+```text
+D:/High Score League Packs/
+  space-invaders/
+  galaga/
+  pac-man/
+```
+
+The current multi-location library is useful as an implementation step, but the
+preferred product direction is one pack directory with actions to choose,
+change, open and rescan it.
+
+### Pack externo v1 y bridge de desarrollo
 
 Each player downloads one ZIP per game/week and can extract it anywhere:
 Downloads, Desktop, an external disk, or a games folder.
@@ -90,13 +140,13 @@ HSL_SpaceInvaders_Semana12/
         config.lua
 ```
 
-The pack brings MAME, the ROM, the `hsl-score` plugin, and pack metadata. It is
-disposable: deleting it must not delete the player's session, linked account,
-pending submissions, logs, or preferences.
+In this v1/dev model, the pack brings MAME, the ROM, the `hsl-score` plugin,
+and pack metadata. It is disposable: deleting it must not delete the player's
+session, linked account, pending submissions, logs, or preferences.
 
-In a future launcher flow, the installed app will open/import a pack folder,
-read its `pack.json`, resolve MAME paths relative to that pack folder, and
-launch that pack's MAME.
+In the final shared-runtime model, the installed app will read the active
+pack's `pack.json`, resolve ROM/artwork/sample/config paths inside the pack,
+and launch the app-managed MAME runtime.
 
 ## Pack descargable
 
@@ -104,6 +154,11 @@ launch that pack's MAME.
 `pack.example.json` for the versioned example. It includes pack identity, game
 ID, ROM name, week ID, web URL, MAME paths relative to the pack root, and plugin
 metadata. It must not contain secrets, ROM files, or personal machine paths.
+
+For `packVersion: 2`, `pack.json` should stop declaring `mame.exe` inside the
+pack as the primary runtime path. The proposed direction is documented in the
+shared runtime blueprint. The v1 `mame.relativeExecutablePath` field remains
+temporary compatibility for current tests, examples and the development bridge.
 
 Packs may also include optional presentation files next to `pack.json`:
 
@@ -130,6 +185,8 @@ Auto-sync queue notes:
 [`docs/auto-sync-queue-1.md`](docs/auto-sync-queue-1.md).
 Pack readiness notes:
 [`docs/pack-readiness-1.md`](docs/pack-readiness-1.md).
+Pack library grid notes:
+[`docs/pack-library-grid-1.md`](docs/pack-library-grid-1.md).
 Account switcher notes:
 [`docs/account-switcher-gui-1.md`](docs/account-switcher-gui-1.md).
 Remembered sessions notes:
@@ -248,8 +305,9 @@ ignored `config.json`. The example uses placeholders only and is for local
 development, not final distribution.
 
 This bridge is valid for local testing, but it is not the final product model.
-The final Launcher should keep persistent data in shared userData and read
-MAME/game metadata from external pack `pack.json` files.
+The final Launcher should keep persistent data in shared userData, use the
+shared MAME runtime installed with the app, and read game/resource metadata
+from lightweight pack `pack.json` files.
 
 ## Sincronizar plugin al pack de prueba
 
@@ -432,6 +490,8 @@ Season membership check notes:
 [`docs/season-membership-check-1.md`](docs/season-membership-check-1.md).
 Pack readiness notes:
 [`docs/pack-readiness-1.md`](docs/pack-readiness-1.md).
+Pack library grid notes:
+[`docs/pack-library-grid-1.md`](docs/pack-library-grid-1.md).
 Account switcher notes:
 [`docs/account-switcher-gui-1.md`](docs/account-switcher-gui-1.md).
 Remembered sessions notes:
@@ -488,9 +548,10 @@ Then edit `weekId`. In this flat layout, MAME is resolved from the pack root:
 }
 ```
 
-This is only for the current development pack. The cleaner final pack layout
-continues to be the one documented by `local/pack.example.json`, with MAME
-inside a `mame/` subfolder.
+This is only for the current development pack. The next compatibility layout is
+the one documented by `local/pack.example.json`, with MAME inside a `mame/`
+subfolder. The final shared-runtime layout removes MAME from packs entirely and
+is documented in `local/docs/shared-mame-runtime-blueprint-1.md`.
 
 When a pack opens successfully, the GUI remembers its folder in shared user
 data:
@@ -558,6 +619,14 @@ The launcher scans only direct subfolders with `pack.json`, lists detected
 packs, and lets the player activate one with `Usar este pack`. This reuses the
 same activation and remembered-pack flow as `Abrir pack`. The app does not copy,
 move, download, or delete packs.
+
+The library now presents detected packs as visual cards instead of a technical
+list. Cards use local `metadata.json` assets when available, fall back to an HSL
+placeholder when no cover/icon/logo exists, show simple local states
+(`Listo`, `Con avisos`, `Requiere atencion`, `No disponible`) and mark the
+active pack with an `Activo` badge plus a disabled `Ya activo` action. The
+location list stays available but secondary; detailed paths and warnings remain
+in development details.
 
 Before competition play and pending uploads, the GUI now checks whether the
 connected account belongs to the season for the active pack `weekId`. Known

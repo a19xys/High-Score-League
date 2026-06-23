@@ -11,7 +11,7 @@ La web organiza la liga: rankings, temporadas, reglas, manuales, comunidad, cuen
 La experiencia final debe sentirse así:
 
 1. El jugador instala el launcher una vez.
-2. Añade una o varias ubicaciones donde guarda packs descomprimidos.
+2. Elige el directorio unico donde guarda packs descomprimidos.
 3. La app detecta los packs disponibles.
 4. El jugador elige un juego desde una biblioteca visual.
 5. La app muestra portada, hero, logo, estado, manual, ranking y acciones claras.
@@ -26,7 +26,10 @@ El jugador no debería gestionar `pack.json`, rutas absolutas, carpetas `pending
 - La web sigue siendo el centro de liga, temporadas, rankings, manuales, comunidad, cuentas y administración.
 - La app local no es una segunda web.
 - El launcher se instala una vez.
-- Los packs son externos, descomprimidos y desechables.
+- MAME debe instalarse y actualizarse una sola vez con la app local.
+- Los packs finales son externos, ligeros, descomprimidos y desechables.
+- Los packs finales no incluyen MAME; solo recursos del juego, presentacion,
+  manual y configuracion competitiva.
 - La sesión no vive dentro del pack.
 - `userData` conserva sesión, preferencias, logs y estado persistente.
 - La cola final de la GUI vive por cuenta y pack en `userData`.
@@ -96,33 +99,52 @@ Opciones técnicas a evaluar en tareas futuras:
 
 El login email/contraseña actual sigue siendo válido para el MVP. La versión final debería tender a vinculación desde la web porque concentra registro, recuperación de cuenta, políticas de sesión y experiencia de usuario en el sitio principal.
 
-## Biblioteca de ubicaciones
+## Directorio unico de packs
 
-La app final debe incorporar el concepto:
-
-```text
-+ Añadir ubicación
-```
-
-Una ubicación es una carpeta que contiene packs descomprimidos. La app puede tener varias ubicaciones, por ejemplo:
+La app final debe preferir un unico directorio de packs:
 
 ```text
 D:/High Score League Packs/
-C:/Users/u/Games/HSL/
-Disco externo/HSL Packs/
+  space-invaders/
+  galaga/
+  pac-man/
 ```
 
-La app escanea esas ubicaciones y detecta subcarpetas con `pack.json`. El jugador no debería abrir un `pack.json` concreto cada vez: añade una ubicación y deja que el launcher encuentre los packs.
+Ese directorio contiene packs descomprimidos. La experiencia final deberia
+ofrecer:
+
+```text
+Elegir directorio
+Cambiar directorio
+Abrir directorio
+Reescanear
+```
+
+El jugador no deberia abrir un `pack.json` concreto cada vez: elige la carpeta
+raiz de packs y deja que el launcher detecte subcarpetas con `pack.json`.
 
 Persistencia futura sugerida:
 
 ```text
-userData/libraries/locations.json
+userData/libraries/pack-directory.json
 ```
 
-Esta tarea no implementa ubicaciones ni escaneo.
+El soporte actual de varias ubicaciones con `locations.json` queda como paso
+intermedio y herramienta de desarrollo. El modelo de producto preferido es un
+solo directorio para simplificar soporte, instalacion con un click y estados de
+pack.
 
 Primer soporte implementado en `LOCAL-PACK-LIBRARY-LOCATIONS-1`: la GUI puede guardar ubicaciones en `userData/libraries/locations.json`, escanear subcarpetas directas con `pack.json`, listar packs detectados y activar uno reutilizando el flujo de `Abrir pack`. El grid visual final, filtros y busqueda siguen pendientes.
+
+Primer soporte visual implementado en `LOCAL-PACK-LIBRARY-GRID-1`: la biblioteca
+muestra packs detectados como cards con assets locales, placeholder HSL,
+estados simples, pack activo destacado y empty states. Sigue sin implementar
+filtros, busqueda, descarga de packs, estados remotos para todos los packs ni
+el revamp completo.
+
+`LOCAL-SHARED-MAME-RUNTIME-BLUEPRINT-1` ajusta la direccion final: la biblioteca
+debe listar packs ligeros sin MAME en un unico directorio, mientras la app
+instalada gestiona un runtime MAME compartido.
 
 ## Biblioteca de packs
 
@@ -223,9 +245,18 @@ Mínimo sugerido:
 }
 ```
 
-`pack.json` mantiene identidad, ROM, week, season, rutas MAME relativas y plugin. Los ejemplos actuales `local/pack.example.json` y `local/examples/pack.hsl-invaders-flat.example.json` siguen siendo el contrato mínimo técnico del MVP.
+`pack.json` mantiene identidad, ROM, week, season y datos de runtime/captura. En
+el contrato MVP actual todavia incluye rutas MAME relativas y plugin. Los
+ejemplos actuales `local/pack.example.json` y
+`local/examples/pack.hsl-invaders-flat.example.json` siguen siendo el contrato
+minimo tecnico v1 hasta que exista `packVersion: 2`; el destino final es que
+esas rutas apunten a recursos del pack y no a `mame.exe` dentro del pack.
 
 Primer soporte implementado en `LOCAL-PACK-METADATA-ASSETS-1`: el pack activo puede cargar `metadata.json`, resolver assets locales dentro del pack y usarlos en la GUI con fallbacks seguros. La biblioteca de ubicaciones y el grid de packs siguen pendientes.
+
+`LOCAL-PACK-LIBRARY-GRID-1` reutiliza esos mismos assets en cards de biblioteca:
+`cover`, `icon` o `logo` si existen, y placeholder local si faltan. La metadata
+sigue siendo presentacion local y no cambia el contrato jugable.
 
 ## Sincronización automática de puntuaciones
 
@@ -415,6 +446,9 @@ Orden recomendado:
 
 - `auto-sync-queue-1.md` implementa la primera sincronizacion automatica
   conservadora sobre la cola scoped activa, sin cambiar payloads ni endpoint.
+- `shared-mame-runtime-blueprint-1.md` define el destino final de runtime MAME
+  compartido, packs ligeros, directorio unico de packs y carga futura de
+  plugin/adaptadores.
 
 ## No se implementa en esta tarea
 

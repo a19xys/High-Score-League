@@ -271,7 +271,49 @@ test("renderer technical details include safe membership diagnostics", async () 
   assert.match(devTools, /Motivo tecnico/);
   assert.match(devTools, /Auto-sync estado/);
   assert.match(devTools, /Auto-sync motivo/);
+  assert.match(devTools, /Biblioteca ubicaciones/);
+  assert.match(devTools, /Biblioteca packs/);
+  assert.match(devTools, /Biblioteca packs invalidos/);
+  assert.match(devTools, /Biblioteca warnings/);
   assert.equal(/access_token|refresh_token|Authorization|session\.json/.test(devTools), false);
+});
+
+test("renderer pack library renders visual cards and empty states", async () => {
+  const libraryPanel = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "library-panel.js"),
+    "utf8",
+  );
+  const emptyState = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "library-empty-state.js"),
+    "utf8",
+  );
+  const packCard = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "pack-card.js"),
+    "utf8",
+  );
+  const styles = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"),
+    "utf8",
+  );
+
+  assert.match(libraryPanel, /Biblioteca local/);
+  assert.match(libraryPanel, /Todavia no hay carpetas de packs/);
+  assert.match(libraryPanel, /No se han encontrado packs en estas ubicaciones/);
+  assert.match(libraryPanel, /data-action="refresh"/);
+  assert.match(libraryPanel, /renderPackCard\(pack, state\)/);
+  assert.match(emptyState, /library-empty-state/);
+  assert.match(packCard, /pack\.cover \|\| pack\.icon \|\| pack\.logo/);
+  assert.match(packCard, /pack-card__placeholder/);
+  assert.match(packCard, /Activo/);
+  assert.match(packCard, /Ya activo/);
+  assert.match(packCard, /data-action="use-library-pack"/);
+  assert.match(packCard, /Requiere atencion/);
+  assert.match(styles, /\.library-pack-grid/);
+  assert.match(styles, /\.pack-card--active/);
+  assert.match(styles, /\.pack-card__placeholder/);
+  assert.equal(/escapeHtml\(pack\.packDir|escapeHtml\(pack\.packPath/.test(packCard), false);
+  assert.equal(/checkSeasonMembership|membership/.test(libraryPanel + packCard), false);
+  assert.equal(/access_token|refresh_token|Authorization/.test(libraryPanel + packCard), false);
 });
 
 test("launcher service and renderer expose account switcher without tokens", async () => {

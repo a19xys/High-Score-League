@@ -127,6 +127,24 @@ Documento especifico:
 Documento especifico:
 [`pack-library-locations-1.md`](pack-library-locations-1.md).
 
+## Pack library grid 1
+
+- La seccion de biblioteca pasa de lista basica a cards visuales.
+- Cada card usa `cover`, `icon` o `logo` locales si existen, y placeholder HSL
+  con iniciales si faltan assets.
+- La card muestra titulo, subtitulo, badges locales y accion `Usar este pack`.
+- El pack activo se marca con badge `Activo`, borde diferenciado y boton
+  `Ya activo` deshabilitado.
+- Las ubicaciones siguen disponibles pero son secundarias; `Refrescar`,
+  `+ Anadir ubicacion` y `Quitar` mantienen las acciones existentes.
+- Los detalles tecnicos agregan conteos de ubicaciones, packs, packs invalidos
+  y warnings.
+- No se implementan busqueda, filtros, descarga, estados remotos ni readiness
+  para todos los packs.
+
+Documento especifico:
+[`pack-library-grid-1.md`](pack-library-grid-1.md).
+
 ## Season membership check 1
 
 - La GUI comprueba la participacion de la cuenta activa en la temporada del

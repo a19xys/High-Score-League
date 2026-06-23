@@ -56,6 +56,11 @@ export function renderDevTools(state) {
   const membership = data?.membership;
   const autoSync = data?.autoSync;
   const readiness = data?.readiness;
+  const library = data?.library;
+  const libraryWarnings = [
+    library?.error,
+    ...(library?.locations || []).flatMap((location) => location.warnings || []),
+  ].filter(Boolean);
   const modeLabel = data?.bridge?.packOpened
     ? "pack abierto"
     : data?.bridge?.devBridge
@@ -97,6 +102,11 @@ export function renderDevTools(state) {
             <dt>Metadata</dt>
             <dd>${escapeHtml(metadataLabel)}</dd>
           </div>
+          ${detailRow("Biblioteca ubicaciones", library?.totals?.locations || 0)}
+          ${detailRow("Biblioteca packs", library?.totals?.packs || 0)}
+          ${detailRow("Biblioteca packs invalidos", library?.totals?.packsWithErrors || 0)}
+          ${detailRow("Biblioteca ubicaciones no disponibles", library?.totals?.missingLocations || 0)}
+          ${detailRow("Biblioteca warnings", libraryWarnings.length ? libraryWarnings.join(" | ") : "sin warnings")}
           ${detailRow("Comprobacion de temporada", membership?.status || "sin comprobacion")}
           ${detailRow("URL consultada", membership?.request?.url)}
           ${detailRow("HTTP status", membership?.response?.httpStatus)}

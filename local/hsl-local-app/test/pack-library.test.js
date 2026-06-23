@@ -117,6 +117,33 @@ test("pack detectado usa metadata.title como titulo", async () => {
   });
 });
 
+test("pack detectado expone cover e icon locales si existen", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = path.join(dir, "library");
+    const packDir = path.join(libraryRoot, "Space Invaders");
+    await writeJson(path.join(packDir, "pack.json"), validPack());
+    await fsp.mkdir(path.join(packDir, "assets"), { recursive: true });
+    await fsp.writeFile(path.join(packDir, "assets", "cover.png"), "cover", "utf8");
+    await fsp.writeFile(path.join(packDir, "assets", "icon.svg"), "<svg></svg>", "utf8");
+    await writeJson(path.join(packDir, "metadata.json"), {
+      assets: {
+        cover: "assets/cover.png",
+        icon: "assets/icon.svg",
+      },
+      title: "Space Invaders Deluxe",
+    });
+    await addLibraryLocation(config(dir), libraryRoot);
+
+    const library = await scanPackLibrary(config(dir));
+
+    assert.equal(library.packs[0].cover.relativePath, "assets/cover.png");
+    assert.equal(library.packs[0].cover.extension, ".png");
+    assert.match(library.packs[0].cover.url, /^file:/);
+    assert.equal(library.packs[0].icon.relativePath, "assets/icon.svg");
+    assert.equal(library.packs[0].icon.extension, ".svg");
+  });
+});
+
 test("pack detectado usa fallback sin metadata", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");

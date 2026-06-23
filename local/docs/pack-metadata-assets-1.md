@@ -12,9 +12,14 @@ metadata.json = presentacion local opcional
 assets/ = imagenes locales opcionales del pack
 ```
 
-Esto no implementa biblioteca de ubicaciones, grid de packs, filtros, busqueda ni descarga de assets. Solo permite que el pack abierto, el ultimo pack recordado o un pack cargado por fallback muestren mejor titulo, descripcion, creditos e imagenes si existen.
+Esto no implementa por si mismo biblioteca de ubicaciones, filtros, busqueda ni descarga de assets. Solo permite que el pack abierto, el ultimo pack recordado o un pack cargado por fallback muestren mejor titulo, descripcion, creditos e imagenes si existen.
 
 Desde `LOCAL-PACK-LIBRARY-LOCATIONS-1`, los packs detectados por ubicaciones tambien usan esta misma metadata y assets para presentarse en la biblioteca basica.
+
+Desde `LOCAL-PACK-LIBRARY-GRID-1`, esa presentacion de biblioteca ya es visual:
+las cards usan `cover`, luego `icon` y luego `logo` como imagen local. Si no hay
+assets validos, muestran un placeholder HSL con iniciales y el pack sigue
+usable.
 
 ## Estructura propuesta
 
@@ -22,14 +27,25 @@ Desde `LOCAL-PACK-LIBRARY-LOCATIONS-1`, los packs detectados por ubicaciones tam
 pack/
   pack.json
   metadata.json
+  manifest.json
   assets/
     hero.png | hero.jpg | hero.webp
     logo.png | logo.svg
     icon.png | icon.svg
     cover.jpg | cover.png | cover.webp
+  manual/
+  roms/
+  artwork/
+  samples/
 ```
 
 `metadata.json` es opcional. Si falta, el launcher conserva el fallback actual: nombre de juego desde el registro local, `gameId`, ROM, semana y estado de cola.
+
+En el modelo final documentado por
+`shared-mame-runtime-blueprint-1.md`, esta estructura pertenece a un pack
+ligero sin MAME. `metadata.json` y `assets/` siguen siendo solo presentacion
+local; `pack.json` v2 debera referenciar recursos del pack, no un `mame.exe`
+incluido dentro del pack.
 
 ## Campos iniciales
 
@@ -79,6 +95,10 @@ Para el pack activo, la GUI usa si están disponibles:
 - `cover` o `icon` como apoyo visual junto a la cola.
 
 Los warnings de metadata/assets quedan en `Herramientas de desarrollo > Detalles técnicos`.
+
+Para packs no activos en la biblioteca, la GUI usa solo la metadata ya cargada
+por `scanPackLibrary`. No ejecuta readiness completa ni consulta la web para
+cada pack.
 
 ## Pack plano hsl-invaders
 
