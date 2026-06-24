@@ -230,10 +230,47 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
   }
 
   if (isPackV2) {
-    checks.push(check("capture-v2", "error", "Captura", "Competicion pendiente de plugin/adaptador v2.", [
-      pack?.contract?.capture?.mode ? `capture.mode=${pack.contract.capture.mode}` : null,
-      pack?.contract?.capture?.adapter ? `adapter=${pack.contract.capture.adapter}` : null,
-    ]));
+    const capture = pack?.contract?.capture || {};
+    const adapterExists = isFile(capture.adapterPath);
+
+    checks.push(check(
+      "capture-mode-v2",
+      capture.mode === "plugin" ? "ok" : "error",
+      "Captura",
+      capture.mode === "plugin"
+        ? "El pack declara captura mediante plugin."
+        : "capture.mode debe ser plugin para la captura v2 actual.",
+      [capture.mode ? `capture.mode=${capture.mode}` : "capture.mode ausente"]
+    ));
+    checks.push(check(
+      "capture-plugin-v2",
+      capture.pluginName ? "ok" : "error",
+      "Plugin",
+      capture.pluginName
+        ? `Plugin de captura declarado: ${capture.pluginName}.`
+        : "El pack v2 no declara capture.pluginName."
+    ));
+    checks.push(check(
+      "capture-adapter-v2",
+      adapterExists ? "ok" : "error",
+      "Adaptador",
+      adapterExists
+        ? "Adaptador de captura encontrado dentro del pack."
+        : capture.adapter
+          ? "No encuentro el adaptador de captura declarado dentro del pack."
+          : "El pack v2 no declara capture.adapter.",
+      [capture.adapter ? `capture.adapter=${capture.adapter}` : null, capture.adapterPath]
+    ));
+    checks.push(check(
+      "capture-v2",
+      "error",
+      "Competicion",
+      "Competicion v2 bloqueada: falta implementar la carga segura del plugin/adaptador.",
+      [
+        "La practica v2 ya usa MAME compartido.",
+        "Siguiente tarea: LOCAL-MAME-PACK-PLUGIN-LOADING-2.",
+      ]
+    ));
   } else if (pluginName) {
     checks.push(check("plugin-name", "ok", "Plugin", `Plugin configurado: ${pluginName}.`));
   } else {

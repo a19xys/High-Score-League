@@ -675,6 +675,26 @@ complete multi-pack management.
 The final direction is documented as a local pack library and player launcher
 in [`docs/launcher-final-ux-blueprint-1.md`](docs/launcher-final-ux-blueprint-1.md).
 
+## Mega product pass 1
+
+`LOCAL-LAUNCHER-MEGA-PRODUCT-PASS-1` reorganiza la GUI alrededor de biblioteca,
+detalle del juego y actividad local. Añade agrupación por temporadas, vistas de
+portadas/lista/iconos, búsqueda y filtros locales, manual seguro y fallback de
+ranking a `/weeks/<weekId>`.
+
+La competición v2 sigue bloqueada: el plugin actual todavía no carga
+`capture.adapter`. Readiness y diagnose explican modo, plugin, adaptador y
+existencia del archivo sin habilitar captura falsa. Consulta:
+
+- [`docs/mame-pack-plugin-loading-1.md`](docs/mame-pack-plugin-loading-1.md)
+- [`docs/launcher-ux-revamp-1.md`](docs/launcher-ux-revamp-1.md)
+- [`docs/pack-library-seasons-1.md`](docs/pack-library-seasons-1.md)
+- [`docs/pack-library-views-1.md`](docs/pack-library-views-1.md)
+- [`docs/manual-viewer-1.md`](docs/manual-viewer-1.md)
+- [`docs/activity-details-1.md`](docs/activity-details-1.md)
+- [`docs/ranking-viewer-1.md`](docs/ranking-viewer-1.md)
+- [`docs/legacy-deprecation-plan.md`](docs/legacy-deprecation-plan.md)
+
 Configuration precedence is:
 
 1. Explicit `config.json`, when present.

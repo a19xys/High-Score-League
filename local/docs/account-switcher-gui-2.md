@@ -170,3 +170,9 @@ No se mueven archivos y no se fusionan colas.
 - No hay registro desde app.
 - No hay vinculacion web.
 - No hay cifrado propio de sesiones recordadas.
+
+## Integración en el revamp
+
+La cabecera muestra una cuenta compacta y el panel de cuenta conserva cambio,
+alta y cierre de sesión. El revamp no cambia el formato de sesiones recordadas
+ni expone tokens al renderer.

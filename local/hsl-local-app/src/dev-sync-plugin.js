@@ -12,8 +12,8 @@ function getRepoPluginDir(appDir = APP_DIR) {
 
 /**
  * @deprecated Development bridge helper for packVersion 1 packs with embedded
- * MAME. Replace with shared-runtime plugin/adaptor preparation after
- * LOCAL-SHARED-MAME-RUNTIME-1.
+ * MAME. Replace with isolated shared-runtime plugin/adapter preparation in
+ * LOCAL-MAME-PACK-PLUGIN-LOADING-2.
  */
 function getConfiguredPackPluginDir(config) {
   const workingDir = config?.mame?.workingDir;
@@ -99,7 +99,8 @@ async function assertWorkingDirExists(workingDir) {
 
 /**
  * @deprecated Copies the plugin into a pack-local MAME tree for the temporary
- * dev bridge. packVersion 2 should use the shared MAME runtime path.
+ * dev bridge. packVersion 2 must use isolated shared-runtime plugin/adapter
+ * preparation instead of copying into a disposable pack.
  */
 async function syncPluginToPack(config, options = {}) {
   const sourceDir = options.sourceDir || getRepoPluginDir(config.appDir);

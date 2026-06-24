@@ -213,6 +213,35 @@ test("pack detectado usa metadata.title como titulo", async () => {
   });
 });
 
+test("pack v2 expone temporada y metadata para vistas y filtros", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = path.join(dir, "library");
+    const packDir = path.join(libraryRoot, "Space Invaders");
+    await writeJson(path.join(packDir, "pack.json"), validV2Pack());
+    await writeJson(path.join(packDir, "metadata.json"), {
+      developer: "Taito",
+      genre: ["Fixed shooter", "Arcade"],
+      publisher: "Midway",
+      shortDescription: "Defiende la Tierra.",
+      title: "Space Invaders",
+      year: 1978,
+    });
+    await setPackDirectory(config(dir), libraryRoot);
+
+    const library = await scanPackLibrary(config(dir));
+    const pack = library.packs[0];
+
+    assert.equal(pack.seasonId, "season-1");
+    assert.equal(pack.seasonName, "Temporada 1");
+    assert.equal(pack.weekNumber, 1);
+    assert.equal(pack.developer, "Taito");
+    assert.equal(pack.publisher, "Midway");
+    assert.equal(pack.year, 1978);
+    assert.deepEqual(pack.genre, ["Fixed shooter", "Arcade"]);
+    assert.equal(pack.shortDescription, "Defiende la Tierra.");
+  });
+});
+
 test("pack detectado expone cover e icon locales si existen", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");

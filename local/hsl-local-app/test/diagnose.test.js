@@ -261,7 +261,8 @@ test("diagnose reports packVersion 2 shared runtime and practice args", async ()
     assert.ok(hasEntry(report.sections.runtime, "OK", /mame\.exe compartido encontrado/));
     assert.ok(hasEntry(report.sections.mame, "OK", /runtime MAME compartido para practica/));
     assert.ok(hasEntry(report.sections.launcher, "OK", /practice v2 construye argumentos/));
-    assert.ok(hasEntry(report.sections.launcher, "INFO", /competition v2 queda pendiente/));
+    assert.ok(hasEntry(report.sections.launcher, "INFO", /competition v2 bloqueada/));
+    assert.ok(report.recommendations.some((item) => /LOCAL-MAME-PACK-PLUGIN-LOADING-2/.test(item)));
   });
 });
 

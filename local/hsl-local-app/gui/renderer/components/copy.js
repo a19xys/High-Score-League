@@ -3,7 +3,7 @@ export const COPY = {
     diagnose: "Diagnóstico",
     logout: "Cerrar sesión",
     openPack: "Abrir pack",
-    play: "Jugar competición",
+    play: "Jugar",
     practice: "Practicar",
     refresh: "Actualizar estado",
     submit: "Subir pendientes",

@@ -118,3 +118,9 @@ Las pruebas cubren:
 - lock de intentos concurrentes;
 - resumen de `synced`, `partial_failed` y `failed`;
 - exposicion renderer sin secretos.
+
+## Presentación actual
+
+Auto-sync se muestra dentro de `Actividad local` como estado, no como flujo
+técnico principal. `Subir pendientes` sigue disponible para recuperación y los
+detalles permanecen limitados al scope activo.

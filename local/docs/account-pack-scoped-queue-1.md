@@ -143,3 +143,9 @@ para una tarea explicita posterior si hace falta.
 - No se importan capturas antiguas automaticamente.
 - No se comprueba pertenencia a temporada.
 - No se cambia el plugin, el payload, `duplicateKey` ni el endpoint web.
+
+## Integración en Actividad local
+
+Los totales y detalles de pending/sent/failed se leen exclusivamente del scope
+activo. `Puntuaciones con error`, restauración y subida manual reutilizan los
+flujos existentes; no se mueven puntuaciones entre cuentas o packs.

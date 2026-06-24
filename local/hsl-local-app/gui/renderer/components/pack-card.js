@@ -36,47 +36,30 @@ function isActivePack(pack, data = {}) {
 }
 
 function statusMeta(pack, active, readiness) {
-  if (active && readiness?.status === "ready") {
-    return { className: "badge-ok", label: "Listo para jugar" };
-  }
-
-  if (active && readiness?.status === "blocked") {
-    return { className: "badge-error", label: "Requiere atencion" };
-  }
-
-  if (active && readiness?.status === "warning") {
-    return { className: "badge-warn", label: "Listo con avisos" };
-  }
-
-  if (pack.status === "error") {
-    return { className: "badge-error", label: "Requiere atencion" };
-  }
-
-  if (pack.status === "warning") {
-    return { className: "badge-warn", label: "Con avisos" };
-  }
-
-  if (pack.status === "missing") {
-    return { className: "badge-warn", label: "No disponible" };
-  }
-
-  return { className: "badge-ok", label: "Listo" };
+  if (active && readiness?.status === "ready") return { className: "badge-ok", label: "Listo para jugar" };
+  if (active && readiness?.status === "blocked") return { className: "badge-error", label: "Requiere atencion" };
+  if (active && readiness?.status === "warning") return { className: "badge-warn", label: "Listo con avisos" };
+  if (pack.status === "error") return { className: "badge-error", label: "Requiere atencion" };
+  if (pack.deprecated) return { className: "badge-warn", label: "Legacy / deprecated" };
+  if (pack.status === "warning") return { className: "badge-warn", label: "Con avisos" };
+  if (pack.status === "missing") return { className: "badge-warn", label: "No disponible" };
+  return { className: "badge-ok", label: "Instalado" };
 }
 
 function subtitleForPack(pack) {
-  if (pack.subtitle) {
-    return pack.subtitle;
-  }
+  const season = pack.seasonName || pack.seasonId;
+  const week = pack.weekNumber ? `Semana ${pack.weekNumber}` : pack.subtitle || pack.weekId;
 
-  if (pack.weekId) {
-    return `Semana ${pack.weekId}`;
-  }
-
-  return pack.rom || "Pack local";
+  return [season, week].filter(Boolean).join(" · ") || pack.rom || "Pack local";
 }
 
-function renderPackVisual(pack) {
-  const asset = pack.cover || pack.icon || pack.logo;
+function visualAsset(pack, view) {
+  if (view === "covers") return pack.cover || pack.icon || pack.logo;
+  return pack.icon || pack.cover || pack.logo;
+}
+
+function renderPackVisual(pack, view) {
+  const asset = visualAsset(pack, view);
 
   if (asset?.url) {
     return `
@@ -99,32 +82,41 @@ function renderBadges(pack, active, readiness) {
   const badges = [
     active ? `<span class="badge badge-accent">Activo</span>` : "",
     `<span class="badge ${meta.className}">${escapeHtml(meta.label)}</span>`,
-    pack.weekId ? `<span class="badge badge-muted">${escapeHtml(pack.weekId)}</span>` : "",
-    pack.rom ? `<span class="badge badge-muted">${escapeHtml(pack.rom)}</span>` : "",
   ].filter(Boolean);
 
   return `<div class="pack-card__badges">${badges.join("")}</div>`;
 }
 
-export function renderPackCard(pack, state) {
+function renderMetadata(pack, view) {
+  if (view === "icons") {
+    return "";
+  }
+
+  const details = [
+    pack.developer || pack.publisher,
+    pack.year ? String(pack.year) : null,
+    ...(pack.genre || []).slice(0, view === "list" ? 2 : 1),
+  ].filter(Boolean);
+
+  return details.length ? `<p class="pack-card__metadata">${escapeHtml(details.join(" · "))}</p>` : "";
+}
+
+export function renderPackCard(pack, state, view = "covers") {
   const active = isActivePack(pack, state.data);
   const disabled = state.busy || active || pack.status === "error" || pack.status === "missing" ? "disabled" : "";
-  const buttonLabel = active ? "Ya activo" : "Usar este pack";
-  const cardClass = active ? "pack-card pack-card--active" : "pack-card";
-  const issueCopy = pack.status === "error"
-    ? `<p class="pack-card__issue">Este pack necesita revision.</p>`
-    : "";
+  const buttonLabel = active ? "Activo" : "Seleccionar";
+  const cardClass = `pack-card pack-card--${view}${active ? " pack-card--active" : ""}`;
 
   return `
-    <article class="${cardClass}">
-      ${renderPackVisual(pack)}
+    <article class="${cardClass}" title="${escapeHtml(pack.title || "Pack local")}">
+      ${renderPackVisual(pack, view)}
       <div class="pack-card__body">
         ${renderBadges(pack, active, state.data?.readiness)}
         <div class="pack-card__text">
           <h3>${escapeHtml(pack.title || "Pack local")}</h3>
           <p>${escapeHtml(subtitleForPack(pack))}</p>
+          ${renderMetadata(pack, view)}
         </div>
-        ${issueCopy}
         <button class="tool-button library-use-button" type="button" data-action="use-library-pack" data-pack-id="${escapeHtml(pack.id)}" ${disabled}>
           ${buttonLabel}
         </button>
@@ -138,4 +130,5 @@ export const packCardTestApi = {
   isActivePack,
   statusMeta,
   subtitleForPack,
+  visualAsset,
 };

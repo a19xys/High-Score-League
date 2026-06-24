@@ -137,3 +137,10 @@ El soporte v1 se conserva para no romper:
 
 La eliminacion de v1 queda para `LOCAL-REMOVE-PACK-V1-LEGACY`, despues de tener
 runtime compartido estable, carga de plugin/adaptador y migracion de packs.
+
+## Estado de capture.adapter
+
+El contrato valida que `capture.adapter` sea relativo y permanezca dentro del
+pack. El launcher comprueba además si el archivo existe, pero todavía no lo
+ejecuta ni lo copia. Por seguridad, declarar el campo no habilita competición
+v2 hasta `LOCAL-MAME-PACK-PLUGIN-LOADING-2`.

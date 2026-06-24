@@ -17,6 +17,79 @@ function compactPath(value) {
   return `.../${parts.slice(-2).join("/")}`;
 }
 
+function normalizeSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+function searchText(pack) {
+  return normalizeSearch([
+    pack.title,
+    pack.subtitle,
+    pack.developer,
+    pack.publisher,
+    pack.year,
+    ...(pack.genre || []),
+    pack.rom,
+    pack.gameId,
+    pack.packId,
+    pack.seasonName,
+    pack.weekId,
+  ].filter(Boolean).join(" "));
+}
+
+function matchesStatus(pack, filter) {
+  if (filter === "all") return true;
+  if (filter === "legacy") return pack.deprecated === true;
+  if (filter === "attention") return pack.status === "error";
+  if (filter === "installed") return pack.status !== "missing";
+  return pack.status === filter;
+}
+
+function filterPacks(packs, state) {
+  const query = normalizeSearch(state.libraryQuery);
+
+  return packs.filter((pack) => {
+    const matchesQuery = !query || searchText(pack).includes(query);
+    const matchesSeason = state.librarySeason === "all" ||
+      (state.librarySeason === "legacy" && pack.deprecated) ||
+      (state.librarySeason === "unseasoned" && !pack.seasonId && !pack.deprecated) ||
+      pack.seasonId === state.librarySeason;
+
+    return matchesQuery && matchesSeason && matchesStatus(pack, state.libraryStatus);
+  });
+}
+
+function groupPacks(packs) {
+  const groups = new Map();
+
+  for (const pack of packs) {
+    const id = pack.deprecated
+      ? "legacy"
+      : pack.seasonId
+        ? `season:${pack.seasonId}`
+        : "unseasoned";
+    const title = pack.deprecated
+      ? "Legacy / deprecated"
+      : pack.seasonName || pack.seasonId || "Sin temporada";
+
+    if (!groups.has(id)) {
+      groups.set(id, {
+        id,
+        packs: [],
+        title,
+      });
+    }
+
+    groups.get(id).packs.push(pack);
+  }
+
+  return [...groups.values()];
+}
+
 function renderDirectoryPanel(state) {
   const directory = state.data?.library?.directory || {};
   const disabled = state.busy ? "disabled" : "";
@@ -47,15 +120,63 @@ function renderDirectoryPanel(state) {
         ${warning ? `<p class="pack-directory__warning">${escapeHtml(warning)}</p>` : ""}
       </div>
       <div class="pack-directory__actions">
-        <button class="text-button" type="button" data-action="choose-pack-directory" ${disabled}>
-          Cambiar directorio
-        </button>
-        <button class="text-button" type="button" data-action="open-pack-directory" ${disabled || !directory.exists ? "disabled" : ""}>
-          Abrir directorio
-        </button>
-        <button class="text-button" type="button" data-action="rescan-pack-directory" ${disabled}>
-          Reescanear
-        </button>
+        <button class="text-button" type="button" data-action="choose-pack-directory" ${disabled}>Cambiar directorio</button>
+        <button class="text-button" type="button" data-action="open-pack-directory" ${disabled || !directory.exists ? "disabled" : ""}>Abrir directorio</button>
+        <button class="text-button" type="button" data-action="rescan-pack-directory" ${disabled}>Reescanear</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderViewButton(state, view, label) {
+  const active = state.libraryView === view;
+
+  return `
+    <button class="view-button ${active ? "view-button--active" : ""}" type="button" data-action="set-library-view" data-view="${view}" aria-pressed="${active}">
+      ${label}
+    </button>
+  `;
+}
+
+function renderLibraryToolbar(state, packs) {
+  const seasons = new Map();
+
+  for (const pack of packs) {
+    if (pack.seasonId) {
+      seasons.set(pack.seasonId, pack.seasonName || pack.seasonId);
+    }
+  }
+
+  return `
+    <div class="library-toolbar">
+      <label class="library-search">
+        <span>Buscar juegos</span>
+        <input type="search" placeholder="Titulo, estudio, año, genero o ROM" data-library-search value="${escapeHtml(state.libraryQuery)}">
+      </label>
+      <div class="library-filters">
+        <label>
+          <span>Temporada</span>
+          <select data-library-season>
+            <option value="all" ${state.librarySeason === "all" ? "selected" : ""}>Todas</option>
+            ${[...seasons.entries()].map(([id, name]) => `<option value="${escapeHtml(id)}" ${state.librarySeason === id ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+            <option value="unseasoned" ${state.librarySeason === "unseasoned" ? "selected" : ""}>Sin temporada</option>
+            <option value="legacy" ${state.librarySeason === "legacy" ? "selected" : ""}>Legacy</option>
+          </select>
+        </label>
+        <label>
+          <span>Estado</span>
+          <select data-library-status>
+            <option value="all" ${state.libraryStatus === "all" ? "selected" : ""}>Todos</option>
+            <option value="installed" ${state.libraryStatus === "installed" ? "selected" : ""}>Instalados</option>
+            <option value="attention" ${state.libraryStatus === "attention" ? "selected" : ""}>Requiere atencion</option>
+            <option value="legacy" ${state.libraryStatus === "legacy" ? "selected" : ""}>Legacy / deprecated</option>
+          </select>
+        </label>
+      </div>
+      <div class="library-views" aria-label="Vista de biblioteca">
+        ${renderViewButton(state, "covers", "Portadas")}
+        ${renderViewButton(state, "list", "Lista")}
+        ${renderViewButton(state, "icons", "Iconos")}
       </div>
     </div>
   `;
@@ -87,23 +208,36 @@ function renderPacks(state) {
     });
   }
 
-  return `
-    <div class="library-pack-grid">
-      ${packs.map((pack) => renderPackCard(pack, state)).join("")}
-    </div>
-  `;
+  const filtered = filterPacks(packs, state);
+
+  if (filtered.length === 0) {
+    return renderLibraryEmptyState({
+      body: "Prueba otra busqueda, temporada o estado.",
+      state,
+      title: "No hay juegos que coincidan con los filtros.",
+    });
+  }
+
+  return groupPacks(filtered).map((group) => `
+    <section class="season-group">
+      <div class="season-group__heading">
+        <h3>${escapeHtml(group.title)}</h3>
+        <span>${group.packs.length} ${group.packs.length === 1 ? "juego" : "juegos"}</span>
+      </div>
+      <div class="library-pack-grid library-pack-grid--${escapeHtml(state.libraryView)}">
+        ${group.packs.map((pack) => renderPackCard(pack, state, state.libraryView)).join("")}
+      </div>
+    </section>
+  `).join("");
 }
 
 function renderLibrarySummary(data) {
   const totals = data?.library?.totals || {};
-  const directory = data?.library?.directory || {};
 
   return `
     <div class="library-summary" aria-label="Resumen de biblioteca">
-      <span><strong>${directory.path ? "1" : "0"}</strong> directorio</span>
-      <span><strong>${totals.packs || 0}</strong> packs</span>
+      <span><strong>${totals.packs || 0}</strong> juegos instalados</span>
       ${totals.packsWithErrors ? `<span><strong>${totals.packsWithErrors}</strong> requieren atencion</span>` : ""}
-      ${totals.directoryMissing ? `<span><strong>${totals.directoryMissing}</strong> no disponible</span>` : ""}
     </div>
   `;
 }
@@ -120,23 +254,29 @@ export function renderLibraryPanel(state) {
     <section class="panel library-panel">
       <div class="panel-heading compact">
         <div>
-          <h2>Biblioteca local</h2>
-          <p>Packs detectados en tu directorio local.</p>
+          <p class="eyebrow">Juegos instalados</p>
+          <h2>Biblioteca</h2>
+          <p>Temporadas y packs disponibles en este equipo.</p>
         </div>
         <button class="text-button" type="button" data-action="rescan-pack-directory" ${disabled}>Reescanear</button>
       </div>
       ${renderLibrarySummary(data)}
-      <div class="library-section library-section--directory">
-        ${renderDirectoryPanel(state)}
-      </div>
+      ${renderLibraryToolbar(state, data.library?.packs || [])}
       <div class="library-section library-section--packs">
-        <h3>Packs detectados</h3>
         ${renderPacks(state)}
       </div>
+      <details class="library-management">
+        <summary>Gestionar biblioteca</summary>
+        ${renderDirectoryPanel(state)}
+      </details>
     </section>
   `;
 }
 
 export const libraryPanelTestApi = {
   compactPath,
+  filterPacks,
+  groupPacks,
+  normalizeSearch,
+  searchText,
 };

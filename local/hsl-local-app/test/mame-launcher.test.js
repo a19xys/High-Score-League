@@ -105,7 +105,7 @@ test("packVersion 2 practice builds MAME args with shared runtime resources", ()
 test("packVersion 2 competition is blocked until capture adapter loading exists", () => {
   assert.throws(
     () => buildMameArgs(packV2Config(), "invaders", "competition"),
-    /captura competitiva con MAME compartido/
+    /Competicion v2 bloqueada.*capture\.pluginName.*capture\.adapter/
   );
 });
 

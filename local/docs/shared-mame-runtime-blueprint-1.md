@@ -447,3 +447,10 @@ Orden logico:
 - despues implementar runtime global y carga plugin/adaptador;
 - luego preparar catalogo e instalacion;
 - finalmente empaquetar instalador y actualizaciones controladas.
+
+## Validación de la arquitectura
+
+La auditoría de `LOCAL-LAUNCHER-MEGA-PRODUCT-PASS-1` confirma la preferencia por
+plugin global + adaptador por pack, pero el cargador aún no existe. No se usa
+`capture.adapter` hasta definir preparación aislada por ejecución, staging y
+limpieza en `LOCAL-MAME-PACK-PLUGIN-LOADING-2`.

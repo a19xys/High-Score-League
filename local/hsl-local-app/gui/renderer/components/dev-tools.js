@@ -76,8 +76,8 @@ export function renderDevTools(state) {
     <section class="panel dev-tools">
       <div class="panel-heading compact">
         <div>
-          <h2>Herramientas de desarrollo</h2>
-          <p>Diagnóstico y datos técnicos quedan separados del flujo de juego.</p>
+          <h2>Configuracion y diagnostico</h2>
+          <p>Opciones tecnicas separadas del flujo normal de juego.</p>
         </div>
       </div>
       <div class="dev-actions">
@@ -86,7 +86,7 @@ export function renderDevTools(state) {
         </button>
         <button class="tool-button" type="button" data-action="sync-plugin" ${syncDisabled}>
           Sincronizar plugin
-          <small>Solo desarrollo</small>
+          <small>Legacy / deprecated</small>
         </button>
         <button class="tool-button" type="button" data-action="choose-shared-mame-runtime" ${disabled}>
           ${escapeHtml(runtimeButtonLabel)}

@@ -322,6 +322,9 @@ test("packVersion 2 con runtime y romDir permite practica pero no competicion", 
     assert.equal(result.canCapture, false);
     assert.equal(result.canPlayCompetition, false);
     assert.ok(result.checks.some((item) => item.id === "runtime-shared" && item.level === "ok"));
+    assert.ok(result.checks.some((item) => item.id === "capture-mode-v2" && item.level === "ok"));
+    assert.ok(result.checks.some((item) => item.id === "capture-plugin-v2" && item.level === "ok"));
+    assert.ok(result.checks.some((item) => item.id === "capture-adapter-v2" && item.level === "error"));
     assert.ok(result.checks.some((item) => item.id === "capture-v2" && item.level === "error"));
   });
 });

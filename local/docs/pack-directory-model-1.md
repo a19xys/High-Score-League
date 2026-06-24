@@ -159,3 +159,10 @@ directorio. `LOCAL-SHARED-MAME-RUNTIME-1` guarda el runtime MAME compartido por
 separado en `userData/runtime/mame-runtime.json`; no vive dentro del directorio
 de packs. Este modelo de directorio sigue sin implementar catalogo remoto,
 descargas ni updates.
+
+## Presentación actual
+
+El directorio único se gestiona desde una sección secundaria de la biblioteca.
+La pantalla principal ya no usa el modelo de múltiples ubicaciones ni presenta
+`Añadir pack` como flujo principal. `locations.json` permanece como fallback
+legacy no destructivo.

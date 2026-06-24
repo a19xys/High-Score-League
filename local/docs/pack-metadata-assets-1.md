@@ -139,3 +139,10 @@ Si no se crean imágenes, la metadata textual se carga y los assets generan warn
 - No se cargan assets remotos como imágenes locales.
 - No se cambia auth, scoped queue, plugin MAME, endpoint ingest, payload ni `duplicateKey`.
 - No se modifica `config.json` real.
+
+## Campos de contenido local
+
+`metadata.json` admite ahora `manual` y `manualPath` además de `manualUrl` y
+`rankingUrl`. Las rutas de manual se validan y abren fuera del renderer. Los
+assets mantienen su uso: `cover` en portadas, `icon` en lista/iconos y
+`hero`/`logo` en el detalle.

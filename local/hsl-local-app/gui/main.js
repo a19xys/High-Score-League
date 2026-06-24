@@ -109,6 +109,14 @@ function registerIpc() {
       state,
     };
   });
+  ipcMain.handle("launcher:open-manual", () => service.openPackManual({
+    openExternalImpl: (url) => shell.openExternal(url),
+    openPathImpl: (filePath) => shell.openPath(filePath),
+  }));
+  ipcMain.handle("launcher:open-ranking", () => service.openPackRanking({
+    openExternalImpl: (url) => shell.openExternal(url),
+    openPathImpl: (filePath) => shell.openPath(filePath),
+  }));
   ipcMain.handle("launcher:check-membership", () => service.recheckSeasonMembership());
   ipcMain.handle("launcher:diagnose", () => service.runDiagnose());
   ipcMain.handle("launcher:play-competition", () => service.playCompetition());

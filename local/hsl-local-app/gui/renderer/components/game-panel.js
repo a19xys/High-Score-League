@@ -1,71 +1,6 @@
 import { COPY, getPackLabel, getQueueSummary, getReadyLabel } from "./copy.js";
 import { escapeHtml } from "./html.js";
 
-function renderSubmitState(state) {
-  const pending = state.data?.queue?.totals?.pending || 0;
-  const hasSession = Boolean(state.data?.session?.hasSession);
-  const membership = state.data?.membership;
-  const readiness = state.data?.readiness;
-  const autoSyncing = state.data?.autoSync?.status === "syncing";
-  const readinessBlocksSubmit = readiness?.canSubmit === false;
-  const disabled = state.busy || autoSyncing || pending === 0 || !hasSession || membership?.canSubmit === false || readinessBlocksSubmit ? "disabled" : "";
-
-  if (autoSyncing) {
-    return `
-      <button class="secondary-action" type="button" data-action="submit" disabled>
-        <span>Subir pendientes</span>
-        <small>Sincronizacion automatica en curso.</small>
-      </button>
-    `;
-  }
-
-  if (!hasSession) {
-    return `
-      <button class="secondary-action" type="button" data-action="submit" disabled>
-        <span>${pending > 0 ? "Subir pendientes" : "Sin pendientes"}</span>
-        <small>Inicia sesion para subir puntuaciones.</small>
-      </button>
-    `;
-  }
-
-  if (membership?.canSubmit === false && pending > 0) {
-    return `
-      <button class="secondary-action" type="button" data-action="submit" disabled>
-        <span>Subir pendientes</span>
-        <small>${escapeHtml(membership.message || "No se puede subir hasta comprobar la temporada.")}</small>
-      </button>
-    `;
-  }
-
-  if (readinessBlocksSubmit && pending > 0) {
-    return `
-      <button class="secondary-action" type="button" data-action="submit" disabled>
-        <span>Subir pendientes</span>
-        <small>${escapeHtml(readiness.message || "La subida necesita atencion.")}</small>
-      </button>
-    `;
-  }
-
-  return `
-    <button class="secondary-action" type="button" data-action="submit" ${disabled}>
-      <span>${pending > 0 ? "Subir pendientes" : "Sin pendientes"}</span>
-      <small>${pending > 0 ? getQueueSummary(state.data.queue) : "La cola local esta limpia"}</small>
-    </button>
-  `;
-}
-
-function renderPackAction(state) {
-  const label = state.data?.bridge?.packOpened ? "Cambiar pack" : "Abrir pack";
-  const disabled = state.busy ? "disabled" : "";
-
-  return `
-    <button class="secondary-action pack-action" type="button" data-action="open-pack" ${disabled}>
-      <span>${label}</span>
-      <small>Elige la carpeta raíz del pack descargado.</small>
-    </button>
-  `;
-}
-
 function membershipBadge(membership) {
   const labels = {
     error: ["badge-error", "Error de comprobacion"],
@@ -200,6 +135,22 @@ function renderPackCredits(game) {
   return `<p class="pack-credits">${escapeHtml(credits.join(" · "))}</p>`;
 }
 
+function renderContentAction(action, label, content, disabled) {
+  const unavailable = !content?.available;
+  const hint = unavailable
+    ? content?.reason || `${label} no disponible para este pack.`
+    : content.kind === "local"
+      ? "Abre el contenido local incluido en el pack."
+      : "Abre High Score League en el navegador.";
+
+  return `
+    <button class="secondary-action compact-action" type="button" data-action="${action}" ${disabled || unavailable ? "disabled" : ""}>
+      <span>${label}</span>
+      <small>${escapeHtml(hint)}</small>
+    </button>
+  `;
+}
+
 export function renderGamePanel(state) {
   const data = state.data;
   const game = data?.game;
@@ -221,7 +172,8 @@ export function renderGamePanel(state) {
     ? readiness.message || "Revisa MAME y la ROM antes de practicar."
     : "Entrena sin activar el plugin de puntuacion.";
   const week = game?.weekId || "Semana actual";
-  const subtitle = game?.subtitle || week;
+  const season = game?.seasonName || null;
+  const subtitle = game?.subtitle || [season, game?.weekNumber ? `Semana ${game.weekNumber}` : week].filter(Boolean).join(" · ");
   const description = game?.shortDescription || getReadyLabel(data);
   const cover = game?.assets?.cover;
   const icon = game?.assets?.icon;
@@ -263,8 +215,8 @@ export function renderGamePanel(state) {
               <span>Practicar</span>
               <small>${escapeHtml(practiceHint)}</small>
             </button>
-            ${renderSubmitState(state)}
-            ${renderPackAction(state)}
+            ${renderContentAction("open-manual", "Ver manual", game?.manual, disabled)}
+            ${renderContentAction("open-ranking", "Ver ranking", game?.ranking, disabled)}
             ${renderMembershipCheckAction(state)}
             ${renderMembershipCallToAction(membership)}
           </div>

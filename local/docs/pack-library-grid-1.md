@@ -185,3 +185,9 @@ Esta tarea no implementa:
 - cambios en scoped queue;
 - cambios en auto-sync, salvo refresco normal al activar pack;
 - cambios en endpoint, payload o `duplicateKey`.
+
+## Extensión por temporadas y vistas
+
+La biblioteca ofrece agrupación por temporada, fallback `Sin temporada` y
+grupo `Legacy / deprecated`. Se añadieron vistas de portadas, lista e iconos,
+con búsqueda por metadata/identidad y filtros por temporada y estado.

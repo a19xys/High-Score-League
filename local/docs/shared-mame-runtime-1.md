@@ -121,3 +121,10 @@ y packs v1 mientras no se complete la migracion.
 - eliminacion de v1;
 - cambios en scoped queue, payload, duplicateKey, endpoint, membership, RLS o
   plugin MAME.
+
+## Estado tras el mega product pass
+
+Práctica v2 continúa usando el runtime compartido. Competición v2 permanece
+bloqueada porque el plugin actual no carga `capture.adapter`; readiness y
+diagnose muestran ahora el motivo exacto. La continuación técnica es
+`LOCAL-MAME-PACK-PLUGIN-LOADING-2`.

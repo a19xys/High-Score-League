@@ -8,8 +8,9 @@ function getDefaultPackPath(appDir) {
 }
 
 /**
- * @deprecated packVersion 1 puede declarar MAME dentro del pack. Mantener solo
- * hasta LOCAL-SHARED-MAME-RUNTIME-1 y la migracion completa a packVersion 2.
+ * @deprecated Compatibilidad para packVersion 1 y su MAME embebido/pack-local.
+ * El reemplazo es packVersion 2 + runtime compartido. No eliminar hasta que
+ * competicion v2, catalogo/instalador y dev bridge esten migrados.
  */
 function resolvePackMamePaths(pack, packDir) {
   if (pack?.packVersion === 2 || pack?.contract?.version === 2) {

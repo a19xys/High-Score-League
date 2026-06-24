@@ -480,3 +480,11 @@ Orden recomendado:
 - No se implementa polling permanente de auto-sync.
 - No se empaqueta Electron.
 - No se modifica configuración real.
+
+## Avance LOCAL-LAUNCHER-MEGA-PRODUCT-PASS-1
+
+La primera jerarquía de producto ya está implementada: biblioteca y detalle son
+protagonistas, actividad queda resumida y las opciones técnicas están plegadas.
+También existen temporadas locales, tres vistas, búsqueda/filtros, manual local,
+ranking web por semana e indicador de conexión. Catálogo remoto, instalación de
+packs, favoritos y ranking JSON integrado siguen pendientes.

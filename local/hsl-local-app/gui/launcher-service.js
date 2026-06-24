@@ -34,6 +34,11 @@ const { launchMame } = require("../src/mame-launcher");
 const { evaluatePackReadiness } = require("../src/pack-readiness");
 const { readPackDirectory, setPackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
+const {
+  resolvePackManual,
+  resolvePackRanking,
+  toRendererContentState,
+} = require("../src/pack-content");
 const { loadPackFromDir, resolvePackMamePaths } = require("../src/pack");
 const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-packs");
 const { writeSharedMameRuntime } = require("../src/shared-mame-runtime");
@@ -743,6 +748,12 @@ function getGameState(config) {
   const supportedGame = listSupportedGames()[0] || null;
   const rom = config.pack?.rom || supportedGame?.launcher?.rom || supportedGame?.primaryRom || "invaders";
   const metadata = config.pack?.metadata || null;
+  const manual = resolvePackManual(config.pack);
+  const ranking = resolvePackRanking({
+    ...(config.pack || {}),
+    webBaseUrl: config.pack?.webBaseUrl || config.webBaseUrl,
+    weekId: config.pack?.weekId || config.defaultWeekId,
+  }, config.webBaseUrl);
 
   return {
     assets: metadata?.assets || {},
@@ -750,16 +761,90 @@ function getGameState(config) {
     displayName: metadata?.title || supportedGame?.title || config.pack?.gameId || "Space Invaders",
     genre: metadata?.genre || [],
     gameId: config.pack?.gameId || supportedGame?.gameId || "space-invaders",
-    manualUrl: metadata?.manualUrl || null,
+    manual: toRendererContentState(manual),
     metadataLoaded: Boolean(config.pack?.metadataLoaded),
     metadataWarnings: config.pack?.metadataWarnings || [],
     publisher: metadata?.publisher || null,
-    rankingUrl: metadata?.rankingUrl || null,
+    ranking: toRendererContentState(ranking),
     rom,
+    seasonId: config.pack?.seasonId || null,
+    seasonName: config.pack?.seasonName || null,
+    seasonSlug: config.pack?.seasonSlug || null,
     shortDescription: metadata?.shortDescription || null,
     subtitle: metadata?.subtitle || null,
     weekId: config.defaultWeekId || null,
+    weekNumber: config.pack?.weekNumber || null,
     year: metadata?.year || null,
+  };
+}
+
+async function openPackContent(target, options = {}) {
+  if (!target.available) {
+    return {
+      lines: [target.reason],
+      ok: false,
+      summary: target.reason,
+    };
+  }
+
+  if (target.kind === "local") {
+    const result = await options.openPathImpl(target.path);
+
+    if (typeof result === "string" && result.trim() !== "") {
+      return {
+        lines: [result],
+        ok: false,
+        summary: "No se pudo abrir el manual local.",
+      };
+    }
+  } else {
+    await options.openExternalImpl(target.url);
+  }
+
+  return {
+    lines: [target.kind === "local"
+      ? options.localLine || "Contenido local abierto."
+      : options.externalLine || "High Score League abierto en el navegador."],
+    ok: true,
+    summary: target.kind === "local"
+      ? options.localSummary || "Contenido local abierto."
+      : options.externalSummary || "Contenido web abierto.",
+  };
+}
+
+async function openPackManual(options = {}) {
+  await ensureRememberedPackLoaded();
+  const config = options.config || getEffectiveConfig();
+  const target = resolvePackManual(config.pack);
+  const result = await openPackContent(target, {
+    ...options,
+    externalLine: "Manual abierto en el navegador.",
+    externalSummary: "Manual abierto.",
+    localLine: "Manual local abierto.",
+    localSummary: "Manual abierto.",
+  });
+
+  return {
+    action: "open-manual",
+    ...result,
+    state: options.includeState === false ? null : await getLauncherState(),
+  };
+}
+
+async function openPackRanking(options = {}) {
+  await ensureRememberedPackLoaded();
+  const config = options.config || getEffectiveConfig();
+  const target = resolvePackRanking(config.pack, config.webBaseUrl);
+  const result = await openPackContent(target, {
+    ...options,
+    externalLine: "Ranking abierto en High Score League.",
+    externalSummary: "Ranking abierto en la web.",
+  });
+
+  return {
+    action: "open-ranking",
+    ...result,
+    state: options.includeState === false ? null : await getLauncherState(),
   };
 }
 
@@ -859,11 +944,19 @@ async function playCompetition() {
   const baseConfig = getEffectiveConfig();
 
   if (baseConfig.pack?.packVersion === 2 || baseConfig.pack?.contract?.version === 2) {
+    const capture = baseConfig.pack?.contract?.capture || {};
     return {
       action: "play-competition",
-      lines: ["Este pack usa packVersion 2. La captura competitiva con MAME compartido se implementara en LOCAL-MAME-PACK-PLUGIN-LOADING-1."],
+      lines: [
+        "Competicion v2 bloqueada: falta cargar el plugin/adaptador de captura de forma segura.",
+        `Modo de captura: ${capture.mode || "no definido"}.`,
+        `Plugin: ${capture.pluginName || "no definido"}.`,
+        `Adaptador: ${capture.adapter || "no definido"}.`,
+        "La practica v2 ya usa MAME compartido.",
+        "Siguiente tarea tecnica: LOCAL-MAME-PACK-PLUGIN-LOADING-2.",
+      ],
       ok: false,
-      summary: "Competicion v2 pendiente de adaptador de captura.",
+      summary: "Competicion v2 pendiente de carga segura del adaptador.",
       state: await getLauncherState(),
     };
   }
@@ -1083,6 +1176,10 @@ async function restoreFailedSubmission(filename) {
   }
 }
 
+/**
+ * @deprecated Temporary dev-bridge action for packVersion 1. The player-facing
+ * replacement is automatic isolated plugin/adapter preparation for v2.
+ */
 async function syncPlugin() {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
@@ -1546,6 +1643,8 @@ module.exports = {
   listPendingFileSnapshot,
   logoutSession,
   openPackDirectory,
+  openPackManual,
+  openPackRanking,
   openSharedMameRuntimeDirectory,
   playCompetition,
   playPractice,

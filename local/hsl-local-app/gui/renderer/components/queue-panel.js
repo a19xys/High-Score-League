@@ -93,18 +93,49 @@ export function renderQueuePanel(state) {
   const body = items.length > 0
     ? `<ul class="queue-list">${items.map(renderQueueItem).join("")}</ul>`
     : `<div class="empty-state">No hay puntuaciones pendientes.</div>`;
+  const totals = state.data?.queue?.totals || { failed: 0, pending: 0, sent: 0 };
+  const autoSync = state.data?.autoSync || {};
+  const canSubmit = !state.busy &&
+    totals.pending > 0 &&
+    state.data?.session?.hasSession &&
+    state.data?.membership?.canSubmit !== false &&
+    state.data?.readiness?.canSubmit !== false;
 
   return `
-    <section class="panel queue-panel">
+    <section class="panel queue-panel activity-panel">
       <div class="panel-heading">
         <div>
-          <h2>Puntuaciones pendientes</h2>
-          <p>Cola de seguridad · ${pending.count} guardadas · ${pending.validCount} válidas</p>
+          <h2>Actividad local</h2>
+          <p>${escapeHtml(autoSync.message || "Las puntuaciones se guardan por cuenta y pack.")}</p>
         </div>
-        <span class="badge">${scoped ? "Cuenta + pack" : pending.exists ? "Cola local" : "No disponible"}</span>
+        <span class="badge ${autoSync.status === "synced" ? "badge-ok" : autoSync.status === "failed" ? "badge-error" : "badge-muted"}">
+          ${escapeHtml(autoSync.status === "syncing" ? "Sincronizando" : autoSync.status === "synced" ? "Sincronizado" : "Auto-sync")}
+        </span>
       </div>
-      ${body}
-      ${renderFailedSection(failed)}
+      <div class="activity-stats">
+        <div><strong>${totals.pending}</strong><span>Pendientes</span></div>
+        <div><strong>${totals.sent}</strong><span>Enviadas</span></div>
+        <div class="${totals.failed ? "activity-stat--warning" : ""}"><strong>${totals.failed}</strong><span>Puntuaciones con error</span></div>
+      </div>
+      <div class="activity-actions">
+        <button class="tool-button" type="button" data-action="submit" ${canSubmit ? "" : "disabled"}>
+          Subir pendientes
+          <small>${scoped ? "Cuenta + pack" : "Scope no disponible"}</small>
+        </button>
+      </div>
+      <details class="activity-details">
+        <summary>Ver detalles de actividad</summary>
+        <div class="activity-details__body">
+          <div class="panel-heading compact">
+            <div>
+              <h3>Puntuaciones pendientes</h3>
+              <p>Cola de seguridad · ${pending.count} guardadas · ${pending.validCount} válidas</p>
+            </div>
+          </div>
+          ${body}
+          ${renderFailedSection(failed)}
+        </div>
+      </details>
     </section>
   `;
 }

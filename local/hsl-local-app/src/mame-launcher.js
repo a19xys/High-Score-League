@@ -16,7 +16,8 @@ function assertMameConfig(config) {
     return;
   }
 
-  // Legacy bridge for packVersion 1/dev packs with MAME embedded in the pack.
+  // @deprecated Legacy bridge for packVersion 1/dev packs with MAME embedded
+  // in the pack. Keep until competition v2 and the dev bridge are migrated.
   if (!config.mame || typeof config.mame !== "object") {
     throw new Error("config.json debe incluir mame.executablePath y mame.workingDir");
   }
@@ -79,7 +80,9 @@ function validateLaunchArgs(launchArgs) {
 
 function buildPackV2MameArgs(config, rom, mode) {
   if (mode === "competition") {
-    throw new Error("Este pack usa packVersion 2. La captura competitiva con MAME compartido se implementara en LOCAL-MAME-PACK-PLUGIN-LOADING-1.");
+    throw new Error(
+      "Competicion v2 bloqueada: el pack puede declarar capture.pluginName y capture.adapter, pero el launcher aun no carga ese adaptador de forma segura. La practica v2 ya usa MAME compartido."
+    );
   }
 
   assertSharedMameRuntimeConfig(config);

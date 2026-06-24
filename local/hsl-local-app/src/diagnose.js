@@ -324,16 +324,35 @@ async function buildDiagnoseReport(config) {
     }
 
     if (config.pack?.contract?.version === 2) {
+      const capture = config.pack.contract.capture || {};
       add(report, "pack", "OK", `runtime.type = ${config.pack.contract.runtimeType || "desconocido"}`);
       add(report, "pack", "OK", `mame.romPath = ${config.pack.contract.mame?.romPath || "sin romPath"}`);
-      add(report, "pack", "OK", `capture.mode = ${config.pack.contract.capture?.mode || "sin capture.mode"}`);
+      add(
+        report,
+        "pack",
+        capture.mode === "plugin" ? "OK" : "WARN",
+        `capture.mode = ${capture.mode || "sin capture.mode"}`
+      );
 
-      if (config.pack.contract.capture?.pluginName) {
-        add(report, "pack", "OK", `capture.pluginName = ${config.pack.contract.capture.pluginName}`);
+      if (capture.pluginName) {
+        add(report, "pack", "OK", `capture.pluginName = ${capture.pluginName}`);
+      } else {
+        add(report, "pack", "WARN", "capture.pluginName no definido");
       }
 
-      if (config.pack.contract.capture?.adapter) {
-        add(report, "pack", "OK", `capture.adapter = ${config.pack.contract.capture.adapter}`);
+      if (capture.adapter) {
+        const adapterInfo = await getPathInfo(capture.adapterPath);
+        add(
+          report,
+          "pack",
+          adapterInfo.exists && adapterInfo.isFile ? "OK" : "WARN",
+          adapterInfo.exists && adapterInfo.isFile
+            ? `capture.adapter encontrado: ${capture.adapter}`
+            : `capture.adapter no encontrado: ${capture.adapter}`,
+          capture.adapterPath
+        );
+      } else {
+        add(report, "pack", "WARN", "capture.adapter no definido");
       }
     }
   }
@@ -357,7 +376,21 @@ async function buildDiagnoseReport(config) {
       add(report, "launcher", "ERROR", `No se pudieron construir argumentos practice v2: ${error.message}`);
     }
 
-    add(report, "launcher", "INFO", "competition v2 queda pendiente de plugin/adaptador de captura");
+    add(
+      report,
+      "launcher",
+      "INFO",
+      "competition v2 bloqueada: falta carga segura de plugin/adaptador",
+      [
+        `capture.mode=${config.pack.contract.capture?.mode || "ausente"}`,
+        `capture.pluginName=${config.pack.contract.capture?.pluginName || "ausente"}`,
+        `capture.adapter=${config.pack.contract.capture?.adapter || "ausente"}`,
+        "La practica v2 ya usa MAME compartido.",
+      ]
+    );
+    report.recommendations.push(
+      "Implementa la carga aislada del plugin/adaptador v2 en LOCAL-MAME-PACK-PLUGIN-LOADING-2 antes de habilitar competicion."
+    );
   } else if (!config.mame || typeof config.mame !== "object") {
     add(report, "mame", "INFO", "No hay MAME activo en config global ni pack cargado");
     add(report, "launcher", "INFO", "No se comprueban argumentos de launcher sin pack activo o configuración MAME de desarrollo");

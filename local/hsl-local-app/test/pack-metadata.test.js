@@ -63,6 +63,8 @@ test("metadata valida se normaliza", () => {
     year: "1978",
     genre: "Arcade",
     shortDescription: "Defiende la Tierra.",
+    manual: "manual/manual.html",
+    manualPath: "manual/manual.pdf",
     manualUrl: "https://example.test/manual",
     rankingUrl: "https://example.test/ranking",
   }, "C:/pack");
@@ -73,6 +75,8 @@ test("metadata valida se normaliza", () => {
   assert.equal(result.metadata.year, 1978);
   assert.deepEqual(result.metadata.genre, ["Arcade"]);
   assert.equal(result.metadata.shortDescription, "Defiende la Tierra.");
+  assert.equal(result.metadata.manual, "manual/manual.html");
+  assert.equal(result.metadata.manualPath, "manual/manual.pdf");
 });
 
 test("assets relativos se resuelven dentro del pack", async () => {

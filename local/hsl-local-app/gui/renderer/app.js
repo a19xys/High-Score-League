@@ -16,7 +16,12 @@ const store = createStore({
   authFormOpen: false,
   busy: false,
   busyLabel: null,
+  connectionStatus: navigator.onLine === false ? "offline" : "connected",
   data: null,
+  libraryQuery: "",
+  librarySeason: "all",
+  libraryStatus: "all",
+  libraryView: "covers",
   logs: [],
   noticeIds: [],
   theme: savedTheme,
@@ -34,18 +39,26 @@ function render() {
   root.innerHTML = `
     ${renderHeader(state)}
     <main>
-      <div class="launcher-layout">
-        <div class="main-column">
+      <div class="product-layout">
+        <div class="library-column">
+          ${renderLibraryPanel(state)}
+        </div>
+        <div class="detail-column">
           ${renderGamePanel(state)}
           ${renderQueuePanel(state)}
-          ${renderLogPanel(state)}
-        </div>
-        <div class="side-column">
-          ${renderPlayerSummary(state)}
-          ${renderLibraryPanel(state)}
-          ${renderDevTools(state)}
         </div>
       </div>
+      <div class="account-row">
+        ${renderPlayerSummary(state)}
+      </div>
+      <details class="advanced-shell">
+        <summary>Opciones avanzadas</summary>
+        <p class="advanced-shell__intro">Runtime MAME, directorio de packs, readiness, diagnóstico y herramientas legacy.</p>
+        <div class="advanced-grid">
+          ${renderDevTools(state)}
+          ${renderLogPanel(state)}
+        </div>
+      </details>
     </main>
   `;
 }
@@ -103,6 +116,8 @@ function resultToLog(title, response) {
     "choose-shared-mame-runtime": response.summary || "Runtime MAME actualizado.",
     "check-membership": response.summary || "Comprobacion de temporada actualizada.",
     "open-pack-directory": response.summary || "Directorio de packs abierto.",
+    "open-manual": response.summary || (ok ? "Manual abierto." : "Este pack todavía no incluye manual local."),
+    "open-ranking": response.summary || (ok ? "Ranking abierto en la web." : "Ranking integrado pendiente."),
     "open-shared-mame-runtime": response.summary || "Carpeta MAME abierta.",
     "remove-known-account": response.summary || (ok
       ? "Cuenta quitada de este dispositivo. No se han borrado puntuaciones locales."
@@ -261,6 +276,36 @@ async function switchAccount(button) {
 }
 
 function bindActions() {
+  root.addEventListener("input", (event) => {
+    const input = event.target instanceof Element ? event.target.closest("[data-library-search]") : null;
+    if (!input) return;
+
+    const cursor = input.selectionStart;
+    store.setState({ libraryQuery: input.value });
+    const nextInput = root.querySelector("[data-library-search]");
+
+    if (nextInput instanceof HTMLInputElement) {
+      nextInput.focus();
+
+      if (Number.isInteger(cursor)) {
+        nextInput.setSelectionRange(cursor, cursor);
+      }
+    }
+  });
+
+  root.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLSelectElement)) return;
+
+    if (target.matches("[data-library-season]")) {
+      store.setState({ librarySeason: target.value });
+    }
+
+    if (target.matches("[data-library-status]")) {
+      store.setState({ libraryStatus: target.value });
+    }
+  });
+
   root.addEventListener("submit", (event) => {
     const form = event.target instanceof Element ? event.target.closest("[data-auth-form]") : null;
     if (!form) return;
@@ -278,6 +323,10 @@ function bindActions() {
 
     if (action === "toggle-theme") {
       store.setState({ theme: store.getState().theme === "dark" ? "light" : "dark" });
+    }
+
+    if (action === "set-library-view") {
+      store.setState({ libraryView: button.dataset.view || "covers" });
     }
 
     if (action === "show-login") {
@@ -341,6 +390,14 @@ function bindActions() {
       runAction(action, "Abriendo web", "Abrir temporada en la web", () => window.hslLauncher.openMembershipUrl());
     }
 
+    if (action === "open-manual") {
+      runAction(action, "Abriendo manual", "Ver manual", () => window.hslLauncher.openManual());
+    }
+
+    if (action === "open-ranking") {
+      runAction(action, "Abriendo ranking", "Ver ranking", () => window.hslLauncher.openRanking());
+    }
+
     if (action === "check-membership") {
       runAction(action, "Comprobando temporada", "Comprobar de nuevo", () => window.hslLauncher.checkMembership());
     }
@@ -384,6 +441,11 @@ function bindActions() {
 store.subscribe(render);
 render();
 bindActions();
+window.addEventListener("offline", () => store.setState({ connectionStatus: "offline" }));
+window.addEventListener("online", () => {
+  store.setState({ connectionStatus: "reconnecting" });
+  window.setTimeout(() => store.setState({ connectionStatus: "connected" }), 800);
+});
 refreshState().catch((error) => {
   store.setState({
     logs: appendLog(store.getState().logs, {

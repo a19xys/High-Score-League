@@ -12,6 +12,8 @@ const {
   eventResultToQueueItem,
   listPendingFileSnapshot,
   openConfiguredPackDirectory,
+  openPackManual,
+  openPackRanking,
   openSharedMameRuntimeDirectory,
   readPackForGui,
   recheckSeasonMembership,
@@ -320,7 +322,7 @@ test("renderer technical details include safe membership diagnostics", async () 
   assert.equal(/access_token|refresh_token|Authorization|session\.json/.test(devTools), false);
 });
 
-test("renderer pack library renders visual cards and empty states", async () => {
+test("renderer pack library renders seasons, views, filters and empty states", async () => {
   const libraryPanel = await fsp.readFile(
     path.join(__dirname, "..", "gui", "renderer", "components", "library-panel.js"),
     "utf8",
@@ -338,27 +340,91 @@ test("renderer pack library renders visual cards and empty states", async () => 
     "utf8",
   );
 
-  assert.match(libraryPanel, /Biblioteca local/);
+  assert.match(libraryPanel, /<h2>Biblioteca<\/h2>/);
   assert.match(libraryPanel, /Todavia no has elegido un directorio de packs/);
   assert.match(libraryPanel, /No se han encontrado packs en este directorio/);
+  assert.match(libraryPanel, /Sin temporada/);
+  assert.match(libraryPanel, /Legacy \/ deprecated/);
+  assert.match(libraryPanel, /data-library-search/);
+  assert.match(libraryPanel, /data-library-season/);
+  assert.match(libraryPanel, /data-library-status/);
+  assert.match(libraryPanel, /renderViewButton\(state, "covers", "Portadas"\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "list", "Lista"\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "icons", "Iconos"\)/);
+  assert.match(libraryPanel, /pack\.developer/);
+  assert.match(libraryPanel, /pack\.publisher/);
+  assert.match(libraryPanel, /pack\.year/);
+  assert.match(libraryPanel, /pack\.genre/);
+  assert.match(libraryPanel, /pack\.rom/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"/);
   assert.match(libraryPanel, /data-action="open-pack-directory"/);
   assert.match(libraryPanel, /data-action="rescan-pack-directory"/);
-  assert.match(libraryPanel, /renderPackCard\(pack, state\)/);
+  assert.match(libraryPanel, /renderPackCard\(pack, state, state\.libraryView\)/);
   assert.equal(/Anadir ubicacion|Añadir ubicación|Ubicaciones/.test(libraryPanel), false);
+  assert.equal(/Añadir pack|Anadir pack/.test(libraryPanel), false);
   assert.match(emptyState, /library-empty-state/);
-  assert.match(packCard, /pack\.cover \|\| pack\.icon \|\| pack\.logo/);
+  assert.match(packCard, /if \(view === "covers"\) return pack\.cover \|\| pack\.icon \|\| pack\.logo/);
+  assert.match(packCard, /return pack\.icon \|\| pack\.cover \|\| pack\.logo/);
   assert.match(packCard, /pack-card__placeholder/);
   assert.match(packCard, /Activo/);
-  assert.match(packCard, /Ya activo/);
+  assert.match(packCard, /Seleccionar/);
   assert.match(packCard, /data-action="use-library-pack"/);
   assert.match(packCard, /Requiere atencion/);
   assert.match(styles, /\.library-pack-grid/);
+  assert.match(styles, /\.library-pack-grid--list/);
+  assert.match(styles, /\.library-pack-grid--icons/);
   assert.match(styles, /\.pack-card--active/);
   assert.match(styles, /\.pack-card__placeholder/);
   assert.equal(/escapeHtml\(pack\.packDir|escapeHtml\(pack\.packPath/.test(packCard), false);
   assert.equal(/checkSeasonMembership|membership/.test(libraryPanel + packCard), false);
   assert.equal(/access_token|refresh_token|Authorization/.test(libraryPanel + packCard), false);
+});
+
+test("renderer product hierarchy includes connection, player actions, activity and advanced options", async () => {
+  const [app, header, gamePanel, queuePanel, styles] = await Promise.all([
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "header.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "queue-panel.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"), "utf8"),
+  ]);
+
+  assert.match(app, /product-layout/);
+  assert.match(app, /Opciones avanzadas/);
+  assert.match(app, /renderLibraryPanel\(state\)[\s\S]*renderGamePanel\(state\)/);
+  assert.match(header, /High Score League Launcher/);
+  assert.match(header, /Conectado/);
+  assert.match(header, /Sin Internet/);
+  assert.match(header, /Reconectando/);
+  assert.match(gamePanel, /data-action="play"/);
+  assert.match(gamePanel, /data-action="practice"/);
+  assert.match(gamePanel, /renderContentAction\("open-manual", "Ver manual"/);
+  assert.match(gamePanel, /renderContentAction\("open-ranking", "Ver ranking"/);
+  assert.match(queuePanel, /Actividad local/);
+  assert.match(queuePanel, /Ver detalles de actividad/);
+  assert.match(queuePanel, /Puntuaciones con error/);
+  assert.match(styles, /\.product-layout/);
+  assert.match(styles, /\.advanced-shell/);
+  assert.match(styles, /\.activity-stats/);
+  assert.equal(/access_token|refresh_token|Authorization/.test(app + header + gamePanel + queuePanel), false);
+});
+
+test("manual and ranking IPC stay in main process", async () => {
+  const [main, preload, app] = await Promise.all([
+    fsp.readFile(path.join(__dirname, "..", "gui", "main.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "preload.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8"),
+  ]);
+
+  assert.match(main, /launcher:open-manual/);
+  assert.match(main, /shell\.openPath/);
+  assert.match(main, /launcher:open-ranking/);
+  assert.match(main, /shell\.openExternal/);
+  assert.match(preload, /openManual/);
+  assert.match(preload, /openRanking/);
+  assert.match(app, /window\.hslLauncher\.openManual/);
+  assert.match(app, /window\.hslLauncher\.openRanking/);
+  assert.equal(/nodeIntegration:\s*true/.test(main), false);
 });
 
 test("launcher service and renderer expose account switcher without tokens", async () => {
@@ -798,4 +864,55 @@ test("rescanPackDirectory returns fresh state action", async () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.action, "rescan-pack-directory");
+});
+
+test("openPackManual abre archivo local sin exponerlo al renderer", async () => {
+  await withTempDir(async (dir) => {
+    const manualPath = path.join(dir, "manual", "manual.html");
+    const opened = [];
+    await fsp.mkdir(path.dirname(manualPath), { recursive: true });
+    await fsp.writeFile(manualPath, "<html></html>", "utf8");
+
+    const result = await openPackManual({
+      config: {
+        pack: {
+          packRoot: dir,
+        },
+      },
+      includeState: false,
+      openExternalImpl: async () => {
+        throw new Error("external should not run");
+      },
+      openPathImpl: async (target) => {
+        opened.push(target);
+        return "";
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(opened, [manualPath]);
+    assert.equal(JSON.stringify(result).includes(manualPath), false);
+  });
+});
+
+test("openPackRanking abre fallback web de weekId", async () => {
+  const opened = [];
+  const result = await openPackRanking({
+    config: {
+      pack: {
+        webBaseUrl: "https://high-score-league.example",
+        weekId: "week-1",
+      },
+    },
+    includeState: false,
+    openExternalImpl: async (url) => {
+      opened.push(url);
+    },
+    openPathImpl: async () => {
+      throw new Error("local should not run");
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(opened, ["https://high-score-league.example/weeks/week-1"]);
 });

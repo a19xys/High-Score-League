@@ -176,3 +176,10 @@ bloquea competicion y subida hasta activar o iniciar sesion con una cuenta.
 - No implementa multi-sesion compleja ni vinculacion web.
 - No implementa grid final de biblioteca.
 - No implementa installer ni empaquetado.
+
+## Checks v2 añadidos
+
+Readiness separa `capture.mode`, `capture.pluginName`, existencia de
+`capture.adapter` y disponibilidad del cargador competitivo. Aunque los tres
+primeros sean válidos, competición permanece bloqueada mientras el cargador v2
+no exista. Práctica v2 puede seguir disponible.

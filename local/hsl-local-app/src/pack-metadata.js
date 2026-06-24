@@ -15,6 +15,8 @@ const TEXT_FIELDS = [
   "developer",
   "publisher",
   "shortDescription",
+  "manual",
+  "manualPath",
   "manualUrl",
   "rankingUrl",
 ];
