@@ -488,3 +488,17 @@ protagonistas, actividad queda resumida y las opciones técnicas están plegadas
 También existen temporadas locales, tres vistas, búsqueda/filtros, manual local,
 ranking web por semana e indicador de conexión. Catálogo remoto, instalación de
 packs, favoritos y ranking JSON integrado siguen pendientes.
+## Avance LOCAL-LAUNCHER-SHELL-LAYOUT-2
+
+La jerarquia anterior queda aplicada como shell de escritorio: header fijo,
+biblioteca izquierda con scroll propio, detalle derecho estable, actividad local
+en drawer y opciones avanzadas en drawer. La cuenta activa y las cuentas
+recordadas pasan al menu compacto del header.
+
+La primera capa solo mantiene lo necesario para jugar: biblioteca, pack activo,
+estado resumido, `Jugar`, `Practicar`, `Ver manual`, `Ver ranking`, actividad
+resumida y entrada a avanzado. Diagnostico, rutas, readiness tecnico,
+membership tecnico, runtime MAME, colas detalladas, staging, `sync-plugin` y
+legacy/deprecated quedan encapsulados. Las vistas oficiales de biblioteca son
+`Vista de portadas`, `Vista de lista` y `Vista de iconos`; no existe `Vista de
+logos`.

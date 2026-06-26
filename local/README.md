@@ -212,6 +212,8 @@ Account switcher notes:
 [`docs/account-switcher-gui-1.md`](docs/account-switcher-gui-1.md).
 Remembered sessions notes:
 [`docs/account-switcher-gui-2.md`](docs/account-switcher-gui-2.md).
+Launcher shell layout notes:
+[`docs/launcher-shell-layout-2.md`](docs/launcher-shell-layout-2.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is
@@ -674,6 +676,12 @@ Pack opening is the first incremental step toward the final pack flow, not
 complete multi-pack management.
 The final direction is documented as a local pack library and player launcher
 in [`docs/launcher-final-ux-blueprint-1.md`](docs/launcher-final-ux-blueprint-1.md).
+
+`LOCAL-LAUNCHER-SHELL-LAYOUT-2` convierte la GUI en un shell de escritorio:
+header fijo, biblioteca izquierda con scroll propio, detalle derecho estable,
+actividad en drawer, opciones avanzadas en drawer y cuenta compacta en el
+header. El minimo de ventana Electron es `1200x780`. No cambia MAME, runtime,
+colas, membership, payloads, endpoints ni contratos de pack.
 
 ## Mega product pass 1
 

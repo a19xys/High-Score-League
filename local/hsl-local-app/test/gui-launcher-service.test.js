@@ -348,9 +348,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /data-library-search/);
   assert.match(libraryPanel, /data-library-season/);
   assert.match(libraryPanel, /data-library-status/);
-  assert.match(libraryPanel, /renderViewButton\(state, "covers", "Portadas"\)/);
-  assert.match(libraryPanel, /renderViewButton\(state, "list", "Lista"\)/);
-  assert.match(libraryPanel, /renderViewButton\(state, "icons", "Iconos"\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "covers", "Vista de portadas"\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "list", "Vista de lista"\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "icons", "Vista de iconos"\)/);
   assert.match(libraryPanel, /pack\.developer/);
   assert.match(libraryPanel, /pack\.publisher/);
   assert.match(libraryPanel, /pack\.year/);
@@ -389,21 +389,36 @@ test("renderer product hierarchy includes connection, player actions, activity a
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"), "utf8"),
   ]);
 
-  assert.match(app, /product-layout/);
+  assert.match(app, /app-main/);
+  assert.match(app, /library-panel-region/);
+  assert.match(app, /game-panel-region/);
+  assert.match(app, /modal-layer/);
+  assert.match(app, /drawer-layer/);
   assert.match(app, /Opciones avanzadas/);
   assert.match(app, /renderLibraryPanel\(state\)[\s\S]*renderGamePanel\(state\)/);
+  assert.equal(/renderPlayerSummary/.test(app), false);
   assert.match(header, /High Score League Launcher/);
   assert.match(header, /Conectado/);
   assert.match(header, /Sin Internet/);
   assert.match(header, /Reconectando/);
+  assert.match(header, /data-action="toggle-account-menu"/);
+  assert.match(header, /Cuentas recordadas/);
+  assert.match(header, /data-action="switch-account"/);
+  assert.match(header, /data-action="logout"/);
   assert.match(gamePanel, /data-action="play"/);
   assert.match(gamePanel, /data-action="practice"/);
   assert.match(gamePanel, /renderContentAction\("open-manual", "Ver manual"/);
   assert.match(gamePanel, /renderContentAction\("open-ranking", "Ver ranking"/);
+  assert.equal(/game-panel__score/.test(gamePanel), false);
   assert.match(queuePanel, /Actividad local/);
-  assert.match(queuePanel, /Ver detalles de actividad/);
+  assert.match(queuePanel, /data-action="show-activity-details"/);
+  assert.match(queuePanel, /renderActivityDrawer/);
   assert.match(queuePanel, /Puntuaciones con error/);
-  assert.match(styles, /\.product-layout/);
+  assert.match(styles, /\.app-main/);
+  assert.match(styles, /\.library-panel-region/);
+  assert.match(styles, /\.game-panel-region/);
+  assert.match(styles, /\.modal-layer/);
+  assert.match(styles, /\.drawer-layer/);
   assert.match(styles, /\.advanced-shell/);
   assert.match(styles, /\.activity-stats/);
   assert.equal(/access_token|refresh_token|Authorization/.test(app + header + gamePanel + queuePanel), false);
@@ -432,8 +447,8 @@ test("launcher service and renderer expose account switcher without tokens", asy
     path.join(__dirname, "..", "gui", "launcher-service.js"),
     "utf8",
   );
-  const playerSummary = await fsp.readFile(
-    path.join(__dirname, "..", "gui", "renderer", "components", "player-summary.js"),
+  const header = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "header.js"),
     "utf8",
   );
   const app = await fsp.readFile(
@@ -450,18 +465,19 @@ test("launcher service and renderer expose account switcher without tokens", asy
   assert.match(service, /switchKnownAccountFromGui/);
   assert.match(service, /toSafeAccountsState/);
   assert.match(service, /removeKnownAccountFromGui/);
-  assert.match(playerSummary, /Cuentas recordadas/);
-  assert.match(playerSummary, /data-action="switch-account"/);
-  assert.match(playerSummary, /data-action="add-account"/);
-  assert.match(playerSummary, /data-action="remove-known-account"/);
-  assert.match(playerSummary, /hasSavedSession/);
-  assert.match(playerSummary, /Cambio rápido disponible/);
+  assert.match(header, /Cuentas recordadas/);
+  assert.match(header, /data-action="switch-account"/);
+  assert.match(header, /data-action="add-account"/);
+  assert.match(header, /data-action="remove-known-account"/);
+  assert.match(header, /hasSavedSession/);
+  assert.match(header, /Cambio rapido disponible/);
   assert.match(app, /authEmail/);
+  assert.match(app, /accountMenuOpen/);
   assert.match(app, /window\.hslLauncher\.switchAccount/);
   assert.match(app, /window\.hslLauncher\.removeKnownAccount/);
   assert.match(preload, /removeKnownAccount/);
   assert.match(preload, /switchAccount/);
-  assert.equal(/access_token|refresh_token|Authorization/.test(playerSummary), false);
+  assert.equal(/access_token|refresh_token|Authorization/.test(header), false);
 });
 
 test("pack directory actions are exposed without legacy location UI", async () => {

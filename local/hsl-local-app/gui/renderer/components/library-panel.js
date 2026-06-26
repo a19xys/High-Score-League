@@ -174,9 +174,9 @@ function renderLibraryToolbar(state, packs) {
         </label>
       </div>
       <div class="library-views" aria-label="Vista de biblioteca">
-        ${renderViewButton(state, "covers", "Portadas")}
-        ${renderViewButton(state, "list", "Lista")}
-        ${renderViewButton(state, "icons", "Iconos")}
+        ${renderViewButton(state, "covers", "Vista de portadas")}
+        ${renderViewButton(state, "list", "Vista de lista")}
+        ${renderViewButton(state, "icons", "Vista de iconos")}
       </div>
     </div>
   `;

@@ -6,14 +6,14 @@ function formatDetectedAt(value) {
 }
 
 function renderQueueItem(item) {
-  const status = item.ok ? "Válida" : "Revisar";
-  const score = item.score === null ? "sin puntuación" : item.score.toLocaleString();
+  const status = item.ok ? "Valida" : "Revisar";
+  const score = item.score === null ? "sin puntuacion" : item.score.toLocaleString();
   const errorText = item.errors.length > 0 ? `<p class="queue-error">${escapeHtml(item.errors.join("; "))}</p>` : "";
 
   return `
     <li class="queue-item">
       <div>
-        <strong>${escapeHtml(item.game || item.rom || "Puntuación local")}</strong>
+        <strong>${escapeHtml(item.game || item.rom || "Puntuacion local")}</strong>
         <p>${escapeHtml(score)} · ${escapeHtml(formatDetectedAt(item.detectedAt))}</p>
         ${errorText}
       </div>
@@ -82,19 +82,61 @@ function renderFailedSection(failed) {
 
 export function renderQueuePanel(state) {
   const pending = state.data?.queue?.pending;
-  const failed = state.data?.queue?.failed;
-  const scoped = Boolean(state.data?.scope);
 
   if (!pending) {
     return `<section class="panel queue-panel"><h2>Puntuaciones pendientes</h2><p class="muted">Cargando cola local...</p></section>`;
   }
 
-  const items = pending.items.slice(0, 8);
+  const totals = state.data?.queue?.totals || { failed: 0, pending: 0, sent: 0 };
+  const autoSync = state.data?.autoSync || {};
+  const statusLabel = autoSync.status === "syncing"
+    ? "Sincronizando"
+    : autoSync.status === "synced"
+      ? "Sincronizado"
+      : totals.failed > 0
+        ? "Requiere atencion"
+        : totals.pending > 0
+          ? "Pendiente de sincronizar"
+          : "Auto-sync listo";
+  const badgeClass = autoSync.status === "synced"
+    ? "badge-ok"
+    : autoSync.status === "failed" || totals.failed > 0
+      ? "badge-error"
+      : totals.pending > 0
+        ? "badge-warn"
+        : "badge-muted";
+
+  return `
+    <section class="panel queue-panel activity-panel">
+      <div class="panel-heading compact">
+        <div>
+          <h2>Actividad local</h2>
+          <p>${escapeHtml(autoSync.message || "Las puntuaciones se guardan por cuenta y pack.")}</p>
+        </div>
+        <span class="badge ${badgeClass}">${escapeHtml(statusLabel)}</span>
+      </div>
+      <p class="activity-summary-line">
+        ${totals.pending} pendientes · ${totals.sent} enviadas · ${totals.failed} errores
+      </p>
+      <button class="tool-button activity-details-button" type="button" data-action="show-activity-details">
+        Ver detalles
+        <small>Cola activa</small>
+      </button>
+    </section>
+  `;
+}
+
+export function renderActivityDrawer(state) {
+  const pending = state.data?.queue?.pending;
+  const failed = state.data?.queue?.failed;
+  const sent = state.data?.queue?.sent;
+  const scoped = Boolean(state.data?.scope);
+  const totals = state.data?.queue?.totals || { failed: 0, pending: 0, sent: 0 };
+  const autoSync = state.data?.autoSync || {};
+  const items = pending?.items?.slice(0, 8) || [];
   const body = items.length > 0
     ? `<ul class="queue-list">${items.map(renderQueueItem).join("")}</ul>`
     : `<div class="empty-state">No hay puntuaciones pendientes.</div>`;
-  const totals = state.data?.queue?.totals || { failed: 0, pending: 0, sent: 0 };
-  const autoSync = state.data?.autoSync || {};
   const canSubmit = !state.busy &&
     totals.pending > 0 &&
     state.data?.session?.hasSession &&
@@ -102,16 +144,7 @@ export function renderQueuePanel(state) {
     state.data?.readiness?.canSubmit !== false;
 
   return `
-    <section class="panel queue-panel activity-panel">
-      <div class="panel-heading">
-        <div>
-          <h2>Actividad local</h2>
-          <p>${escapeHtml(autoSync.message || "Las puntuaciones se guardan por cuenta y pack.")}</p>
-        </div>
-        <span class="badge ${autoSync.status === "synced" ? "badge-ok" : autoSync.status === "failed" ? "badge-error" : "badge-muted"}">
-          ${escapeHtml(autoSync.status === "syncing" ? "Sincronizando" : autoSync.status === "synced" ? "Sincronizado" : "Auto-sync")}
-        </span>
-      </div>
+    <section class="activity-drawer">
       <div class="activity-stats">
         <div><strong>${totals.pending}</strong><span>Pendientes</span></div>
         <div><strong>${totals.sent}</strong><span>Enviadas</span></div>
@@ -123,19 +156,41 @@ export function renderQueuePanel(state) {
           <small>${scoped ? "Cuenta + pack" : "Scope no disponible"}</small>
         </button>
       </div>
-      <details class="activity-details">
-        <summary>Ver detalles de actividad</summary>
-        <div class="activity-details__body">
-          <div class="panel-heading compact">
-            <div>
-              <h3>Puntuaciones pendientes</h3>
-              <p>Cola de seguridad · ${pending.count} guardadas · ${pending.validCount} válidas</p>
-            </div>
+      <div class="activity-details__body">
+        <div class="panel-heading compact">
+          <div>
+            <h3>Puntuaciones pendientes</h3>
+            <p>Cola de seguridad · ${pending?.count || 0} guardadas · ${pending?.validCount || 0} validas</p>
           </div>
-          ${body}
-          ${renderFailedSection(failed)}
         </div>
-      </details>
+        ${body}
+        ${renderFailedSection(failed)}
+        <details class="technical-details">
+          <summary>Detalles tecnicos</summary>
+          <dl>
+            <div>
+              <dt>Auto-sync</dt>
+              <dd>${escapeHtml(autoSync.status || "sin estado")}</dd>
+            </div>
+            <div>
+              <dt>Ultimo intento</dt>
+              <dd>${escapeHtml(autoSync.lastAttemptAt || "-")}</dd>
+            </div>
+            <div>
+              <dt>Ultimo exito</dt>
+              <dd>${escapeHtml(autoSync.lastSuccessAt || "-")}</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>${escapeHtml(state.data?.scope?.scopedQueueRoot || "sin scope activo")}</dd>
+            </div>
+            <div>
+              <dt>Enviadas leidas</dt>
+              <dd>${escapeHtml(String(sent?.count || 0))}</dd>
+            </div>
+          </dl>
+        </details>
+      </div>
     </section>
   `;
 }

@@ -1,4 +1,4 @@
-import { COPY, getPackLabel, getQueueSummary, getReadyLabel } from "./copy.js";
+import { COPY, getPackLabel, getReadyLabel } from "./copy.js";
 import { escapeHtml } from "./html.js";
 
 function membershipBadge(membership) {
@@ -45,7 +45,7 @@ function renderMembershipCallToAction(membership) {
   const label = membership.status === "not_member" ? "Unirse desde la web" : "Abrir temporada en la web";
 
   return `
-    <button class="secondary-action" type="button" data-action="open-membership-url">
+    <button class="secondary-action compact-action" type="button" data-action="open-membership-url">
       <span>${label}</span>
       <small>Abre High Score League en el navegador.</small>
     </button>
@@ -70,8 +70,8 @@ function renderReadinessSummary(readiness) {
 
   const messages = [
     readiness.message,
-    ...(readiness.warnings || []).slice(0, 2),
-  ].filter(Boolean).slice(0, 3);
+    ...(readiness.warnings || []).slice(0, 1),
+  ].filter(Boolean).slice(0, 2);
 
   return `
     <div class="readiness-card readiness-card--${escapeHtml(readiness.status)}">
@@ -91,9 +91,9 @@ function renderMembershipCheckAction(state) {
   const disabled = state.busy ? "disabled" : "";
 
   return `
-    <button class="secondary-action" type="button" data-action="check-membership" ${disabled}>
-      <span>Comprobar de nuevo</span>
-      <small>Actualiza la participacion del pack activo.</small>
+    <button class="secondary-action compact-action" type="button" data-action="check-membership" ${disabled}>
+      <span>Comprobar</span>
+      <small>Actualiza la participacion.</small>
     </button>
   `;
 }
@@ -114,7 +114,7 @@ function renderPackVisuals(game) {
   const hero = game?.assets?.hero || game?.assets?.cover;
 
   if (!hero?.url) {
-    return "";
+    return `<div class="game-panel__placeholder" aria-hidden="true"><span>HSL</span></div>`;
   }
 
   return `<img class="game-panel__hero" src="${escapeHtml(hero.url)}" alt="">`;
@@ -166,8 +166,8 @@ export function renderGamePanel(state) {
   const competitionHint = readinessBlocksCompetition
     ? readiness?.message || "El pack necesita atencion antes de competir."
     : membership?.message || (data?.session?.hasSession
-    ? "Inicia MAME en modo liga y registra tus intentos."
-    : "Inicia sesion para competir y guardar en tu cola local.");
+      ? "Participas en esta temporada."
+      : "Inicia sesion para competir y guardar en tu cola local.");
   const practiceHint = readiness?.canPractice === false
     ? readiness.message || "Revisa MAME y la ROM antes de practicar."
     : "Entrena sin activar el plugin de puntuacion.";
@@ -175,19 +175,17 @@ export function renderGamePanel(state) {
   const season = game?.seasonName || null;
   const subtitle = game?.subtitle || [season, game?.weekNumber ? `Semana ${game.weekNumber}` : week].filter(Boolean).join(" · ");
   const description = game?.shortDescription || getReadyLabel(data);
-  const cover = game?.assets?.cover;
-  const icon = game?.assets?.icon;
 
   return `
     <section class="game-panel">
       ${renderPackVisuals(game)}
       <div class="game-panel__content">
         <div class="badge-row">
-          <span class="badge badge-accent">Competición</span>
+          <span class="badge badge-accent">Competicion</span>
           ${membershipBadge(membership)}
           ${autoSyncBadge(autoSync)}
           ${bridge?.packOpened ? `<span class="badge badge-accent">Pack abierto</span>` : ""}
-          ${bridge?.packRemembered ? `<span class="badge badge-muted">Último pack cargado</span>` : ""}
+          ${bridge?.packRemembered ? `<span class="badge badge-muted">Ultimo pack cargado</span>` : ""}
           ${bridge?.scopedQueue ? `<span class="badge badge-ok">Cola cuenta + pack</span>` : ""}
           ${bridge?.devBridge ? `<span class="badge badge-muted">Solo desarrollo</span>` : ""}
         </div>
@@ -211,7 +209,7 @@ export function renderGamePanel(state) {
             <small>${escapeHtml(competitionHint)}</small>
           </button>
           <div class="support-actions">
-            <button class="secondary-action" type="button" data-action="practice" ${practiceDisabled}>
+            <button class="secondary-action compact-action" type="button" data-action="practice" ${practiceDisabled}>
               <span>Practicar</span>
               <small>${escapeHtml(practiceHint)}</small>
             </button>
@@ -221,13 +219,6 @@ export function renderGamePanel(state) {
             ${renderMembershipCallToAction(membership)}
           </div>
         </div>
-      </div>
-      <div class="game-panel__score">
-        ${cover?.url ? `<img class="pack-cover" src="${escapeHtml(cover.url)}" alt="${escapeHtml(game?.displayName || "Portada del pack")}">` : ""}
-        ${!cover?.url && icon?.url ? `<img class="pack-icon" src="${escapeHtml(icon.url)}" alt="${escapeHtml(game?.displayName || "Icono del pack")}">` : ""}
-        <span class="score-label">Cola local</span>
-        <strong>${data?.queue?.totals?.pending || 0}</strong>
-        <span>${(data?.queue?.totals?.pending || 0) === 1 ? "puntuación" : "puntuaciones"}</span>
       </div>
     </section>
   `;

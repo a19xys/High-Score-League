@@ -1501,3 +1501,296 @@ button:disabled {
     border-left: 0;
   }
 }
+
+/* LOCAL-LAUNCHER-SHELL-LAYOUT-2: desktop shell overrides. */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  min-width: 1200px;
+}
+
+.app-shell {
+  display: grid;
+  height: 100vh;
+  min-height: 100vh;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  padding: 0;
+}
+
+main,
+.launcher-header {
+  max-width: none;
+}
+
+.launcher-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 76px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 94%, var(--surface));
+  padding: 12px 20px;
+}
+
+.launcher-header h1 {
+  font-size: 22px;
+}
+
+.header-subtitle {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.header-actions {
+  max-width: 62%;
+}
+
+.app-main {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(360px, 430px) minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+}
+
+.library-panel-region,
+.game-panel-region {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.library-panel-region {
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
+}
+
+.library-scroll,
+.game-scroll {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.game-scroll {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.library-scroll .library-panel,
+.game-scroll > .panel,
+.game-scroll > .game-panel {
+  box-shadow: var(--shadow-panel);
+}
+
+.game-panel {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.game-panel__content {
+  gap: 14px;
+  padding: 22px;
+}
+
+.game-panel h2 {
+  font-size: 34px;
+}
+
+.ready-copy {
+  font-size: 14px;
+}
+
+.readiness-card {
+  padding: 10px;
+}
+
+.readiness-card ul {
+  gap: 2px;
+}
+
+.play-button {
+  flex: 1 1 260px;
+  min-height: 82px;
+  padding: 14px 16px;
+}
+
+.play-button span {
+  font-size: 19px;
+}
+
+.secondary-action {
+  min-height: 66px;
+  padding: 11px 12px;
+}
+
+.compact-action {
+  min-height: 62px;
+}
+
+.support-actions {
+  flex: 1 1 420px;
+}
+
+.activity-panel {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.activity-summary-line {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.activity-details-button {
+  justify-content: center;
+}
+
+.advanced-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  justify-content: end;
+  background: rgb(2 6 23 / 0.46);
+}
+
+.drawer-layer {
+  width: min(760px, 72vw);
+  height: 100vh;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--background);
+  box-shadow: -24px 0 48px rgb(2 6 23 / 0.28);
+  padding: 18px;
+}
+
+.drawer-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -18px -18px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+  padding: 16px 18px;
+}
+
+.drawer-header h2 {
+  font-size: 22px;
+}
+
+.advanced-grid {
+  grid-template-columns: 1fr;
+}
+
+.account-menu-shell {
+  position: relative;
+}
+
+.session-chip--button {
+  gap: 8px;
+  cursor: pointer;
+}
+
+.session-chip--button span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  width: 380px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  padding: 14px;
+}
+
+.account-menu__active {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.account-menu__active strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu__active p {
+  font-size: 12px;
+}
+
+.account-menu__actions {
+  display: grid;
+  gap: 8px;
+}
+
+.avatar--compact {
+  width: 40px;
+  height: 40px;
+}
+
+.auth-form--menu {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.known-accounts--menu li {
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+}
+
+.activity-drawer {
+  display: grid;
+  gap: 16px;
+}
+
+.activity-drawer .activity-actions {
+  justify-content: flex-start;
+}
+
+.game-panel__placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: end;
+  padding: 22px;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.game-panel__placeholder span {
+  color: var(--text-inverse);
+  font-size: 64px;
+  font-weight: 900;
+}
