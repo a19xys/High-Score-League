@@ -1,20 +1,21 @@
-import { COPY, getPackLabel, getReadyLabel } from "./copy.js";
+import { COPY, getReadyLabel } from "./copy.js";
 import { escapeHtml } from "./html.js";
+import { renderActivitySummaryCard } from "./queue-panel.js";
 
 function membershipBadge(membership) {
   const labels = {
-    error: ["badge-error", "Error de comprobacion"],
-    invalid_week: ["badge-error", "Semana no valida"],
-    member: ["badge-ok", "Participas"],
-    missing_week: ["badge-error", "Falta weekId"],
+    error: ["badge-warn", "Listo con avisos"],
+    invalid_week: ["badge-error", "Pack con errores"],
+    member: ["badge-ok", "Participas en la temporada"],
+    missing_week: ["badge-error", "Pack con errores"],
     no_session: ["badge-warn", "Sin cuenta"],
-    not_member: ["badge-error", "No participas"],
-    unauthenticated: ["badge-error", "Sesion no valida"],
-    unknown: ["badge-warn", "No se pudo comprobar"],
+    not_member: ["badge-error", "No participas en la temporada"],
+    unauthenticated: ["badge-error", "Sin cuenta"],
+    unknown: ["badge-warn", "Listo con avisos"],
   };
 
   if (!membership) {
-    return `<span class="badge badge-muted">Participacion pendiente</span>`;
+    return `<span class="badge badge-muted">Listo con avisos</span>`;
   }
 
   const [badgeClass, label] = labels[membership.status] || labels.unknown;
@@ -25,77 +26,38 @@ function membershipBadge(membership) {
 function autoSyncBadge(autoSync) {
   const labels = {
     blocked: ["badge-warn", "Pendiente de sincronizar"],
-    failed: ["badge-error", "No se pudo sincronizar"],
-    idle: ["badge-muted", "Auto-sync listo"],
-    not_eligible: ["badge-muted", "Sin pendientes"],
-    partial_failed: ["badge-warn", "Requiere atencion"],
+    failed: ["badge-error", "Pendiente de sincronizar"],
+    idle: ["badge-ok", "Auto-sync activo"],
+    not_eligible: ["badge-muted", "Auto-sync activo"],
+    partial_failed: ["badge-warn", "Pendiente de sincronizar"],
     synced: ["badge-ok", "Sincronizado"],
-    syncing: ["badge-accent", "Sincronizando"],
+    syncing: ["badge-accent", "Auto-sync activo"],
   };
   const [badgeClass, label] = labels[autoSync?.status] || labels.idle;
 
   return `<span class="badge ${badgeClass}">${label}</span>`;
 }
 
-function renderMembershipCallToAction(membership) {
-  if (!membership?.joinUrl || membership.status === "member") {
-    return "";
-  }
-
-  const label = membership.status === "not_member" ? "Unirse desde la web" : "Abrir temporada en la web";
-
-  return `
-    <button class="secondary-action compact-action" type="button" data-action="open-membership-url">
-      <span>${label}</span>
-      <small>Abre High Score League en el navegador.</small>
-    </button>
-  `;
-}
-
-function readinessBadge(status) {
+function readinessBadges(readiness, bridge) {
   const classes = {
     blocked: "badge-error",
     ready: "badge-ok",
     unknown: "badge-muted",
     warning: "badge-warn",
   };
+  const labels = {
+    blocked: "Pack con errores",
+    ready: "Pack listo",
+    unknown: "Listo con avisos",
+    warning: "Listo con avisos",
+  };
+  const status = readiness?.status || "unknown";
+  const legacy = bridge?.contractStatus === "deprecated" || bridge?.deprecated;
 
-  return `<span class="badge ${classes[status] || classes.unknown}">${escapeHtml(status || "unknown")}</span>`;
-}
-
-function renderReadinessSummary(readiness) {
-  if (!readiness) {
-    return "";
-  }
-
-  const messages = [
-    readiness.message,
-    ...(readiness.warnings || []).slice(0, 1),
-  ].filter(Boolean).slice(0, 2);
-
-  return `
-    <div class="readiness-card readiness-card--${escapeHtml(readiness.status)}">
-      <div class="readiness-card__header">
-        <span>Estado del pack</span>
-        ${readinessBadge(readiness.status)}
-      </div>
-      <strong>${escapeHtml(readiness.title)}</strong>
-      <ul>
-        ${messages.map((message) => `<li>${escapeHtml(message)}</li>`).join("")}
-      </ul>
-    </div>
-  `;
-}
-
-function renderMembershipCheckAction(state) {
-  const disabled = state.busy ? "disabled" : "";
-
-  return `
-    <button class="secondary-action compact-action" type="button" data-action="check-membership" ${disabled}>
-      <span>Comprobar</span>
-      <small>Actualiza la participacion.</small>
-    </button>
-  `;
+  return [
+    `<span class="badge ${classes[status] || classes.unknown}">${labels[status] || labels.unknown}</span>`,
+    legacy ? `<span class="badge badge-warn">Legacy</span>` : "",
+  ].filter(Boolean).join("");
 }
 
 function renderPackLogo(game) {
@@ -120,33 +82,39 @@ function renderPackVisuals(game) {
   return `<img class="game-panel__hero" src="${escapeHtml(hero.url)}" alt="">`;
 }
 
-function renderPackCredits(game) {
-  const credits = [
-    game?.developer,
-    game?.publisher && game.publisher !== game.developer ? game.publisher : null,
-    game?.year ? String(game.year) : null,
-    ...(game?.genre || []),
-  ].filter(Boolean);
+function renderPackMetadata(game) {
+  const items = [
+    ["developer", "Desarrollador", game?.developer || game?.publisher],
+    ["year", "Año", game?.year ? String(game.year) : null],
+    ["genre", "Género", game?.genre?.join(", ")],
+    ["time", "Tiempo de juego", game?.playTime],
+  ].filter((item) => item[2]);
 
-  if (credits.length === 0) {
+  if (items.length === 0) {
     return "";
   }
 
-  return `<p class="pack-credits">${escapeHtml(credits.join(" · "))}</p>`;
+  return `
+    <div class="pack-metadata-row">
+      ${items.map(([icon, label, value]) => `
+        <span class="pack-metadata-item" title="${escapeHtml(label)}: ${escapeHtml(value)}">
+          <span class="icon-slot icon-slot--${icon}" aria-hidden="true"></span>
+          <span>${escapeHtml(value)}</span>
+        </span>
+      `).join("")}
+    </div>
+  `;
 }
 
 function renderContentAction(action, label, content, disabled) {
   const unavailable = !content?.available;
-  const hint = unavailable
-    ? content?.reason || `${label} no disponible para este pack.`
-    : content.kind === "local"
-      ? "Abre el contenido local incluido en el pack."
-      : "Abre High Score League en el navegador.";
+  const icon = action === "open-manual" ? "manual" : "ranking";
+  const title = unavailable ? content?.reason || `${label} no disponible para este pack.` : label;
 
   return `
-    <button class="secondary-action compact-action" type="button" data-action="${action}" ${disabled || unavailable ? "disabled" : ""}>
+    <button class="secondary-action compact-action action-tile" type="button" data-action="${action}" title="${escapeHtml(title)}" ${disabled || unavailable ? "disabled" : ""}>
+      <span class="action-icon icon-slot icon-slot--${icon}" aria-hidden="true"></span>
       <span>${label}</span>
-      <small>${escapeHtml(hint)}</small>
     </button>
   `;
 }
@@ -163,17 +131,8 @@ export function renderGamePanel(state) {
   const readinessBlocksCompetition = readiness?.canPlayCompetition === false;
   const practiceDisabled = state.busy || readiness?.canPractice === false ? "disabled" : "";
   const competitionDisabled = state.busy || !data?.session?.hasSession || membershipBlocksCompetition || readinessBlocksCompetition ? "disabled" : "";
-  const competitionHint = readinessBlocksCompetition
-    ? readiness?.message || "El pack necesita atencion antes de competir."
-    : membership?.message || (data?.session?.hasSession
-      ? "Participas en esta temporada."
-      : "Inicia sesion para competir y guardar en tu cola local.");
-  const practiceHint = readiness?.canPractice === false
-    ? readiness.message || "Revisa MAME y la ROM antes de practicar."
-    : "Entrena sin activar el plugin de puntuacion.";
-  const week = game?.weekId || "Semana actual";
-  const season = game?.seasonName || null;
-  const subtitle = game?.subtitle || [season, game?.weekNumber ? `Semana ${game.weekNumber}` : week].filter(Boolean).join(" · ");
+  const weekLabel = game?.weekNumber ? `Semana ${game.weekNumber}` : game?.weekId ? "Semana" : null;
+  const subtitle = game?.subtitle || [game?.seasonName, weekLabel].filter(Boolean).join(" · ");
   const description = game?.shortDescription || getReadyLabel(data);
 
   return `
@@ -181,44 +140,35 @@ export function renderGamePanel(state) {
       ${renderPackVisuals(game)}
       <div class="game-panel__content">
         <div class="badge-row">
-          <span class="badge badge-accent">Competicion</span>
+          ${readinessBadges(readiness, bridge)}
           ${membershipBadge(membership)}
           ${autoSyncBadge(autoSync)}
-          ${bridge?.packOpened ? `<span class="badge badge-accent">Pack abierto</span>` : ""}
-          ${bridge?.packRemembered ? `<span class="badge badge-muted">Ultimo pack cargado</span>` : ""}
-          ${bridge?.scopedQueue ? `<span class="badge badge-ok">Cola cuenta + pack</span>` : ""}
-          ${bridge?.devBridge ? `<span class="badge badge-muted">Solo desarrollo</span>` : ""}
         </div>
-        <div>
-          <p class="eyebrow">${escapeHtml(getPackLabel(bridge))}</p>
-          <div class="pack-title-row">
-            ${renderPackLogo(game)}
-            <div class="min-w-0">
+        <div class="pack-title-row">
+          ${renderPackLogo(game)}
+          <div class="min-w-0">
+            <div class="game-title-line">
               <h2>${escapeHtml(game?.displayName || "Space Invaders")}</h2>
-              <p class="game-week">${escapeHtml(subtitle)}</p>
-              ${renderPackCredits(game)}
+              ${weekLabel ? `<span class="badge badge-muted week-chip"><span class="icon-slot icon-slot--season" aria-hidden="true"></span>${escapeHtml(weekLabel)}</span>` : ""}
             </div>
+            ${subtitle ? `<p class="game-week">${escapeHtml(subtitle)}</p>` : ""}
+            ${renderPackMetadata(game)}
           </div>
         </div>
         <p class="ready-copy">${escapeHtml(description)}</p>
-        ${renderReadinessSummary(readiness)}
-        ${autoSync?.message ? `<p class="sync-copy">${escapeHtml(autoSync.message)}</p>` : ""}
-        <div class="primary-actions">
-          <button class="play-button" type="button" data-action="play" ${competitionDisabled}>
+        <div class="primary-actions action-grid">
+          <button class="play-button action-tile" type="button" data-action="play" ${competitionDisabled}>
+            <span class="action-icon icon-slot icon-slot--play" aria-hidden="true"></span>
             <span>${COPY.actions.play}</span>
-            <small>${escapeHtml(competitionHint)}</small>
           </button>
-          <div class="support-actions">
-            <button class="secondary-action compact-action" type="button" data-action="practice" ${practiceDisabled}>
-              <span>Practicar</span>
-              <small>${escapeHtml(practiceHint)}</small>
-            </button>
-            ${renderContentAction("open-manual", "Ver manual", game?.manual, disabled)}
-            ${renderContentAction("open-ranking", "Ver ranking", game?.ranking, disabled)}
-            ${renderMembershipCheckAction(state)}
-            ${renderMembershipCallToAction(membership)}
-          </div>
+          <button class="secondary-action compact-action action-tile" type="button" data-action="practice" ${practiceDisabled}>
+            <span class="action-icon icon-slot icon-slot--practice" aria-hidden="true"></span>
+            <span>Practicar</span>
+          </button>
+          ${renderContentAction("open-manual", "Manual", game?.manual, disabled)}
+          ${renderContentAction("open-ranking", "Ranking", game?.ranking, disabled)}
         </div>
+        ${renderActivitySummaryCard(state)}
       </div>
     </section>
   `;

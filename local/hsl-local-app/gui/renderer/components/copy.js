@@ -18,7 +18,7 @@ export function formatCount(value, singular, plural) {
 
 export function getPackLabel(bridge) {
   if (bridge?.packOpened) {
-    return "Pack abierto correctamente";
+    return "Pack cargado";
   }
 
   if (bridge?.devBridge) {
@@ -26,7 +26,7 @@ export function getPackLabel(bridge) {
   }
 
   if (bridge?.packLoaded) {
-    return "Pack cargado correctamente";
+    return "Pack cargado";
   }
 
   return "Configuración local preparada";
@@ -38,14 +38,14 @@ export function getReadyLabel(data) {
   }
 
   if (!data.session?.hasSession) {
-    return "Inicia sesion para competir; puedes practicar sin cuenta.";
+    return "Inicia sesión para competir; puedes practicar sin cuenta.";
   }
 
   if (data.queue?.totals?.pending > 0) {
-    return "Listo para competir, con puntuaciones guardadas por subir.";
+    return "Hay puntuaciones guardadas por subir.";
   }
 
-  return "Listo para competir";
+  return "Todo listo para jugar.";
 }
 
 export function getQueueSummary(queue) {

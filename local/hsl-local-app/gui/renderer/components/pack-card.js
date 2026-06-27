@@ -36,11 +36,11 @@ function isActivePack(pack, data = {}) {
 }
 
 function statusMeta(pack, active, readiness) {
-  if (active && readiness?.status === "ready") return { className: "badge-ok", label: "Listo para jugar" };
-  if (active && readiness?.status === "blocked") return { className: "badge-error", label: "Requiere atencion" };
+  if (active && readiness?.status === "ready") return { className: "badge-ok", label: "Pack listo" };
+  if (active && readiness?.status === "blocked") return { className: "badge-error", label: "Requiere atención" };
   if (active && readiness?.status === "warning") return { className: "badge-warn", label: "Listo con avisos" };
-  if (pack.status === "error") return { className: "badge-error", label: "Requiere atencion" };
-  if (pack.deprecated) return { className: "badge-warn", label: "Legacy / deprecated" };
+  if (pack.status === "error") return { className: "badge-error", label: "Requiere atención" };
+  if (pack.deprecated) return { className: "badge-warn", label: "Legacy" };
   if (pack.status === "warning") return { className: "badge-warn", label: "Con avisos" };
   if (pack.status === "missing") return { className: "badge-warn", label: "No disponible" };
   return { className: "badge-ok", label: "Instalado" };
@@ -109,6 +109,7 @@ export function renderPackCard(pack, state, view = "covers") {
 
   return `
     <article class="${cardClass}" title="${escapeHtml(pack.title || "Pack local")}">
+      <button class="favorite-slot" type="button" disabled title="Favoritos pendiente" aria-label="Favoritos pendiente">☆</button>
       ${renderPackVisual(pack, view)}
       <div class="pack-card__body">
         ${renderBadges(pack, active, state.data?.readiness)}

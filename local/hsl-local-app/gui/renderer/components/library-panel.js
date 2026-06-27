@@ -73,7 +73,7 @@ function groupPacks(packs) {
         ? `season:${pack.seasonId}`
         : "unseasoned";
     const title = pack.deprecated
-      ? "Legacy / deprecated"
+      ? "Legacy"
       : pack.seasonName || pack.seasonId || "Sin temporada";
 
     if (!groups.has(id)) {
@@ -100,9 +100,9 @@ function renderDirectoryPanel(state) {
         label: "Elegir directorio",
         type: "choose-pack-directory",
       },
-      body: "Elige una carpeta donde High Score League guardara y buscara tus packs locales.",
+      body: "Elige una carpeta donde High Score League guardará y buscará tus packs locales.",
       state,
-      title: "Todavia no has elegido un directorio de packs.",
+      title: "Todavía no has elegido un directorio de packs.",
     });
   }
 
@@ -128,12 +128,13 @@ function renderDirectoryPanel(state) {
   `;
 }
 
-function renderViewButton(state, view, label) {
+function renderViewButton(state, view, label, icon) {
   const active = state.libraryView === view;
 
   return `
     <button class="view-button ${active ? "view-button--active" : ""}" type="button" data-action="set-library-view" data-view="${view}" aria-pressed="${active}">
-      ${label}
+      <span class="icon-slot icon-slot--${icon}" aria-hidden="true"></span>
+      <span>${label}</span>
     </button>
   `;
 }
@@ -150,8 +151,8 @@ function renderLibraryToolbar(state, packs) {
   return `
     <div class="library-toolbar">
       <label class="library-search">
-        <span>Buscar juegos</span>
-        <input type="search" placeholder="Titulo, estudio, año, genero o ROM" data-library-search value="${escapeHtml(state.libraryQuery)}">
+        <span>Buscar</span>
+        <input type="search" placeholder="Título, estudio, año, género o ROM" data-library-search value="${escapeHtml(state.libraryQuery)}">
       </label>
       <div class="library-filters">
         <label>
@@ -163,20 +164,11 @@ function renderLibraryToolbar(state, packs) {
             <option value="legacy" ${state.librarySeason === "legacy" ? "selected" : ""}>Legacy</option>
           </select>
         </label>
-        <label>
-          <span>Estado</span>
-          <select data-library-status>
-            <option value="all" ${state.libraryStatus === "all" ? "selected" : ""}>Todos</option>
-            <option value="installed" ${state.libraryStatus === "installed" ? "selected" : ""}>Instalados</option>
-            <option value="attention" ${state.libraryStatus === "attention" ? "selected" : ""}>Requiere atencion</option>
-            <option value="legacy" ${state.libraryStatus === "legacy" ? "selected" : ""}>Legacy / deprecated</option>
-          </select>
-        </label>
       </div>
       <div class="library-views" aria-label="Vista de biblioteca">
-        ${renderViewButton(state, "covers", "Vista de portadas")}
-        ${renderViewButton(state, "list", "Vista de lista")}
-        ${renderViewButton(state, "icons", "Vista de iconos")}
+        ${renderViewButton(state, "covers", "Portadas", "covers")}
+        ${renderViewButton(state, "list", "Lista", "list")}
+        ${renderViewButton(state, "icons", "Iconos", "icons")}
       </div>
     </div>
   `;
@@ -212,9 +204,9 @@ function renderPacks(state) {
 
   if (filtered.length === 0) {
     return renderLibraryEmptyState({
-      body: "Prueba otra busqueda, temporada o estado.",
+      body: "Prueba otra búsqueda o temporada.",
       state,
-      title: "No hay juegos que coincidan con los filtros.",
+      title: "No hay packs que coincidan con los filtros.",
     });
   }
 
@@ -222,7 +214,7 @@ function renderPacks(state) {
     <section class="season-group">
       <div class="season-group__heading">
         <h3>${escapeHtml(group.title)}</h3>
-        <span>${group.packs.length} ${group.packs.length === 1 ? "juego" : "juegos"}</span>
+        <span>${group.packs.length} ${group.packs.length === 1 ? "pack" : "packs"}</span>
       </div>
       <div class="library-pack-grid library-pack-grid--${escapeHtml(state.libraryView)}">
         ${group.packs.map((pack) => renderPackCard(pack, state, state.libraryView)).join("")}
@@ -231,20 +223,14 @@ function renderPacks(state) {
   `).join("");
 }
 
-function renderLibrarySummary(data) {
-  const totals = data?.library?.totals || {};
+function renderLibraryCount(data) {
+  const count = data?.library?.totals?.packs || 0;
 
-  return `
-    <div class="library-summary" aria-label="Resumen de biblioteca">
-      <span><strong>${totals.packs || 0}</strong> juegos instalados</span>
-      ${totals.packsWithErrors ? `<span><strong>${totals.packsWithErrors}</strong> requieren atencion</span>` : ""}
-    </div>
-  `;
+  return `${count} ${count === 1 ? "pack" : "packs"}`;
 }
 
 export function renderLibraryPanel(state) {
   const data = state.data;
-  const disabled = state.busy ? "disabled" : "";
 
   if (!data) {
     return `<section class="panel library-panel skeleton-panel"></section>`;
@@ -254,13 +240,10 @@ export function renderLibraryPanel(state) {
     <section class="panel library-panel">
       <div class="panel-heading compact">
         <div>
-          <p class="eyebrow">Juegos instalados</p>
           <h2>Biblioteca</h2>
-          <p>Temporadas y packs disponibles en este equipo.</p>
+          <p class="library-count">${escapeHtml(renderLibraryCount(data))}</p>
         </div>
-        <button class="text-button" type="button" data-action="rescan-pack-directory" ${disabled}>Reescanear</button>
       </div>
-      ${renderLibrarySummary(data)}
       ${renderLibraryToolbar(state, data.library?.packs || [])}
       <div class="library-section library-section--packs">
         ${renderPacks(state)}

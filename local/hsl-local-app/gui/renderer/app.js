@@ -5,7 +5,7 @@ import { renderGamePanel } from "./components/game-panel.js";
 import { renderHeader } from "./components/header.js";
 import { renderLibraryPanel } from "./components/library-panel.js";
 import { renderLogPanel } from "./components/log-panel.js";
-import { renderActivityDrawer, renderQueuePanel } from "./components/queue-panel.js";
+import { renderActivityDrawer } from "./components/queue-panel.js";
 
 const root = document.getElementById("app");
 const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
@@ -41,7 +41,7 @@ function renderOverlay(state) {
   const isActivity = state.activeOverlay === "activity";
 
   return `
-    <div class="modal-layer" data-action="close-overlay">
+    <div class="modal-layer" data-overlay-backdrop>
       <aside class="drawer-layer" role="dialog" aria-modal="true" aria-label="${isActivity ? "Actividad local" : "Opciones avanzadas"}" data-drawer>
         <div class="drawer-header">
           <div>
@@ -50,13 +50,15 @@ function renderOverlay(state) {
           </div>
           <button class="icon-button" type="button" data-action="close-overlay" title="Cerrar">x</button>
         </div>
-        ${isActivity ? renderActivityDrawer(state) : `
-          <p class="advanced-shell__intro">Runtime MAME, directorio de packs, readiness, diagnostico y herramientas legacy.</p>
-          <div class="advanced-grid">
-            ${renderDevTools(state)}
-            ${renderLogPanel(state)}
-          </div>
-        `}
+        <div class="drawer-body">
+          ${isActivity ? renderActivityDrawer(state) : `
+            <p class="advanced-shell__intro">Runtime MAME, directorio de packs, readiness, diagnóstico y herramientas legacy.</p>
+            <div class="advanced-grid">
+              ${renderDevTools(state)}
+              ${renderLogPanel(state)}
+            </div>
+          `}
+        </div>
       </aside>
     </div>
   `;
@@ -77,17 +79,6 @@ function render() {
       <section class="game-panel-region">
         <div class="game-scroll">
           ${renderGamePanel(state)}
-          ${renderQueuePanel(state)}
-          <section class="panel advanced-entry">
-            <div>
-              <h2>Opciones avanzadas</h2>
-              <p>Herramientas de desarrollo y diagnostico.</p>
-            </div>
-            <button class="tool-button" type="button" data-action="show-advanced-options">
-              Abrir opciones
-              <small>Diagnostico y runtime</small>
-            </button>
-          </section>
         </div>
       </section>
     </main>
@@ -131,15 +122,15 @@ function resultToLog(title, response) {
   const friendly = {
     login: ok
       ? "Login correcto."
-      : "No he podido iniciar sesion. Revisa email y contrasena.",
+      : "No he podido iniciar sesión. Revisa email y contraseña.",
     diagnose: ok
-      ? "Diagnostico completado. El launcher puede seguir usandose."
-      : "El diagnostico encontro algo que conviene revisar.",
+      ? "Diagnóstico completado. El launcher puede seguir usándose."
+      : "El diagnóstico encontró algo que conviene revisar.",
     logout: ok
-      ? "Sesion local cerrada. Tus puntuaciones guardadas no se han borrado."
-      : "No se pudo cerrar la sesion local.",
+      ? "Sesión local cerrada. Tus puntuaciones guardadas no se han borrado."
+      : "No se pudo cerrar la sesión local.",
     "open-pack": response.summary || (ok
-      ? "Pack abierto correctamente. Cambiar de pack no borra puntuaciones locales."
+      ? "Pack cargado. Cambiar de pack no borra puntuaciones locales."
       : "No se pudo abrir el pack seleccionado."),
     "open-membership-url": response.summary || (ok
       ? "Web abierta en el navegador."
@@ -161,24 +152,24 @@ function resultToLog(title, response) {
       ? "MAME se cerro correctamente. La cola local se ha actualizado."
       : "MAME termino con aviso. Si jugaste una partida, revisa la cola local.",
     practice: ok
-      ? "Practica cerrada. No se activo el plugin de puntuacion desde el launcher."
-      : "La practica termino con aviso.",
+      ? "Práctica cerrada. No se activó el plugin de puntuación desde el launcher."
+      : "La práctica terminó con aviso.",
     refresh: "Estado local actualizado.",
     "rescan-pack-directory": response.summary || "Biblioteca reescaneada.",
     "submit-all": ok
-      ? "Subida finalizada. Si habia puntuaciones validas, se movieron a enviadas."
+      ? "Subida finalizada. Si había puntuaciones válidas, se movieron a enviadas."
       : "No se pudo completar la subida. Tus puntuaciones siguen guardadas localmente.",
     "restore-failed": ok
-      ? "Puntuacion restaurada a pendientes. Puedes reintentar cuando el problema este corregido."
-      : "No se pudo restaurar la puntuacion.",
-    "submit-all-with-failed": "Hay puntuaciones en Requieren atencion. No se han perdido y puedes restaurarlas a pendientes.",
+      ? "Puntuación restaurada a pendientes. Puedes reintentar cuando el problema esté corregido."
+      : "No se pudo restaurar la puntuación.",
+    "submit-all-with-failed": "Hay puntuaciones que requieren atención. No se han perdido y puedes restaurarlas a pendientes.",
     "sync-plugin": ok
       ? "Plugin sincronizado con el pack de desarrollo."
       : "No se pudo sincronizar el plugin de desarrollo.",
     "switch-account": response.summary || (ok
       ? "Cuenta cambiada. La cola visible corresponde a esta cuenta y pack."
       : "No se pudo cambiar de cuenta."),
-    "switch-account-login-required": response.summary || "Inicia sesion de nuevo para esta cuenta.",
+    "switch-account-login-required": response.summary || "Inicia sesión de nuevo para esta cuenta.",
   };
 
   return {
@@ -214,7 +205,7 @@ async function runAction(action, busyLabel, title, fn) {
       logs: appendLog(store.getState().logs, {
         details: [error.message || String(error)],
         ok: false,
-        summary: "La accion no pudo completarse. Si habia puntuaciones, siguen en la cola local.",
+        summary: "La acción no pudo completarse. Si había puntuaciones, siguen en la cola local.",
         title,
       }),
     });
@@ -234,24 +225,24 @@ async function submitLogin(form) {
     const response = await window.hslLauncher.login(email, password);
 
     store.setState({
-      authError: response.ok ? null : response.summary || "No he podido iniciar sesion.",
+      authError: response.ok ? null : response.summary || "No he podido iniciar sesión.",
       authEmail: response.ok ? "" : email,
       authFormOpen: !response.ok,
       busy: false,
       busyLabel: null,
       data: response.state || store.getState().data,
-      logs: appendLog(store.getState().logs, resultToLog("Iniciar sesion", response)),
+      logs: appendLog(store.getState().logs, resultToLog("Iniciar sesión", response)),
     });
   } catch {
     store.setState({
-      authError: "No he podido iniciar sesion. Revisa email y contrasena.",
+      authError: "No he podido iniciar sesión. Revisa email y contraseña.",
       busy: false,
       busyLabel: null,
       logs: appendLog(store.getState().logs, {
         details: [],
         ok: false,
-        summary: "No he podido iniciar sesion. Revisa email y contrasena.",
-        title: "Iniciar sesion",
+        summary: "No he podido iniciar sesión. Revisa email y contraseña.",
+        title: "Iniciar sesión",
       }),
     });
   }
@@ -281,7 +272,7 @@ async function switchAccount(button) {
 
     if (response.requiresLogin) {
       nextState.authEmail = response.email || email;
-      nextState.authError = response.summary || "Inicia sesion de nuevo para esta cuenta.";
+      nextState.authError = response.summary || "Inicia sesión de nuevo para esta cuenta.";
       nextState.authFormOpen = true;
     } else {
       nextState.authEmail = "";
@@ -293,7 +284,7 @@ async function switchAccount(button) {
   } catch (error) {
     store.setState({
       authEmail: email,
-      authError: "No se pudo cambiar de cuenta. Inicia sesion de nuevo.",
+      authError: "No se pudo cambiar de cuenta. Inicia sesión de nuevo.",
       authFormOpen: true,
       busy: false,
       busyLabel: null,
@@ -333,9 +324,6 @@ function bindActions() {
       store.setState({ librarySeason: target.value });
     }
 
-    if (target.matches("[data-library-status]")) {
-      store.setState({ libraryStatus: target.value });
-    }
   });
 
   root.addEventListener("submit", (event) => {
@@ -348,6 +336,22 @@ function bindActions() {
 
   root.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : event.target.parentElement;
+    const current = store.getState();
+
+    if (target?.matches("[data-overlay-backdrop]")) {
+      store.setState({ activeOverlay: null });
+      return;
+    }
+
+    if (
+      current.accountMenuOpen &&
+      target &&
+      !target.closest("[data-account-menu]") &&
+      !target.closest("[data-action='toggle-account-menu']")
+    ) {
+      store.setState({ accountMenuOpen: false });
+    }
+
     const button = target?.closest("[data-action]");
     if (!button) return;
 
@@ -363,10 +367,6 @@ function bindActions() {
 
     if (action === "show-activity-details") {
       store.setState({ accountMenuOpen: false, activeOverlay: "activity" });
-    }
-
-    if (action === "show-advanced-options") {
-      store.setState({ accountMenuOpen: false, activeOverlay: "advanced" });
     }
 
     if (action === "close-overlay") {
@@ -455,11 +455,11 @@ function bindActions() {
     }
 
     if (action === "play") {
-      runAction(action, "Abriendo competicion", COPY.actions.play, () => window.hslLauncher.playCompetition());
+      runAction(action, "Abriendo competición", COPY.actions.play, () => window.hslLauncher.playCompetition());
     }
 
     if (action === "practice") {
-      runAction(action, "Abriendo practica", COPY.actions.practice, () => window.hslLauncher.practice());
+      runAction(action, "Abriendo práctica", COPY.actions.practice, () => window.hslLauncher.practice());
     }
 
     if (action === "submit") {
@@ -481,7 +481,7 @@ function bindActions() {
     }
 
     if (action === "logout") {
-      runAction(action, "Cerrando sesion", COPY.actions.logout, () => window.hslLauncher.logout());
+      runAction(action, "Cerrando sesión", COPY.actions.logout, () => window.hslLauncher.logout());
     }
   });
 }
@@ -489,6 +489,21 @@ function bindActions() {
 store.subscribe(render);
 render();
 bindActions();
+window.addEventListener("keydown", (event) => {
+  if (event.key === "D" && event.ctrlKey && event.shiftKey) {
+    event.preventDefault();
+    store.setState({ accountMenuOpen: false, activeOverlay: "advanced" });
+    return;
+  }
+
+  if (event.key !== "Escape") return;
+
+  const state = store.getState();
+
+  if (state.activeOverlay || state.accountMenuOpen) {
+    store.setState({ activeOverlay: null, accountMenuOpen: false });
+  }
+});
 window.addEventListener("offline", () => store.setState({ connectionStatus: "offline" }));
 window.addEventListener("online", () => {
   store.setState({ connectionStatus: "reconnecting" });

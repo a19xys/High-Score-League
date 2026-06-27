@@ -35,3 +35,27 @@ Actividad local se muestra como resumen compacto y `Ver detalles` abre un
 drawer. `Opciones avanzadas` tambien abre un drawer con diagnostico, runtime,
 directorio de packs, readiness, membership, colas, legacy y mensajes. La cuenta
 completa pasa al menu compacto del header. El minimo de ventana es `1200x780`.
+
+## LOCAL-LAUNCHER-SHELL-BUGFIX-3
+
+Se corrigen bugs estructurales del shell: header y main a ancho completo,
+backdrop separado del drawer, `drawer-header` y `drawer-body`, scroll interno
+del drawer, Escape para cerrar overlays y menu de cuenta, panel derecho con
+scroll interno y cards sin assets mas compactas. No cambia ningun flujo
+funcional.
+
+## LOCAL-LAUNCHER-VISUAL-FOUNDATION-1
+
+La capa visual inicial se simplifica sin tocar flujos funcionales. El header
+prepara slot de icono de app, elimina el eyebrow `HSL`, mantiene conexión,
+tema y cuenta compacta, y retira `Actualizar estado` de la primera capa.
+
+El panel derecho queda centrado en hero, título, metadata compacta, chips de
+estado humanos, botonera `Jugar`/`Practicar`/`Manual`/`Ranking` y actividad
+local resumida dentro del pack. `Comprobar de nuevo`, diagnóstico, runtime,
+directorio, readiness técnico, membership técnico, logs y `sync-plugin` siguen
+en avanzado, abierto con `Ctrl+Shift+D`.
+
+La biblioteca muestra `Biblioteca` + contador, búsqueda compacta, temporada y
+vistas `Portadas`, `Lista`, `Iconos`. `Reescanear` pasa a `Gestionar
+biblioteca` y el filtro `Estado` sale de la primera capa.

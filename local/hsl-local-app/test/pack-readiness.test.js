@@ -329,16 +329,17 @@ test("packVersion 2 con runtime y romDir permite practica pero no competicion", 
   });
 });
 
-test("renderer expone resumen y checks tecnicos sin secretos", async () => {
+test("renderer expone resumen visual y checks técnicos sin secretos", async () => {
   const [gamePanel, devTools] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "dev-tools.js"), "utf8"),
   ]);
 
-  assert.match(gamePanel, /Estado del pack/);
+  assert.match(gamePanel, /Pack listo/);
+  assert.match(gamePanel, /Listo con avisos/);
   assert.match(gamePanel, /readiness\?\.canPractice/);
   assert.match(gamePanel, /readiness\?\.canPlayCompetition/);
-  assert.match(devTools, /Preparacion del pack/);
+  assert.match(devTools, /Preparación del pack/);
   assert.match(devTools, /readiness\.checks/);
   assert.equal(/access_token|refresh_token|Authorization/.test(`${gamePanel}\n${devTools}`), false);
 });

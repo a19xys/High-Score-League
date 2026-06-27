@@ -214,6 +214,10 @@ Remembered sessions notes:
 [`docs/account-switcher-gui-2.md`](docs/account-switcher-gui-2.md).
 Launcher shell layout notes:
 [`docs/launcher-shell-layout-2.md`](docs/launcher-shell-layout-2.md).
+Launcher shell bugfix notes:
+[`docs/launcher-shell-bugfix-3.md`](docs/launcher-shell-bugfix-3.md).
+Launcher visual foundation notes:
+[`docs/launcher-visual-foundation-1.md`](docs/launcher-visual-foundation-1.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is
@@ -682,6 +686,18 @@ header fijo, biblioteca izquierda con scroll propio, detalle derecho estable,
 actividad en drawer, opciones avanzadas en drawer y cuenta compacta en el
 header. El minimo de ventana Electron es `1200x780`. No cambia MAME, runtime,
 colas, membership, payloads, endpoints ni contratos de pack.
+
+`LOCAL-LAUNCHER-SHELL-BUGFIX-3` corrige el ancho completo del shell/header,
+separa backdrop y body de drawers, evita que clicks internos cierren drawers o
+menu de cuenta, arregla el scroll de drawers y compacta cards sin assets. No
+toca funcionalidad local ni `config.json`.
+
+`LOCAL-LAUNCHER-VISUAL-FOUNDATION-1` limpia la primera capa visual del
+launcher: header con slot de icono, sin refresco protagonista, biblioteca con
+contador `1 pack`, detalle con chips humanos, botonera `Jugar`/`Practicar`/
+`Manual`/`Ranking`, actividad local como subtarjeta y opciones avanzadas fuera
+del flujo normal con acceso por `Ctrl+Shift+D`. No toca MAME, runtime, plugin,
+colas, membership, endpoints, payloads, RLS ni `config.json`.
 
 ## Mega product pass 1
 

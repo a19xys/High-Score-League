@@ -22,3 +22,13 @@ y mensajes tecnicos se mueven al drawer de opciones avanzadas. En la biblioteca,
 legacy aparece como badge o grupo filtrable, no como protagonista de la primera
 capa.
 
+## LOCAL-LAUNCHER-VISUAL-FOUNDATION-1
+
+Legacy sigue operativo. Esta fase solo reduce su presencia visual:
+
+- primera capa: badge pequeño `Legacy`;
+- biblioteca: grupo/filtro de temporada `Legacy` conservado;
+- explicación larga de deprecated, rutas, `packVersion`, dev bridge y
+  `sync-plugin` permanecen en opciones avanzadas;
+- no se elimina v1, no se elimina `locations.json`, no se elimina dev bridge y
+  no se cambia el contrato de packs.

@@ -82,3 +82,34 @@ secundaria `Gestionar biblioteca`.
 Esta tarea no toca MAME, runtime, plugin, payload, duplicateKey, endpoints,
 RLS, membership, scoped queue, auto-sync, contrato de packs, catalogo,
 descarga, favoritos, competicion v2 ni legacy funcional.
+
+## Bugfix LOCAL-LAUNCHER-SHELL-BUGFIX-3
+
+La consolidacion posterior corrige problemas estructurales del shell:
+
+- `html`, `body`, `#app`, header y main ocupan todo el ancho.
+- El drawer separa `drawer-header` y `drawer-body`, con scroll solo en el body.
+- El backdrop usa `data-overlay-backdrop`; los clicks internos no cierran el
+  drawer por propagacion.
+- `Escape` cierra drawers y menu de cuenta.
+- El panel derecho usa scroll interno robusto en alturas reducidas.
+- Las cards sin assets se compactan y `Legacy` queda como badge secundario.
+
+## Visual Foundation LOCAL-LAUNCHER-VISUAL-FOUNDATION-1
+
+La estructura de shell se conserva, pero la primera capa se limpia:
+
+- header con slot de icono local y sin eyebrow `HSL`;
+- controles superiores en píldoras para conexión, tema y cuenta;
+- sin botón de refresco visible en el header;
+- detalle del pack con chips humanos y sin identificadores técnicos;
+- botonera 2x2: `Jugar`, `Practicar`, `Manual`, `Ranking`;
+- actividad local integrada como subtarjeta del pack;
+- `Opciones avanzadas` fuera de la primera capa, accesible con
+  `Ctrl+Shift+D`;
+- biblioteca más ancha, con contador `pack`, sin filtro `Estado` visible y sin
+  `Reescanear` protagonista.
+
+El drawer avanzado sigue conteniendo diagnóstico, runtime MAME, directorio de
+packs, membership, readiness, colas, legacy y `sync-plugin`. El drawer de
+actividad conserva pendientes, enviadas, failed recuperable y subida manual.

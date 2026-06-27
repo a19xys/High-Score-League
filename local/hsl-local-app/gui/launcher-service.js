@@ -862,6 +862,8 @@ function getBridgeState(config) {
   return {
     activePackName: config.pack?.packId || config.pack?.gameId || null,
     configSource: config.configSource,
+    contractStatus: config.pack?.contractStatus || null,
+    deprecated: Boolean(config.pack?.deprecated),
     devBridge: mode === "dev-bridge",
     mode,
     packOpened,

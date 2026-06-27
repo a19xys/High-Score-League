@@ -502,3 +502,30 @@ membership tecnico, runtime MAME, colas detalladas, staging, `sync-plugin` y
 legacy/deprecated quedan encapsulados. Las vistas oficiales de biblioteca son
 `Vista de portadas`, `Vista de lista` y `Vista de iconos`; no existe `Vista de
 logos`.
+
+## Avance LOCAL-LAUNCHER-SHELL-BUGFIX-3
+
+La capa de shell queda estabilizada: el header y los paneles ocupan todo el
+ancho de ventana, los drawers tienen backdrop independiente, header fijo real y
+body scrolleable, y el panel derecho permite scroll interno cuando la altura no
+alcanza. Las cards sin assets son mas compactas y legacy/deprecated queda como
+badge secundario en la primera capa.
+
+## Avance LOCAL-LAUNCHER-VISUAL-FOUNDATION-1
+
+La primera capa queda más cercana al mockup aprobado. El header usa un slot
+cuadrado de icono junto al título y deja de mostrar el eyebrow `HSL`; el botón
+de refresco sale de la capa principal. La biblioteca muestra `Biblioteca` y un
+contador tipo `1 pack`, mantiene temporada y vistas `Portadas`, `Lista` e
+`Iconos`, y mueve `Reescanear` a `Gestionar biblioteca`.
+
+El detalle del pack reduce chips técnicos y muestra estados humanos:
+`Participas en la temporada`, `No participas en la temporada`, `Pack listo`,
+`Pack con errores`, `Listo con avisos`, `Auto-sync activo`, `Pendiente de
+sincronizar` y `Legacy`. La botonera principal queda limitada a `Jugar`,
+`Practicar`, `Manual` y `Ranking`; `Comprobar de nuevo` pasa a avanzado.
+
+Actividad local vive ahora como subtarjeta compacta del pack, con `Ver detalles
+>` para abrir el drawer. Opciones avanzadas desaparece como tarjeta visible y
+se abre con `Ctrl+Shift+D`. Quedan pendientes Game Detail Polish, Library
+Cards, Account Menu Polish e Icon System.

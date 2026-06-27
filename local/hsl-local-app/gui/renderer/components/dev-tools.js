@@ -24,7 +24,7 @@ function renderReadinessChecks(readiness) {
 
   return `
     <div>
-      <dt>Preparacion del pack</dt>
+      <dt>Preparación del pack</dt>
       <dd>
         <ul class="readiness-check-list">
           ${readiness.checks.map((check) => `
@@ -76,13 +76,21 @@ export function renderDevTools(state) {
     <section class="panel dev-tools">
       <div class="panel-heading compact">
         <div>
-          <h2>Configuracion y diagnostico</h2>
-          <p>Opciones tecnicas separadas del flujo normal de juego.</p>
+          <h2>Configuración y diagnóstico</h2>
+          <p>Opciones técnicas separadas del flujo normal de juego.</p>
         </div>
       </div>
       <div class="dev-actions">
         <button class="tool-button" type="button" data-action="diagnose" ${disabled}>
           Diagnosticar
+        </button>
+        <button class="tool-button" type="button" data-action="check-membership" ${disabled}>
+          Comprobar de nuevo
+          <small>Temporada</small>
+        </button>
+        <button class="tool-button" type="button" data-action="open-membership-url" ${disabled || !membership?.joinUrl ? "disabled" : ""}>
+          Abrir temporada
+          <small>Web</small>
         </button>
         <button class="tool-button" type="button" data-action="sync-plugin" ${syncDisabled}>
           Sincronizar plugin
@@ -119,29 +127,29 @@ export function renderDevTools(state) {
           ${detailRow("Directorio existe", packDirectory.exists === undefined ? null : String(Boolean(packDirectory.exists)))}
           ${detailRow("Directorio parece pack", packDirectory.looksLikePackRoot === undefined ? null : String(Boolean(packDirectory.looksLikePackRoot)))}
           ${detailRow("Biblioteca packs", library?.totals?.packs || 0)}
-          ${detailRow("Biblioteca packs invalidos", library?.totals?.packsWithErrors || 0)}
+          ${detailRow("Biblioteca packs inválidos", library?.totals?.packsWithErrors || 0)}
           ${detailRow("Locations legacy detectadas", library?.legacy?.locationsDetected || 0)}
-          ${detailRow("Migracion legacy", library?.legacy?.migration)}
+          ${detailRow("Migración legacy", library?.legacy?.migration)}
           ${detailRow("Biblioteca warnings", libraryWarnings.length ? libraryWarnings.join(" | ") : "sin warnings")}
           ${detailRow("Runtime MAME compartido", runtimeConfigured ? "configurado" : "no configurado")}
           ${detailRow("mame.exe compartido", runtimeAvailable ? "encontrado" : "no disponible")}
           ${detailRow("Ruta MAME compartido", runtime?.mameExecutablePath)}
           ${detailRow("Version MAME", runtime?.version)}
           ${detailRow("Runtime warnings", runtime?.warnings?.length ? runtime.warnings.join(" | ") : "sin warnings")}
-          ${detailRow("Comprobacion de temporada", membership?.status || "sin comprobacion")}
+          ${detailRow("Comprobación de temporada", membership?.status || "sin comprobación")}
           ${detailRow("URL consultada", membership?.request?.url)}
           ${detailRow("HTTP status", membership?.response?.httpStatus)}
           ${detailRow("Body status", membership?.response?.bodyStatus)}
           ${detailRow("Body ok", membership?.response?.bodyOk)}
           ${detailRow("Mensaje", membership?.response?.bodyMessage || membership?.message)}
-          ${detailRow("Motivo tecnico", membership?.technicalReason)}
+          ${detailRow("Motivo técnico", membership?.technicalReason)}
           ${detailRow("Comprobado", membership?.checkedAt)}
           ${detailRow("WeekId", membership?.weekId)}
           ${detailRow("SeasonId", membership?.seasonId)}
           ${detailRow("Auto-sync estado", autoSync?.status)}
           ${detailRow("Auto-sync motivo", autoSync?.reason)}
-          ${detailRow("Auto-sync ultimo intento", autoSync?.lastAttemptAt)}
-          ${detailRow("Auto-sync ultimo exito", autoSync?.lastSuccessAt)}
+          ${detailRow("Auto-sync último intento", autoSync?.lastAttemptAt)}
+          ${detailRow("Auto-sync último éxito", autoSync?.lastSuccessAt)}
           ${detailRow("Auto-sync pending antes", autoSync?.pendingBefore)}
           ${detailRow("Auto-sync pending despues", autoSync?.pendingAfter)}
           ${renderReadinessChecks(readiness)}

@@ -6,8 +6,8 @@ function formatDetectedAt(value) {
 }
 
 function renderQueueItem(item) {
-  const status = item.ok ? "Valida" : "Revisar";
-  const score = item.score === null ? "sin puntuacion" : item.score.toLocaleString();
+  const status = item.ok ? "Válida" : "Revisar";
+  const score = item.score === null ? "sin puntuación" : item.score.toLocaleString();
   const errorText = item.errors.length > 0 ? `<p class="queue-error">${escapeHtml(item.errors.join("; "))}</p>` : "";
 
   return `
@@ -23,10 +23,10 @@ function renderQueueItem(item) {
 }
 
 function renderFailedItem(item) {
-  const score = item.score === null ? "sin puntuacion" : item.score.toLocaleString();
-  const title = item.game || item.rom || "Puntuacion local";
-  const reason = item.failure?.friendlyReason || "No se pudo enviar esta puntuacion.";
-  const technicalReason = item.failure?.technicalReason || item.errors.join("; ") || "Sin detalle tecnico disponible.";
+  const score = item.score === null ? "sin puntuación" : item.score.toLocaleString();
+  const title = item.game || item.rom || "Puntuación local";
+  const reason = item.failure?.friendlyReason || "No se pudo enviar esta puntuación.";
+  const technicalReason = item.failure?.technicalReason || item.errors.join("; ") || "Sin detalle técnico disponible.";
 
   return `
     <li class="queue-item failed-item">
@@ -42,7 +42,7 @@ function renderFailedItem(item) {
               <dd>${escapeHtml(item.filename)}</dd>
             </div>
             <div>
-              <dt>Motivo tecnico</dt>
+              <dt>Motivo técnico</dt>
               <dd>${escapeHtml(technicalReason)}</dd>
             </div>
           </dl>
@@ -61,8 +61,8 @@ function renderFailedSection(failed) {
   }
 
   const countText = failed.count === 1
-    ? "1 puntuacion requiere atencion"
-    : `${failed.count} puntuaciones requieren atencion`;
+    ? "1 puntuación requiere atención"
+    : `${failed.count} puntuaciones requieren atención`;
   const items = failed.items.slice(0, 5);
 
   return `
@@ -70,9 +70,9 @@ function renderFailedSection(failed) {
       <div class="panel-heading compact">
         <div>
           <h3>Puntuaciones con error</h3>
-          <p>${countText}. Tu puntuacion no se ha perdido.</p>
+          <p>${countText}. Tu puntuación no se ha perdido.</p>
         </div>
-        <span class="badge badge-warn">Requieren atencion</span>
+        <span class="badge badge-warn">Requieren atención</span>
       </div>
       <p class="attention-copy">Puedes restaurarlas a pendientes y reintentarlas cuando corrijas el problema.</p>
       <ul class="queue-list">${items.map(renderFailedItem).join("")}</ul>
@@ -94,7 +94,7 @@ export function renderQueuePanel(state) {
     : autoSync.status === "synced"
       ? "Sincronizado"
       : totals.failed > 0
-        ? "Requiere atencion"
+        ? "Requiere atención"
         : totals.pending > 0
           ? "Pendiente de sincronizar"
           : "Auto-sync listo";
@@ -116,11 +116,58 @@ export function renderQueuePanel(state) {
         <span class="badge ${badgeClass}">${escapeHtml(statusLabel)}</span>
       </div>
       <p class="activity-summary-line">
-        ${totals.pending} pendientes · ${totals.sent} enviadas · ${totals.failed} errores
+        ${escapeHtml(getActivitySummary(state.data?.queue, autoSync).message)}
       </p>
       <button class="tool-button activity-details-button" type="button" data-action="show-activity-details">
         Ver detalles
         <small>Cola activa</small>
+      </button>
+    </section>
+  `;
+}
+
+export function getActivitySummary(queue, autoSync = {}) {
+  const totals = queue?.totals || { failed: 0, pending: 0, sent: 0 };
+
+  if (totals.failed > 0 || autoSync.status === "partial_failed" || autoSync.status === "failed") {
+    return {
+      icon: "!",
+      status: "Requiere atención",
+      tone: "warning",
+      message: "Hay puntuaciones con error.",
+    };
+  }
+
+  if (totals.pending > 0 || autoSync.status === "blocked" || autoSync.status === "syncing") {
+    return {
+      icon: "↑",
+      status: autoSync.status === "syncing" ? "Sincronizando" : "Pendiente de sincronizar",
+      tone: "pending",
+      message: "Quedan puntuaciones por subir.",
+    };
+  }
+
+  return {
+    icon: "✓",
+    status: "Sincronizado",
+    tone: "ok",
+    message: "Todo al día, sin puntuaciones pendientes.",
+  };
+}
+
+export function renderActivitySummaryCard(state) {
+  const summary = getActivitySummary(state.data?.queue, state.data?.autoSync);
+
+  return `
+    <section class="activity-summary-card activity-summary-card--${summary.tone}">
+      <div class="activity-summary-card__icon icon-slot icon-slot--activity" aria-hidden="true">${summary.icon}</div>
+      <div class="min-w-0">
+        <h3>Actividad local</h3>
+        <strong>${escapeHtml(summary.status)}</strong>
+        <p>${escapeHtml(summary.message)}</p>
+      </div>
+      <button class="text-button activity-summary-card__details" type="button" data-action="show-activity-details">
+        Ver detalles &gt;
       </button>
     </section>
   `;
@@ -160,24 +207,24 @@ export function renderActivityDrawer(state) {
         <div class="panel-heading compact">
           <div>
             <h3>Puntuaciones pendientes</h3>
-            <p>Cola de seguridad · ${pending?.count || 0} guardadas · ${pending?.validCount || 0} validas</p>
+            <p>Cola de seguridad · ${pending?.count || 0} guardadas · ${pending?.validCount || 0} válidas</p>
           </div>
         </div>
         ${body}
         ${renderFailedSection(failed)}
         <details class="technical-details">
-          <summary>Detalles tecnicos</summary>
+          <summary>Detalles técnicos</summary>
           <dl>
             <div>
               <dt>Auto-sync</dt>
               <dd>${escapeHtml(autoSync.status || "sin estado")}</dd>
             </div>
             <div>
-              <dt>Ultimo intento</dt>
+              <dt>Último intento</dt>
               <dd>${escapeHtml(autoSync.lastAttemptAt || "-")}</dd>
             </div>
             <div>
-              <dt>Ultimo exito</dt>
+              <dt>Último éxito</dt>
               <dd>${escapeHtml(autoSync.lastSuccessAt || "-")}</dd>
             </div>
             <div>
@@ -185,7 +232,7 @@ export function renderActivityDrawer(state) {
               <dd>${escapeHtml(state.data?.scope?.scopedQueueRoot || "sin scope activo")}</dd>
             </div>
             <div>
-              <dt>Enviadas leidas</dt>
+              <dt>Enviadas leídas</dt>
               <dd>${escapeHtml(String(sent?.count || 0))}</dd>
             </div>
           </dl>
