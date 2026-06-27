@@ -146,3 +146,20 @@ No se descargan iconos ni se añaden dependencias.
 Se añadieron/actualizaron tests para proteger ausencia de ruido técnico en la
 primera capa, estructura del header, botonera 2x2, actividad compacta,
 biblioteca limpia, acceso avanzado por shortcut y ausencia de secretos.
+
+## Continuidad LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1
+
+`Game Detail Polish` queda aplicado sobre esta base: el detalle del pack usa un
+banner horizontal contenido, logo/titulo/semana, chips humanos acotados,
+metadata con etiqueta y valor, descripcion local solo si existe, botonera 2x2 y
+actividad local integrada.
+
+Siguen pendientes tareas posteriores de library cards, favoritos reales,
+selector de cuenta, iconos locales definitivos y pulido de drawers.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-CARDS-1
+
+`Library Cards` queda aplicado: las vistas `Portadas`, `Lista` e `Iconos` son
+distintas, la card completa activa el pack, el boton `Activo` desaparece, la
+estrella guarda favorito local y la sidebar permite ajustar anchura dentro de
+limites seguros.

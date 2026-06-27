@@ -32,3 +32,10 @@ Legacy sigue operativo. Esta fase solo reduce su presencia visual:
   `sync-plugin` permanecen en opciones avanzadas;
 - no se elimina v1, no se elimina `locations.json`, no se elimina dev bridge y
   no se cambia el contrato de packs.
+
+## LOCAL-LAUNCHER-LIBRARY-CARDS-1
+
+Legacy sigue operativo y filtrable. La biblioteca ya no convierte `Legacy /
+deprecated` en grupo protagonista por defecto: los packs legacy se muestran como
+juegos normales y llevan badge pequeno `Legacy`. Las explicaciones tecnicas
+siguen en opciones avanzadas y docs.

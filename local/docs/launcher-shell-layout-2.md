@@ -113,3 +113,10 @@ La estructura de shell se conserva, pero la primera capa se limpia:
 El drawer avanzado sigue conteniendo diagnóstico, runtime MAME, directorio de
 packs, membership, readiness, colas, legacy y `sync-plugin`. El drawer de
 actividad conserva pendientes, enviadas, failed recuperable y subida manual.
+
+## Continuidad LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1
+
+El shell de dos columnas se conserva. La biblioteca reduce ligeramente su ancho
+maximo y el panel derecho usa una ficha mas contenida: banner horizontal,
+detalle scrolleable, metadata legible, acciones 2x2 y actividad integrada. Los
+drawers y atajos avanzados no cambian.

@@ -166,3 +166,10 @@ El directorio único se gestiona desde una sección secundaria de la biblioteca.
 La pantalla principal ya no usa el modelo de múltiples ubicaciones ni presenta
 `Añadir pack` como flujo principal. `locations.json` permanece como fallback
 legacy no destructivo.
+
+## Actualizacion LOCAL-LAUNCHER-LIBRARY-CARDS-1
+
+`Gestionar biblioteca` sigue siendo el lugar para `Cambiar directorio`, `Abrir
+directorio` y `Reescanear`, pero queda visualmente mas discreto al final de la
+sidebar. Cambiar la anchura de la sidebar no modifica el directorio de packs ni
+mueve archivos.

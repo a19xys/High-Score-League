@@ -59,3 +59,17 @@ en avanzado, abierto con `Ctrl+Shift+D`.
 La biblioteca muestra `Biblioteca` + contador, búsqueda compacta, temporada y
 vistas `Portadas`, `Lista`, `Iconos`. `Reescanear` pasa a `Gestionar
 biblioteca` y el filtro `Estado` sale de la primera capa.
+
+## LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1
+
+El detalle del juego seleccionado se refina sin cambiar flujos: hero contenido,
+metadata legible, chips humanos acotados, cuatro acciones en grilla 2x2 y
+actividad local integrada con acceso al drawer. El panel derecho recibe mas
+espacio al reducir ligeramente la anchura maxima de biblioteca.
+
+## LOCAL-LAUNCHER-LIBRARY-CARDS-1
+
+La biblioteca se convierte en una biblioteca visual: Portadas usa cards, Lista
+usa filas compactas e Iconos usa grid denso. La card completa selecciona el
+pack, la estrella alterna favorito local y la vista/ancho de sidebar se guardan
+como preferencia local por usuario.

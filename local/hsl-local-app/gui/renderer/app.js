@@ -9,6 +9,9 @@ import { renderActivityDrawer } from "./components/queue-panel.js";
 
 const root = document.getElementById("app");
 const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
+const LIBRARY_SIDEBAR_MIN = 360;
+const LIBRARY_SIDEBAR_MAX = 600;
+const LIBRARY_SIDEBAR_DEFAULT = 440;
 const store = createStore({
   accountMenuOpen: false,
   activeOverlay: null,
@@ -21,12 +24,25 @@ const store = createStore({
   data: null,
   libraryQuery: "",
   librarySeason: "all",
+  librarySidebarWidth: LIBRARY_SIDEBAR_DEFAULT,
   libraryStatus: "all",
   libraryView: "covers",
   logs: [],
   noticeIds: [],
   theme: savedTheme,
 });
+
+let sidebarResize = null;
+
+function clampSidebarWidth(value) {
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return LIBRARY_SIDEBAR_DEFAULT;
+  }
+
+  return Math.min(LIBRARY_SIDEBAR_MAX, Math.max(LIBRARY_SIDEBAR_MIN, Math.round(numeric)));
+}
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -67,15 +83,17 @@ function renderOverlay(state) {
 function render() {
   const state = store.getState();
   applyTheme(state.theme);
+  const sidebarWidth = clampSidebarWidth(state.librarySidebarWidth);
 
   root.innerHTML = `
     ${renderHeader(state)}
-    <main class="app-main">
+    <main class="app-main" style="--library-sidebar-width: ${sidebarWidth}px">
       <aside class="library-panel-region">
         <div class="library-scroll">
           ${renderLibraryPanel(state)}
         </div>
       </aside>
+      <div class="library-resizer" data-sidebar-resizer role="separator" aria-orientation="vertical" aria-label="Ajustar anchura de biblioteca" tabindex="0"></div>
       <section class="game-panel-region">
         <div class="game-scroll">
           ${renderGamePanel(state)}
@@ -89,6 +107,7 @@ function render() {
 async function refreshState() {
   const data = await window.hslLauncher.getState();
   const current = store.getState();
+  const libraryPreferences = data.library?.preferences || {};
   const noticeLogs = (data.notices || [])
     .filter((notice) => !current.noticeIds.includes(notice.id))
     .map((notice) => ({
@@ -100,12 +119,67 @@ async function refreshState() {
 
   store.setState({
     data,
+    librarySidebarWidth: clampSidebarWidth(libraryPreferences.sidebarWidth || current.librarySidebarWidth),
+    libraryView: libraryPreferences.libraryView || current.libraryView,
     logs: noticeLogs.reduce((logs, notice) => appendLog(logs, notice), current.logs),
     noticeIds: [
       ...current.noticeIds,
       ...(data.notices || []).map((notice) => notice.id),
     ],
   });
+}
+
+async function persistLibraryPreferences(patch) {
+  try {
+    const response = await window.hslLauncher.setLibraryPreferences(patch);
+
+    if (response.state) {
+      const preferences = response.state.library?.preferences || {};
+      store.setState({
+        data: response.state,
+        librarySidebarWidth: clampSidebarWidth(preferences.sidebarWidth || store.getState().librarySidebarWidth),
+        libraryView: preferences.libraryView || store.getState().libraryView,
+      });
+    }
+  } catch (error) {
+    store.setState({
+      logs: appendLog(store.getState().logs, {
+        details: [error.message || String(error)],
+        ok: false,
+        summary: "No se pudieron guardar las preferencias de biblioteca.",
+        title: "Biblioteca",
+      }),
+    });
+  }
+}
+
+async function toggleLibraryFavorite(packKey) {
+  try {
+    const response = await window.hslLauncher.toggleLibraryFavorite(packKey);
+
+    if (response.state) {
+      store.setState({ data: response.state });
+    }
+  } catch (error) {
+    store.setState({
+      logs: appendLog(store.getState().logs, {
+        details: [error.message || String(error)],
+        ok: false,
+        summary: "No se pudo actualizar el favorito.",
+        title: "Biblioteca",
+      }),
+    });
+  }
+}
+
+function updateSidebarWidth(width, save = false) {
+  const nextWidth = clampSidebarWidth(width);
+
+  store.setState({ librarySidebarWidth: nextWidth });
+
+  if (save) {
+    persistLibraryPreferences({ sidebarWidth: nextWidth });
+  }
 }
 
 function resultToLog(title, response) {
@@ -326,6 +400,53 @@ function bindActions() {
 
   });
 
+  root.addEventListener("pointerdown", (event) => {
+    const resizer = event.target instanceof Element ? event.target.closest("[data-sidebar-resizer]") : null;
+
+    if (!resizer) return;
+
+    event.preventDefault();
+    sidebarResize = {
+      startX: event.clientX,
+      startWidth: clampSidebarWidth(store.getState().librarySidebarWidth),
+    };
+    document.body.classList.add("is-resizing-library");
+  });
+
+  window.addEventListener("pointermove", (event) => {
+    if (!sidebarResize) return;
+
+    updateSidebarWidth(sidebarResize.startWidth + event.clientX - sidebarResize.startX);
+  });
+
+  window.addEventListener("pointerup", () => {
+    if (!sidebarResize) return;
+
+    sidebarResize = null;
+    document.body.classList.remove("is-resizing-library");
+    persistLibraryPreferences({ sidebarWidth: store.getState().librarySidebarWidth });
+  });
+
+  root.addEventListener("keydown", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const resizer = target?.closest("[data-sidebar-resizer]");
+
+    if (resizer && (event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "Home")) {
+      event.preventDefault();
+      const current = store.getState().librarySidebarWidth;
+      const delta = event.key === "ArrowLeft" ? -20 : event.key === "ArrowRight" ? 20 : LIBRARY_SIDEBAR_DEFAULT - current;
+      updateSidebarWidth(current + delta, true);
+      return;
+    }
+
+    const card = target?.closest("[role='button'][data-action='use-library-pack']");
+
+    if (card && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      card.click();
+    }
+  });
+
   root.addEventListener("submit", (event) => {
     const form = event.target instanceof Element ? event.target.closest("[data-auth-form]") : null;
     if (!form) return;
@@ -374,7 +495,15 @@ function bindActions() {
     }
 
     if (action === "set-library-view") {
-      store.setState({ libraryView: button.dataset.view || "covers" });
+      const libraryView = button.dataset.view || "covers";
+      store.setState({ libraryView });
+      persistLibraryPreferences({ libraryView });
+    }
+
+    if (action === "toggle-library-favorite") {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleLibraryFavorite(button.dataset.packKey || "");
     }
 
     if (action === "show-login") {

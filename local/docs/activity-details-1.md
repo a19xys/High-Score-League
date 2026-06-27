@@ -40,3 +40,10 @@ errores`. En su lugar muestra:
 disponibles `Subir pendientes`, pendientes, enviadas, `Puntuaciones con error`
 y `Restaurar a pendientes`, sin mezclar scopes y sin mostrar JSON crudo ni
 tokens.
+
+## Actualizacion LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1
+
+La actividad local integrada en la ficha conserva el mismo modelo: resumen
+humano en primera capa y `Ver detalles >` para abrir el drawer. Los contadores,
+failed recuperable, `Subir pendientes` y detalles tecnicos siguen solo dentro
+del drawer.

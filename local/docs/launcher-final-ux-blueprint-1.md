@@ -529,3 +529,19 @@ Actividad local vive ahora como subtarjeta compacta del pack, con `Ver detalles
 >` para abrir el drawer. Opciones avanzadas desaparece como tarjeta visible y
 se abre con `Ctrl+Shift+D`. Quedan pendientes Game Detail Polish, Library
 Cards, Account Menu Polish e Icon System.
+
+## Avance LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1
+
+La ficha seleccionada queda pulida como primera capa de jugador: banner
+horizontal contenido, logo/titulo/semana, chips humanos limitados, metadata con
+icono/etiqueta/valor, descripcion local solo cuando existe, acciones 2x2 y
+actividad local integrada. El detalle ya no usa readiness tecnico como texto de
+fallback ni muestra identificadores/rutas en la superficie principal.
+
+## Avance LOCAL-LAUNCHER-LIBRARY-CARDS-1
+
+La biblioteca izquierda queda mas cercana a un launcher real: Portadas, Lista e
+Iconos son vistas diferenciadas; las cards ya no tienen boton `Activo` ni
+`Seleccionar`; el pack activo se marca por borde/acento; legacy queda como badge
+discreto; la estrella guarda favoritos locales; la vista y la anchura de
+sidebar se recuerdan por usuario con fallback global.

@@ -277,8 +277,9 @@ test("pack detectado usa fallback sin metadata", async () => {
 
     const library = await scanPackLibrary(config(dir));
 
-    assert.equal(library.packs[0].title, "space-invaders");
-    assert.equal(library.packs[0].subtitle, "week-1");
+    assert.equal(library.packs[0].title, "Space Invaders");
+    assert.equal(library.packs[0].subtitle, "Semana 1");
+    assert.equal(library.packs[0].favoriteKey, "space-invaders|invaders|week-1");
   });
 });
 

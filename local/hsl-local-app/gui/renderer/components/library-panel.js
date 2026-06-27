@@ -67,14 +67,10 @@ function groupPacks(packs) {
   const groups = new Map();
 
   for (const pack of packs) {
-    const id = pack.deprecated
-      ? "legacy"
-      : pack.seasonId
+    const id = pack.seasonId
         ? `season:${pack.seasonId}`
         : "unseasoned";
-    const title = pack.deprecated
-      ? "Legacy"
-      : pack.seasonName || pack.seasonId || "Sin temporada";
+    const title = pack.seasonName || pack.seasonId || "Sin temporada";
 
     if (!groups.has(id)) {
       groups.set(id, {

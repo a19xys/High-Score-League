@@ -146,3 +146,11 @@ Si no se crean imágenes, la metadata textual se carga y los assets generan warn
 `rankingUrl`. Las rutas de manual se validan y abren fuera del renderer. Los
 assets mantienen su uso: `cover` en portadas, `icon` en lista/iconos y
 `hero`/`logo` en el detalle.
+
+## Actualizacion LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1
+
+El detalle seleccionado usa `hero` como banner horizontal y cae a `cover` o a un
+placeholder HSL contenido. `logo` o `icon` acompanan al titulo. `developer`,
+`publisher`, `year`, `genre` y `playTime` se muestran como metadata de
+presentacion con etiqueta visible. Si `shortDescription` no existe, la ficha no
+rellena ese espacio con readiness tecnico.

@@ -1,4 +1,4 @@
-import { COPY, getReadyLabel } from "./copy.js";
+import { COPY } from "./copy.js";
 import { escapeHtml } from "./html.js";
 import { renderActivitySummaryCard } from "./queue-panel.js";
 
@@ -8,14 +8,12 @@ function membershipBadge(membership) {
     invalid_week: ["badge-error", "Pack con errores"],
     member: ["badge-ok", "Participas en la temporada"],
     missing_week: ["badge-error", "Pack con errores"],
-    no_session: ["badge-warn", "Sin cuenta"],
     not_member: ["badge-error", "No participas en la temporada"],
-    unauthenticated: ["badge-error", "Sin cuenta"],
     unknown: ["badge-warn", "Listo con avisos"],
   };
 
-  if (!membership) {
-    return `<span class="badge badge-muted">Listo con avisos</span>`;
+  if (!membership || membership.status === "no_session" || membership.status === "unauthenticated") {
+    return "";
   }
 
   const [badgeClass, label] = labels[membership.status] || labels.unknown;
@@ -39,6 +37,7 @@ function autoSyncBadge(autoSync) {
 }
 
 function readinessBadges(readiness, bridge) {
+  const legacy = bridge?.contractStatus === "deprecated" || bridge?.deprecated;
   const classes = {
     blocked: "badge-error",
     ready: "badge-ok",
@@ -52,12 +51,23 @@ function readinessBadges(readiness, bridge) {
     warning: "Listo con avisos",
   };
   const status = readiness?.status || "unknown";
-  const legacy = bridge?.contractStatus === "deprecated" || bridge?.deprecated;
+  const displayStatus = legacy && status === "ready" ? "warning" : status;
 
   return [
-    `<span class="badge ${classes[status] || classes.unknown}">${labels[status] || labels.unknown}</span>`,
+    `<span class="badge ${classes[displayStatus] || classes.unknown}">${labels[displayStatus] || labels.unknown}</span>`,
     legacy ? `<span class="badge badge-warn">Legacy</span>` : "",
-  ].filter(Boolean).join("");
+  ].filter(Boolean);
+}
+
+function renderStatusBadges(readiness, membership, autoSync, bridge) {
+  return [
+    ...readinessBadges(readiness, bridge),
+    membershipBadge(membership),
+    autoSyncBadge(autoSync),
+  ]
+    .filter(Boolean)
+    .slice(0, 4)
+    .join("");
 }
 
 function renderPackLogo(game) {
@@ -75,11 +85,15 @@ function renderPackLogo(game) {
 function renderPackVisuals(game) {
   const hero = game?.assets?.hero || game?.assets?.cover;
 
-  if (!hero?.url) {
-    return `<div class="game-panel__placeholder" aria-hidden="true"><span>HSL</span></div>`;
-  }
-
-  return `<img class="game-panel__hero" src="${escapeHtml(hero.url)}" alt="">`;
+  return `
+    <div class="game-hero-stage" aria-hidden="true">
+      <div class="game-hero-media">
+        ${hero?.url
+          ? `<img class="game-panel__hero" src="${escapeHtml(hero.url)}" alt="">`
+          : `<div class="game-panel__placeholder"><span>High Score League</span><strong>HSL</strong></div>`}
+      </div>
+    </div>
+  `;
 }
 
 function renderPackMetadata(game) {
@@ -95,12 +109,15 @@ function renderPackMetadata(game) {
   }
 
   return `
-    <div class="pack-metadata-row">
+    <div class="pack-metadata-grid">
       ${items.map(([icon, label, value]) => `
-        <span class="pack-metadata-item" title="${escapeHtml(label)}: ${escapeHtml(value)}">
+        <div class="pack-metadata-item" title="${escapeHtml(label)}: ${escapeHtml(value)}">
           <span class="icon-slot icon-slot--${icon}" aria-hidden="true"></span>
-          <span>${escapeHtml(value)}</span>
-        </span>
+          <span class="meta-copy">
+            <span class="meta-label">${escapeHtml(label)}</span>
+            <strong class="meta-value">${escapeHtml(value)}</strong>
+          </span>
+        </div>
       `).join("")}
     </div>
   `;
@@ -114,7 +131,7 @@ function renderContentAction(action, label, content, disabled) {
   return `
     <button class="secondary-action compact-action action-tile" type="button" data-action="${action}" title="${escapeHtml(title)}" ${disabled || unavailable ? "disabled" : ""}>
       <span class="action-icon icon-slot icon-slot--${icon}" aria-hidden="true"></span>
-      <span>${label}</span>
+      <span class="action-button-label">${label}</span>
     </button>
   `;
 }
@@ -133,16 +150,14 @@ export function renderGamePanel(state) {
   const competitionDisabled = state.busy || !data?.session?.hasSession || membershipBlocksCompetition || readinessBlocksCompetition ? "disabled" : "";
   const weekLabel = game?.weekNumber ? `Semana ${game.weekNumber}` : game?.weekId ? "Semana" : null;
   const subtitle = game?.subtitle || [game?.seasonName, weekLabel].filter(Boolean).join(" · ");
-  const description = game?.shortDescription || getReadyLabel(data);
+  const description = game?.shortDescription || "";
 
   return `
-    <section class="game-panel">
+    <section class="game-panel game-detail-card">
       ${renderPackVisuals(game)}
-      <div class="game-panel__content">
+      <div class="game-detail-body">
         <div class="badge-row">
-          ${readinessBadges(readiness, bridge)}
-          ${membershipBadge(membership)}
-          ${autoSyncBadge(autoSync)}
+          ${renderStatusBadges(readiness, membership, autoSync, bridge)}
         </div>
         <div class="pack-title-row">
           ${renderPackLogo(game)}
@@ -155,15 +170,15 @@ export function renderGamePanel(state) {
             ${renderPackMetadata(game)}
           </div>
         </div>
-        <p class="ready-copy">${escapeHtml(description)}</p>
+        ${description ? `<p class="ready-copy">${escapeHtml(description)}</p>` : ""}
         <div class="primary-actions action-grid">
           <button class="play-button action-tile" type="button" data-action="play" ${competitionDisabled}>
             <span class="action-icon icon-slot icon-slot--play" aria-hidden="true"></span>
-            <span>${COPY.actions.play}</span>
+            <span class="action-button-label">${COPY.actions.play}</span>
           </button>
           <button class="secondary-action compact-action action-tile" type="button" data-action="practice" ${practiceDisabled}>
             <span class="action-icon icon-slot icon-slot--practice" aria-hidden="true"></span>
-            <span>Practicar</span>
+            <span class="action-button-label">Practicar</span>
           </button>
           ${renderContentAction("open-manual", "Manual", game?.manual, disabled)}
           ${renderContentAction("open-ranking", "Ranking", game?.ranking, disabled)}

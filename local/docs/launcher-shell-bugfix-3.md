@@ -77,3 +77,10 @@ primera capa sin revertir los bugfixes:
   subtarjeta compacta de actividad;
 - la biblioteca mantiene scroll propio y compacta cabecera, filtros y vistas;
 - legacy sigue soportado y aparece solo como badge `Legacy` en primera capa.
+
+## Continuidad LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1
+
+El bugfix de scroll y drawers sigue vigente. El pulido posterior solo cambia la
+composicion visual de la ficha del juego seleccionado y mantiene fuera de la
+primera capa diagnostico, rutas, scope, staging, readiness tecnico y
+membership tecnico.

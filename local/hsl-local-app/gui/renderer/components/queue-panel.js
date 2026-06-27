@@ -13,7 +13,7 @@ function renderQueueItem(item) {
   return `
     <li class="queue-item">
       <div>
-        <strong>${escapeHtml(item.game || item.rom || "Puntuacion local")}</strong>
+        <strong>${escapeHtml(item.game || item.rom || "Puntuación local")}</strong>
         <p>${escapeHtml(score)} · ${escapeHtml(formatDetectedAt(item.detectedAt))}</p>
         ${errorText}
       </div>
@@ -140,7 +140,7 @@ export function getActivitySummary(queue, autoSync = {}) {
 
   if (totals.pending > 0 || autoSync.status === "blocked" || autoSync.status === "syncing") {
     return {
-      icon: "↑",
+      icon: "UP",
       status: autoSync.status === "syncing" ? "Sincronizando" : "Pendiente de sincronizar",
       tone: "pending",
       message: "Quedan puntuaciones por subir.",
@@ -148,7 +148,7 @@ export function getActivitySummary(queue, autoSync = {}) {
   }
 
   return {
-    icon: "✓",
+    icon: "OK",
     status: "Sincronizado",
     tone: "ok",
     message: "Todo al día, sin puntuaciones pendientes.",
@@ -161,8 +161,8 @@ export function renderActivitySummaryCard(state) {
   return `
     <section class="activity-summary-card activity-summary-card--${summary.tone}">
       <div class="activity-summary-card__icon icon-slot icon-slot--activity" aria-hidden="true">${summary.icon}</div>
-      <div class="min-w-0">
-        <h3>Actividad local</h3>
+      <div class="activity-summary-card__copy min-w-0">
+        <span class="activity-summary-card__label">Actividad local</span>
         <strong>${escapeHtml(summary.status)}</strong>
         <p>${escapeHtml(summary.message)}</p>
       </div>

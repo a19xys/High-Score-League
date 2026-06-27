@@ -20,12 +20,51 @@ function assetForLibrary(asset) {
   };
 }
 
+function humanizeIdentifier(value) {
+  const cleaned = String(value || "")
+    .replace(/\.(json|zip)$/i, "")
+    .replace(/(?:^|[-_])(?:dev|development|pack|local|deprecated|legacy)(?=$|[-_])/gi, "-")
+    .replace(/(?:^|[-_])week[-_]?\d+$/i, "")
+    .replace(/[-_]+/g, " ")
+    .trim();
+
+  if (!cleaned) {
+    return null;
+  }
+
+  return cleaned.replace(/\b[a-z0-9]/gi, (match) => match.toUpperCase());
+}
+
+function weekLabel(pack) {
+  if (pack?.weekNumber) {
+    return `Semana ${pack.weekNumber}`;
+  }
+
+  const match = String(pack?.weekId || "").match(/^week[-_ ]?(\d+)$/i);
+
+  return match ? `Semana ${match[1]}` : null;
+}
+
 function getPackTitle(pack) {
-  return pack?.metadata?.title || pack?.packId || pack?.gameId || pack?.rom || "Pack sin titulo";
+  return pack?.metadata?.title ||
+    humanizeIdentifier(pack?.title) ||
+    humanizeIdentifier(pack?.gameId) ||
+    humanizeIdentifier(pack?.packId) ||
+    humanizeIdentifier(pack?.rom) ||
+    "Pack local";
 }
 
 function getPackSubtitle(pack) {
-  return pack?.metadata?.subtitle || pack?.weekId || null;
+  const season = pack?.seasonName || null;
+  const week = weekLabel(pack);
+
+  return pack?.metadata?.subtitle || [season, week].filter(Boolean).join(" · ") || week || season || null;
+}
+
+function getFavoriteKey(pack, packDir) {
+  return pack?.packId ||
+    [pack?.gameId, pack?.rom, pack?.weekId].filter(Boolean).join("|") ||
+    packDir;
 }
 
 function buildLibraryPackItem(directory, packDir, packResult) {
@@ -47,6 +86,7 @@ function buildLibraryPackItem(directory, packDir, packResult) {
     hero: assetForLibrary(assets.hero),
     icon: assetForLibrary(assets.icon),
     id: hashId(`${directory.id}|${packDir}`, "pack"),
+    favoriteKey: getFavoriteKey(pack, packDir),
     locationId: directory.id,
     logo: assetForLibrary(assets.logo),
     packDir,
@@ -169,6 +209,7 @@ async function scanDirectory(directoryState) {
         gameId: null,
         icon: null,
         id: hashId(`${directory.id}|${packDir}`, "pack"),
+        favoriteKey: packDir,
         locationId: directory.id,
         logo: null,
         packDir,
@@ -234,6 +275,11 @@ async function scanPackLibrary(config) {
 
 module.exports = {
   buildLibraryPackItem,
+  getFavoriteKey,
+  getPackSubtitle,
+  getPackTitle,
+  humanizeIdentifier,
   scanDirectory,
   scanPackLibrary,
+  weekLabel,
 };

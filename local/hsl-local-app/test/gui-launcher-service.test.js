@@ -21,7 +21,9 @@ const {
   rescanPackDirectory,
   resetAutoSyncStateForTests,
   runAutoSyncIfEligible,
+  setLibraryPreferencesFromGui,
   summarizeDiagnoseReport,
+  toggleLibraryFavoriteFromGui,
 } = require("../gui/launcher-service");
 const { setPackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
@@ -293,7 +295,9 @@ test("renderer maps membership statuses and manual recheck action", async () => 
     "utf8",
   );
 
-  assert.match(gamePanel, /unauthenticated: \["badge-error", "Sin cuenta"\]/);
+  assert.match(gamePanel, /membership\.status === "no_session"/);
+  assert.match(gamePanel, /membership\.status === "unauthenticated"/);
+  assert.equal(/"Sin cuenta"/.test(gamePanel), false);
   assert.match(gamePanel, /error: \["badge-warn", "Listo con avisos"\]/);
   assert.equal(/data-action="check-membership"/.test(gamePanel), false);
   assert.match(devTools, /data-action="check-membership"/);
@@ -351,7 +355,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /Todavía no has elegido un directorio de packs/);
   assert.match(libraryPanel, /No se han encontrado packs en este directorio/);
   assert.match(libraryPanel, /Sin temporada/);
-  assert.match(libraryPanel, /Legacy/);
+  assert.equal(/const id = pack\.deprecated/.test(libraryPanel), false);
   assert.match(libraryPanel, /data-library-search/);
   assert.match(libraryPanel, /data-library-season/);
   assert.equal(/data-library-status|<span>Estado<\/span>/.test(libraryPanel), false);
@@ -376,21 +380,28 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /if \(view === "covers"\) return pack\.cover \|\| pack\.icon \|\| pack\.logo/);
   assert.match(packCard, /return pack\.icon \|\| pack\.cover \|\| pack\.logo/);
   assert.match(packCard, /pack-card__placeholder/);
-  assert.match(packCard, /Activo/);
-  assert.match(packCard, /Seleccionar/);
+  assert.match(packCard, /Activa/);
+  assert.equal(/Seleccionar|library-use-button|Ya activo/.test(packCard), false);
   assert.match(packCard, /data-action="use-library-pack"/);
-  assert.match(packCard, /Requiere atención/);
-  assert.match(packCard, /label: "Legacy"/);
+  assert.match(packCard, /data-action="toggle-library-favorite"/);
+  assert.match(packCard, /data-pack-key/);
+  assert.match(packCard, /Con errores/);
+  assert.match(packCard, /pack-card__legacy/);
   assert.equal(/Legacy \/ deprecated"\s*}/.test(packCard), false);
   assert.match(packCard, /favorite-slot/);
+  assert.match(packCard, /favorite-slot--active/);
   assert.match(styles, /\.library-pack-grid/);
+  assert.match(styles, /LOCAL-LAUNCHER-LIBRARY-CARDS-1/);
+  assert.match(styles, /\.library-pack-grid--covers[\s\S]*repeat\(auto-fit, minmax\(150px, 1fr\)\)/);
   assert.match(styles, /\.library-pack-grid--list/);
+  assert.match(styles, /\.pack-card--list[\s\S]*min-height: 62px/);
   assert.match(styles, /\.library-pack-grid--icons/);
+  assert.match(styles, /\.library-pack-grid--icons[\s\S]*minmax\(82px, 1fr\)/);
   assert.match(styles, /\.pack-card--active/);
   assert.match(styles, /\.pack-card__placeholder/);
   assert.match(styles, /\.favorite-slot/);
-  assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*max-height: 190px/);
-  assert.match(styles, /\.pack-card--icons[\s\S]*min-height: 128px/);
+  assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*max-height: 178px/);
+  assert.match(styles, /\.pack-card--icons[\s\S]*min-height: 106px/);
   assert.equal(/escapeHtml\(pack\.packDir|escapeHtml\(pack\.packPath/.test(packCard), false);
   assert.equal(/checkSeasonMembership|membership/.test(libraryPanel + packCard), false);
   assert.equal(/access_token|refresh_token|Authorization/.test(libraryPanel + packCard), false);
@@ -407,6 +418,13 @@ test("renderer product hierarchy includes connection, player actions, activity a
   ]);
 
   assert.match(app, /app-main/);
+  assert.match(app, /--library-sidebar-width/);
+  assert.match(app, /library-resizer/);
+  assert.match(app, /data-sidebar-resizer/);
+  assert.match(app, /setLibraryPreferences/);
+  assert.match(app, /toggleLibraryFavorite/);
+  assert.match(app, /LIBRARY_SIDEBAR_MIN = 360/);
+  assert.match(app, /LIBRARY_SIDEBAR_MAX = 600/);
   assert.match(app, /library-panel-region/);
   assert.match(app, /game-panel-region/);
   assert.match(app, /modal-layer/);
@@ -439,26 +457,50 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /data-action="practice"/);
   assert.match(gamePanel, /renderContentAction\("open-manual", "Manual"/);
   assert.match(gamePanel, /renderContentAction\("open-ranking", "Ranking"/);
+  assert.match(gamePanel, /game-detail-card/);
+  assert.match(gamePanel, /game-hero-stage/);
+  assert.match(gamePanel, /game-hero-media/);
+  assert.match(gamePanel, /game-detail-body/);
+  assert.match(gamePanel, /pack-metadata-grid/);
+  assert.match(gamePanel, /meta-label/);
+  assert.match(gamePanel, /meta-value/);
+  assert.match(gamePanel, /renderStatusBadges/);
+  assert.match(gamePanel, /\.slice\(0, 4\)/);
+  assert.match(gamePanel, /action-button-label/);
   assert.match(gamePanel, /action-grid/);
   assert.match(gamePanel, /renderActivitySummaryCard\(state\)/);
   assert.match(gamePanel, /Pack listo/);
   assert.match(gamePanel, /Participas en la temporada/);
   assert.match(gamePanel, /Auto-sync activo/);
-  assert.equal(/Competicion|Pack abierto|Ultimo pack cargado|Cola cuenta \+ pack|Pack abierto correctamente|Listo para competir|Sincronizacion automatica lista|data-action="check-membership"/.test(gamePanel), false);
+  assert.equal(/getReadyLabel|Competicion|Pack abierto|Ultimo pack cargado|Cola cuenta \+ pack|Pack abierto correctamente|Listo para competir|Sincronizacion automatica lista|data-action="check-membership"/.test(gamePanel), false);
   assert.equal(/game-panel__score/.test(gamePanel), false);
   assert.match(queuePanel, /Actividad local/);
   assert.match(queuePanel, /data-action="show-activity-details"/);
   assert.match(queuePanel, /getActivitySummary/);
+  assert.match(queuePanel, /activity-summary-card__label/);
+  assert.match(queuePanel, /icon: "UP"/);
+  assert.match(queuePanel, /icon: "OK"/);
   assert.equal(/\$\{totals\.pending\} pendientes/.test(queuePanel), false);
   assert.match(queuePanel, /renderActivityDrawer/);
   assert.match(queuePanel, /Puntuaciones con error/);
   assert.match(devTools, /data-action="check-membership"/);
   assert.match(styles, /\.app-main/);
+  assert.match(styles, /var\(--library-sidebar-width, 440px\) 8px minmax\(0, 1fr\)/);
+  assert.match(styles, /\.library-resizer/);
   assert.match(styles, /\.library-panel-region/);
   assert.match(styles, /\.game-panel-region/);
   assert.match(styles, /\.brand-lockup/);
   assert.match(styles, /\.action-grid/);
   assert.match(styles, /\.activity-summary-card/);
+  assert.match(styles, /LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1/);
+  assert.match(styles, /\.app-main[\s\S]*minmax\(380px, 440px\)/);
+  assert.match(styles, /\.game-hero-stage[\s\S]*aspect-ratio: 16 \/ 5/);
+  assert.match(styles, /\.game-hero-stage[\s\S]*max-height: 220px/);
+  assert.match(styles, /\.game-detail-body/);
+  assert.match(styles, /\.pack-metadata-grid[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.meta-label/);
+  assert.match(styles, /\.meta-value/);
+  assert.match(styles, /\.game-detail-card \.activity-summary-card/);
   assert.match(styles, /\.modal-layer/);
   assert.match(styles, /\.drawer-layer/);
   assert.match(styles, /#app[\s\S]*width: 100%[\s\S]*height: 100%/);
@@ -548,16 +590,22 @@ test("pack directory actions are exposed without legacy location UI", async () =
   assert.match(main, /launcher:choose-shared-mame-runtime/);
   assert.match(main, /launcher:open-shared-mame-runtime/);
   assert.match(main, /launcher:rescan-pack-directory/);
+  assert.match(main, /launcher:set-library-preferences/);
+  assert.match(main, /launcher:toggle-library-favorite/);
   assert.match(preload, /choosePackDirectory/);
   assert.match(preload, /openPackDirectory/);
   assert.match(preload, /chooseSharedMameRuntime/);
   assert.match(preload, /openSharedMameRuntime/);
   assert.match(preload, /rescanPackDirectory/);
+  assert.match(preload, /setLibraryPreferences/);
+  assert.match(preload, /toggleLibraryFavorite/);
   assert.match(app, /window\.hslLauncher\.choosePackDirectory/);
   assert.match(app, /window\.hslLauncher\.openPackDirectory/);
   assert.match(app, /window\.hslLauncher\.chooseSharedMameRuntime/);
   assert.match(app, /window\.hslLauncher\.openSharedMameRuntime/);
   assert.match(app, /window\.hslLauncher\.rescanPackDirectory/);
+  assert.match(app, /window\.hslLauncher\.setLibraryPreferences/);
+  assert.match(app, /window\.hslLauncher\.toggleLibraryFavorite/);
   assert.equal(/addLibraryLocation|removeLibraryLocation|launcher:add-library-location|launcher:remove-library-location/.test(main + preload + app), false);
 });
 
@@ -929,6 +977,43 @@ test("rescanPackDirectory returns fresh state action", async () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.action, "rescan-pack-directory");
+});
+
+test("library preferences and favorites stay local to userData", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const session = {
+      email: "test3@gmail.com",
+      hasSession: true,
+      userId: "user-1",
+    };
+
+    const preferences = await setLibraryPreferencesFromGui({
+      libraryView: "list",
+      sidebarWidth: 520,
+    }, {
+      config,
+      includeState: false,
+      session,
+    });
+    const favorite = await toggleLibraryFavoriteFromGui("space-invaders-week-1", {
+      config,
+      includeState: false,
+      now: "2026-06-27T00:00:00.000Z",
+    });
+
+    assert.equal(preferences.ok, true);
+    assert.equal(preferences.preferences.libraryView, "list");
+    assert.equal(preferences.preferences.sidebarWidth, 520);
+    assert.match(preferences.preferences.filePath, /players/);
+    assert.equal(favorite.ok, true);
+    assert.equal(favorite.favorites.favorites["space-invaders-week-1"], true);
+    assert.match(favorite.favorites.filePath, /library[\\/]favorites\.json$/);
+    assert.equal(JSON.stringify(preferences).includes("access_token"), false);
+    assert.equal(JSON.stringify(favorite).includes("refresh_token"), false);
+  });
 });
 
 test("openPackManual abre archivo local sin exponerlo al renderer", async () => {

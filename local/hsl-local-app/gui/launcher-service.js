@@ -35,6 +35,12 @@ const { evaluatePackReadiness } = require("../src/pack-readiness");
 const { readPackDirectory, setPackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
 const {
+  readLibraryFavorites,
+  readLibraryPreferences,
+  toggleLibraryFavorite,
+  writeLibraryPreferences,
+} = require("../src/library-preferences");
+const {
   resolvePackManual,
   resolvePackRanking,
   toRendererContentState,
@@ -541,6 +547,25 @@ async function stateFromContext(context) {
     session,
   }, autoSyncState);
   const savedSessionUserIds = await listSavedSessionUserIds(baseConfig, accountsStore.accounts);
+  const [library, libraryPreferences, libraryFavorites] = await Promise.all([
+    scanPackLibrary(baseConfig),
+    readLibraryPreferences(baseConfig, session),
+    readLibraryFavorites(baseConfig),
+  ]);
+  const favoriteMap = libraryFavorites.favorites || {};
+  const libraryState = {
+    ...library,
+    favorites: {
+      count: Object.keys(favoriteMap).length,
+      filePath: libraryFavorites.filePath,
+      warnings: libraryFavorites.warnings || [],
+    },
+    packs: library.packs.map((pack) => ({
+      ...pack,
+      favorite: Boolean(favoriteMap[pack.favoriteKey]),
+    })),
+    preferences: libraryPreferences,
+  };
   const readiness = evaluatePackReadiness({
     autoSync,
     config,
@@ -556,7 +581,7 @@ async function stateFromContext(context) {
     bridge: getBridgeState(config),
     configPath: config.configPath,
     game: getGameState(config),
-    library: await scanPackLibrary(baseConfig),
+    library: libraryState,
     membership,
     notices: recentPackNotices,
     queue,
@@ -1597,6 +1622,41 @@ async function rescanPackDirectory(options = {}) {
   };
 }
 
+async function setLibraryPreferencesFromGui(patch = {}, options = {}) {
+  if (!options.config) {
+    await ensureRememberedPackLoaded();
+  }
+
+  const config = options.config || loadRuntimeConfig();
+  const session = options.session || await getAuthState(config);
+  const preferences = await writeLibraryPreferences(config, session, patch, options);
+
+  return {
+    action: "set-library-preferences",
+    ok: true,
+    preferences,
+    state: options.includeState === false ? null : await getLauncherState(),
+    summary: "Preferencias de biblioteca guardadas.",
+  };
+}
+
+async function toggleLibraryFavoriteFromGui(packKey, options = {}) {
+  if (!options.config) {
+    await ensureRememberedPackLoaded();
+  }
+
+  const config = options.config || loadRuntimeConfig();
+  const favorites = await toggleLibraryFavorite(config, packKey, options);
+
+  return {
+    action: "toggle-library-favorite",
+    favorites,
+    ok: true,
+    state: options.includeState === false ? null : await getLauncherState(),
+    summary: "Favorito actualizado.",
+  };
+}
+
 async function activateLibraryPack(packId, options = {}) {
   const config = options.config || loadRuntimeConfig();
   const library = await scanPackLibrary(config);
@@ -1660,8 +1720,10 @@ module.exports = {
   resetAutoSyncStateForTests,
   runAutoSyncIfEligible,
   runDiagnose,
+  setLibraryPreferencesFromGui,
   submitAllPending,
   summarizeDiagnoseReport,
   switchKnownAccountFromGui,
   syncPlugin,
+  toggleLibraryFavoriteFromGui,
 };

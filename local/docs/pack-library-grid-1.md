@@ -191,3 +191,15 @@ Esta tarea no implementa:
 La biblioteca ofrece agrupación por temporada, fallback `Sin temporada` y
 grupo `Legacy / deprecated`. Se añadieron vistas de portadas, lista e iconos,
 con búsqueda por metadata/identidad y filtros por temporada y estado.
+
+## Actualizacion LOCAL-LAUNCHER-LIBRARY-CARDS-1
+
+La biblioteca mantiene `Portadas`, `Lista` e `Iconos`, pero ya no muestra
+`Legacy / deprecated` como grupo protagonista por defecto. Los packs legacy se
+integran en su temporada o en `Sin temporada` y muestran badge discreto
+`Legacy`.
+
+Las cards ya no usan boton `Usar este pack`, `Seleccionar` ni `Activo`; la card
+completa activa el pack si es seleccionable. El pack activo se marca con borde
+y badge `Activa`. La estrella es funcional y guarda favoritos locales en
+`userData/library/favorites.json`.

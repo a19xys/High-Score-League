@@ -82,6 +82,8 @@ function registerIpc() {
     openPathImpl: (directoryPath) => shell.openPath(directoryPath),
   }));
   ipcMain.handle("launcher:rescan-pack-directory", () => service.rescanPackDirectory());
+  ipcMain.handle("launcher:set-library-preferences", (_event, patch) => service.setLibraryPreferencesFromGui(patch));
+  ipcMain.handle("launcher:toggle-library-favorite", (_event, packKey) => service.toggleLibraryFavoriteFromGui(packKey));
   ipcMain.handle("launcher:remove-known-account", (_event, userId) => service.removeKnownAccountFromGui(userId));
   ipcMain.handle("launcher:switch-account", (_event, userId) => service.switchKnownAccountFromGui(userId));
   ipcMain.handle("launcher:use-library-pack", (_event, packId) => service.activateLibraryPack(packId));

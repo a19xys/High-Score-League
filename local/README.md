@@ -901,3 +901,18 @@ DIPs, and save/load/rewind checks.
 This is still an MVP. It includes a basic CLI launcher, but not a GUI, F12
 hotkey, automatic Game Over capture, DIP enforcement, or strong anti-cheat.
 Those should be added in later phases after the internal refactor.
+
+## Local launcher visual status
+
+The local GUI now has a player-facing first layer for the selected game: a
+contained horizontal hero, title/logo/week, human status chips, local metadata,
+four primary actions, and a compact activity summary. Technical diagnostics,
+runtime paths, scoped queue details, membership internals, readiness checks,
+legacy sync tools, and raw local paths stay in advanced drawers.
+
+See:
+
+```text
+local/docs/game-detail-polish-1.md
+local/docs/library-cards-1.md
+```
