@@ -1,5 +1,6 @@
 import { COPY } from "./copy.js";
 import { escapeHtml } from "./html.js";
+import { renderIcon } from "./icon.js";
 import { renderActivitySummaryCard } from "./queue-panel.js";
 
 function membershipBadge(membership) {
@@ -98,10 +99,10 @@ function renderPackVisuals(game) {
 
 function renderPackMetadata(game) {
   const items = [
-    ["developer", "Desarrollador", game?.developer || game?.publisher],
-    ["year", "Año", game?.year ? String(game.year) : null],
+    ["publisher", "Desarrollador", game?.developer || game?.publisher],
+    ["calendar", "Año", game?.year ? String(game.year) : null],
     ["genre", "Género", game?.genre?.join(", ")],
-    ["time", "Tiempo de juego", game?.playTime],
+    ["clock", "Tiempo de juego", game?.playTime],
   ].filter((item) => item[2]);
 
   if (items.length === 0) {
@@ -112,7 +113,7 @@ function renderPackMetadata(game) {
     <div class="pack-metadata-grid">
       ${items.map(([icon, label, value]) => `
         <div class="pack-metadata-item" title="${escapeHtml(label)}: ${escapeHtml(value)}">
-          <span class="icon-slot icon-slot--${icon}" aria-hidden="true"></span>
+          ${renderIcon(icon, { className: `meta-icon icon-slot icon-slot--${icon}` })}
           <span class="meta-copy">
             <span class="meta-label">${escapeHtml(label)}</span>
             <strong class="meta-value">${escapeHtml(value)}</strong>
@@ -125,12 +126,12 @@ function renderPackMetadata(game) {
 
 function renderContentAction(action, label, content, disabled) {
   const unavailable = !content?.available;
-  const icon = action === "open-manual" ? "manual" : "ranking";
+  const icon = action === "open-manual" ? "book-open" : "ranking";
   const title = unavailable ? content?.reason || `${label} no disponible para este pack.` : label;
 
   return `
     <button class="secondary-action compact-action action-tile" type="button" data-action="${action}" title="${escapeHtml(title)}" ${disabled || unavailable ? "disabled" : ""}>
-      <span class="action-icon icon-slot icon-slot--${icon}" aria-hidden="true"></span>
+      ${renderIcon(icon, { className: `action-icon icon-slot icon-slot--${icon}` })}
       <span class="action-button-label">${label}</span>
     </button>
   `;
@@ -164,7 +165,7 @@ export function renderGamePanel(state) {
           <div class="min-w-0">
             <div class="game-title-line">
               <h2>${escapeHtml(game?.displayName || "Space Invaders")}</h2>
-              ${weekLabel ? `<span class="badge badge-muted week-chip"><span class="icon-slot icon-slot--season" aria-hidden="true"></span>${escapeHtml(weekLabel)}</span>` : ""}
+              ${weekLabel ? `<span class="badge badge-muted week-chip">${renderIcon("calendar", { className: "status-icon icon-slot icon-slot--calendar" })}${escapeHtml(weekLabel)}</span>` : ""}
             </div>
             ${subtitle ? `<p class="game-week">${escapeHtml(subtitle)}</p>` : ""}
             ${renderPackMetadata(game)}
@@ -173,11 +174,11 @@ export function renderGamePanel(state) {
         ${description ? `<p class="ready-copy">${escapeHtml(description)}</p>` : ""}
         <div class="primary-actions action-grid">
           <button class="play-button action-tile" type="button" data-action="play" ${competitionDisabled}>
-            <span class="action-icon icon-slot icon-slot--play" aria-hidden="true"></span>
+            ${renderIcon("download", { className: "action-icon icon-slot icon-slot--play" })}
             <span class="action-button-label">${COPY.actions.play}</span>
           </button>
           <button class="secondary-action compact-action action-tile" type="button" data-action="practice" ${practiceDisabled}>
-            <span class="action-icon icon-slot icon-slot--practice" aria-hidden="true"></span>
+            ${renderIcon("practice", { className: "action-icon icon-slot icon-slot--practice" })}
             <span class="action-button-label">Practicar</span>
           </button>
           ${renderContentAction("open-manual", "Manual", game?.manual, disabled)}

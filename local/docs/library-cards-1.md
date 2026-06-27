@@ -150,7 +150,7 @@ descarga/instalacion, competicion v2 ni `config.json`.
 
 ## Pendiente
 
-- Iconos definitivos locales para estrella, vistas y estados.
+- PNG definitivos para estrella, vistas y estados.
 - Favoritos con ordenacion o filtro especifico.
 
 ## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
@@ -159,3 +159,10 @@ El pulido futuro del menu de cuenta ya queda aplicado en una tarea posterior:
 selector compacto, filas completas para cambiar, check de cuenta activa, boton
 de olvidar por icono y login compacto. No cambia favoritos, preferencias de
 biblioteca ni seleccion de packs.
+
+## Continuidad LOCAL-LAUNCHER-ICON-SYSTEM-1
+
+La biblioteca usa el sistema local de iconos para `view-covers.png`,
+`view-list.png`, `view-icons.png`, `star-empty.png`, `star.png`,
+`calendar.png`, `check.png`, `warning.png` y `error.png`. La persistencia de
+favoritos y preferencias no cambia.

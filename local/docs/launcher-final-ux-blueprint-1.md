@@ -74,9 +74,9 @@ al pulsar la fila completa. `Olvidar cuenta` queda como accion secundaria de
 icono por fila. `Cerrar sesion` cierra la sesion activa y olvida esa cuenta en
 este launcher, sin borrar puntuaciones ni colas scoped.
 
-`Cerrar sesion` debe usar un icono de puerta, salida o logout si ya existe en
-`public/icons/` o cuando se anada un recurso futuro. En esta fase se mantienen
-slots CSS de icono sin anadir dependencias.
+`Cerrar sesion` usa el sistema local de iconos de la app Electron. El archivo
+esperado para esa accion es `logout.png` dentro de
+`local/hsl-local-app/gui/renderer/assets/icons/`.
 
 ## Estado sin cuenta
 
@@ -373,19 +373,20 @@ resto del launcher.
 
 ## Iconos y marca
 
-La app debe reutilizar recursos existentes:
+La web puede reutilizar recursos existentes:
 
 ```text
 public/brand/
 public/icons/
 ```
 
-Recursos ya presentes revisados:
+La app Electron usa iconos locales propios:
 
-- `public/brand/logo.png`;
-- `public/brand/logo-horizontal.png`;
-- variantes placeholder de logo;
-- iconos como `book-open`, `calendar`, `clock`, `download`, `info`, `send`, `star`, `publisher`, `speedometer_*` y navegación.
+```text
+local/hsl-local-app/gui/renderer/assets/icons/
+```
+
+La app local no depende de URLs remotas ni de iconos de la web en runtime.
 
 La app final debería tener iconos para:
 
@@ -401,7 +402,9 @@ La app final debería tener iconos para:
 - ranking;
 - carpeta o ubicación.
 
-Si faltan iconos finales, deben añadirse a `public/icons/` o al paquete de assets correspondiente. No hace falta copiarlos ahora a la app local si no se usan todavía.
+Si faltan iconos finales de la app, deben anadirse a
+`local/hsl-local-app/gui/renderer/assets/icons/` con los nombres definidos en
+`local/docs/icon-system-1.md`.
 
 ## Modo desarrollador
 
@@ -536,7 +539,7 @@ Actividad local vive ahora como subtarjeta compacta del pack, con `Ver detalles
 >` para abrir el drawer. Opciones avanzadas desaparece como tarjeta visible y
 se abre con `Ctrl+Shift+D`. Los pulidos posteriores de detalle, biblioteca y
 menu de cuenta quedan documentados en sus avances propios; siguen pendientes
-iconos locales definitivos y pulido de drawers.
+los PNG finales y pulido de drawers.
 
 ## Avance LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1
 
@@ -562,3 +565,12 @@ check de cuenta activa, boton de olvidar por icono y login compacto. Se retiran
 los textos administrativos de primera capa (`Cambio rapido disponible`,
 `Cuenta activa`, `Cambiar`, `Quitar`) y cerrar sesion desde el menu olvida la
 cuenta activa en este launcher sin borrar puntuaciones locales ni colas scoped.
+
+## Avance LOCAL-LAUNCHER-ICON-SYSTEM-1
+
+La GUI tiene una base local de iconos: carpeta versionada
+`gui/renderer/assets/icons/`, helper `renderIcon()`, clases `ui-icon` y nombres
+PNG estables para header, tema, conexion, acciones principales, metadata,
+actividad, biblioteca, favoritos y cuenta. Si un PNG falta, el renderer muestra
+fallback textual discreto sin usar URLs remotas. Los PNG blancos se tintan con
+mascara CSS y `currentColor`.

@@ -1,5 +1,6 @@
 import { COPY } from "./copy.js";
 import { escapeHtml } from "./html.js";
+import { renderIcon } from "./icon.js";
 
 function initialsFromValue(value) {
   const source = String(value || "").trim();
@@ -42,8 +43,9 @@ function accountSubtitle(account) {
 function renderAccountAvatar(account, className = "") {
   const initials = account?.initials || initialsFromValue(account?.displayName || account?.email || account?.userId);
   const emptyClass = initials ? "" : " account-mini-avatar--empty";
+  const content = initials ? escapeHtml(initials) : renderIcon("user", { className: "account-icon", size: "sm" });
 
-  return `<span class="account-mini-avatar ${className}${emptyClass}" aria-hidden="true">${escapeHtml(initials)}</span>`;
+  return `<span class="account-mini-avatar ${className}${emptyClass}" aria-hidden="true">${content}</span>`;
 }
 
 function renderAccountText(account) {
@@ -59,7 +61,7 @@ function renderAccountText(account) {
 
 function renderKnownAccount(account, disabled) {
   const check = account.isActive
-    ? `<span class="account-row__check icon-slot icon-slot--check" aria-label="Cuenta seleccionada"></span>`
+    ? renderIcon("check", { className: "account-row__check icon-slot icon-slot--check", label: "Cuenta seleccionada", size: "sm" })
     : `<span class="account-row__check" aria-hidden="true"></span>`;
   const rowContent = `
     ${check}
@@ -73,7 +75,9 @@ function renderKnownAccount(account, disabled) {
         <div class="account-row__button" aria-current="true">
           ${rowContent}
         </div>
-        <button class="account-forget-button icon-slot icon-slot--forget" type="button" data-action="remove-known-account" data-user-id="${escapeHtml(account.userId)}" title="Olvidar cuenta" aria-label="Olvidar cuenta" ${disabled}></button>
+        <button class="account-forget-button" type="button" data-action="remove-known-account" data-user-id="${escapeHtml(account.userId)}" title="Olvidar cuenta" aria-label="Olvidar cuenta" ${disabled}>
+          ${renderIcon("forget-account", { className: "icon-slot icon-slot--forget", size: "sm" })}
+        </button>
       </li>
     `;
   }
@@ -83,7 +87,9 @@ function renderKnownAccount(account, disabled) {
       <button class="account-row__button" type="button" data-action="switch-account" data-user-id="${escapeHtml(account.userId)}" data-email="${escapeHtml(account.email || "")}" ${disabled}>
         ${rowContent}
       </button>
-      <button class="account-forget-button icon-slot icon-slot--forget" type="button" data-action="remove-known-account" data-user-id="${escapeHtml(account.userId)}" title="Olvidar cuenta" aria-label="Olvidar cuenta" ${disabled}></button>
+      <button class="account-forget-button" type="button" data-action="remove-known-account" data-user-id="${escapeHtml(account.userId)}" title="Olvidar cuenta" aria-label="Olvidar cuenta" ${disabled}>
+        ${renderIcon("forget-account", { className: "icon-slot icon-slot--forget", size: "sm" })}
+      </button>
     </li>
   `;
 }
@@ -99,11 +105,11 @@ function renderAuthForm(state) {
   return `
     <form class="auth-form auth-form--menu account-login-form" data-auth-form>
       <label>
-        <span>Email</span>
+        <span>${renderIcon("email", { className: "form-label-icon", size: "sm" })}Email</span>
         <input id="hsl-login-email" name="email" type="email" autocomplete="username" required ${emailValue} ${disabled}>
       </label>
       <label>
-        <span>Contraseña</span>
+        <span>${renderIcon("password", { className: "form-label-icon", size: "sm" })}Contraseña</span>
         <input id="hsl-login-password" name="password" type="password" autocomplete="current-password" required ${disabled}>
       </label>
       ${state.authError ? `<p class="auth-error">${escapeHtml(state.authError)}</p>` : ""}
@@ -144,12 +150,12 @@ function renderAccountMenu(state) {
       </div>
       <div class="account-menu__actions">
         <button class="tool-button account-primary icon-slot-button" type="button" data-action="add-account" ${disabled}>
-          <span class="button-icon icon-slot icon-slot--add" aria-hidden="true"></span>
+          ${renderIcon("add", { className: "button-icon icon-slot icon-slot--add", size: "sm" })}
           <span>${session?.hasSession ? "Añadir cuenta" : "Iniciar sesión"}</span>
         </button>
         ${session?.hasSession ? `
           <button class="tool-button icon-slot-button" type="button" data-action="logout" ${disabled}>
-            <span class="button-icon icon-slot icon-slot--logout" aria-hidden="true"></span>
+            ${renderIcon("logout", { className: "button-icon icon-slot icon-slot--logout", size: "sm" })}
             <span>Cerrar sesión</span>
           </button>
         ` : ""}
@@ -161,7 +167,7 @@ function renderAccountMenu(state) {
 
 export function renderHeader(state) {
   const themeLabel = state.theme === "dark" ? "Claro" : "Oscuro";
-  const themeIcon = state.theme === "dark" ? "☀" : "☾";
+  const themeIcon = state.theme === "dark" ? "sun" : "moon";
   const busyText = state.busy ? `<span class="busy-chip">${escapeHtml(state.busyLabel || "Ejecutando")}</span>` : "";
   const session = state.data?.session;
   const activeAccount = getActiveAccount(state.data?.accounts, session);
@@ -169,15 +175,15 @@ export function renderHeader(state) {
     ? accountTitle(activeAccount) || session.email || "Cuenta conectada"
     : "Sin cuenta conectada";
   const connection = {
-    connected: ["Conectado", "connection-chip--connected"],
-    offline: ["Sin Internet", "connection-chip--offline"],
-    reconnecting: ["Reconectando", "connection-chip--reconnecting"],
-  }[state.connectionStatus] || ["Conectado", "connection-chip--connected"];
+    connected: ["Conectado", "connection-chip--connected", "status-online"],
+    offline: ["Sin Internet", "connection-chip--offline", "status-offline"],
+    reconnecting: ["Reconectando", "connection-chip--reconnecting", "status-reconnecting"],
+  }[state.connectionStatus] || ["Conectado", "connection-chip--connected", "status-online"];
 
   return `
     <header class="launcher-header app-header">
       <div class="brand-lockup">
-        <div class="app-icon-slot" aria-hidden="true">HSL</div>
+        <div class="app-icon-slot" aria-hidden="true">${renderIcon("app", { className: "app-brand-icon", size: "lg" })}</div>
         <div class="min-w-0">
           <h1>High Score League Launcher</h1>
           <p class="header-subtitle">${COPY.launcherSubtitle}</p>
@@ -185,9 +191,9 @@ export function renderHeader(state) {
       </div>
       <div class="header-actions">
         ${busyText}
-        <span class="connection-chip ${connection[1]}"><i aria-hidden="true"></i>${connection[0]}</span>
+        <span class="connection-chip ${connection[1]}">${renderIcon(connection[2], { className: "connection-icon", size: "sm" })}${connection[0]}</span>
         <button class="theme-button icon-slot-button" type="button" data-action="toggle-theme" title="Cambiar tema">
-          <span class="button-icon" aria-hidden="true">${themeIcon}</span>
+          ${renderIcon(themeIcon, { className: "button-icon theme-icon", size: "sm" })}
           <span>${themeLabel}</span>
         </button>
         <div class="account-menu-shell">

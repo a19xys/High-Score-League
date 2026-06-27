@@ -385,6 +385,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /data-action="use-library-pack"/);
   assert.match(packCard, /data-action="toggle-library-favorite"/);
   assert.match(packCard, /data-pack-key/);
+  assert.match(packCard, /renderIcon\(favorite \? "star" : "star-empty"/);
+  assert.match(packCard, /renderIcon\("calendar"/);
+  assert.match(packCard, /renderIcon\(meta\.icon/);
   assert.match(packCard, /Con errores/);
   assert.match(packCard, /pack-card__legacy/);
   assert.equal(/Legacy \/ deprecated"\s*}/.test(packCard), false);
@@ -400,6 +403,8 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.pack-card--active/);
   assert.match(styles, /\.pack-card__placeholder/);
   assert.match(styles, /\.favorite-slot/);
+  assert.match(styles, /\.favorite-icon/);
+  assert.match(styles, /\.library-view-icon/);
   assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*max-height: 178px/);
   assert.match(styles, /\.pack-card--icons[\s\S]*min-height: 106px/);
   assert.equal(/escapeHtml\(pack\.packDir|escapeHtml\(pack\.packPath/.test(packCard), false);
@@ -443,6 +448,11 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /High Score League Launcher/);
   assert.match(header, /brand-lockup/);
   assert.match(header, /app-icon-slot/);
+  assert.match(header, /renderIcon\("app"/);
+  assert.match(header, /renderIcon\(themeIcon/);
+  assert.match(header, /status-online/);
+  assert.match(header, /status-offline/);
+  assert.match(header, /status-reconnecting/);
   assert.equal(/<p class="eyebrow">HSL<\/p>/.test(header), false);
   assert.equal(/data-action="refresh"/.test(header), false);
   assert.match(header, /Conectado/);
@@ -455,6 +465,13 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /data-action="logout"/);
   assert.match(header, /account-row__check/);
   assert.match(header, /icon-slot--check/);
+  assert.match(header, /renderIcon\("user"/);
+  assert.match(header, /renderIcon\("check"/);
+  assert.match(header, /renderIcon\("add"/);
+  assert.match(header, /renderIcon\("logout"/);
+  assert.match(header, /renderIcon\("forget-account"/);
+  assert.match(header, /renderIcon\("email"/);
+  assert.match(header, /renderIcon\("password"/);
   assert.match(header, /account-forget-button/);
   assert.match(header, /Sin cuenta conectada/);
   assert.match(header, /account-mini-avatar--empty/);
@@ -470,6 +487,14 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /pack-metadata-grid/);
   assert.match(gamePanel, /meta-label/);
   assert.match(gamePanel, /meta-value/);
+  assert.match(gamePanel, /renderIcon\(icon/);
+  assert.match(gamePanel, /"publisher", "Desarrollador"/);
+  assert.match(gamePanel, /"calendar", "Año"/);
+  assert.match(gamePanel, /"clock", "Tiempo de juego"/);
+  assert.match(gamePanel, /renderIcon\("calendar"/);
+  assert.match(gamePanel, /renderIcon\("download"/);
+  assert.match(gamePanel, /renderIcon\("practice"/);
+  assert.match(gamePanel, /"book-open"/);
   assert.match(gamePanel, /renderStatusBadges/);
   assert.match(gamePanel, /\.slice\(0, 4\)/);
   assert.match(gamePanel, /action-button-label/);
@@ -484,8 +509,10 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(queuePanel, /data-action="show-activity-details"/);
   assert.match(queuePanel, /getActivitySummary/);
   assert.match(queuePanel, /activity-summary-card__label/);
-  assert.match(queuePanel, /icon: "UP"/);
-  assert.match(queuePanel, /icon: "OK"/);
+  assert.match(queuePanel, /icon: "sync-pending"/);
+  assert.match(queuePanel, /icon: "sync-ok"/);
+  assert.match(queuePanel, /icon: "sync-error"/);
+  assert.match(queuePanel, /renderIcon\(summary\.icon/);
   assert.equal(/\$\{totals\.pending\} pendientes/.test(queuePanel), false);
   assert.match(queuePanel, /renderActivityDrawer/);
   assert.match(queuePanel, /Puntuaciones con error/);
@@ -498,6 +525,17 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.brand-lockup/);
   assert.match(styles, /\.action-grid/);
   assert.match(styles, /\.activity-summary-card/);
+  assert.match(styles, /LOCAL-LAUNCHER-ICON-SYSTEM-1/);
+  assert.match(styles, /\.ui-icon/);
+  assert.match(styles, /\.ui-icon__probe/);
+  assert.match(styles, /\.ui-icon__mask/);
+  assert.match(styles, /background: currentColor/);
+  assert.match(styles, /-webkit-mask: var\(--icon-url\) center \/ contain no-repeat/);
+  assert.match(styles, /\.ui-icon__fallback/);
+  assert.match(styles, /\.action-icon/);
+  assert.match(styles, /\.meta-icon/);
+  assert.match(styles, /\.status-icon/);
+  assert.match(styles, /\.account-icon/);
   assert.match(styles, /LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1/);
   assert.match(styles, /\.app-main[\s\S]*minmax\(380px, 440px\)/);
   assert.match(styles, /\.game-hero-stage[\s\S]*aspect-ratio: 16 \/ 5/);
@@ -537,6 +575,72 @@ test("manual and ranking IPC stay in main process", async () => {
   assert.match(app, /window\.hslLauncher\.openManual/);
   assert.match(app, /window\.hslLauncher\.openRanking/);
   assert.equal(/nodeIntegration:\s*true/.test(main), false);
+});
+
+test("renderer local icon system maps stable PNG names with safe fallbacks", async () => {
+  const icon = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "icon.js"),
+    "utf8",
+  );
+  const styles = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"),
+    "utf8",
+  );
+
+  [
+    "app.png",
+    "sun.png",
+    "moon.png",
+    "status-online.png",
+    "status-offline.png",
+    "status-reconnecting.png",
+    "user.png",
+    "download.png",
+    "practice.png",
+    "book-open.png",
+    "ranking.png",
+    "publisher.png",
+    "calendar.png",
+    "genre.png",
+    "clock.png",
+    "sync-ok.png",
+    "sync-pending.png",
+    "sync-error.png",
+    "view-covers.png",
+    "view-list.png",
+    "view-icons.png",
+    "star-empty.png",
+    "star.png",
+    "check.png",
+    "warning.png",
+    "error.png",
+    "info.png",
+    "add.png",
+    "logout.png",
+    "forget-account.png",
+    "email.png",
+    "password.png",
+    "close.png",
+    "connection.png",
+  ].forEach((filename) => assert.match(icon, new RegExp(filename.replace(".", "\\."))));
+
+  assert.match(icon, /const ICON_ROOT = "\.\/assets\/icons\/"/);
+  assert.match(icon, /export function renderIcon/);
+  assert.match(icon, /export function iconPath/);
+  assert.match(icon, /style="--icon-url: url/);
+  assert.match(icon, /class="ui-icon/);
+  assert.match(icon, /ui-icon__probe/);
+  assert.match(icon, /ui-icon__mask/);
+  assert.match(icon, /ui-icon__fallback/);
+  assert.match(icon, /onload="this\.parentElement\.classList\.add\('ui-icon--loaded'\)"/);
+  assert.match(icon, /onerror="this\.parentElement\.classList\.add\('ui-icon--missing'\)"/);
+  assert.match(icon, /escapeHtml\(fallback\)/);
+  assert.equal(/https?:\/\//.test(icon), false);
+  assert.equal(/innerHTML|\.svg|<svg|Authorization|access_token|refresh_token/.test(icon), false);
+  assert.match(styles, /\.ui-icon__probe/);
+  assert.match(styles, /\.ui-icon__mask/);
+  assert.match(styles, /mask: var\(--icon-url\) center \/ contain no-repeat/);
+  assert.match(styles, /\.ui-icon\.icon-slot::before[\s\S]*content: none !important/);
 });
 
 test("launcher service and renderer expose account switcher without tokens", async () => {

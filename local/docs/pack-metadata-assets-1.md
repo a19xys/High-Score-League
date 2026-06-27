@@ -154,3 +154,18 @@ placeholder HSL contenido. `logo` o `icon` acompanan al titulo. `developer`,
 `publisher`, `year`, `genre` y `playTime` se muestran como metadata de
 presentacion con etiqueta visible. Si `shortDescription` no existe, la ficha no
 rellena ese espacio con readiness tecnico.
+
+## Actualizacion LOCAL-LAUNCHER-ICON-SYSTEM-1
+
+El sistema de iconos de la app no cambia el modelo de assets de packs. Los
+iconos de la interfaz viven en `gui/renderer/assets/icons/`; los assets de cada
+pack siguen viviendo en `pack/assets/` y se validan con las reglas anteriores.
+
+Para metadata visible, la app busca iconos PNG locales:
+
+- `publisher.png`;
+- `calendar.png`;
+- `genre.png`;
+- `clock.png`.
+
+Si faltan esos PNG, la ficha mantiene fallback y no inventa metadata.

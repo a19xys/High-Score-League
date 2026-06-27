@@ -1,4 +1,5 @@
 import { escapeHtml } from "./html.js";
+import { renderIcon } from "./icon.js";
 
 function formatDetectedAt(value) {
   if (!value) return "sin fecha";
@@ -131,7 +132,7 @@ export function getActivitySummary(queue, autoSync = {}) {
 
   if (totals.failed > 0 || autoSync.status === "partial_failed" || autoSync.status === "failed") {
     return {
-      icon: "!",
+      icon: "sync-error",
       status: "Requiere atención",
       tone: "warning",
       message: "Hay puntuaciones con error.",
@@ -140,7 +141,7 @@ export function getActivitySummary(queue, autoSync = {}) {
 
   if (totals.pending > 0 || autoSync.status === "blocked" || autoSync.status === "syncing") {
     return {
-      icon: "UP",
+      icon: "sync-pending",
       status: autoSync.status === "syncing" ? "Sincronizando" : "Pendiente de sincronizar",
       tone: "pending",
       message: "Quedan puntuaciones por subir.",
@@ -148,7 +149,7 @@ export function getActivitySummary(queue, autoSync = {}) {
   }
 
   return {
-    icon: "OK",
+    icon: "sync-ok",
     status: "Sincronizado",
     tone: "ok",
     message: "Todo al día, sin puntuaciones pendientes.",
@@ -160,7 +161,7 @@ export function renderActivitySummaryCard(state) {
 
   return `
     <section class="activity-summary-card activity-summary-card--${summary.tone}">
-      <div class="activity-summary-card__icon icon-slot icon-slot--activity" aria-hidden="true">${summary.icon}</div>
+      <div class="activity-summary-card__icon" aria-hidden="true">${renderIcon(summary.icon, { className: `status-icon icon-slot icon-slot--${summary.icon}` })}</div>
       <div class="activity-summary-card__copy min-w-0">
         <span class="activity-summary-card__label">Actividad local</span>
         <strong>${escapeHtml(summary.status)}</strong>

@@ -214,6 +214,8 @@ Remembered sessions notes:
 [`docs/account-switcher-gui-2.md`](docs/account-switcher-gui-2.md).
 Account menu polish notes:
 [`docs/account-menu-polish-1.md`](docs/account-menu-polish-1.md).
+Launcher icon system notes:
+[`docs/icon-system-1.md`](docs/icon-system-1.md).
 Launcher shell layout notes:
 [`docs/launcher-shell-layout-2.md`](docs/launcher-shell-layout-2.md).
 Launcher shell bugfix notes:

@@ -1,4 +1,5 @@
 import { escapeHtml } from "./html.js";
+import { renderIcon } from "./icon.js";
 import { renderLibraryEmptyState } from "./library-empty-state.js";
 import { renderPackCard } from "./pack-card.js";
 
@@ -126,10 +127,11 @@ function renderDirectoryPanel(state) {
 
 function renderViewButton(state, view, label, icon) {
   const active = state.libraryView === view;
+  const iconName = `view-${icon}`;
 
   return `
     <button class="view-button ${active ? "view-button--active" : ""}" type="button" data-action="set-library-view" data-view="${view}" aria-pressed="${active}">
-      <span class="icon-slot icon-slot--${icon}" aria-hidden="true"></span>
+      ${renderIcon(iconName, { className: `library-view-icon icon-slot icon-slot--${icon}` })}
       <span>${label}</span>
     </button>
   `;

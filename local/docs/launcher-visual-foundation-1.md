@@ -137,7 +137,6 @@ No se descargan iconos ni se añaden dependencias.
 - `Game Detail Polish`: refinar hero, logo, estados y composición final del
   detalle.
 - `Library Cards`: rediseñar cards, favoritos reales y estados remotos.
-- `Icon System`: sustituir placeholders por iconos locales definitivos.
 - Pulido del drawer de actividad y del drawer avanzado.
 
 ## Validación
@@ -153,8 +152,8 @@ banner horizontal contenido, logo/titulo/semana, chips humanos acotados,
 metadata con etiqueta y valor, descripcion local solo si existe, botonera 2x2 y
 actividad local integrada.
 
-Siguen pendientes tareas posteriores de favoritos avanzados, iconos locales
-definitivos y pulido de drawers.
+Siguen pendientes tareas posteriores de favoritos avanzados, PNG finales y
+pulido de drawers.
 
 ## Continuidad LOCAL-LAUNCHER-LIBRARY-CARDS-1
 
@@ -170,3 +169,10 @@ limites seguros.
 olvidar por icono, login compacto y estado sin cuenta sin iniciales inventadas.
 La primera capa ya no muestra textos largos de seguridad ni botones
 administrativos `Cambiar`/`Quitar`.
+
+## Continuidad LOCAL-LAUNCHER-ICON-SYSTEM-1
+
+`Icon System` queda aplicado como base tecnica: los slots de header, botonera,
+metadata, actividad, biblioteca, favoritos y cuenta llaman a `renderIcon()` y
+buscan PNG locales en `gui/renderer/assets/icons/`. Si falta un PNG, se muestra
+fallback discreto. Los PNG blancos se tintan con `currentColor`.

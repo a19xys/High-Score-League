@@ -2702,3 +2702,221 @@ div.account-row__button {
 .form-actions--inline {
   grid-template-columns: 1fr 1fr;
 }
+
+/* LOCAL-LAUNCHER-ICON-SYSTEM-1: local PNG icon system with safe fallbacks. */
+.ui-icon {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  color: currentColor;
+  line-height: 1;
+}
+
+.ui-icon--sm {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+
+.ui-icon--md {
+  width: 22px;
+  height: 22px;
+}
+
+.ui-icon--lg {
+  width: 32px;
+  height: 32px;
+}
+
+.ui-icon__probe {
+  display: none;
+}
+
+.ui-icon__mask {
+  display: none;
+  width: 100%;
+  height: 100%;
+  background: currentColor;
+  mask: var(--icon-url) center / contain no-repeat;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+  pointer-events: none;
+}
+
+.ui-icon--loaded .ui-icon__mask {
+  display: block;
+}
+
+.ui-icon--loaded .ui-icon__fallback {
+  display: none;
+}
+
+.ui-icon__fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  font-size: 0.72em;
+  font-weight: 900;
+}
+
+.ui-icon.icon-slot::before {
+  content: none !important;
+}
+
+.icon-slot.ui-icon,
+.action-icon.ui-icon,
+.meta-icon.ui-icon,
+.status-icon.ui-icon,
+.library-view-icon.ui-icon,
+.account-icon.ui-icon {
+  background: color-mix(in srgb, var(--circuit) 15%, transparent);
+  color: var(--circuit);
+}
+
+.app-icon-slot .ui-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.button-icon.ui-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+}
+
+.connection-icon.ui-icon {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+  color: currentColor;
+}
+
+.connection-icon .ui-icon__fallback {
+  font-size: 0;
+}
+
+.theme-icon.ui-icon {
+  color: var(--circuit);
+}
+
+.play-button .action-icon.ui-icon,
+.secondary-action .action-icon.ui-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.pack-metadata-item .meta-icon.ui-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.week-chip .status-icon.ui-icon,
+.badge .status-icon.ui-icon,
+.pack-card__subtitle-icon.ui-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.badge .status-icon.ui-icon {
+  margin-right: 5px;
+  background: transparent;
+  color: currentColor;
+}
+
+.pack-card__subtitle {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.pack-card__subtitle-icon.ui-icon {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.favorite-slot {
+  display: grid;
+  place-items: center;
+}
+
+.favorite-slot .favorite-icon.ui-icon {
+  width: 17px;
+  height: 17px;
+  background: transparent;
+  color: currentColor;
+}
+
+.pack-card--icons .favorite-slot .favorite-icon.ui-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.activity-summary-card__icon {
+  display: grid;
+  place-items: center;
+}
+
+.activity-summary-card__icon .ui-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.activity-summary-card--ok .activity-summary-card__icon .ui-icon {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+
+.activity-summary-card--pending .activity-summary-card__icon .ui-icon {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+
+.activity-summary-card--warning .activity-summary-card__icon .ui-icon {
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+  color: var(--error);
+}
+
+.account-forget-button {
+  display: grid;
+  place-items: center;
+}
+
+.account-forget-button .ui-icon {
+  background: transparent;
+  color: currentColor;
+}
+
+.account-mini-avatar--empty .account-icon.ui-icon {
+  background: transparent;
+  color: currentColor;
+}
+
+.account-row__check.ui-icon {
+  background: transparent;
+  color: var(--ok);
+}
+
+.account-login-form label > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.form-label-icon.ui-icon {
+  background: transparent;
+  color: currentColor;
+}
+
+button:disabled .ui-icon,
+[aria-disabled="true"] .ui-icon {
+  opacity: 0.72;
+}

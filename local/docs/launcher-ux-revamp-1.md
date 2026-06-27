@@ -85,3 +85,11 @@ Se retiran de la primera capa los textos `Cambio rapido disponible`, `Cuenta
 activa`, `Cambiar`, `Quitar` y las explicaciones largas de seguridad. Cerrar
 sesion desde este menu cierra y olvida la cuenta activa en el launcher sin
 borrar puntuaciones locales, packs ni colas scoped.
+
+## LOCAL-LAUNCHER-ICON-SYSTEM-1
+
+El revamp usa un sistema local de iconos en
+`gui/renderer/assets/icons/`. `renderIcon()` prepara PNG blancos locales para header,
+tema, conexion, acciones de juego, metadata, actividad, vistas de biblioteca,
+favoritos y cuenta. Si faltan PNG finales, se muestran fallbacks discretos y no
+se usan URLs remotas. El tintado usa mascara CSS con `currentColor`.

@@ -75,3 +75,18 @@ Los tests protegen:
 - boton de olvidar cuenta;
 - estado sin cuenta sin iniciales inventadas;
 - cierre de sesion que olvida la cuenta activa.
+
+## Continuidad LOCAL-LAUNCHER-ICON-SYSTEM-1
+
+El menu de cuenta usa `renderIcon()` para:
+
+- `user.png`: cuenta generica o sin cuenta;
+- `check.png`: cuenta activa;
+- `add.png`: anadir cuenta;
+- `logout.png`: cerrar sesion;
+- `forget-account.png`: olvidar cuenta;
+- `email.png`: campo email;
+- `password.png`: campo contrasena.
+
+Si esos PNG aun no existen, el renderer usa fallbacks discretos sin cambiar
+login, cambio de cuenta, cierre de sesion ni borrado de puntuaciones.

@@ -1,4 +1,5 @@
 import { escapeHtml } from "./html.js";
+import { renderIcon } from "./icon.js";
 
 function normalizePath(value) {
   return typeof value === "string"
@@ -36,12 +37,12 @@ function isActivePack(pack, data = {}) {
 }
 
 function statusMeta(pack, active, readiness) {
-  if (active && readiness?.status === "blocked") return { className: "badge-error", label: "Con errores" };
-  if (active) return { className: "badge-accent", label: "Activa" };
-  if (pack.status === "error") return { className: "badge-error", label: "Con errores" };
-  if (pack.status === "missing") return { className: "badge-warn", label: "Inactiva" };
-  if (pack.status === "warning" && !pack.deprecated) return { className: "badge-warn", label: "Con avisos" };
-  return { className: "badge-ok", label: "Instalado" };
+  if (active && readiness?.status === "blocked") return { className: "badge-error", icon: "error", label: "Con errores" };
+  if (active) return { className: "badge-accent", icon: "check", label: "Activa" };
+  if (pack.status === "error") return { className: "badge-error", icon: "error", label: "Con errores" };
+  if (pack.status === "missing") return { className: "badge-warn", icon: "warning", label: "Inactiva" };
+  if (pack.status === "warning" && !pack.deprecated) return { className: "badge-warn", icon: "warning", label: "Con avisos" };
+  return { className: "badge-ok", icon: "check", label: "Instalado" };
 }
 
 function subtitleForPack(pack) {
@@ -81,7 +82,7 @@ function renderFavorite(pack, disabled) {
 
   return `
     <button class="favorite-slot ${favorite ? "favorite-slot--active" : ""}" type="button" data-action="toggle-library-favorite" data-pack-key="${escapeHtml(pack.favoriteKey || pack.id)}" title="${label}" aria-label="${label}" aria-pressed="${favorite ? "true" : "false"}" ${disabled ? "disabled" : ""}>
-      ${favorite ? "★" : "☆"}
+      ${renderIcon(favorite ? "star" : "star-empty", { className: "favorite-icon", size: "sm" })}
     </button>
   `;
 }
@@ -92,7 +93,7 @@ function renderBadges(pack, active, readiness) {
 
   return `
     <div class="pack-card__status">
-      <span class="badge ${meta.className}">${escapeHtml(meta.label)}</span>
+      <span class="badge ${meta.className}">${renderIcon(meta.icon, { className: "status-icon", size: "sm" })}${escapeHtml(meta.label)}</span>
       ${legacy}
     </div>
   `;
@@ -129,7 +130,7 @@ export function renderPackCard(pack, state, view = "covers") {
       <div class="pack-card__body">
         <div class="pack-card__text">
           <h3>${escapeHtml(pack.title || "Pack local")}</h3>
-          <p>${escapeHtml(subtitle)}</p>
+          <p class="pack-card__subtitle">${renderIcon("calendar", { className: "status-icon pack-card__subtitle-icon", size: "sm" })}${escapeHtml(subtitle)}</p>
           ${renderMetadata(pack, view)}
         </div>
       </div>
