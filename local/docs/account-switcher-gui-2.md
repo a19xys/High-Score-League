@@ -11,7 +11,7 @@ En un ordenador compartido, el flujo normal debe ser:
 
 ```text
 jugador A juega
-jugador B pulsa Cambiar
+jugador B pulsa su fila de cuenta
 la GUI activa su sesion local guardada
 cada jugador ve solo su cola scoped
 ```
@@ -96,7 +96,8 @@ Tras login correcto:
 
 ## Cambiar cuenta
 
-Al pulsar `Cambiar`:
+En el menu compacto, la fila completa de una cuenta no activa cambia a esa
+cuenta:
 
 1. la GUI pide al proceso principal activar esa cuenta;
 2. el proceso principal busca su sesion recordada;
@@ -113,27 +114,28 @@ La sesion guardada ha caducado. Inicia sesion de nuevo.
 
 ## Anadir cuenta
 
-`+ Anadir cuenta` abre el login vacio. Tras login correcto, se guarda la cuenta
+`Anadir cuenta` abre el login vacio. Tras login correcto, se guarda la cuenta
 conocida y su sesion recordada.
 
 ## Cerrar sesion
 
-Cerrar sesion elimina solo la sesion activa `session.json`.
+Desde `LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1`, `Cerrar sesion` en el menu
+compacto cierra la sesion activa `session.json` y olvida esa cuenta en este
+launcher. Si habia una sesion recordada para esa cuenta, tambien se elimina.
 
 No elimina:
 
-- cuenta conocida;
-- sesion recordada por cuenta;
 - packs;
 - pending/sent/failed;
 - colas scoped;
 - puntuaciones locales.
 
-Si se quiere borrar el acceso rapido de una cuenta, se usa `Quitar`.
+El mensaje de seguridad se mantiene en logs/resultados, no como microcopy de
+primera capa.
 
-## Quitar de este dispositivo
+## Olvidar cuenta en este dispositivo
 
-`Quitar` elimina:
+El icono `Olvidar cuenta` elimina:
 
 - la fila de `known-accounts.json`;
 - la sesion recordada `accounts/sessions/<playerKey>.json`.
@@ -148,7 +150,8 @@ No elimina:
 - logs;
 - metadata.
 
-Si la cuenta es la activa, la GUI pide cerrar sesion antes.
+Si la cuenta es la activa, tambien se cierra `session.json`. Ya no se exige
+cerrar sesion antes de olvidarla.
 
 ## Colas scoped
 
@@ -176,3 +179,19 @@ No se mueven archivos y no se fusionan colas.
 La cabecera muestra una cuenta compacta y el panel de cuenta conserva cambio,
 alta y cierre de sesión. El revamp no cambia el formato de sesiones recordadas
 ni expone tokens al renderer.
+
+## LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
+
+El menu de cuenta queda como selector compacto de perfiles:
+
+- titulo `Cuentas`;
+- filas completas para cambiar de cuenta;
+- check visual para la cuenta activa;
+- boton de olvidar por icono;
+- formulario de login compacto;
+- sin badges `Activa`, texto `Cambio rapido disponible`, botones `Cambiar` o
+  `Quitar`, ni explicaciones largas de seguridad en la primera capa.
+
+El comportamiento funcional cambia solo en la reaccion normal de cuenta:
+cerrar sesion y olvidar la cuenta activa eliminan tambien la cuenta recordada y
+su sesion recordada local, sin borrar puntuaciones ni colas scoped.

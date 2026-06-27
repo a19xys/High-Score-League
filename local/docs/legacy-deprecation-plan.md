@@ -39,3 +39,10 @@ Legacy sigue operativo y filtrable. La biblioteca ya no convierte `Legacy /
 deprecated` en grupo protagonista por defecto: los packs legacy se muestran como
 juegos normales y llevan badge pequeno `Legacy`. Las explicaciones tecnicas
 siguen en opciones avanzadas y docs.
+
+## LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
+
+Legacy sigue operativo. El menu de cuenta solo cambia la primera capa visual y
+la reaccion normal de cuenta: cerrar sesion u olvidar una cuenta quita la cuenta
+recordada y su sesion local recordada del launcher, sin borrar packs,
+pending/sent/failed, colas scoped, runtime, plugin ni configuracion legacy.

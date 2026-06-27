@@ -73,3 +73,15 @@ La biblioteca se convierte en una biblioteca visual: Portadas usa cards, Lista
 usa filas compactas e Iconos usa grid denso. La card completa selecciona el
 pack, la estrella alterna favorito local y la vista/ancho de sidebar se guardan
 como preferencia local por usuario.
+
+## LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
+
+El menu de cuenta queda como selector compacto de perfiles: chip superior,
+avatar sin iniciales inventadas cuando no hay cuenta, lista `Cuentas`, filas
+completas para cambiar, check de cuenta activa, icono de olvidar por fila y
+formulario de login compacto.
+
+Se retiran de la primera capa los textos `Cambio rapido disponible`, `Cuenta
+activa`, `Cambiar`, `Quitar` y las explicaciones largas de seguridad. Cerrar
+sesion desde este menu cierra y olvida la cuenta activa en el launcher sin
+borrar puntuaciones locales, packs ni colas scoped.

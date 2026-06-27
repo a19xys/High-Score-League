@@ -1257,14 +1257,20 @@ async function loginWithPassword(credentials = {}) {
 async function logoutSession() {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
+  const session = await getAuthState(config);
   const result = await logoutLocal(config);
-  await clearActiveAccount(config);
+
+  if (session.hasSession && session.userId) {
+    await removeKnownAccount(config, session.userId);
+  } else {
+    await clearActiveAccount(config);
+  }
 
   return {
     action: "logout",
-    lines: [result.message, "Cerrar sesión no borra puntuaciones locales.", "Las colas siguen separadas por cuenta y pack."],
+    lines: [result.message, "Cuenta olvidada en este dispositivo.", "Las puntuaciones locales no se han borrado."],
     ok: result.ok,
-    summary: "Sesión cerrada. Tus puntuaciones locales siguen guardadas.",
+    summary: "Sesión cerrada.",
     state: await getLauncherState(),
   };
 }
@@ -1350,23 +1356,26 @@ async function removeKnownAccountFromGui(userId) {
   const session = await getAuthState(config);
 
   if (session.hasSession && session.userId === userId) {
+    await logoutLocal(config);
+    const result = await removeKnownAccount(config, userId);
+
     return {
       action: "remove-known-account",
-      lines: ["Cierra sesión antes de quitar la cuenta activa de este dispositivo."],
-      ok: false,
-      summary: "Primero cierra sesión.",
+      lines: ["Cuenta olvidada en este dispositivo.", "La sesión activa se ha cerrado.", "Las puntuaciones locales no se han borrado."],
+      ok: result.removed,
+      summary: result.removed ? "Cuenta olvidada." : "No se encontró esa cuenta recordada.",
       state: await getLauncherState(),
     };
   }
 
   const result = await removeKnownAccount(config, userId);
   const summary = result.removed
-    ? "Cuenta quitada de este dispositivo. No se han borrado puntuaciones locales."
+    ? "Cuenta olvidada en este dispositivo. Las puntuaciones locales no se han borrado."
     : "No se encontró esa cuenta recordada.";
 
   return {
     action: "remove-known-account",
-    lines: [summary, "Las colas locales no se han borrado ni mezclado."],
+    lines: [summary, "La cuenta recordada se ha quitado solo de este launcher."],
     ok: result.removed,
     summary,
     state: await getLauncherState(),

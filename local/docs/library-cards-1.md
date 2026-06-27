@@ -152,4 +152,10 @@ descarga/instalacion, competicion v2 ni `config.json`.
 
 - Iconos definitivos locales para estrella, vistas y estados.
 - Favoritos con ordenacion o filtro especifico.
-- Pulido futuro del menu de cuenta.
+
+## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
+
+El pulido futuro del menu de cuenta ya queda aplicado en una tarea posterior:
+selector compacto, filas completas para cambiar, check de cuenta activa, boton
+de olvidar por icono y login compacto. No cambia favoritos, preferencias de
+biblioteca ni seleccion de packs.

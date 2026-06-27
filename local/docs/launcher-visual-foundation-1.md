@@ -137,7 +137,6 @@ No se descargan iconos ni se añaden dependencias.
 - `Game Detail Polish`: refinar hero, logo, estados y composición final del
   detalle.
 - `Library Cards`: rediseñar cards, favoritos reales y estados remotos.
-- `Account Menu Polish`: pulir selector de cuenta, avatar y jerarquía del menú.
 - `Icon System`: sustituir placeholders por iconos locales definitivos.
 - Pulido del drawer de actividad y del drawer avanzado.
 
@@ -154,8 +153,8 @@ banner horizontal contenido, logo/titulo/semana, chips humanos acotados,
 metadata con etiqueta y valor, descripcion local solo si existe, botonera 2x2 y
 actividad local integrada.
 
-Siguen pendientes tareas posteriores de library cards, favoritos reales,
-selector de cuenta, iconos locales definitivos y pulido de drawers.
+Siguen pendientes tareas posteriores de favoritos avanzados, iconos locales
+definitivos y pulido de drawers.
 
 ## Continuidad LOCAL-LAUNCHER-LIBRARY-CARDS-1
 
@@ -163,3 +162,11 @@ selector de cuenta, iconos locales definitivos y pulido de drawers.
 distintas, la card completa activa el pack, el boton `Activo` desaparece, la
 estrella guarda favorito local y la sidebar permite ajustar anchura dentro de
 limites seguros.
+
+## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
+
+`Account Menu Polish` queda aplicado: el menu de cuenta usa una lista compacta
+`Cuentas`, filas completas para cambiar, check de cuenta activa, boton de
+olvidar por icono, login compacto y estado sin cuenta sin iniciales inventadas.
+La primera capa ya no muestra textos largos de seguridad ni botones
+administrativos `Cambiar`/`Quitar`.

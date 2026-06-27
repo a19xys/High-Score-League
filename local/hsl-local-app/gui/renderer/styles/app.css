@@ -2544,3 +2544,161 @@ main,
     display: none;
   }
 }
+
+/* LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1: compact profile switcher. */
+.account-menu {
+  gap: 10px;
+  width: min(340px, calc(100vw - 24px));
+}
+
+.account-menu__active {
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 9px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.account-menu__active strong,
+.account-row__text strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu__active p,
+.account-row__text small,
+.account-empty-note {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-mini-avatar--empty {
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
+}
+
+.account-mini-avatar--empty::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  opacity: 0.72;
+}
+
+.known-accounts--menu {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.known-accounts--menu > strong {
+  margin-bottom: 2px;
+}
+
+.known-accounts--menu ul {
+  gap: 5px;
+}
+
+.known-accounts--menu li.account-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.account-row__button {
+  display: grid;
+  min-width: 0;
+  min-height: 42px;
+  grid-template-columns: 20px 32px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 5px 7px;
+  text-align: left;
+}
+
+div.account-row__button {
+  cursor: default;
+}
+
+.account-row__button:hover,
+.account-row__button:focus-visible,
+.account-row--active .account-row__button {
+  border-color: color-mix(in srgb, var(--circuit) 26%, var(--border));
+  background: color-mix(in srgb, var(--circuit) 8%, var(--surface-muted));
+}
+
+.account-row__check {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-slot--check::before { content: "✓"; }
+.icon-slot--add::before { content: "+"; }
+.icon-slot--logout::before { content: ">"; }
+.icon-slot--forget::before { content: "x"; }
+
+.account-forget-button {
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.account-forget-button:hover,
+.account-forget-button:focus-visible {
+  border-color: color-mix(in srgb, var(--error) 32%, var(--border));
+  background: color-mix(in srgb, var(--error-bg) 36%, transparent);
+  color: var(--error);
+}
+
+.account-menu__actions {
+  gap: 7px;
+}
+
+.account-menu__actions .tool-button {
+  min-height: 36px;
+}
+
+.account-login-form {
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+  padding-top: 10px;
+  padding-bottom: 0;
+}
+
+.account-login-form label {
+  margin-bottom: 0;
+}
+
+.account-login-form label > span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.account-login-form input {
+  min-height: 36px;
+}
+
+.form-actions--inline {
+  grid-template-columns: 1fr 1fr;
+}

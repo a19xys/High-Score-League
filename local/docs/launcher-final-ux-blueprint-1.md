@@ -59,16 +59,24 @@ Con cuenta conectada, la zona de cuenta muestra:
 - punto rojo para `Sin Internet`;
 - menú desplegable.
 
-El menú de cuenta final debe incluir:
+El menú de cuenta final debe comportarse como selector compacto de perfiles:
 
 ```text
 Cuenta actual
-Cambiar cuenta
-+ Añadir cuenta
-Cerrar sesión
+Cuentas
+Fila de cuenta recordada
+Anadir cuenta
+Cerrar sesion
 ```
 
-`Cerrar sesión` debe usar un icono de puerta, salida o logout si ya existe en `public/icons/` o cuando se añada un recurso futuro. El selector completo de cuentas recordadas queda para una tarea posterior, pero la cabecera ya debe estar pensada para varias cuentas.
+La cuenta activa se marca con un check visual. Las cuentas no activas cambian
+al pulsar la fila completa. `Olvidar cuenta` queda como accion secundaria de
+icono por fila. `Cerrar sesion` cierra la sesion activa y olvida esa cuenta en
+este launcher, sin borrar puntuaciones ni colas scoped.
+
+`Cerrar sesion` debe usar un icono de puerta, salida o logout si ya existe en
+`public/icons/` o cuando se anada un recurso futuro. En esta fase se mantienen
+slots CSS de icono sin anadir dependencias.
 
 ## Estado sin cuenta
 
@@ -476,7 +484,6 @@ Orden recomendado:
 - No se implementa device code flow.
 - No se implementa biblioteca de ubicaciones.
 - No se implementa biblioteca de packs.
-- No se implementa selector de cuentas.
 - No se implementa polling permanente de auto-sync.
 - No se empaqueta Electron.
 - No se modifica configuración real.
@@ -527,8 +534,9 @@ sincronizar` y `Legacy`. La botonera principal queda limitada a `Jugar`,
 
 Actividad local vive ahora como subtarjeta compacta del pack, con `Ver detalles
 >` para abrir el drawer. Opciones avanzadas desaparece como tarjeta visible y
-se abre con `Ctrl+Shift+D`. Quedan pendientes Game Detail Polish, Library
-Cards, Account Menu Polish e Icon System.
+se abre con `Ctrl+Shift+D`. Los pulidos posteriores de detalle, biblioteca y
+menu de cuenta quedan documentados en sus avances propios; siguen pendientes
+iconos locales definitivos y pulido de drawers.
 
 ## Avance LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1
 
@@ -545,3 +553,12 @@ Iconos son vistas diferenciadas; las cards ya no tienen boton `Activo` ni
 `Seleccionar`; el pack activo se marca por borde/acento; legacy queda como badge
 discreto; la estrella guarda favoritos locales; la vista y la anchura de
 sidebar se recuerdan por usuario con fallback global.
+
+## Avance LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
+
+El menu de cuenta queda como selector compacto de perfiles: chip superior,
+avatar real o estado vacio, lista `Cuentas`, filas completas para cambiar,
+check de cuenta activa, boton de olvidar por icono y login compacto. Se retiran
+los textos administrativos de primera capa (`Cambio rapido disponible`,
+`Cuenta activa`, `Cambiar`, `Quitar`) y cerrar sesion desde el menu olvida la
+cuenta activa en este launcher sin borrar puntuaciones locales ni colas scoped.
