@@ -143,6 +143,26 @@ maximo: 600px
 
 La anchura se guarda en la misma preferencia de biblioteca.
 
+## Continuidad LOCAL-LAUNCHER-LIBRARY-CONTROLS-REVAMP-2
+
+La cabecera de biblioteca se simplifica a `Biblioteca` con contador en pildora.
+La primera capa muestra `Más filtros`, `Cambiar directorio` y las vistas
+`Portadas`, `Lista`, `Iconos`. Busqueda y temporada viven en una subtarjeta
+plegable que no borra filtros al cerrarse.
+
+La lista de juegos tiene scroll propio. `Gestionar biblioteca`, `Abrir
+directorio`, `Reescanear` y el filtro `Estado` salen de la primera capa. En
+vista `Iconos`, cada tile muestra estrella, punto de estado y nombre controlado
+sin badge textual.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-LAYOUT-REFINEMENT-3
+
+Las vistas quedan recompuestas con reglas de proporcion: `Portadas` mantiene
+caratula 2/3 en columnas acotadas, `Lista` queda como fila horizontal compacta
+e `Iconos` usa tile 1/1 de 92px. La subtarjeta de filtros se compacta, el
+placeholder pasa a `Escribe aquí...` y la estrella activa/hover usa azul
+circuito.
+
 ## Legacy
 
 Los packs legacy siguen operativos y filtrables, pero ya no forman un grupo

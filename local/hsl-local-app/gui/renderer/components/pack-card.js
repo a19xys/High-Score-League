@@ -45,6 +45,14 @@ function statusMeta(pack, active, readiness) {
   return { className: "badge-ok", icon: "check", label: "Instalado" };
 }
 
+function statusTone(meta) {
+  if (meta.label === "Inactiva") return "inactive";
+  if (meta.className === "badge-error") return "error";
+  if (meta.className === "badge-warn") return "warning";
+  if (meta.className === "badge-accent") return "active";
+  return "ok";
+}
+
 function subtitleForPack(pack) {
   const season = pack.seasonName || null;
   const week = pack.weekNumber ? `Semana ${pack.weekNumber}` : null;
@@ -87,8 +95,19 @@ function renderFavorite(pack, disabled) {
   `;
 }
 
-function renderBadges(pack, active, readiness) {
+function renderBadges(pack, active, readiness, view) {
   const meta = statusMeta(pack, active, readiness);
+
+  if (view === "icons") {
+    const tone = statusTone(meta);
+
+    return `
+      <div class="pack-card__status pack-card__status--dot">
+        <span class="pack-card__status-dot pack-card__status-dot--${tone}" role="img" title="${escapeHtml(meta.label)}" aria-label="${escapeHtml(meta.label)}"></span>
+      </div>
+    `;
+  }
+
   const legacy = pack.deprecated ? `<span class="badge badge-muted pack-card__legacy">Legacy</span>` : "";
 
   return `
@@ -125,7 +144,7 @@ export function renderPackCard(pack, state, view = "covers") {
   return `
     <article class="${cardClass}" title="${escapeHtml(`${pack.title || "Pack local"} · ${subtitle}`)}" ${selectableAttributes}>
       ${renderFavorite(pack, state.busy)}
-      ${renderBadges(pack, active, state.data?.readiness)}
+      ${renderBadges(pack, active, state.data?.readiness, view)}
       ${renderPackVisual(pack, view)}
       <div class="pack-card__body">
         <div class="pack-card__text">
@@ -142,6 +161,7 @@ export const packCardTestApi = {
   getInitials,
   isActivePack,
   statusMeta,
+  statusTone,
   subtitleForPack,
   visualAsset,
 };

@@ -670,9 +670,21 @@ The library now presents detected packs as visual cards instead of a technical
 list. Cards use local `metadata.json` assets when available, fall back to an HSL
 placeholder when no cover/icon/logo exists, show simple local states
 (`Listo`, `Con avisos`, `Requiere atencion`, `No disponible`) and mark the
-active pack with an `Activo` badge plus a disabled `Ya activo` action. The
-configured directory stays compact in the UI; full paths, legacy
-`locations.json` fallback and warnings remain in development details.
+active pack visually without adding a separate select button. The configured
+directory stays compact in the UI; full paths, legacy `locations.json` fallback
+and warnings remain in development details.
+
+The library controls are compact in the launcher shell: `Biblioteca` shows the
+pack count in a pill, the first row has `Más filtros` and `Cambiar directorio`,
+and the second row keeps the official views `Portadas`, `Lista`, `Iconos`.
+Search and season filters live in the collapsible `Más filtros` card. The pack
+list scrolls inside the left panel, and the `Iconos` view uses fixed-size tiles
+with a status dot instead of textual status badges.
+
+The current visual rule is proportional by view: `Portadas` keeps a 2/3 cover,
+`Lista` is a compact horizontal row, and `Iconos` uses a 1/1 92px tile. The
+search placeholder is `Escribe aquí...`, and active favorite stars use the
+circuit accent instead of the warning color.
 
 Before competition play and pending uploads, the GUI now checks whether the
 connected account belongs to the season for the active pack `weekId`. Known

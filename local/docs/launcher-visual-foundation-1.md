@@ -166,6 +166,19 @@ limites seguros.
 Los favoritos locales quedan separados por cuenta activa con fallback anonimo
 sin sesion. El archivo global antiguo no se migra automaticamente a cuentas.
 
+## Continuidad LOCAL-LAUNCHER-LIBRARY-CONTROLS-REVAMP-2
+
+Los controles de biblioteca quedan compactos: contador en pildora, `Más
+filtros`, `Cambiar directorio` y vistas `Portadas`/`Lista`/`Iconos`. Busqueda y
+temporada pasan a subtarjeta plegable, la lista de juegos gana scroll propio y
+la vista `Iconos` mantiene tiles consistentes con punto de estado.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-LAYOUT-REFINEMENT-3
+
+La barra lateral queda refinada por composicion: caratulas 2/3, lista compacta,
+tiles de iconos 1/1 de 92px, filtros mas bajos, placeholder `Escribe aquí...` y
+favoritos centrados con azul circuito.
+
 ## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 
 `Account Menu Polish` queda aplicado: el menu de cuenta usa una lista compacta

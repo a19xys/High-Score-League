@@ -22,6 +22,9 @@ userData/library/favorites.json
   mapa de favoritos del `playerKey` activo.
 - Cerrar sesion o olvidar una cuenta no borra favoritos, colas ni puntuaciones
   locales.
+- `LOCAL-LAUNCHER-LIBRARY-CONTROLS-REVAMP-2` reorganiza los controles visuales
+  de biblioteca sin cambiar esta persistencia: la estrella sigue usando
+  `pack.favorite` del scope activo.
 
 ## Migracion
 

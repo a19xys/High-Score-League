@@ -564,6 +564,23 @@ la cuenta activa usa `userData/players/<playerKey>/preferences/favorites.json`.
 Sin sesion se conserva `userData/library/favorites.json` como anonimo. No hay
 migracion automatica desde anonimo a cuenta para evitar mezclar jugadores.
 
+## Avance LOCAL-LAUNCHER-LIBRARY-CONTROLS-REVAMP-2
+
+La biblioteca izquierda compacta su primera capa: cabecera `Biblioteca` con
+contador en pildora, fila `Más filtros`/`Cambiar directorio`, selector
+`Portadas`/`Lista`/`Iconos` y subtarjeta plegable para busqueda y temporada.
+Las acciones `Gestionar biblioteca`, `Abrir directorio`, `Reescanear` y el
+filtro `Estado` salen de la superficie principal. La lista de juegos scrollea
+por separado y `Iconos` usa tiles estables con punto de estado.
+
+## Avance LOCAL-LAUNCHER-LIBRARY-LAYOUT-REFINEMENT-3
+
+La composicion visual de la biblioteca se afina por vista: `Portadas` mantiene
+caratulas 2/3 en columnas acotadas, `Lista` funciona como fila horizontal
+compacta e `Iconos` usa tiles 1/1 de 92px con punto de estado. La subtarjeta
+`Más filtros` es mas baja, el buscador dice `Escribe aquí...` y la estrella de
+favorito se centra con estado activo/hover en azul circuito.
+
 ## Avance LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 
 El menu de cuenta queda como selector compacto de perfiles: chip superior,

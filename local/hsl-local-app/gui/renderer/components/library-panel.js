@@ -3,21 +3,6 @@ import { renderIcon } from "./icon.js";
 import { renderLibraryEmptyState } from "./library-empty-state.js";
 import { renderPackCard } from "./pack-card.js";
 
-function compactPath(value) {
-  if (!value) {
-    return "";
-  }
-
-  const normalized = String(value).replaceAll("\\", "/");
-  const parts = normalized.split("/").filter(Boolean);
-
-  if (parts.length <= 3) {
-    return normalized;
-  }
-
-  return `.../${parts.slice(-2).join("/")}`;
-}
-
 function normalizeSearch(value) {
   return String(value || "")
     .normalize("NFD")
@@ -87,44 +72,6 @@ function groupPacks(packs) {
   return [...groups.values()];
 }
 
-function renderDirectoryPanel(state) {
-  const directory = state.data?.library?.directory || {};
-  const disabled = state.busy ? "disabled" : "";
-
-  if (!directory.path) {
-    return renderLibraryEmptyState({
-      action: {
-        label: "Elegir directorio",
-        type: "choose-pack-directory",
-      },
-      body: "Elige una carpeta donde High Score League guardará y buscará tus packs locales.",
-      state,
-      title: "Todavía no has elegido un directorio de packs.",
-    });
-  }
-
-  const warning = directory.status === "missing"
-    ? "No encuentro el directorio de packs. Puedes cambiarlo o volver a crearlo."
-    : directory.status === "pack-root"
-      ? "Parece que has elegido una carpeta de pack. Elige la carpeta que contiene todos tus packs."
-      : directory.warnings?.[0] || null;
-
-  return `
-    <div class="pack-directory ${directory.status === "missing" || directory.status === "pack-root" ? "pack-directory--warning" : ""}">
-      <div class="min-w-0">
-        <h3>Directorio de packs</h3>
-        <p class="pack-directory__path" title="${escapeHtml(directory.path)}">${escapeHtml(compactPath(directory.path))}</p>
-        ${warning ? `<p class="pack-directory__warning">${escapeHtml(warning)}</p>` : ""}
-      </div>
-      <div class="pack-directory__actions">
-        <button class="text-button" type="button" data-action="choose-pack-directory" ${disabled}>Cambiar directorio</button>
-        <button class="text-button" type="button" data-action="open-pack-directory" ${disabled || !directory.exists ? "disabled" : ""}>Abrir directorio</button>
-        <button class="text-button" type="button" data-action="rescan-pack-directory" ${disabled}>Reescanear</button>
-      </div>
-    </div>
-  `;
-}
-
 function renderViewButton(state, view, label, icon) {
   const active = state.libraryView === view;
   const iconName = `view-${icon}`;
@@ -137,7 +84,11 @@ function renderViewButton(state, view, label, icon) {
   `;
 }
 
-function renderLibraryToolbar(state, packs) {
+function renderFilterCard(state, packs) {
+  if (!state.libraryFiltersOpen) {
+    return "";
+  }
+
   const seasons = new Map();
 
   for (const pack of packs) {
@@ -147,10 +98,10 @@ function renderLibraryToolbar(state, packs) {
   }
 
   return `
-    <div class="library-toolbar">
+    <div class="library-filter-card" id="library-filter-card">
       <label class="library-search">
-        <span>Buscar</span>
-        <input type="search" placeholder="Título, estudio, año, género o ROM" data-library-search value="${escapeHtml(state.libraryQuery)}">
+        <span>Búsqueda general</span>
+        <input type="search" placeholder="Escribe aquí..." data-library-search value="${escapeHtml(state.libraryQuery)}">
       </label>
       <div class="library-filters">
         <label>
@@ -163,6 +114,25 @@ function renderLibraryToolbar(state, packs) {
           </select>
         </label>
       </div>
+    </div>
+  `;
+}
+
+function renderLibraryControls(state, packs) {
+  const filtersOpen = Boolean(state.libraryFiltersOpen);
+  const disabled = state.busy ? "disabled" : "";
+
+  return `
+    <div class="library-toolbar">
+      <div class="library-control-row library-control-row--primary">
+        <button class="library-control-button" type="button" data-action="toggle-library-filters" aria-expanded="${filtersOpen ? "true" : "false"}" aria-controls="library-filter-card">
+          Más filtros
+        </button>
+        <button class="library-control-button" type="button" data-action="choose-pack-directory" ${disabled}>
+          Cambiar directorio
+        </button>
+      </div>
+      ${renderFilterCard(state, packs)}
       <div class="library-views" aria-label="Vista de biblioteca">
         ${renderViewButton(state, "covers", "Portadas", "covers")}
         ${renderViewButton(state, "list", "Lista", "list")}
@@ -177,7 +147,15 @@ function renderPacks(state) {
   const directory = state.data?.library?.directory || {};
 
   if (!directory.path) {
-    return "";
+    return renderLibraryEmptyState({
+      action: {
+        label: "Elegir directorio",
+        type: "choose-pack-directory",
+      },
+      body: "Elige una carpeta donde High Score League guardará y buscará tus packs locales.",
+      state,
+      title: "Todavía no has elegido un directorio de packs.",
+    });
   }
 
   if (directory.status === "pack-root") {
@@ -237,25 +215,20 @@ export function renderLibraryPanel(state) {
   return `
     <section class="panel library-panel">
       <div class="panel-heading compact">
-        <div>
+        <div class="library-title-row">
           <h2>Biblioteca</h2>
-          <p class="library-count">${escapeHtml(renderLibraryCount(data))}</p>
+          <span class="library-count-pill">${escapeHtml(renderLibraryCount(data))}</span>
         </div>
       </div>
-      ${renderLibraryToolbar(state, data.library?.packs || [])}
+      ${renderLibraryControls(state, data.library?.packs || [])}
       <div class="library-section library-section--packs">
         ${renderPacks(state)}
       </div>
-      <details class="library-management">
-        <summary>Gestionar biblioteca</summary>
-        ${renderDirectoryPanel(state)}
-      </details>
     </section>
   `;
 }
 
 export const libraryPanelTestApi = {
-  compactPath,
   filterPacks,
   groupPacks,
   normalizeSearch,

@@ -24,6 +24,7 @@ const store = createStore({
   busyLabel: null,
   connectionStatus: navigator.onLine === false ? "offline" : "connected",
   data: null,
+  libraryFiltersOpen: false,
   libraryQuery: "",
   librarySeason: "all",
   librarySidebarWidth: LIBRARY_SIDEBAR_DEFAULT,
@@ -559,6 +560,10 @@ function bindActions() {
       const libraryView = button.dataset.view || "covers";
       store.setState({ libraryView });
       persistLibraryPreferences({ libraryView });
+    }
+
+    if (action === "toggle-library-filters") {
+      store.setState({ libraryFiltersOpen: !store.getState().libraryFiltersOpen });
     }
 
     if (action === "toggle-library-favorite") {
