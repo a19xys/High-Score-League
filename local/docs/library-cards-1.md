@@ -62,7 +62,13 @@ como texto protagonista.
 
 ## Favoritos
 
-La estrella es funcional y local. Se guarda en:
+La estrella es funcional y local. Con sesion activa se guarda por jugador en:
+
+```text
+userData/players/<playerKey>/preferences/favorites.json
+```
+
+Sin sesion se usa el fallback anonimo:
 
 ```text
 userData/library/favorites.json
@@ -80,8 +86,9 @@ Formato:
 }
 ```
 
-Los favoritos no requieren sesion, no se envian al backend y no tocan scoped
-queue ni puntuaciones.
+Los favoritos no se envian al backend y no tocan scoped queue ni puntuaciones.
+No se migran favoritos anonimos antiguos a una cuenta para evitar mezclar
+jugadores.
 
 ## Preferencias
 
@@ -151,6 +158,13 @@ descarga/instalacion, competicion v2 ni `config.json`.
 ## Pendiente
 
 - Favoritos con ordenacion o filtro especifico.
+
+## Continuidad LOCAL-LAUNCHER-FAVORITES-SCOPED-2
+
+Los favoritos quedan separados por cuenta activa usando
+`userData/players/<playerKey>/preferences/favorites.json`. El fallback
+`userData/library/favorites.json` se conserva para uso sin sesion y no se migra
+automaticamente a cuentas.
 
 ## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 

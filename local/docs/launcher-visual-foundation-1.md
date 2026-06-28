@@ -136,7 +136,6 @@ No se descargan iconos ni se añaden dependencias.
 
 - `Game Detail Polish`: refinar hero, logo, estados y composición final del
   detalle.
-- `Library Cards`: rediseñar cards, favoritos reales y estados remotos.
 - Pulido del drawer de actividad y del drawer avanzado.
 
 ## Validación
@@ -161,6 +160,11 @@ drawers.
 distintas, la card completa activa el pack, el boton `Activo` desaparece, la
 estrella guarda favorito local y la sidebar permite ajustar anchura dentro de
 limites seguros.
+
+## Continuidad LOCAL-LAUNCHER-FAVORITES-SCOPED-2
+
+Los favoritos locales quedan separados por cuenta activa con fallback anonimo
+sin sesion. El archivo global antiguo no se migra automaticamente a cuentas.
 
 ## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 

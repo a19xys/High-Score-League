@@ -44,12 +44,26 @@ function getPreferencesPath(config = {}, session = {}) {
   };
 }
 
-function getFavoritesPath(config = {}) {
+function getFavoritesPath(config = {}, session = {}) {
   if (!config.userDataDir) {
     throw new Error("config.userDataDir es obligatorio para favoritos de biblioteca.");
   }
 
-  return path.join(config.userDataDir, "library", "favorites.json");
+  const playerKey = derivePlayerKey(session);
+
+  if (playerKey) {
+    return {
+      filePath: path.join(config.userDataDir, "players", playerKey, "preferences", "favorites.json"),
+      playerKey,
+      scope: "player",
+    };
+  }
+
+  return {
+    filePath: path.join(config.userDataDir, "library", "favorites.json"),
+    playerKey: null,
+    scope: "global",
+  };
 }
 
 function normalizePreferences(raw = {}, context = {}) {
@@ -107,7 +121,7 @@ async function writeLibraryPreferences(config = {}, session = {}, patch = {}, op
   };
 }
 
-function normalizeFavorites(raw = {}, filePath = null, warnings = []) {
+function normalizeFavorites(raw = {}, context = {}, warnings = []) {
   const source = raw && typeof raw.favorites === "object" && !Array.isArray(raw.favorites)
     ? raw.favorites
     : {};
@@ -121,45 +135,48 @@ function normalizeFavorites(raw = {}, filePath = null, warnings = []) {
 
   return {
     favorites,
-    filePath,
+    filePath: context.filePath || null,
+    playerKey: context.playerKey || null,
     schemaVersion: 1,
+    scope: context.scope || "global",
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : null,
     warnings,
   };
 }
 
-async function readLibraryFavorites(config = {}) {
-  const filePath = getFavoritesPath(config);
+async function readLibraryFavorites(config = {}, session = {}) {
+  const context = getFavoritesPath(config, session);
 
   try {
-    const raw = JSON.parse(await fsp.readFile(filePath, "utf8"));
-    return normalizeFavorites(raw, filePath);
+    const raw = JSON.parse(await fsp.readFile(context.filePath, "utf8"));
+    return normalizeFavorites(raw, context);
   } catch (error) {
     if (error.code === "ENOENT") {
-      return normalizeFavorites({}, filePath);
+      return normalizeFavorites({}, context);
     }
 
-    return normalizeFavorites({}, filePath, [`No se pudo leer favorites.json: ${error.message}`]);
+    return normalizeFavorites({}, context, [`No se pudo leer favorites.json: ${error.message}`]);
   }
 }
 
-async function writeLibraryFavorites(config = {}, favorites = {}, options = {}) {
-  const filePath = getFavoritesPath(config);
+async function writeLibraryFavorites(config = {}, session = {}, favorites = {}, options = {}) {
+  const context = getFavoritesPath(config, session);
   const data = {
     favorites,
     schemaVersion: 1,
     updatedAt: options.now || new Date().toISOString(),
   };
 
-  await fsp.mkdir(path.dirname(filePath), { recursive: true });
-  await fsp.writeFile(filePath, JSON.stringify(data, null, 2), "utf8");
+  await fsp.mkdir(path.dirname(context.filePath), { recursive: true });
+  await fsp.writeFile(context.filePath, JSON.stringify(data, null, 2), "utf8");
 
-  return normalizeFavorites(data, filePath);
+  return normalizeFavorites(data, context);
 }
 
 async function toggleLibraryFavorite(config = {}, packKey, options = {}) {
   const safeKey = typeof packKey === "string" ? packKey.trim() : "";
-  const current = await readLibraryFavorites(config);
+  const session = options.session || {};
+  const current = await readLibraryFavorites(config, session);
 
   if (!safeKey) {
     return current;
@@ -175,7 +192,7 @@ async function toggleLibraryFavorite(config = {}, packKey, options = {}) {
     favorites[safeKey] = true;
   }
 
-  return writeLibraryFavorites(config, favorites, options);
+  return writeLibraryFavorites(config, session, favorites, options);
 }
 
 module.exports = {

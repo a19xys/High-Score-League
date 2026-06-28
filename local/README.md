@@ -629,6 +629,16 @@ password while the saved session remains valid. Closing session clears only the
 active `session.json`; removing a remembered account removes its quick access
 session but does not delete local scores.
 
+Library favorites are also scoped to the active account when there is a session:
+
+```text
+userData/players/<playerKey>/preferences/favorites.json
+```
+
+Without a session, favorites stay in the anonymous fallback
+`userData/library/favorites.json`. The launcher does not migrate anonymous
+favorites into accounts automatically.
+
 Architecture constraints for that GUI:
 
 - do not store session/account data inside a disposable pack;

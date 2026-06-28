@@ -1177,6 +1177,7 @@ test("library preferences and favorites stay local to userData", async () => {
       config,
       includeState: false,
       now: "2026-06-27T00:00:00.000Z",
+      session,
     });
 
     assert.equal(preferences.ok, true);
@@ -1185,7 +1186,8 @@ test("library preferences and favorites stay local to userData", async () => {
     assert.match(preferences.preferences.filePath, /players/);
     assert.equal(favorite.ok, true);
     assert.equal(favorite.favorites.favorites["space-invaders-week-1"], true);
-    assert.match(favorite.favorites.filePath, /library[\\/]favorites\.json$/);
+    assert.match(favorite.favorites.filePath, /players[\\/]user_user-1[\\/]preferences[\\/]favorites\.json$/);
+    assert.equal(favorite.favorites.scope, "player");
     assert.equal(JSON.stringify(preferences).includes("access_token"), false);
     assert.equal(JSON.stringify(favorite).includes("refresh_token"), false);
   });

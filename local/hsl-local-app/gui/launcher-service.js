@@ -550,7 +550,7 @@ async function stateFromContext(context) {
   const [library, libraryPreferences, libraryFavorites] = await Promise.all([
     scanPackLibrary(baseConfig),
     readLibraryPreferences(baseConfig, session),
-    readLibraryFavorites(baseConfig),
+    readLibraryFavorites(baseConfig, session),
   ]);
   const favoriteMap = libraryFavorites.favorites || {};
   const libraryState = {
@@ -1655,7 +1655,11 @@ async function toggleLibraryFavoriteFromGui(packKey, options = {}) {
   }
 
   const config = options.config || loadRuntimeConfig();
-  const favorites = await toggleLibraryFavorite(config, packKey, options);
+  const session = options.session || await getAuthState(config);
+  const favorites = await toggleLibraryFavorite(config, packKey, {
+    ...options,
+    session,
+  });
 
   return {
     action: "toggle-library-favorite",

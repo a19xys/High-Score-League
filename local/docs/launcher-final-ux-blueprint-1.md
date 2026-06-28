@@ -557,6 +557,13 @@ Iconos son vistas diferenciadas; las cards ya no tienen boton `Activo` ni
 discreto; la estrella guarda favoritos locales; la vista y la anchura de
 sidebar se recuerdan por usuario con fallback global.
 
+## Avance LOCAL-LAUNCHER-FAVORITES-SCOPED-2
+
+Los favoritos de biblioteca dejan de ser un unico mapa global cuando hay sesion:
+la cuenta activa usa `userData/players/<playerKey>/preferences/favorites.json`.
+Sin sesion se conserva `userData/library/favorites.json` como anonimo. No hay
+migracion automatica desde anonimo a cuenta para evitar mezclar jugadores.
+
 ## Avance LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 
 El menu de cuenta queda como selector compacto de perfiles: chip superior,

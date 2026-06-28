@@ -12,6 +12,7 @@ const {
   toggleLibraryFavorite,
   writeLibraryPreferences,
 } = require("../src/library-preferences");
+const { rememberAccount, removeKnownAccount } = require("../src/account-store");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-library-preferences-test-"));
@@ -99,6 +100,78 @@ test("favoritos locales alternan por clave de pack sin sesion", async () => {
     assert.equal(second.favorites["space-invaders-week-1"], undefined);
     assert.equal(stored.favorites["space-invaders-week-1"], undefined);
     assert.match(stored.filePath, /library[\\/]favorites\.json$/);
+  });
+});
+
+test("favoritos de biblioteca se guardan por playerKey", async () => {
+  await withTempDir(async (dir) => {
+    const sessionA = { email: "test3@gmail.com", hasSession: true, userId: "user-a" };
+    const sessionB = { email: "other@gmail.com", hasSession: true, userId: "user-b" };
+
+    const favoriteA = await toggleLibraryFavorite(config(dir), "space-invaders-week-1", {
+      now: "2026-06-27T00:00:00.000Z",
+      session: sessionA,
+    });
+    const storedA = await readLibraryFavorites(config(dir), sessionA);
+    const storedB = await readLibraryFavorites(config(dir), sessionB);
+    const anonymous = await readLibraryFavorites(config(dir), { hasSession: false });
+
+    assert.equal(favoriteA.favorites["space-invaders-week-1"], true);
+    assert.equal(storedA.favorites["space-invaders-week-1"], true);
+    assert.equal(storedA.scope, "player");
+    assert.match(storedA.filePath, /players[\\/]user_user-a[\\/]preferences[\\/]favorites\.json$/);
+    assert.equal(storedB.favorites["space-invaders-week-1"], undefined);
+    assert.equal(anonymous.favorites["space-invaders-week-1"], undefined);
+  });
+});
+
+test("favoritos anonimos no se mezclan con favoritos de cuenta", async () => {
+  await withTempDir(async (dir) => {
+    const session = { email: "test3@gmail.com", hasSession: true, userId: "user-a" };
+
+    await toggleLibraryFavorite(config(dir), "anonymous-pack", {
+      now: "2026-06-27T00:00:00.000Z",
+    });
+    const anonymous = await readLibraryFavorites(config(dir));
+    const account = await readLibraryFavorites(config(dir), session);
+
+    assert.equal(anonymous.favorites["anonymous-pack"], true);
+    assert.equal(anonymous.scope, "global");
+    assert.match(anonymous.filePath, /library[\\/]favorites\.json$/);
+    assert.equal(account.favorites["anonymous-pack"], undefined);
+  });
+});
+
+test("olvidar una cuenta no borra sus favoritos locales", async () => {
+  await withTempDir(async (dir) => {
+    const session = { email: "test3@gmail.com", hasSession: true, userId: "user-a" };
+
+    await rememberAccount(config(dir), { email: session.email, userId: session.userId });
+    await toggleLibraryFavorite(config(dir), "space-invaders-week-1", {
+      now: "2026-06-27T00:00:00.000Z",
+      session,
+    });
+
+    const removed = await removeKnownAccount(config(dir), session.userId);
+    const stored = await readLibraryFavorites(config(dir), session);
+
+    assert.equal(removed.removed, true);
+    assert.equal(stored.favorites["space-invaders-week-1"], true);
+  });
+});
+
+test("favoritos corruptos por cuenta no crashean y caen a vacio", async () => {
+  await withTempDir(async (dir) => {
+    const session = { email: "test3@gmail.com", hasSession: true, userId: "user-a" };
+    const filePath = path.join(config(dir).userDataDir, "players", "user_user-a", "preferences", "favorites.json");
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    await fsp.writeFile(filePath, "{", "utf8");
+
+    const favorites = await readLibraryFavorites(config(dir), session);
+
+    assert.deepEqual(favorites.favorites, {});
+    assert.equal(favorites.scope, "player");
+    assert.equal(favorites.warnings.length, 1);
   });
 });
 

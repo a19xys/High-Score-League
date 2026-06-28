@@ -18,6 +18,13 @@ Pulido fino del comportamiento del menu de cuenta.
 No se toca MAME, runtime, plugin, capturas, colas, packs, descargas,
 membership, endpoints ni sincronizacion.
 
+## Continuidad LOCAL-LAUNCHER-FAVORITES-SCOPED-2
+
+Los favoritos de biblioteca se separan por cuenta activa en
+`userData/players/<playerKey>/preferences/favorites.json`. Cerrar sesion u
+olvidar una cuenta no borra esos favoritos; sin sesion se usa el fallback
+anonimo `userData/library/favorites.json`.
+
 ## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-COMPACT-POLISH-3
 
 El pulido compacto posterior cambia el chip sin sesion a `Sin sesión`, muestra

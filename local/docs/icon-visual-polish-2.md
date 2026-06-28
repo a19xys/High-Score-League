@@ -23,6 +23,7 @@ No se toca MAME, runtime, plugin, captura, payload, endpoints, RLS,
 membership, scoped queue, auto-sync, contrato de packs, catalogo, descarga,
 instalacion ni competicion v2.
 
-Quedan para tareas futuras favoritos scoped, controles de biblioteca y
-estabilidad completa de vista `Iconos`. El comportamiento fino del menu de
-cuenta queda documentado en `account-menu-behavior-2.md`.
+Quedan para tareas futuras controles de biblioteca y estabilidad completa de
+vista `Iconos`. Los favoritos scoped quedan documentados en
+`favorites-scoped-2.md`. El comportamiento fino del menu de cuenta queda
+documentado en `account-menu-behavior-2.md`.
