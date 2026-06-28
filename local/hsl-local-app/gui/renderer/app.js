@@ -34,6 +34,7 @@ const store = createStore({
   theme: savedTheme,
 });
 
+let accountMenuPointerStartedInside = false;
 let sidebarResize = null;
 
 function clampSidebarWidth(value) {
@@ -92,6 +93,37 @@ function renderStatusFooter() {
       <span class="launcher-footer__version">${LAUNCHER_VERSION}</span>
     </footer>
   `;
+}
+
+function cleanAccountFormState() {
+  return {
+    authEmail: "",
+    authError: null,
+    authFormOpen: false,
+  };
+}
+
+function closeAccountMenuState() {
+  return {
+    accountMenuOpen: false,
+    ...cleanAccountFormState(),
+  };
+}
+
+function openCleanAccountMenuState() {
+  return {
+    accountMenuOpen: true,
+    ...cleanAccountFormState(),
+  };
+}
+
+function openAccountFormState(email = "") {
+  return {
+    accountMenuOpen: true,
+    authEmail: email,
+    authError: null,
+    authFormOpen: true,
+  };
 }
 
 function render() {
@@ -272,7 +304,7 @@ function resultToLog(title, response) {
 async function runAction(action, busyLabel, title, fn) {
   if (store.getState().busy) return;
 
-  store.setState({ accountMenuOpen: false, busy: true, busyLabel });
+  store.setState({ ...closeAccountMenuState(), busy: true, busyLabel });
 
   try {
     const response = await fn();
@@ -317,6 +349,7 @@ async function submitLogin(form) {
       authError: response.ok ? null : response.summary || "No he podido iniciar sesión.",
       authEmail: response.ok ? "" : email,
       authFormOpen: !response.ok,
+      accountMenuOpen: !response.ok,
       busy: false,
       busyLabel: null,
       data: response.state || store.getState().data,
@@ -325,6 +358,8 @@ async function submitLogin(form) {
   } catch {
     store.setState({
       authError: "No he podido iniciar sesión. Revisa email y contraseña.",
+      accountMenuOpen: true,
+      authFormOpen: true,
       busy: false,
       busyLabel: null,
       logs: appendLog(store.getState().logs, {
@@ -344,7 +379,7 @@ async function switchAccount(button) {
   const userId = button.dataset.userId;
 
   if (!userId) {
-    store.setState({ authEmail: email, authError: null, authFormOpen: true });
+    store.setState(openAccountFormState(email));
     return;
   }
 
@@ -360,10 +395,12 @@ async function switchAccount(button) {
     };
 
     if (response.requiresLogin) {
+      nextState.accountMenuOpen = true;
       nextState.authEmail = response.email || email;
       nextState.authError = response.summary || "Inicia sesión de nuevo para esta cuenta.";
       nextState.authFormOpen = true;
     } else {
+      nextState.accountMenuOpen = false;
       nextState.authEmail = "";
       nextState.authError = null;
       nextState.authFormOpen = false;
@@ -372,6 +409,7 @@ async function switchAccount(button) {
     store.setState(nextState);
   } catch (error) {
     store.setState({
+      accountMenuOpen: true,
       authEmail: email,
       authError: "No se pudo cambiar de cuenta. Inicia sesión de nuevo.",
       authFormOpen: true,
@@ -416,7 +454,11 @@ function bindActions() {
   });
 
   root.addEventListener("pointerdown", (event) => {
-    const resizer = event.target instanceof Element ? event.target.closest("[data-sidebar-resizer]") : null;
+    const target = event.target instanceof Element ? event.target : null;
+    accountMenuPointerStartedInside = Boolean(
+      target?.closest("[data-account-menu]") || target?.closest("[data-action='toggle-account-menu']"),
+    );
+    const resizer = target?.closest("[data-sidebar-resizer]");
 
     if (!resizer) return;
 
@@ -473,6 +515,8 @@ function bindActions() {
   root.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : event.target.parentElement;
     const current = store.getState();
+    const pointerStartedInsideAccountMenu = accountMenuPointerStartedInside;
+    accountMenuPointerStartedInside = false;
 
     if (target?.matches("[data-overlay-backdrop]")) {
       store.setState({ activeOverlay: null });
@@ -485,7 +529,9 @@ function bindActions() {
       !target.closest("[data-account-menu]") &&
       !target.closest("[data-action='toggle-account-menu']")
     ) {
-      store.setState({ accountMenuOpen: false });
+      if (!pointerStartedInsideAccountMenu) {
+        store.setState(closeAccountMenuState());
+      }
     }
 
     const button = target?.closest("[data-action]");
@@ -498,11 +544,11 @@ function bindActions() {
     }
 
     if (action === "toggle-account-menu") {
-      store.setState({ accountMenuOpen: !store.getState().accountMenuOpen });
+      store.setState(store.getState().accountMenuOpen ? closeAccountMenuState() : openCleanAccountMenuState());
     }
 
     if (action === "show-activity-details") {
-      store.setState({ accountMenuOpen: false, activeOverlay: "activity" });
+      store.setState({ ...closeAccountMenuState(), activeOverlay: "activity" });
     }
 
     if (action === "close-overlay") {
@@ -522,11 +568,11 @@ function bindActions() {
     }
 
     if (action === "show-login") {
-      store.setState({ accountMenuOpen: true, authEmail: "", authError: null, authFormOpen: true });
+      store.setState(openAccountFormState());
     }
 
     if (action === "add-account") {
-      store.setState({ accountMenuOpen: true, authEmail: "", authError: null, authFormOpen: true });
+      store.setState(openAccountFormState());
     }
 
     if (action === "switch-account") {
@@ -534,7 +580,7 @@ function bindActions() {
     }
 
     if (action === "cancel-login") {
-      store.setState({ authEmail: "", authError: null, authFormOpen: false });
+      store.setState(closeAccountMenuState());
     }
 
     if (action === "refresh") {
@@ -636,7 +682,7 @@ bindActions();
 window.addEventListener("keydown", (event) => {
   if (event.key === "D" && event.ctrlKey && event.shiftKey) {
     event.preventDefault();
-    store.setState({ accountMenuOpen: false, activeOverlay: "advanced" });
+    store.setState({ ...closeAccountMenuState(), activeOverlay: "advanced" });
     return;
   }
 
@@ -645,7 +691,7 @@ window.addEventListener("keydown", (event) => {
   const state = store.getState();
 
   if (state.activeOverlay || state.accountMenuOpen) {
-    store.setState({ activeOverlay: null, accountMenuOpen: false });
+    store.setState({ ...closeAccountMenuState(), activeOverlay: null });
   }
 });
 window.addEventListener("offline", () => store.setState({ connectionStatus: "offline" }));

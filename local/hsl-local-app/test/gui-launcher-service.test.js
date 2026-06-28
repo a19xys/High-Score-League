@@ -464,18 +464,18 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /data-action="toggle-account-menu"/);
   assert.match(header, /<strong>Cuentas<\/strong>/);
   assert.match(header, /data-action="switch-account"/);
-  assert.match(header, /data-action="logout"/);
+  assert.equal(/data-action="logout"/.test(header), false);
   assert.match(header, /account-row__check/);
   assert.match(header, /icon-slot--check/);
   assert.match(header, /renderIcon\("user"/);
   assert.match(header, /renderIcon\("check"/);
   assert.match(header, /renderIcon\("add"/);
-  assert.match(header, /renderIcon\("logout"/);
+  assert.equal(/renderIcon\("logout"/.test(header), false);
   assert.match(header, /renderIcon\("forget-account"/);
   assert.match(header, /renderIcon\("email"/);
   assert.match(header, /renderIcon\("password"/);
   assert.match(header, /account-forget-button/);
-  assert.match(header, /Sin cuenta conectada/);
+  assert.match(header, /No has iniciado sesión/);
   assert.match(header, /account-mini-avatar--empty/);
   assert.equal(/Cambio rápido disponible|Cambio rÃ¡pido disponible|Cuenta activa|badge badge-ok|No se guardan contrase|Las puntuaciones se guardan|No borra puntuaciones/.test(header), false);
   assert.match(gamePanel, /data-action="play"/);
@@ -676,6 +676,10 @@ test("launcher service and renderer expose account switcher without tokens", asy
     path.join(__dirname, "..", "gui", "preload.js"),
     "utf8",
   );
+  const styles = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"),
+    "utf8",
+  );
 
   assert.match(service, /rememberSessionAccount/);
   assert.match(service, /saveRememberedSession/);
@@ -694,14 +698,50 @@ test("launcher service and renderer expose account switcher without tokens", asy
   assert.match(header, /Cuenta seleccionada/);
   assert.match(header, /Contraseña/);
   assert.match(header, /Añadir cuenta/);
-  assert.match(header, /Iniciar sesión/);
-  assert.match(header, /Cerrar sesión/);
+  assert.match(header, /No has iniciado sesión/);
+  assert.match(header, /SESSION_CHIP_EMPTY_LABEL = "Sin sesión"/);
+  assert.match(header, /sessionChipContent = session\?\.hasSession[\s\S]*renderAccountAvatar\(activeAccount, "account-chip-avatar"\)/);
+  assert.match(header, /session-chip--avatar-only/);
+  assert.match(header, /accountCompactLabel/);
+  assert.match(header, /activeEmail \? `<p>\$\{escapeHtml\(activeEmail\)\}<\/p>`/);
+  assert.match(header, /const email = account\?\.email \|\| accountTitle\(account\)/);
+  assert.match(header, /account-row__email/);
+  assert.match(header, /<strong class="account-row__email">\$\{escapeHtml\(email\)\}<\/strong>/);
+  assert.match(header, /title="\$\{escapeHtml\(sessionChipLabel\)\}"/);
+  assert.match(header, /aria-label="\$\{escapeHtml\(sessionChipLabel\)\}"/);
+  assert.equal(/Iniciar sesión/.test(header), false);
+  assert.equal(/Cerrar sesión/.test(header), false);
+  assert.match(header, /sessionChipLabel = session\?\.hasSession \? accountAriaLabel\(activeAccount\) : SESSION_CHIP_EMPTY_LABEL/);
   assert.match(app, /authEmail/);
   assert.match(app, /accountMenuOpen/);
+  assert.match(app, /cleanAccountFormState/);
+  assert.match(app, /closeAccountMenuState/);
+  assert.match(app, /openCleanAccountMenuState/);
+  assert.match(app, /openAccountFormState/);
+  assert.match(app, /accountMenuPointerStartedInside/);
+  assert.match(app, /pointerStartedInsideAccountMenu/);
+  assert.match(app, /!pointerStartedInsideAccountMenu[\s\S]*closeAccountMenuState/);
+  assert.match(app, /action === "toggle-account-menu"[\s\S]*openCleanAccountMenuState/);
+  assert.match(app, /action === "cancel-login"[\s\S]*closeAccountMenuState/);
+  assert.match(app, /event\.key !== "Escape"[\s\S]*closeAccountMenuState/);
   assert.match(app, /window\.hslLauncher\.switchAccount/);
   assert.match(app, /window\.hslLauncher\.removeKnownAccount/);
   assert.match(preload, /removeKnownAccount/);
   assert.match(preload, /switchAccount/);
+  assert.match(header, /account-row__surface/);
+  assert.match(header, /account-row__button[\s\S]*data-action="switch-account"[\s\S]*\$\{forgetButton\}/);
+  assert.match(header, /account-forget-button[\s\S]*data-action="remove-known-account"/);
+  assert.match(styles, /\.known-accounts--menu li\.account-row[\s\S]*display: block[\s\S]*grid-template-columns: none/);
+  assert.match(styles, /\.account-row__surface\s*\{[\s\S]*min-width: 0/);
+  assert.match(styles, /\.account-row__button\s*\{[\s\S]*min-width: 0/);
+  assert.match(styles, /\.account-row__text\s*\{[\s\S]*min-width: 0/);
+  const accountRowEmailRule = styles.match(/\.account-row__email\s*\{[^}]*\}/)?.[0] || "";
+  assert.match(accountRowEmailRule, /min-width: 0/);
+  assert.match(accountRowEmailRule, /overflow: hidden/);
+  assert.match(accountRowEmailRule, /text-overflow: ellipsis/);
+  assert.match(accountRowEmailRule, /white-space: nowrap/);
+  assert.match(accountRowEmailRule, /color: var\(--text\)/);
+  assert.equal(/display:\s*none|visibility:\s*hidden|opacity:\s*0|font-size:\s*0|color:\s*transparent/.test(accountRowEmailRule), false);
   assert.equal(/hasSavedSession|Cambio rápido disponible|Cuenta activa|Activa<\/span>|Cambiar<\/button>|Quitar|No se guardan contrase|Cambiar o cerrar sesi|Las puntuaciones se guardan/.test(header), false);
   assert.equal(/access_token|refresh_token|Authorization/.test(header), false);
 });

@@ -86,6 +86,14 @@ activa`, `Cambiar`, `Quitar` y las explicaciones largas de seguridad. Cerrar
 sesion desde este menu cierra y olvida la cuenta activa en el launcher sin
 borrar puntuaciones locales, packs ni colas scoped.
 
+El ajuste posterior `LOCAL-LAUNCHER-ACCOUNT-MENU-BEHAVIOR-2` fija apertura
+limpia, CTA `Añadir cuenta`, cierre por `pointerdown` exterior y estado
+`No has iniciado sesión` sin cambiar flujos de cuenta.
+
+`LOCAL-LAUNCHER-ACCOUNT-MENU-COMPACT-POLISH-3` retira despues el boton global
+`Cerrar sesion` de la UI normal: cerrar y olvidar la cuenta activa queda en el
+icono `Olvidar cuenta` integrado en su fila.
+
 ## LOCAL-LAUNCHER-ICON-SYSTEM-1
 
 El revamp usa un sistema local de iconos en

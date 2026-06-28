@@ -87,6 +87,7 @@ Supabase Storage queda reservado para contenido dinamico futuro.
 - [Automatizacion](docs/automation.md)
 - [Checklist de despliegue](docs/deploy-checklist.md)
 - [Estado del proyecto](docs/project-status.md)
+- [Launcher local: menu de cuenta](local/docs/account-menu-layout-correction-4.md)
 
 ## Pendiente
 

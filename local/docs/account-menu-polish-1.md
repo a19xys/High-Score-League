@@ -7,7 +7,7 @@ Pulido del menu de cuenta como selector compacto de perfiles.
 El menu de cuenta deja de parecer una lista administrativa y pasa a funcionar
 como selector de perfil:
 
-- chip de cabecera con cuenta conectada o `Sin cuenta conectada`;
+- chip de cabecera compacto con siglas o `Sin sesión`;
 - avatar compacto con iniciales reales o estado vacio;
 - bloque superior con la cuenta activa;
 - lista de cuentas recordadas como filas completas;
@@ -47,9 +47,9 @@ informacion queda documentada y protegida por tests.
 
 ## Cerrar Sesion Y Olvidar
 
-`Cerrar sesion` desde el menu compacto cierra la sesion activa y olvida esa
-cuenta recordada en este dispositivo. Esto elimina la fila de
-`known-accounts.json` y su sesion recordada por cuenta, si existe.
+Desde `LOCAL-LAUNCHER-ACCOUNT-MENU-COMPACT-POLISH-3`, el boton global
+`Cerrar sesion` ya no se muestra en la UI normal. La forma visible de cerrar y
+olvidar la cuenta activa es el icono `Olvidar cuenta` integrado en su fila.
 
 `Olvidar cuenta` hace lo mismo para la cuenta seleccionada. Si la cuenta
 olvidada es la activa, tambien se cierra la sesion local activa.
@@ -83,10 +83,21 @@ El menu de cuenta usa `renderIcon()` para:
 - `user.svg`: cuenta generica o sin cuenta;
 - `check.svg`: cuenta activa;
 - `add.svg`: anadir cuenta;
-- `logout.svg`: cerrar sesion;
 - `forget-account.svg`: olvidar cuenta;
 - `email.svg`: campo email;
 - `password.svg`: campo contrasena.
 
 Si esos SVG aun no existen, el renderer usa fallbacks discretos sin cambiar
 login, cambio de cuenta, cierre de sesion ni borrado de puntuaciones.
+
+## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-BEHAVIOR-2
+
+El comportamiento fino posterior deja el menu con apertura limpia, CTA fijo
+`Añadir cuenta`, cierre por `pointerdown` exterior, `Cancelar`/`Escape` con
+limpieza de formulario y estado sin cuenta `No has iniciado sesión`.
+
+## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-COMPACT-POLISH-3
+
+El menu queda mas denso: header con siglas o `Sin sesión`, filas mas bajas,
+titulo `Cuentas` menos espaciado, correo secundario y `Olvidar cuenta`
+integrado en cada fila sin boton global `Cerrar sesion`.

@@ -2,6 +2,9 @@ import { COPY } from "./copy.js";
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
 
+const NO_SESSION_LABEL = "No has iniciado sesión";
+const SESSION_CHIP_EMPTY_LABEL = "Sin sesión";
+
 function initialsFromValue(value) {
   const source = String(value || "").trim();
 
@@ -30,7 +33,7 @@ function getActiveAccount(accounts, session) {
 }
 
 function accountTitle(account) {
-  return account?.displayName || account?.email || "Cuenta";
+  return account?.displayName || account?.email || NO_SESSION_LABEL;
 }
 
 function accountSubtitle(account) {
@@ -38,6 +41,14 @@ function accountSubtitle(account) {
   const email = account?.email || "";
 
   return email && email !== title ? email : "";
+}
+
+function accountAriaLabel(account) {
+  return account?.email || account?.displayName || NO_SESSION_LABEL;
+}
+
+function accountCompactLabel(account) {
+  return account?.displayName || account?.initials || initialsFromValue(account?.email || account?.userId) || SESSION_CHIP_EMPTY_LABEL;
 }
 
 function renderAccountAvatar(account, className = "") {
@@ -49,12 +60,11 @@ function renderAccountAvatar(account, className = "") {
 }
 
 function renderAccountText(account) {
-  const subtitle = accountSubtitle(account);
+  const email = account?.email || accountTitle(account);
 
   return `
     <span class="account-row__text min-w-0">
-      <strong>${escapeHtml(accountTitle(account))}</strong>
-      ${subtitle ? `<small>${escapeHtml(subtitle)}</small>` : ""}
+      <strong class="account-row__email">${escapeHtml(email)}</strong>
     </span>
   `;
 }
@@ -68,28 +78,33 @@ function renderKnownAccount(account, disabled) {
     ${renderAccountAvatar(account)}
     ${renderAccountText(account)}
   `;
+  const forgetButton = `
+    <button class="account-forget-button" type="button" data-action="remove-known-account" data-user-id="${escapeHtml(account.userId)}" title="Olvidar cuenta" aria-label="Olvidar cuenta" ${disabled}>
+      ${renderIcon("forget-account", { className: "icon-slot icon-slot--forget", size: "sm" })}
+    </button>
+  `;
 
   if (account.isActive) {
     return `
       <li class="account-row account-row--active">
-        <div class="account-row__button" aria-current="true">
+        <div class="account-row__surface">
+        <div class="account-row__button" aria-current="true" title="${escapeHtml(accountAriaLabel(account))}" aria-label="${escapeHtml(accountAriaLabel(account))}">
           ${rowContent}
         </div>
-        <button class="account-forget-button" type="button" data-action="remove-known-account" data-user-id="${escapeHtml(account.userId)}" title="Olvidar cuenta" aria-label="Olvidar cuenta" ${disabled}>
-          ${renderIcon("forget-account", { className: "icon-slot icon-slot--forget", size: "sm" })}
-        </button>
+        ${forgetButton}
+        </div>
       </li>
     `;
   }
 
   return `
     <li class="account-row">
-      <button class="account-row__button" type="button" data-action="switch-account" data-user-id="${escapeHtml(account.userId)}" data-email="${escapeHtml(account.email || "")}" ${disabled}>
+      <div class="account-row__surface">
+      <button class="account-row__button" type="button" data-action="switch-account" data-user-id="${escapeHtml(account.userId)}" data-email="${escapeHtml(account.email || "")}" title="${escapeHtml(accountAriaLabel(account))}" aria-label="${escapeHtml(accountAriaLabel(account))}" ${disabled}>
         ${rowContent}
       </button>
-      <button class="account-forget-button" type="button" data-action="remove-known-account" data-user-id="${escapeHtml(account.userId)}" title="Olvidar cuenta" aria-label="Olvidar cuenta" ${disabled}>
-        ${renderIcon("forget-account", { className: "icon-slot icon-slot--forget", size: "sm" })}
-      </button>
+      ${forgetButton}
+      </div>
     </li>
   `;
 }
@@ -128,18 +143,17 @@ function renderAuthForm(state) {
 function renderAccountMenu(state) {
   const data = state.data;
   const disabled = state.busy ? "disabled" : "";
-  const session = data?.session;
   const accounts = data?.accounts?.knownAccounts || [];
-  const activeAccount = getActiveAccount(data?.accounts, session);
-  const activeSubtitle = accountSubtitle(activeAccount);
+  const activeAccount = getActiveAccount(data?.accounts, data?.session);
+  const activeEmail = activeAccount?.email || "";
 
   return `
     <div class="account-menu" data-account-menu>
       <div class="account-menu__active">
         ${renderAccountAvatar(activeAccount, "avatar--compact")}
         <div class="min-w-0">
-          <strong>${escapeHtml(activeAccount ? accountTitle(activeAccount) : "Cuenta")}</strong>
-          ${activeAccount && activeSubtitle ? `<p>${escapeHtml(activeSubtitle)}</p>` : ""}
+          <strong>${escapeHtml(activeAccount ? accountCompactLabel(activeAccount) : SESSION_CHIP_EMPTY_LABEL)}</strong>
+          ${activeEmail ? `<p>${escapeHtml(activeEmail)}</p>` : ""}
         </div>
       </div>
       <div class="known-accounts known-accounts--menu">
@@ -151,14 +165,8 @@ function renderAccountMenu(state) {
       <div class="account-menu__actions">
         <button class="tool-button account-primary icon-slot-button" type="button" data-action="add-account" ${disabled}>
           ${renderIcon("add", { className: "button-icon icon-slot icon-slot--add", size: "sm" })}
-          <span>${session?.hasSession ? "Añadir cuenta" : "Iniciar sesión"}</span>
+          <span>Añadir cuenta</span>
         </button>
-        ${session?.hasSession ? `
-          <button class="tool-button icon-slot-button" type="button" data-action="logout" ${disabled}>
-            ${renderIcon("logout", { className: "button-icon icon-slot icon-slot--logout", size: "sm" })}
-            <span>Cerrar sesión</span>
-          </button>
-        ` : ""}
       </div>
       ${renderAuthForm(state)}
     </div>
@@ -171,9 +179,11 @@ export function renderHeader(state) {
   const busyText = state.busy ? `<span class="busy-chip">${escapeHtml(state.busyLabel || "Ejecutando")}</span>` : "";
   const session = state.data?.session;
   const activeAccount = getActiveAccount(state.data?.accounts, session);
-  const sessionText = session?.hasSession
-    ? accountTitle(activeAccount) || session.email || "Cuenta conectada"
-    : "Sin cuenta conectada";
+  const sessionChipLabel = session?.hasSession ? accountAriaLabel(activeAccount) : SESSION_CHIP_EMPTY_LABEL;
+  const sessionChipContent = session?.hasSession
+    ? renderAccountAvatar(activeAccount, "account-chip-avatar")
+    : `<span class="session-chip__empty">${SESSION_CHIP_EMPTY_LABEL}</span>`;
+  const sessionChipClass = session?.hasSession ? "session-chip--avatar-only" : "session-chip--empty";
   const connection = {
     connected: ["Conectado", "connection-chip--connected"],
     offline: ["Sin Internet", "connection-chip--offline"],
@@ -196,9 +206,8 @@ export function renderHeader(state) {
           ${renderIcon(themeIcon, { className: "button-icon theme-icon", size: "sm" })}
         </button>
         <div class="account-menu-shell">
-          <button class="session-chip session-chip--button" type="button" data-action="toggle-account-menu" aria-expanded="${state.accountMenuOpen ? "true" : "false"}">
-            ${renderAccountAvatar(activeAccount)}
-            <span>${escapeHtml(sessionText)}</span>
+          <button class="session-chip session-chip--button ${sessionChipClass}" type="button" data-action="toggle-account-menu" aria-expanded="${state.accountMenuOpen ? "true" : "false"}" title="${escapeHtml(sessionChipLabel)}" aria-label="${escapeHtml(sessionChipLabel)}">
+            ${sessionChipContent}
           </button>
           ${state.accountMenuOpen ? renderAccountMenu(state) : ""}
         </div>

@@ -859,6 +859,7 @@ button:disabled {
   color: var(--circuit);
   font-size: 12px;
   font-weight: 900;
+  line-height: 1;
 }
 
 .known-accounts span,
@@ -1885,13 +1886,33 @@ main,
 }
 
 .session-chip--button {
-  gap: 8px;
+  gap: 0;
+  min-height: 34px;
+  min-width: 34px;
+  padding-inline: 6px;
   cursor: pointer;
 }
 
-.session-chip--button span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.session-chip--avatar-only {
+  min-width: 40px;
+  min-height: 40px;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+}
+
+.session-chip--button .account-mini-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+}
+
+.session-chip__empty {
+  padding-inline: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .account-menu {
@@ -2547,15 +2568,20 @@ main,
 
 /* LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1: compact profile switcher. */
 .account-menu {
-  gap: 10px;
-  width: min(340px, calc(100vw - 24px));
+  gap: 6px;
+  width: min(320px, calc(100vw - 24px));
+  padding: 12px;
 }
 
 .account-menu__active {
   grid-template-columns: 36px minmax(0, 1fr);
-  gap: 9px;
+  gap: 8px;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 10px;
+  padding-bottom: 8px;
+}
+
+.account-menu__active--empty {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .account-menu__active strong,
@@ -2578,53 +2604,63 @@ main,
 }
 
 .account-mini-avatar--empty {
-  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
-}
-
-.account-mini-avatar--empty::before {
-  content: "";
-  width: 12px;
-  height: 12px;
-  border: 2px solid currentColor;
-  border-radius: 999px;
-  opacity: 0.72;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
 }
 
 .known-accounts--menu {
   border-top: 0;
+  gap: 4px;
   padding-top: 0;
 }
 
 .known-accounts--menu > strong {
-  margin-bottom: 2px;
+  margin-bottom: 5px;
+  font-size: 11px;
+  letter-spacing: 0.025em;
 }
 
 .known-accounts--menu ul {
   gap: 5px;
+  margin-top: 0;
 }
 
 .known-accounts--menu li.account-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
-  gap: 6px;
+  display: block;
+  grid-template-columns: none;
+  min-height: 0;
+  margin-top: 0;
   border: 0;
   padding: 0;
   background: transparent;
 }
 
-.account-row__button {
+.account-row__surface {
   display: grid;
   min-width: 0;
-  min-height: 42px;
-  grid-template-columns: 20px 32px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 30px;
   align-items: center;
+  gap: 3px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
+  padding-right: 4px;
+}
+
+.account-row__button {
+  display: grid;
+  min-width: 0;
+  min-height: 38px;
+  grid-template-columns: 18px 30px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   color: var(--text);
   cursor: pointer;
-  padding: 5px 7px;
+  padding: 4px 4px 4px 7px;
   text-align: left;
 }
 
@@ -2634,14 +2670,40 @@ div.account-row__button {
 
 .account-row__button:hover,
 .account-row__button:focus-visible,
-.account-row--active .account-row__button {
+.account-row--active .account-row__surface,
+.account-row__surface:focus-within,
+.account-row__surface:hover {
   border-color: color-mix(in srgb, var(--circuit) 26%, var(--border));
   background: color-mix(in srgb, var(--circuit) 8%, var(--surface-muted));
 }
 
 .account-row__check {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
+  justify-self: center;
+}
+
+.account-row__button .account-mini-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
+}
+
+.account-row__text {
+  display: block;
+  min-width: 0;
+}
+
+.account-row__email {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .icon-slot--check::before { content: "✓"; }
@@ -2650,13 +2712,23 @@ div.account-row__button {
 .icon-slot--forget::before { content: "x"; }
 
 .account-forget-button {
+  display: grid;
+  place-items: center;
   align-self: center;
-  width: 28px;
-  height: 28px;
+  justify-self: center;
+  width: 26px;
+  height: 26px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.account-forget-button .ui-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .account-forget-button:hover,
@@ -2667,7 +2739,7 @@ div.account-row__button {
 }
 
 .account-menu__actions {
-  gap: 7px;
+  gap: 6px;
 }
 
 .account-menu__actions .tool-button {
