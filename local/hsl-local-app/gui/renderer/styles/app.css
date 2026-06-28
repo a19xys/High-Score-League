@@ -2703,7 +2703,7 @@ div.account-row__button {
   grid-template-columns: 1fr 1fr;
 }
 
-/* LOCAL-LAUNCHER-ICON-SYSTEM-1: local PNG icon system with safe fallbacks. */
+/* LOCAL-LAUNCHER-ICON-SYSTEM-1: local SVG icon system with safe fallbacks. */
 .ui-icon {
   display: inline-grid;
   width: 22px;
@@ -2731,30 +2731,28 @@ div.account-row__button {
   height: 32px;
 }
 
-.ui-icon__probe {
-  display: none;
-}
-
-.ui-icon__mask {
-  display: none;
+.ui-icon__img {
+  display: block;
   width: 100%;
   height: 100%;
-  background: currentColor;
-  mask: var(--icon-url) center / contain no-repeat;
-  -webkit-mask: var(--icon-url) center / contain no-repeat;
+  object-fit: contain;
   pointer-events: none;
-}
-
-.ui-icon--loaded .ui-icon__mask {
-  display: block;
 }
 
 .ui-icon--loaded .ui-icon__fallback {
   display: none;
 }
 
-.ui-icon__fallback {
+.ui-icon--missing .ui-icon__img {
+  display: none;
+}
+
+.ui-icon--missing .ui-icon__fallback {
   display: grid;
+}
+
+.ui-icon__fallback {
+  display: none;
   width: 100%;
   height: 100%;
   place-items: center;

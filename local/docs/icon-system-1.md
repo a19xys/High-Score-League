@@ -1,20 +1,20 @@
 # LOCAL-LAUNCHER-ICON-SYSTEM-1
 
-Sistema local de iconos PNG para la GUI Electron del launcher.
+Sistema local de iconos SVG para la GUI Electron del launcher.
 
 ## Objetivo
 
-La GUI usa iconos locales PNG blancos, normalmente con fondo transparente. Los
-componentes renderizan iconos por nombre logico, buscan PNG locales y mantienen
-fallback seguro si el archivo aun no existe.
+La GUI usa iconos SVG locales, visibles mediante `<img>`, con fallback textual
+seguro si el archivo todavia no existe. La variante PNG con mascaras CSS queda
+descartada.
 
-No se toca MAME, runtime, plugin, captura, payload, `duplicateKey`, endpoints,
-RLS, membership, scoped queue, auto-sync, contratos de pack, catalogo remoto,
-descarga/instalacion, competicion v2, legacy ni `config.json`.
+No se toca MAME, runtime, plugin, captura, payload, endpoints, RLS,
+membership, scoped queue, auto-sync, contratos de pack, catalogo remoto,
+descarga/instalacion, competicion v2 ni `config.json`.
 
 ## Carpeta
 
-Los PNG de la app viven en:
+Los SVG de la app viven en:
 
 ```text
 local/hsl-local-app/gui/renderer/assets/icons/
@@ -34,55 +34,46 @@ local/hsl-local-app/gui/renderer/components/icon.js
 Uso:
 
 ```js
-renderIcon("download", { className: "action-icon", label: "Jugar" })
+renderIcon("play", { className: "action-icon", label: "Jugar" })
 ```
 
 El helper:
 
-- mapea nombre logico a `./assets/icons/<archivo>.png`;
+- mapea nombre logico a `./assets/icons/<archivo>.svg`;
 - no usa URLs remotas;
 - no inserta SVG raw;
 - escapa fallback y clases;
-- usa un `<img>` oculto solo como probe de carga;
-- aplica el PNG como `mask-image` / `-webkit-mask-image`;
-- pinta el icono con `background: currentColor`;
-- muestra fallback textual si el PNG falta;
+- renderiza el SVG local como `<img class="ui-icon__img">`;
+- oculta el fallback cuando el SVG carga;
+- oculta la imagen y muestra fallback si el SVG falla;
 - usa `aria-hidden="true"` para iconos decorativos o `aria-label` si se pasa
   `label`.
 
-## Tintado
+## Nombres restaurados
 
-Los PNG deben ser blancos sobre transparencia. La app los pinta con mascara CSS:
-
-```css
-mask: var(--icon-url) center / contain no-repeat;
--webkit-mask: var(--icon-url) center / contain no-repeat;
-background: currentColor;
-```
-
-Asi cada boton, chip o estado controla el color mediante `color`, sin necesitar
-varias versiones del mismo PNG.
-
-## Renombres desde la fase SVG
-
-| Antes | Ahora | Uso |
-| --- | --- | --- |
-| `play.svg` | `download.png` | Boton Jugar |
-| `manual.svg` | `book-open.png` | Boton Manual |
-| `developer.svg` | `publisher.png` | Desarrollador/Publicadora |
-| `year.svg` | `calendar.png` | Ano y semana/temporada |
-| `playtime.svg` | `clock.png` | Tiempo jugado |
-| `star-filled.svg` | `star.png` | Favorito activo |
+| Uso | Archivo SVG |
+| --- | --- |
+| Boton Jugar | `play.svg` |
+| Boton Manual | `manual.svg` |
+| Desarrollador/Publicadora | `developer.svg` |
+| Ano | `year.svg` |
+| Tiempo jugado | `playtime.svg` |
+| Favorito activo | `star-filled.svg` |
+| Favorito vacio | `star-empty.svg` |
+| Semana/temporada | `calendar.svg` |
 
 ## CSS
 
-Las clases base son:
+El sistema SVG no usa mascaras, `--icon-url`, probe oculto ni PNG. Las clases
+base son:
 
 ```text
 ui-icon
 ui-icon--sm
 ui-icon--md
 ui-icon--lg
+ui-icon__img
+ui-icon__fallback
 action-icon
 meta-icon
 status-icon
@@ -93,106 +84,107 @@ account-icon
 
 `ui-icon` convive con los slots anteriores (`icon-slot--play`, etc.) para que
 los estilos existentes sigan encontrando nombres de zona, pero el archivo real
-lo resuelve el helper PNG.
+lo resuelve el helper SVG.
 
 ## Usos
 
 Header:
 
-- `app.png` para el icono HSL;
-- `sun.png` y `moon.png` para tema;
-- `status-online.png`, `status-offline.png`, `status-reconnecting.png` para
+- `app.svg` para el icono HSL;
+- `sun.svg` y `moon.svg` para tema;
+- `status-online.svg`, `status-offline.svg`, `status-reconnecting.svg` para
   conexion;
-- `user.png` para estado sin cuenta.
+- `user.svg` para estado sin cuenta.
 
 Botonera principal:
 
-- `download.png` para `Jugar`;
-- `practice.png` para `Practicar`;
-- `book-open.png` para `Manual`;
-- `ranking.png` para `Ranking`.
+- `play.svg` para `Jugar`;
+- `practice.svg` para `Practicar`;
+- `manual.svg` para `Manual`;
+- `ranking.svg` para `Ranking`.
 
 Metadata del juego:
 
-- `publisher.png` para desarrollador o publicadora;
-- `calendar.png` para ano;
-- `genre.png` para genero;
-- `clock.png` para tiempo de juego;
-- `calendar.png` tambien para semana/temporada.
+- `developer.svg` para desarrollador o publicadora;
+- `year.svg` para ano;
+- `genre.svg` para genero;
+- `playtime.svg` para tiempo de juego;
+- `calendar.svg` para semana/temporada.
 
 Actividad local:
 
-- `sync-ok.png`;
-- `sync-pending.png`;
-- `sync-error.png`.
+- `sync-ok.svg`;
+- `sync-pending.svg`;
+- `sync-error.svg`.
 
 Biblioteca:
 
-- `view-covers.png`;
-- `view-list.png`;
-- `view-icons.png`;
-- `star-empty.png`;
-- `star.png`;
-- `calendar.png`;
-- `check.png`;
-- `warning.png`;
-- `error.png`.
+- `view-covers.svg`;
+- `view-list.svg`;
+- `view-icons.svg`;
+- `star-empty.svg`;
+- `star-filled.svg`;
+- `calendar.svg`;
+- `check.svg`;
+- `warning.svg`;
+- `error.svg`.
 
 Menu de cuenta:
 
-- `user.png`;
-- `check.png`;
-- `add.png`;
-- `logout.png`;
-- `forget-account.png`;
-- `email.png`;
-- `password.png`.
+- `user.svg`;
+- `check.svg`;
+- `add.svg`;
+- `logout.svg`;
+- `forget-account.svg`;
+- `email.svg`;
+- `password.svg`.
 
 ## Iconos que debe anadir el usuario
 
-| Archivo esperado | Uso en la interfaz | Prioridad |
-| --- | --- | --- |
-| `app.png` | Icono de app en header | Recomendado |
-| `sun.png` | Tema claro | Recomendado |
-| `moon.png` | Tema oscuro | Recomendado |
-| `status-online.png` | Estado conectado | Recomendado |
-| `status-offline.png` | Estado sin Internet | Recomendado |
-| `status-reconnecting.png` | Estado reconectando | Recomendado |
-| `user.png` | Cuenta generica o sin cuenta | Recomendado |
-| `download.png` | Boton Jugar | Recomendado |
-| `practice.png` | Boton Practicar | Recomendado |
-| `book-open.png` | Boton Manual | Recomendado |
-| `ranking.png` | Boton Ranking | Recomendado |
-| `publisher.png` | Metadata Desarrollador/Publicadora | Recomendado |
-| `calendar.png` | Ano y semana/temporada | Recomendado |
-| `genre.png` | Metadata Genero | Recomendado |
-| `clock.png` | Metadata Tiempo jugado | Recomendado |
-| `sync-ok.png` | Actividad sincronizada | Recomendado |
-| `sync-pending.png` | Actividad pendiente | Recomendado |
-| `sync-error.png` | Actividad con error | Recomendado |
-| `view-covers.png` | Vista Portadas | Recomendado |
-| `view-list.png` | Vista Lista | Recomendado |
-| `view-icons.png` | Vista Iconos | Recomendado |
-| `star-empty.png` | Favorito vacio | Recomendado |
-| `star.png` | Favorito activo | Recomendado |
-| `check.png` | Cuenta activa y estados correctos | Recomendado |
-| `warning.png` | Avisos | Recomendado |
-| `error.png` | Errores | Recomendado |
-| `info.png` | Fallback para iconos desconocidos | Recomendado |
-| `add.png` | Anadir cuenta | Recomendado |
-| `logout.png` | Cerrar sesion | Recomendado |
-| `forget-account.png` | Olvidar cuenta | Recomendado |
-| `email.png` | Campo email del login | Recomendado |
-| `password.png` | Campo contrasena del login | Recomendado |
-| `close.png` | Cierre de overlays preparado | Opcional |
-| `connection.png` | Estado generico de conexion preparado | Opcional |
+```text
+app.svg
+sun.svg
+moon.svg
+status-online.svg
+status-offline.svg
+status-reconnecting.svg
+user.svg
+play.svg
+practice.svg
+manual.svg
+ranking.svg
+developer.svg
+year.svg
+genre.svg
+playtime.svg
+calendar.svg
+sync-ok.svg
+sync-pending.svg
+sync-error.svg
+view-covers.svg
+view-list.svg
+view-icons.svg
+star-empty.svg
+star-filled.svg
+check.svg
+warning.svg
+error.svg
+info.svg
+add.svg
+logout.svg
+forget-account.svg
+email.svg
+password.svg
+close.svg
+connection.svg
+```
 
 ## Fallbacks
 
-Si falta un PNG:
+Si falta un SVG:
 
-- el probe oculto marca el icono como missing;
-- no hay imagen rota visible;
+- el `img` marca el icono como missing;
+- no queda imagen rota visible;
 - se muestra un fallback corto (`HSL`, `>`, `P`, `OK`, etc.);
 - no se hacen requests externos;
 - no se rompe el render;
@@ -202,11 +194,11 @@ Si falta un PNG:
 
 Los tests protegen:
 
-- nombres exactos de archivos PNG esperados;
+- nombres exactos de archivos SVG esperados;
 - ruta local `./assets/icons/`;
 - clase `ui-icon`;
-- mascara CSS con `currentColor`;
+- render visible con `ui-icon__img`;
 - fallback `ui-icon__fallback`;
-- ausencia de URLs remotas;
+- ausencia de PNG, mascaras y URLs remotas en el helper;
 - iconos en header, botonera, metadata, actividad, biblioteca y cuenta;
 - ausencia de tokens en renderer.

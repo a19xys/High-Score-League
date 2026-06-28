@@ -82,7 +82,7 @@ function renderFavorite(pack, disabled) {
 
   return `
     <button class="favorite-slot ${favorite ? "favorite-slot--active" : ""}" type="button" data-action="toggle-library-favorite" data-pack-key="${escapeHtml(pack.favoriteKey || pack.id)}" title="${label}" aria-label="${label}" aria-pressed="${favorite ? "true" : "false"}" ${disabled ? "disabled" : ""}>
-      ${renderIcon(favorite ? "star" : "star-empty", { className: "favorite-icon", size: "sm" })}
+      ${renderIcon(favorite ? "star-filled" : "star-empty", { className: "favorite-icon", size: "sm" })}
     </button>
   `;
 }

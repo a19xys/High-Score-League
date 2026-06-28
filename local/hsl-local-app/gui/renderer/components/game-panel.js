@@ -99,10 +99,10 @@ function renderPackVisuals(game) {
 
 function renderPackMetadata(game) {
   const items = [
-    ["publisher", "Desarrollador", game?.developer || game?.publisher],
-    ["calendar", "Año", game?.year ? String(game.year) : null],
+    ["developer", "Desarrollador", game?.developer || game?.publisher],
+    ["year", "Año", game?.year ? String(game.year) : null],
     ["genre", "Género", game?.genre?.join(", ")],
-    ["clock", "Tiempo de juego", game?.playTime],
+    ["playtime", "Tiempo de juego", game?.playTime],
   ].filter((item) => item[2]);
 
   if (items.length === 0) {
@@ -126,7 +126,7 @@ function renderPackMetadata(game) {
 
 function renderContentAction(action, label, content, disabled) {
   const unavailable = !content?.available;
-  const icon = action === "open-manual" ? "book-open" : "ranking";
+  const icon = action === "open-manual" ? "manual" : "ranking";
   const title = unavailable ? content?.reason || `${label} no disponible para este pack.` : label;
 
   return `
@@ -174,7 +174,7 @@ export function renderGamePanel(state) {
         ${description ? `<p class="ready-copy">${escapeHtml(description)}</p>` : ""}
         <div class="primary-actions action-grid">
           <button class="play-button action-tile" type="button" data-action="play" ${competitionDisabled}>
-            ${renderIcon("download", { className: "action-icon icon-slot icon-slot--play" })}
+            ${renderIcon("play", { className: "action-icon icon-slot icon-slot--play" })}
             <span class="action-button-label">${COPY.actions.play}</span>
           </button>
           <button class="secondary-action compact-action action-tile" type="button" data-action="practice" ${practiceDisabled}>

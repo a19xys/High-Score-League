@@ -385,7 +385,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /data-action="use-library-pack"/);
   assert.match(packCard, /data-action="toggle-library-favorite"/);
   assert.match(packCard, /data-pack-key/);
-  assert.match(packCard, /renderIcon\(favorite \? "star" : "star-empty"/);
+  assert.match(packCard, /renderIcon\(favorite \? "star-filled" : "star-empty"/);
   assert.match(packCard, /renderIcon\("calendar"/);
   assert.match(packCard, /renderIcon\(meta\.icon/);
   assert.match(packCard, /Con errores/);
@@ -488,13 +488,13 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /meta-label/);
   assert.match(gamePanel, /meta-value/);
   assert.match(gamePanel, /renderIcon\(icon/);
-  assert.match(gamePanel, /"publisher", "Desarrollador"/);
-  assert.match(gamePanel, /"calendar", "Año"/);
-  assert.match(gamePanel, /"clock", "Tiempo de juego"/);
+  assert.match(gamePanel, /"developer", "Desarrollador"/);
+  assert.match(gamePanel, /"year", "Año"/);
+  assert.match(gamePanel, /"playtime", "Tiempo de juego"/);
   assert.match(gamePanel, /renderIcon\("calendar"/);
-  assert.match(gamePanel, /renderIcon\("download"/);
+  assert.match(gamePanel, /renderIcon\("play"/);
   assert.match(gamePanel, /renderIcon\("practice"/);
-  assert.match(gamePanel, /"book-open"/);
+  assert.match(gamePanel, /"manual"/);
   assert.match(gamePanel, /renderStatusBadges/);
   assert.match(gamePanel, /\.slice\(0, 4\)/);
   assert.match(gamePanel, /action-button-label/);
@@ -527,10 +527,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.activity-summary-card/);
   assert.match(styles, /LOCAL-LAUNCHER-ICON-SYSTEM-1/);
   assert.match(styles, /\.ui-icon/);
-  assert.match(styles, /\.ui-icon__probe/);
-  assert.match(styles, /\.ui-icon__mask/);
-  assert.match(styles, /background: currentColor/);
-  assert.match(styles, /-webkit-mask: var\(--icon-url\) center \/ contain no-repeat/);
+  assert.match(styles, /\.ui-icon__img/);
+  assert.match(styles, /object-fit: contain/);
+  assert.equal(/ui-icon__probe|ui-icon__mask|--icon-url|-webkit-mask|mask-image|mask:/.test(styles), false);
   assert.match(styles, /\.ui-icon__fallback/);
   assert.match(styles, /\.action-icon/);
   assert.match(styles, /\.meta-icon/);
@@ -577,7 +576,7 @@ test("manual and ranking IPC stay in main process", async () => {
   assert.equal(/nodeIntegration:\s*true/.test(main), false);
 });
 
-test("renderer local icon system maps stable PNG names with safe fallbacks", async () => {
+test("renderer local icon system maps stable SVG names with safe fallbacks", async () => {
   const icon = await fsp.readFile(
     path.join(__dirname, "..", "gui", "renderer", "components", "icon.js"),
     "utf8",
@@ -588,58 +587,60 @@ test("renderer local icon system maps stable PNG names with safe fallbacks", asy
   );
 
   [
-    "app.png",
-    "sun.png",
-    "moon.png",
-    "status-online.png",
-    "status-offline.png",
-    "status-reconnecting.png",
-    "user.png",
-    "download.png",
-    "practice.png",
-    "book-open.png",
-    "ranking.png",
-    "publisher.png",
-    "calendar.png",
-    "genre.png",
-    "clock.png",
-    "sync-ok.png",
-    "sync-pending.png",
-    "sync-error.png",
-    "view-covers.png",
-    "view-list.png",
-    "view-icons.png",
-    "star-empty.png",
-    "star.png",
-    "check.png",
-    "warning.png",
-    "error.png",
-    "info.png",
-    "add.png",
-    "logout.png",
-    "forget-account.png",
-    "email.png",
-    "password.png",
-    "close.png",
-    "connection.png",
+    "app.svg",
+    "sun.svg",
+    "moon.svg",
+    "status-online.svg",
+    "status-offline.svg",
+    "status-reconnecting.svg",
+    "user.svg",
+    "play.svg",
+    "practice.svg",
+    "manual.svg",
+    "ranking.svg",
+    "developer.svg",
+    "year.svg",
+    "genre.svg",
+    "playtime.svg",
+    "calendar.svg",
+    "sync-ok.svg",
+    "sync-pending.svg",
+    "sync-error.svg",
+    "view-covers.svg",
+    "view-list.svg",
+    "view-icons.svg",
+    "star-empty.svg",
+    "star-filled.svg",
+    "check.svg",
+    "warning.svg",
+    "error.svg",
+    "info.svg",
+    "add.svg",
+    "logout.svg",
+    "forget-account.svg",
+    "email.svg",
+    "password.svg",
+    "close.svg",
+    "connection.svg",
   ].forEach((filename) => assert.match(icon, new RegExp(filename.replace(".", "\\."))));
 
   assert.match(icon, /const ICON_ROOT = "\.\/assets\/icons\/"/);
   assert.match(icon, /export function renderIcon/);
   assert.match(icon, /export function iconPath/);
-  assert.match(icon, /style="--icon-url: url/);
   assert.match(icon, /class="ui-icon/);
-  assert.match(icon, /ui-icon__probe/);
-  assert.match(icon, /ui-icon__mask/);
+  assert.match(icon, /ui-icon__img/);
   assert.match(icon, /ui-icon__fallback/);
-  assert.match(icon, /onload="this\.parentElement\.classList\.add\('ui-icon--loaded'\)"/);
-  assert.match(icon, /onerror="this\.parentElement\.classList\.add\('ui-icon--missing'\)"/);
+  assert.match(icon, /loading="lazy"/);
+  assert.match(icon, /onload="this\.parentElement\.classList\.remove\('ui-icon--missing'\);this\.parentElement\.classList\.add\('ui-icon--loaded'\)"/);
+  assert.match(icon, /onerror="this\.parentElement\.classList\.remove\('ui-icon--loaded'\);this\.parentElement\.classList\.add\('ui-icon--missing'\)"/);
   assert.match(icon, /escapeHtml\(fallback\)/);
   assert.equal(/https?:\/\//.test(icon), false);
-  assert.equal(/innerHTML|\.svg|<svg|Authorization|access_token|refresh_token/.test(icon), false);
-  assert.match(styles, /\.ui-icon__probe/);
-  assert.match(styles, /\.ui-icon__mask/);
-  assert.match(styles, /mask: var\(--icon-url\) center \/ contain no-repeat/);
+  assert.equal(/innerHTML|\.png|<svg|Authorization|access_token|refresh_token|--icon-url|ui-icon__probe|ui-icon__mask/.test(icon), false);
+  assert.match(styles, /\.ui-icon__img/);
+  assert.match(styles, /object-fit: contain/);
+  assert.match(styles, /\.ui-icon--missing \.ui-icon__img[\s\S]*display: none/);
+  assert.match(styles, /\.ui-icon--missing \.ui-icon__fallback[\s\S]*display: grid/);
+  assert.equal(/ui-icon__probe|ui-icon__mask|--icon-url|-webkit-mask|mask-image|mask:/.test(styles), false);
   assert.match(styles, /\.ui-icon\.icon-slot::before[\s\S]*content: none !important/);
 });
 
