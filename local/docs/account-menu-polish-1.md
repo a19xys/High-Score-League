@@ -80,13 +80,13 @@ Los tests protegen:
 
 El menu de cuenta usa `renderIcon()` para:
 
-- `user.png`: cuenta generica o sin cuenta;
-- `check.png`: cuenta activa;
-- `add.png`: anadir cuenta;
-- `logout.png`: cerrar sesion;
-- `forget-account.png`: olvidar cuenta;
-- `email.png`: campo email;
-- `password.png`: campo contrasena.
+- `user.svg`: cuenta generica o sin cuenta;
+- `check.svg`: cuenta activa;
+- `add.svg`: anadir cuenta;
+- `logout.svg`: cerrar sesion;
+- `forget-account.svg`: olvidar cuenta;
+- `email.svg`: campo email;
+- `password.svg`: campo contrasena.
 
-Si esos PNG aun no existen, el renderer usa fallbacks discretos sin cambiar
+Si esos SVG aun no existen, el renderer usa fallbacks discretos sin cambiar
 login, cambio de cuenta, cierre de sesion ni borrado de puntuaciones.

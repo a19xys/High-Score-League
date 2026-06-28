@@ -2918,3 +2918,269 @@ button:disabled .ui-icon,
 [aria-disabled="true"] .ui-icon {
   opacity: 0.72;
 }
+
+/* LOCAL-LAUNCHER-ICON-VISUAL-POLISH-2: icon alignment, actions and footer. */
+.app-shell {
+  grid-template-rows: auto 1fr auto;
+}
+
+.launcher-footer {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 94%, var(--surface));
+  padding: 0 20px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.launcher-footer__status,
+.launcher-footer__version {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.launcher-footer__status {
+  color: var(--text);
+}
+
+.footer-status-icon.ui-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--ok);
+}
+
+.theme-button--icon {
+  display: inline-grid;
+  width: 38px;
+  min-width: 38px;
+  padding: 0;
+  place-items: center;
+}
+
+.connection-chip {
+  gap: 8px;
+}
+
+.connection-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.ui-icon,
+.button-icon.ui-icon,
+.icon-slot.ui-icon,
+.action-icon.ui-icon,
+.meta-icon.ui-icon,
+.status-icon.ui-icon,
+.library-view-icon.ui-icon,
+.account-icon.ui-icon,
+.theme-icon.ui-icon,
+.form-label-icon.ui-icon,
+.account-row__check.ui-icon,
+.account-forget-button .ui-icon,
+.account-mini-avatar--empty .account-icon.ui-icon {
+  background: transparent;
+}
+
+.button-icon.ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.app-brand-icon.ui-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.account-mini-avatar {
+  line-height: 1;
+  overflow: hidden;
+}
+
+.account-mini-avatar .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.session-chip--button {
+  min-width: 0;
+}
+
+.session-chip--button .account-mini-avatar {
+  flex: 0 0 auto;
+}
+
+.game-detail-card .action-grid {
+  gap: 12px;
+}
+
+.game-detail-card .play-button,
+.game-detail-card .secondary-action {
+  min-height: 88px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  text-align: left;
+}
+
+.game-detail-card .play-button {
+  border-color: color-mix(in srgb, var(--circuit-strong) 82%, var(--border));
+}
+
+.game-detail-card .secondary-action {
+  border-color: color-mix(in srgb, var(--border) 82%, var(--surface-muted));
+  background: color-mix(in srgb, var(--surface-muted) 86%, var(--surface));
+}
+
+.game-detail-card .play-button span,
+.game-detail-card .secondary-action span {
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.game-detail-card .action-icon.ui-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.pack-metadata-item {
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+
+.pack-metadata-item .icon-slot,
+.pack-metadata-item .meta-icon.ui-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.meta-value {
+  color: var(--text);
+}
+
+.activity-summary-card {
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 14px;
+}
+
+.activity-summary-card__icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.activity-summary-card__icon .ui-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.activity-summary-card--ok .activity-summary-card__icon {
+  color: var(--ok);
+}
+
+.activity-summary-card--pending .activity-summary-card__icon {
+  color: var(--warn);
+}
+
+.activity-summary-card--warning .activity-summary-card__icon {
+  color: var(--error);
+}
+
+.activity-summary-card--ok .activity-summary-card__icon .ui-icon,
+.activity-summary-card--pending .activity-summary-card__icon .ui-icon,
+.activity-summary-card--warning .activity-summary-card__icon .ui-icon {
+  background: transparent;
+  color: currentColor;
+}
+
+.activity-details-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.activity-details-button:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.details-chevron.ui-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.library-view-icon.ui-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.view-button {
+  gap: 5px;
+  min-height: 32px;
+  padding-inline: 8px;
+}
+
+.pack-card--covers {
+  min-height: 0;
+}
+
+.pack-card--covers .pack-card__media {
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: 2 / 3;
+}
+
+.pack-card__media img {
+  object-fit: cover;
+}
+
+.favorite-slot {
+  line-height: 1;
+}
+
+.favorite-slot .favorite-icon.ui-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.pack-card--icons .favorite-slot .favorite-icon.ui-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.badge .status-icon.ui-icon,
+.pack-card__subtitle-icon.ui-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.account-row__check.ui-icon,
+.account-forget-button .ui-icon {
+  width: 16px;
+  height: 16px;
+}

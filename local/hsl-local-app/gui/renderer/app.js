@@ -3,6 +3,7 @@ import { COPY } from "./components/copy.js";
 import { renderDevTools } from "./components/dev-tools.js";
 import { renderGamePanel } from "./components/game-panel.js";
 import { renderHeader } from "./components/header.js";
+import { renderIcon } from "./components/icon.js";
 import { renderLibraryPanel } from "./components/library-panel.js";
 import { renderLogPanel } from "./components/log-panel.js";
 import { renderActivityDrawer } from "./components/queue-panel.js";
@@ -12,6 +13,7 @@ const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
 const LIBRARY_SIDEBAR_MIN = 360;
 const LIBRARY_SIDEBAR_MAX = 600;
 const LIBRARY_SIDEBAR_DEFAULT = 440;
+const LAUNCHER_VERSION = "v1.0.0";
 const store = createStore({
   accountMenuOpen: false,
   activeOverlay: null,
@@ -80,6 +82,18 @@ function renderOverlay(state) {
   `;
 }
 
+function renderStatusFooter() {
+  return `
+    <footer class="launcher-footer" aria-label="Estado del launcher">
+      <span class="launcher-footer__status">
+        ${renderIcon("check", { className: "footer-status-icon", size: "sm" })}
+        <span>Launcher actualizado</span>
+      </span>
+      <span class="launcher-footer__version">${LAUNCHER_VERSION}</span>
+    </footer>
+  `;
+}
+
 function render() {
   const state = store.getState();
   applyTheme(state.theme);
@@ -100,6 +114,7 @@ function render() {
         </div>
       </section>
     </main>
+    ${renderStatusFooter()}
     ${renderOverlay(state)}
   `;
 }

@@ -5,6 +5,7 @@ export const ICONS = Object.freeze({
   app: { fallback: "HSL", file: "app.svg" },
   calendar: { fallback: "S", file: "calendar.svg" },
   check: { fallback: "OK", file: "check.svg" },
+  "chevron-right": { fallback: ">", file: "chevron-right.svg" },
   close: { fallback: "x", file: "close.svg" },
   connection: { fallback: "*", file: "connection.svg" },
   developer: { fallback: "D", file: "developer.svg" },

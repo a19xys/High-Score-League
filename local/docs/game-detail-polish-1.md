@@ -83,7 +83,7 @@ Los tests protegen:
 ## Continuidad LOCAL-LAUNCHER-ICON-SYSTEM-1
 
 La ficha usa el sistema local de iconos para `Jugar`, `Practicar`, `Manual`,
-`Ranking`, semana, desarrollador, ano, genero, tiempo de juego y actividad
-local. Los PNG esperados viven en `gui/renderer/assets/icons/` y tienen
-fallback si aun no existen: `download.png`, `practice.png`, `book-open.png`,
-`ranking.png`, `publisher.png`, `calendar.png`, `genre.png` y `clock.png`.
+`Ranking`, semana, desarrollador, ano, genero, tiempo jugado y actividad local.
+Los SVG esperados viven en `gui/renderer/assets/icons/` y tienen fallback si
+aun no existen: `play.svg`, `practice.svg`, `manual.svg`, `ranking.svg`,
+`developer.svg`, `year.svg`, `calendar.svg`, `genre.svg` y `playtime.svg`.

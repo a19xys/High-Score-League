@@ -89,7 +89,7 @@ borrar puntuaciones locales, packs ni colas scoped.
 ## LOCAL-LAUNCHER-ICON-SYSTEM-1
 
 El revamp usa un sistema local de iconos en
-`gui/renderer/assets/icons/`. `renderIcon()` prepara PNG blancos locales para header,
-tema, conexion, acciones de juego, metadata, actividad, vistas de biblioteca,
-favoritos y cuenta. Si faltan PNG finales, se muestran fallbacks discretos y no
-se usan URLs remotas. El tintado usa mascara CSS con `currentColor`.
+`gui/renderer/assets/icons/`. `renderIcon()` prepara SVG locales para header,
+tema, acciones de juego, metadata, actividad, vistas de biblioteca, favoritos y
+cuenta. Si faltan SVG finales, se muestran fallbacks discretos y no se usan
+URLs remotas.

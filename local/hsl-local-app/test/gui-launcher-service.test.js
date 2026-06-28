@@ -405,7 +405,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.favorite-slot/);
   assert.match(styles, /\.favorite-icon/);
   assert.match(styles, /\.library-view-icon/);
-  assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*max-height: 178px/);
+  assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*aspect-ratio: 2 \/ 3/);
   assert.match(styles, /\.pack-card--icons[\s\S]*min-height: 106px/);
   assert.equal(/escapeHtml\(pack\.packDir|escapeHtml\(pack\.packPath/.test(packCard), false);
   assert.equal(/checkSeasonMembership|membership/.test(libraryPanel + packCard), false);
@@ -450,9 +450,11 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /app-icon-slot/);
   assert.match(header, /renderIcon\("app"/);
   assert.match(header, /renderIcon\(themeIcon/);
-  assert.match(header, /status-online/);
-  assert.match(header, /status-offline/);
-  assert.match(header, /status-reconnecting/);
+  assert.match(header, /theme-button--icon/);
+  assert.match(header, /aria-label="\$\{themeLabel\}"/);
+  assert.equal(/<span>\$\{themeLabel\}<\/span>/.test(header), false);
+  assert.match(header, /connection-dot/);
+  assert.equal(/renderIcon\(connection|status-online|status-offline|status-reconnecting/.test(header), false);
   assert.equal(/<p class="eyebrow">HSL<\/p>/.test(header), false);
   assert.equal(/data-action="refresh"/.test(header), false);
   assert.match(header, /Conectado/);
@@ -490,7 +492,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /renderIcon\(icon/);
   assert.match(gamePanel, /"developer", "Desarrollador"/);
   assert.match(gamePanel, /"year", "Año"/);
-  assert.match(gamePanel, /"playtime", "Tiempo de juego"/);
+  assert.match(gamePanel, /"playtime", "Tiempo jugado"/);
+  assert.match(gamePanel, /"Sin datos"/);
   assert.match(gamePanel, /renderIcon\("calendar"/);
   assert.match(gamePanel, /renderIcon\("play"/);
   assert.match(gamePanel, /renderIcon\("practice"/);
@@ -513,6 +516,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(queuePanel, /icon: "sync-ok"/);
   assert.match(queuePanel, /icon: "sync-error"/);
   assert.match(queuePanel, /renderIcon\(summary\.icon/);
+  assert.match(queuePanel, /renderIcon\("chevron-right"/);
+  assert.match(queuePanel, /activity-details-button/);
   assert.equal(/\$\{totals\.pending\} pendientes/.test(queuePanel), false);
   assert.match(queuePanel, /renderActivityDrawer/);
   assert.match(queuePanel, /Puntuaciones con error/);
@@ -525,6 +530,11 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.brand-lockup/);
   assert.match(styles, /\.action-grid/);
   assert.match(styles, /\.activity-summary-card/);
+  assert.match(styles, /LOCAL-LAUNCHER-ICON-VISUAL-POLISH-2/);
+  assert.match(styles, /\.launcher-footer/);
+  assert.match(styles, /\.theme-button--icon/);
+  assert.match(styles, /\.connection-dot/);
+  assert.match(styles, /\.activity-details-button/);
   assert.match(styles, /LOCAL-LAUNCHER-ICON-SYSTEM-1/);
   assert.match(styles, /\.ui-icon/);
   assert.match(styles, /\.ui-icon__img/);
@@ -544,6 +554,10 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.meta-label/);
   assert.match(styles, /\.meta-value/);
   assert.match(styles, /\.game-detail-card \.activity-summary-card/);
+  assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*aspect-ratio: 2 \/ 3/);
+  assert.match(app, /Launcher actualizado/);
+  assert.match(app, /LAUNCHER_VERSION = "v1\.0\.0"/);
+  assert.match(app, /renderStatusFooter/);
   assert.match(styles, /\.modal-layer/);
   assert.match(styles, /\.drawer-layer/);
   assert.match(styles, /#app[\s\S]*width: 100%[\s\S]*height: 100%/);
@@ -603,6 +617,7 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
     "genre.svg",
     "playtime.svg",
     "calendar.svg",
+    "chevron-right.svg",
     "sync-ok.svg",
     "sync-pending.svg",
     "sync-error.svg",

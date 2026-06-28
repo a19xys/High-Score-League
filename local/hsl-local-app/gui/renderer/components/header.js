@@ -166,7 +166,7 @@ function renderAccountMenu(state) {
 }
 
 export function renderHeader(state) {
-  const themeLabel = state.theme === "dark" ? "Claro" : "Oscuro";
+  const themeLabel = state.theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
   const themeIcon = state.theme === "dark" ? "sun" : "moon";
   const busyText = state.busy ? `<span class="busy-chip">${escapeHtml(state.busyLabel || "Ejecutando")}</span>` : "";
   const session = state.data?.session;
@@ -175,10 +175,10 @@ export function renderHeader(state) {
     ? accountTitle(activeAccount) || session.email || "Cuenta conectada"
     : "Sin cuenta conectada";
   const connection = {
-    connected: ["Conectado", "connection-chip--connected", "status-online"],
-    offline: ["Sin Internet", "connection-chip--offline", "status-offline"],
-    reconnecting: ["Reconectando", "connection-chip--reconnecting", "status-reconnecting"],
-  }[state.connectionStatus] || ["Conectado", "connection-chip--connected", "status-online"];
+    connected: ["Conectado", "connection-chip--connected"],
+    offline: ["Sin Internet", "connection-chip--offline"],
+    reconnecting: ["Reconectando", "connection-chip--reconnecting"],
+  }[state.connectionStatus] || ["Conectado", "connection-chip--connected"];
 
   return `
     <header class="launcher-header app-header">
@@ -191,10 +191,9 @@ export function renderHeader(state) {
       </div>
       <div class="header-actions">
         ${busyText}
-        <span class="connection-chip ${connection[1]}">${renderIcon(connection[2], { className: "connection-icon", size: "sm" })}${connection[0]}</span>
-        <button class="theme-button icon-slot-button" type="button" data-action="toggle-theme" title="Cambiar tema">
+        <span class="connection-chip ${connection[1]}"><span class="connection-dot" aria-hidden="true"></span>${connection[0]}</span>
+        <button class="theme-button theme-button--icon" type="button" data-action="toggle-theme" title="${themeLabel}" aria-label="${themeLabel}">
           ${renderIcon(themeIcon, { className: "button-icon theme-icon", size: "sm" })}
-          <span>${themeLabel}</span>
         </button>
         <div class="account-menu-shell">
           <button class="session-chip session-chip--button" type="button" data-action="toggle-account-menu" aria-expanded="${state.accountMenuOpen ? "true" : "false"}">

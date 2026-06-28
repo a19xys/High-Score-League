@@ -161,11 +161,11 @@ El sistema de iconos de la app no cambia el modelo de assets de packs. Los
 iconos de la interfaz viven en `gui/renderer/assets/icons/`; los assets de cada
 pack siguen viviendo en `pack/assets/` y se validan con las reglas anteriores.
 
-Para metadata visible, la app busca iconos PNG locales:
+Para metadata visible, la app busca iconos SVG locales:
 
-- `publisher.png`;
-- `calendar.png`;
-- `genre.png`;
-- `clock.png`.
+- `developer.svg`;
+- `year.svg`;
+- `genre.svg`;
+- `playtime.svg`.
 
-Si faltan esos PNG, la ficha mantiene fallback y no inventa metadata.
+Si faltan esos SVG, la ficha mantiene fallback y no inventa metadata.

@@ -152,8 +152,8 @@ banner horizontal contenido, logo/titulo/semana, chips humanos acotados,
 metadata con etiqueta y valor, descripcion local solo si existe, botonera 2x2 y
 actividad local integrada.
 
-Siguen pendientes tareas posteriores de favoritos avanzados, PNG finales y
-pulido de drawers.
+Siguen pendientes tareas posteriores de favoritos avanzados y pulido de
+drawers.
 
 ## Continuidad LOCAL-LAUNCHER-LIBRARY-CARDS-1
 
@@ -174,5 +174,5 @@ administrativos `Cambiar`/`Quitar`.
 
 `Icon System` queda aplicado como base tecnica: los slots de header, botonera,
 metadata, actividad, biblioteca, favoritos y cuenta llaman a `renderIcon()` y
-buscan PNG locales en `gui/renderer/assets/icons/`. Si falta un PNG, se muestra
-fallback discreto. Los PNG blancos se tintan con `currentColor`.
+buscan SVG locales en `gui/renderer/assets/icons/`. Si falta un SVG, se muestra
+fallback discreto.

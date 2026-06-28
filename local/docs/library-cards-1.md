@@ -150,7 +150,6 @@ descarga/instalacion, competicion v2 ni `config.json`.
 
 ## Pendiente
 
-- PNG definitivos para estrella, vistas y estados.
 - Favoritos con ordenacion o filtro especifico.
 
 ## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
@@ -162,7 +161,7 @@ biblioteca ni seleccion de packs.
 
 ## Continuidad LOCAL-LAUNCHER-ICON-SYSTEM-1
 
-La biblioteca usa el sistema local de iconos para `view-covers.png`,
-`view-list.png`, `view-icons.png`, `star-empty.png`, `star.png`,
-`calendar.png`, `check.png`, `warning.png` y `error.png`. La persistencia de
+La biblioteca usa el sistema local de iconos para `view-covers.svg`,
+`view-list.svg`, `view-icons.svg`, `star-empty.svg`, `star-filled.svg`,
+`calendar.svg`, `check.svg`, `warning.svg` y `error.svg`. La persistencia de
 favoritos y preferencias no cambia.

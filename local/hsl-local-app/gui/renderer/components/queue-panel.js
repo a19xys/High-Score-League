@@ -167,8 +167,9 @@ export function renderActivitySummaryCard(state) {
         <strong>${escapeHtml(summary.status)}</strong>
         <p>${escapeHtml(summary.message)}</p>
       </div>
-      <button class="text-button activity-summary-card__details" type="button" data-action="show-activity-details">
-        Ver detalles &gt;
+      <button class="activity-details-button activity-summary-card__details" type="button" data-action="show-activity-details">
+        <span>Ver detalles</span>
+        ${renderIcon("chevron-right", { className: "details-chevron", size: "sm" })}
       </button>
     </section>
   `;

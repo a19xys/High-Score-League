@@ -75,7 +75,7 @@ icono por fila. `Cerrar sesion` cierra la sesion activa y olvida esa cuenta en
 este launcher, sin borrar puntuaciones ni colas scoped.
 
 `Cerrar sesion` usa el sistema local de iconos de la app Electron. El archivo
-esperado para esa accion es `logout.png` dentro de
+esperado para esa accion es `logout.svg` dentro de
 `local/hsl-local-app/gui/renderer/assets/icons/`.
 
 ## Estado sin cuenta
@@ -570,7 +570,6 @@ cuenta activa en este launcher sin borrar puntuaciones locales ni colas scoped.
 
 La GUI tiene una base local de iconos: carpeta versionada
 `gui/renderer/assets/icons/`, helper `renderIcon()`, clases `ui-icon` y nombres
-PNG estables para header, tema, conexion, acciones principales, metadata,
-actividad, biblioteca, favoritos y cuenta. Si un PNG falta, el renderer muestra
-fallback textual discreto sin usar URLs remotas. Los PNG blancos se tintan con
-mascara CSS y `currentColor`.
+SVG estables para header, tema, acciones principales, metadata, actividad,
+biblioteca, favoritos y cuenta. Si un SVG falta, el renderer muestra fallback
+textual discreto sin usar URLs remotas.

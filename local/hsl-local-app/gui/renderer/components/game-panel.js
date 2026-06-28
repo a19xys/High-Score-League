@@ -99,15 +99,11 @@ function renderPackVisuals(game) {
 
 function renderPackMetadata(game) {
   const items = [
-    ["developer", "Desarrollador", game?.developer || game?.publisher],
-    ["year", "Año", game?.year ? String(game.year) : null],
-    ["genre", "Género", game?.genre?.join(", ")],
-    ["playtime", "Tiempo de juego", game?.playTime],
-  ].filter((item) => item[2]);
-
-  if (items.length === 0) {
-    return "";
-  }
+    ["developer", "Desarrollador", game?.developer || game?.publisher || "Sin datos"],
+    ["year", "Año", game?.year ? String(game.year) : "Sin datos"],
+    ["genre", "Género", game?.genre?.length ? game.genre.join(", ") : "Sin datos"],
+    ["playtime", "Tiempo jugado", game?.playTime || "Sin datos"],
+  ];
 
   return `
     <div class="pack-metadata-grid">

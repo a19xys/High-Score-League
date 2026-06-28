@@ -61,6 +61,7 @@ El helper:
 | Favorito activo | `star-filled.svg` |
 | Favorito vacio | `star-empty.svg` |
 | Semana/temporada | `calendar.svg` |
+| Ver detalles | `chevron-right.svg` |
 
 ## CSS
 
@@ -116,6 +117,7 @@ Actividad local:
 - `sync-ok.svg`;
 - `sync-pending.svg`;
 - `sync-error.svg`.
+- `chevron-right.svg` para `Ver detalles`.
 
 Biblioteca:
 
@@ -158,6 +160,7 @@ year.svg
 genre.svg
 playtime.svg
 calendar.svg
+chevron-right.svg
 sync-ok.svg
 sync-pending.svg
 sync-error.svg
