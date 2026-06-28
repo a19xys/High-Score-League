@@ -10,7 +10,7 @@ import { renderActivityDrawer } from "./components/queue-panel.js";
 
 const root = document.getElementById("app");
 const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
-const LIBRARY_SIDEBAR_MIN = 360;
+const LIBRARY_SIDEBAR_MIN = 320;
 const LIBRARY_SIDEBAR_MAX = 600;
 const LIBRARY_SIDEBAR_DEFAULT = 440;
 const LAUNCHER_VERSION = "v1.0.0";
@@ -28,6 +28,8 @@ const store = createStore({
   libraryQuery: "",
   librarySeason: "all",
   librarySidebarWidth: LIBRARY_SIDEBAR_DEFAULT,
+  librarySortBy: "weeks",
+  librarySortDirection: "asc",
   libraryStatus: "all",
   libraryView: "covers",
   logs: [],
@@ -168,6 +170,8 @@ async function refreshState() {
   store.setState({
     data,
     librarySidebarWidth: clampSidebarWidth(libraryPreferences.sidebarWidth || current.librarySidebarWidth),
+    librarySortBy: libraryPreferences.librarySortBy || current.librarySortBy,
+    librarySortDirection: libraryPreferences.librarySortDirection || current.librarySortDirection,
     libraryView: libraryPreferences.libraryView || current.libraryView,
     logs: noticeLogs.reduce((logs, notice) => appendLog(logs, notice), current.logs),
     noticeIds: [
@@ -186,6 +190,8 @@ async function persistLibraryPreferences(patch) {
       store.setState({
         data: response.state,
         librarySidebarWidth: clampSidebarWidth(preferences.sidebarWidth || store.getState().librarySidebarWidth),
+        librarySortBy: preferences.librarySortBy || store.getState().librarySortBy,
+        librarySortDirection: preferences.librarySortDirection || store.getState().librarySortDirection,
         libraryView: preferences.libraryView || store.getState().libraryView,
       });
     }
@@ -450,6 +456,18 @@ function bindActions() {
 
     if (target.matches("[data-library-season]")) {
       store.setState({ librarySeason: target.value });
+    }
+
+    if (target.matches("[data-library-sort-by]")) {
+      const librarySortBy = target.value;
+      store.setState({ librarySortBy });
+      persistLibraryPreferences({ librarySortBy });
+    }
+
+    if (target.matches("[data-library-sort-direction]")) {
+      const librarySortDirection = target.value;
+      store.setState({ librarySortDirection });
+      persistLibraryPreferences({ librarySortDirection });
     }
 
   });

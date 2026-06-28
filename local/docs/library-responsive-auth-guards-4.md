@@ -13,16 +13,30 @@ espacio vacio sobrante queda debajo.
 La biblioteca usa container queries sobre `.library-panel`.
 
 - `Portadas`: dos columnas en ancho suficiente, bajando a una columna cuando el
-  contenedor es estrecho. La caratula mantiene `aspect-ratio: 2 / 3`.
+  contenedor cruza el breakpoint comun de 340px. La caratula mantiene
+  `aspect-ratio: 2 / 3`.
 - `Lista`: fila horizontal compacta de altura controlada, con miniatura 1/1,
   estrella, texto y estado alineados.
-- `Iconos`: grid anclado arriba con tile 1/1. El tile cambia entre 84, 96 y
-  112px segun ancho de sidebar, manteniendo proporcion.
+- `Iconos`: grid anclado arriba con tile fijo 1/1 de 92px.
 
-Los controles superiores se adaptan: `Más filtros` tiene acento circuito y
-`Cambiar directorio` queda neutro. En sidebar estrecha se apilan, con `Cambiar
-directorio` arriba. Los botones `Portadas`, `Lista`, `Iconos` conservan
-`aria-label`/`title` y pueden mostrar solo icono en estrecho.
+Los controles superiores se adaptan: `Cambiar directorio` va a la izquierda y
+`Más filtros` a la derecha. `Más filtros` solo usa acento circuito abierto. En
+sidebar estrecha se apilan, con `Cambiar directorio` arriba. Los botones
+`Portadas`, `Lista`, `Iconos` conservan `aria-label`/`title` y muestran solo
+icono en el mismo breakpoint de 340px.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-BREAKPOINT-POLISH-5
+
+El breakpoint comun queda fijado en `340px` y la sidebar minima baja a `320px`.
+Ese breakpoint coordina el paso de `Portadas` a una columna con los botones de
+vista en modo solo icono. `Iconos` mantiene tile fijo de 92px.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-CONTROLS-FIX-SORT-6
+
+El modo solo icono oculta unicamente el label de los botones de vista. La
+tarjeta `Más filtros` incorpora ordenacion compacta; solo `Semanas` agrupa por
+temporada, mientras `Alfabético`, `Desarrollador` y `Año` renderizan lista
+plana despues de aplicar busqueda y temporada.
 
 ## Guardas Sin Sesion
 

@@ -35,6 +35,89 @@ function matchesStatus(pack, filter) {
   return pack.status === filter;
 }
 
+function normalizeSortBy(value) {
+  return ["weeks", "title", "developer", "year"].includes(value) ? value : "weeks";
+}
+
+function normalizeSortDirection(value) {
+  return value === "desc" ? "desc" : "asc";
+}
+
+function compareText(a, b) {
+  return String(a || "").localeCompare(String(b || ""), "es", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function weekSortValue(pack) {
+  return [
+    pack.seasonName || pack.seasonId || "",
+    Number.isFinite(Number(pack.weekNumber)) ? Number(pack.weekNumber) : Number.MAX_SAFE_INTEGER,
+    pack.weekId || "",
+    pack.title || "",
+  ];
+}
+
+function compareWeeks(a, b) {
+  const left = weekSortValue(a);
+  const right = weekSortValue(b);
+  const season = compareText(left[0], right[0]);
+  if (season) return season;
+  if (left[1] !== right[1]) return left[1] - right[1];
+  const week = compareText(left[2], right[2]);
+  if (week) return week;
+  return compareText(left[3], right[3]);
+}
+
+function comparePacks(a, b, sortBy) {
+  if (sortBy === "developer") {
+    const developer = compareText(a.developer || a.publisher || a.title, b.developer || b.publisher || b.title);
+    return developer || compareText(a.title, b.title);
+  }
+
+  if (sortBy === "year") {
+    const leftYear = Number(a.year);
+    const rightYear = Number(b.year);
+    const left = Number.isFinite(leftYear) ? leftYear : Number.MAX_SAFE_INTEGER;
+    const right = Number.isFinite(rightYear) ? rightYear : Number.MAX_SAFE_INTEGER;
+    return left === right ? compareText(a.title, b.title) : left - right;
+  }
+
+  if (sortBy === "weeks") {
+    return compareWeeks(a, b);
+  }
+
+  return compareText(a.title, b.title);
+}
+
+function sortPacks(packs, state) {
+  const sortBy = normalizeSortBy(state.librarySortBy);
+  const direction = normalizeSortDirection(state.librarySortDirection);
+  const factor = direction === "desc" ? -1 : 1;
+
+  if (sortBy === "year") {
+    return [...packs].sort((a, b) => {
+      const leftYear = Number(a.year);
+      const rightYear = Number(b.year);
+      const leftHasYear = Number.isFinite(leftYear);
+      const rightHasYear = Number.isFinite(rightYear);
+
+      if (leftHasYear && rightHasYear && leftYear !== rightYear) {
+        return (leftYear - rightYear) * factor;
+      }
+
+      if (leftHasYear !== rightHasYear) {
+        return leftHasYear ? -1 : 1;
+      }
+
+      return compareText(a.title, b.title) * factor;
+    });
+  }
+
+  return [...packs].sort((a, b) => comparePacks(a, b, sortBy) * factor);
+}
+
 function filterPacks(packs, state) {
   const query = normalizeSearch(state.libraryQuery);
 
@@ -78,10 +161,14 @@ function renderViewButton(state, view, label, icon) {
 
   return `
     <button class="view-button ${active ? "view-button--active" : ""}" type="button" data-action="set-library-view" data-view="${view}" aria-label="${label}" title="${label}" aria-pressed="${active}">
-      ${renderIcon(iconName, { className: `library-view-icon icon-slot icon-slot--${icon}` })}
-      <span>${label}</span>
+      <span class="library-view-button__icon">${renderIcon(iconName, { className: `library-view-icon icon-slot icon-slot--${icon}` })}</span>
+      <span class="library-view-button__label">${label}</span>
     </button>
   `;
+}
+
+function sortOption(value, current, label) {
+  return `<option value="${value}" ${current === value ? "selected" : ""}>${label}</option>`;
 }
 
 function renderFilterCard(state, packs) {
@@ -96,6 +183,9 @@ function renderFilterCard(state, packs) {
       seasons.set(pack.seasonId, pack.seasonName || pack.seasonId);
     }
   }
+
+  const sortBy = normalizeSortBy(state.librarySortBy);
+  const sortDirection = normalizeSortDirection(state.librarySortDirection);
 
   return `
     <div class="library-filter-card" id="library-filter-card">
@@ -114,6 +204,27 @@ function renderFilterCard(state, packs) {
           </select>
         </label>
       </div>
+      <div class="library-sort">
+        <span class="library-filter-heading">ORDENAR</span>
+        <div class="library-sort__controls">
+          <label>
+            <span>Criterio</span>
+            <select data-library-sort-by>
+              ${sortOption("weeks", sortBy, "Semanas")}
+              ${sortOption("title", sortBy, "Alfabético")}
+              ${sortOption("developer", sortBy, "Desarrollador")}
+              ${sortOption("year", sortBy, "Año")}
+            </select>
+          </label>
+          <label class="library-sort__direction">
+            <span>Dirección</span>
+            <select data-library-sort-direction>
+              ${sortOption("asc", sortDirection, "Asc")}
+              ${sortOption("desc", sortDirection, "Desc")}
+            </select>
+          </label>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -125,11 +236,11 @@ function renderLibraryControls(state, packs) {
   return `
     <div class="library-toolbar">
       <div class="library-control-row library-control-row--primary">
-        <button class="library-control-button" type="button" data-action="toggle-library-filters" aria-expanded="${filtersOpen ? "true" : "false"}" aria-controls="library-filter-card">
-          Más filtros
-        </button>
         <button class="library-control-button" type="button" data-action="choose-pack-directory" ${disabled}>
           Cambiar directorio
+        </button>
+        <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-expanded="${filtersOpen ? "true" : "false"}" aria-controls="library-filter-card">
+          Más filtros
         </button>
       </div>
       ${renderFilterCard(state, packs)}
@@ -177,6 +288,8 @@ function renderPacks(state) {
   }
 
   const filtered = filterPacks(packs, state);
+  const sorted = sortPacks(filtered, state);
+  const sortBy = normalizeSortBy(state.librarySortBy);
 
   if (filtered.length === 0) {
     return renderLibraryEmptyState({
@@ -186,7 +299,15 @@ function renderPacks(state) {
     });
   }
 
-  return groupPacks(filtered).map((group) => `
+  if (sortBy !== "weeks") {
+    return `
+      <div class="library-pack-grid library-pack-grid--${escapeHtml(state.libraryView)}">
+        ${sorted.map((pack) => renderPackCard(pack, state, state.libraryView)).join("")}
+      </div>
+    `;
+  }
+
+  return groupPacks(sorted).map((group) => `
     <section class="season-group">
       <div class="season-group__heading">
         <h3>${escapeHtml(group.title)}</h3>
@@ -229,8 +350,12 @@ export function renderLibraryPanel(state) {
 }
 
 export const libraryPanelTestApi = {
+  comparePacks,
   filterPacks,
   groupPacks,
   normalizeSearch,
+  normalizeSortBy,
+  normalizeSortDirection,
   searchText,
+  sortPacks,
 };

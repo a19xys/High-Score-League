@@ -185,6 +185,13 @@ La biblioteca queda anclada arriba y responde al ancho de sidebar por vista.
 Sin sesion, los favoritos no son editables y Actividad local muestra un estado
 neutro de inicio de sesion en lugar de una cola vacia.
 
+## Continuidad LOCAL-LAUNCHER-LIBRARY-BREAKPOINT-POLISH-5
+
+La sidebar baja su minimo a 320px y usa un breakpoint comun de 340px para que
+`Portadas` pase a una columna al mismo tiempo que las vistas quedan solo con
+icono. `Iconos` mantiene tile fijo de 92px y `Más filtros` solo se ilumina
+cuando esta abierto.
+
 ## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 
 `Account Menu Polish` queda aplicado: el menu de cuenta usa una lista compacta

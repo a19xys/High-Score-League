@@ -65,6 +65,12 @@ cuenta, footer, panel derecho ni `config.json`.
 
 El refinamiento responsive posterior ancla grupos y packs arriba, usa container
 queries por ancho de sidebar y define comportamiento por vista: Portadas cambia
-de dos columnas a una manteniendo 2/3, Lista queda compacta e Iconos cambia el
-tile 1/1 entre 84, 96 y 112px. Sin sesion, favoritos y actividad local quedan
-deshabilitados en la UI normal.
+de dos columnas a una manteniendo 2/3, Lista queda compacta e Iconos mantiene
+tile fijo 1/1. Sin sesion, favoritos y actividad local quedan deshabilitados en
+la UI normal.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-BREAKPOINT-POLISH-5
+
+El breakpoint comun de biblioteca queda en 340px: en ese punto `Portadas` pasa
+a una columna y los botones de vista pasan a solo icono. La sidebar minima baja
+a 320px e `Iconos` conserva tile fijo de 92px.

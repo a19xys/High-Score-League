@@ -36,6 +36,8 @@ test("preferencias de biblioteca se guardan por playerKey", async () => {
     const sessionB = { email: "other@gmail.com", hasSession: true, userId: "user-b" };
 
     await writeLibraryPreferences(config(dir), sessionA, {
+      librarySortBy: "title",
+      librarySortDirection: "desc",
       libraryView: "list",
       sidebarWidth: 510,
     }, { now: "2026-06-27T00:00:00.000Z" });
@@ -48,6 +50,8 @@ test("preferencias de biblioteca se guardan por playerKey", async () => {
     const prefsB = await readLibraryPreferences(config(dir), sessionB);
 
     assert.equal(prefsA.libraryView, "list");
+    assert.equal(prefsA.librarySortBy, "title");
+    assert.equal(prefsA.librarySortDirection, "desc");
     assert.equal(prefsA.sidebarWidth, 510);
     assert.equal(prefsA.scope, "player");
     assert.match(prefsA.filePath, /players/);
@@ -59,6 +63,8 @@ test("preferencias de biblioteca se guardan por playerKey", async () => {
 test("preferencias sin sesion usan fallback global y validan valores", async () => {
   await withTempDir(async (dir) => {
     await writeLibraryPreferences(config(dir), { hasSession: false }, {
+      librarySortBy: "bad-sort",
+      librarySortDirection: "sideways",
       libraryView: "bad-view",
       sidebarWidth: 9999,
     }, { now: "2026-06-27T00:00:00.000Z" });
@@ -66,6 +72,8 @@ test("preferencias sin sesion usan fallback global y validan valores", async () 
     const prefs = await readLibraryPreferences(config(dir), { hasSession: false });
 
     assert.equal(prefs.libraryView, "covers");
+    assert.equal(prefs.librarySortBy, "weeks");
+    assert.equal(prefs.librarySortDirection, "asc");
     assert.equal(prefs.sidebarWidth, MAX_SIDEBAR_WIDTH);
     assert.equal(prefs.scope, "global");
     assert.match(prefs.filePath, /library[\\/]preferences\.json$/);
@@ -81,6 +89,8 @@ test("preferencias corruptas no crashean y caen a defaults", async () => {
     const prefs = await readLibraryPreferences(config(dir), { hasSession: false });
 
     assert.equal(prefs.libraryView, "covers");
+    assert.equal(prefs.librarySortBy, "weeks");
+    assert.equal(prefs.librarySortDirection, "asc");
     assert.equal(prefs.sidebarWidth, 440);
     assert.equal(prefs.warnings.length, 1);
   });

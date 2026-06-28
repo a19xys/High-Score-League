@@ -81,3 +81,16 @@ La barra lateral queda anclada arriba y responde al ancho con container queries.
 `Más filtros` usa acento circuito, los controles pueden apilarse en estrecho y
 los botones de vista pueden quedar solo con icono. Sin sesion, favoritos y
 actividad local no se muestran como experiencias editables/vacias.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-BREAKPOINT-POLISH-5
+
+El orden final de controles es `Cambiar directorio` y luego `Más filtros`.
+`Más filtros` queda neutro cerrado y azul circuito solo abierto. El modo
+estrecho de 340px activa a la vez `Portadas` a una columna y vistas solo icono.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-CONTROLS-FIX-SORT-6
+
+`Más filtros` mantiene el orden anterior y ahora incluye `ORDENAR` con criterio
+`Semanas`, `Alfabético`, `Desarrollador`, `Año` y direccion `Asc`/`Desc`.
+`Semanas` conserva grupos; el resto muestra lista plana. Los botones de vista
+separan icono y label para que el modo compacto nunca quede vacio.

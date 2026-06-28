@@ -224,6 +224,8 @@ Launcher shell bugfix notes:
 [`docs/launcher-shell-bugfix-3.md`](docs/launcher-shell-bugfix-3.md).
 Launcher visual foundation notes:
 [`docs/launcher-visual-foundation-1.md`](docs/launcher-visual-foundation-1.md).
+Library controls sort notes:
+[`docs/library-controls-fix-sort-6.md`](docs/library-controls-fix-sort-6.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is
@@ -675,23 +677,27 @@ directory stays compact in the UI; full paths, legacy `locations.json` fallback
 and warnings remain in development details.
 
 The library controls are compact in the launcher shell: `Biblioteca` shows the
-pack count in a pill, the first row has `Más filtros` and `Cambiar directorio`,
+pack count in a pill, the first row has `Cambiar directorio` and `Más filtros`,
 and the second row keeps the official views `Portadas`, `Lista`, `Iconos`.
-Search and season filters live in the collapsible `Más filtros` card. The pack
-list scrolls inside the left panel, and the `Iconos` view uses fixed-size tiles
-with a status dot instead of textual status badges.
+Search, season filters and `ORDENAR` live in the collapsible `Más filtros`
+card. `Semanas` keeps season groups; `Alfabético`, `Desarrollador` and `Año`
+show a flat list after filtering. The pack list scrolls inside the left panel,
+and the `Iconos` view uses fixed-size tiles with a status dot instead of
+textual status badges.
 
 The current visual rule is proportional by view: `Portadas` keeps a 2/3 cover,
 `Lista` is a compact horizontal row, and `Iconos` uses a 1/1 92px tile. The
 search placeholder is `Escribe aquí...`, and active favorite stars use the
 circuit accent instead of the warning color.
 
-The library is top-aligned and responsive to the sidebar width. `Portadas` moves
-from two proportional columns to one narrow column, `Lista` stays compact, and
-`Iconos` scales its 1/1 tile by container width. Favorites are editable only
-with an active session; the legacy `userData/library/favorites.json` is not used
-as a normal anonymous profile, and local activity shows a login prompt instead
-of an empty synced state when there is no session.
+The library is top-aligned and responsive to the sidebar width. The sidebar can
+shrink to `320px`. A shared `340px` library breakpoint moves `Portadas` from two
+proportional columns to one column and switches the view buttons to icon-only
+mode. `Lista` stays compact, and `Iconos` keeps a fixed 92px 1/1 tile.
+Favorites are editable only with an active session; the legacy
+`userData/library/favorites.json` is not used as a normal anonymous profile, and
+local activity shows a login prompt instead of an empty synced state when there
+is no session.
 
 Before competition play and pending uploads, the GUI now checks whether the
 connected account belongs to the season for the active pack `weekId`. Known

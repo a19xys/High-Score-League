@@ -589,6 +589,13 @@ reglas por vista: `Portadas` pasa de dos columnas 2/3 a una columna en estrecho,
 favoritos no son editables ni escriben el fallback global, y Actividad local
 muestra un mensaje de inicio de sesion en vez de una cola vacia.
 
+## Avance LOCAL-LAUNCHER-LIBRARY-BREAKPOINT-POLISH-5
+
+El responsive de biblioteca usa un breakpoint comun de 340px: sincroniza
+`Portadas` de dos columnas a una con los botones de vista en modo solo icono.
+La sidebar puede bajar a 320px, `Iconos` mantiene tile fijo de 92px y `Más
+filtros` queda neutro cerrado, azul circuito abierto.
+
 ## Avance LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 
 El menu de cuenta queda como selector compacto de perfiles: chip superior,
