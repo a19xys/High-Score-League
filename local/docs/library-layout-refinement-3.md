@@ -60,3 +60,11 @@ cuenta, footer, panel derecho ni `config.json`.
 
 - Validacion visual manual en mas tamaños reales de ventana y con bibliotecas
   de muchos packs.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-RESPONSIVE-AUTH-GUARDS-4
+
+El refinamiento responsive posterior ancla grupos y packs arriba, usa container
+queries por ancho de sidebar y define comportamiento por vista: Portadas cambia
+de dos columnas a una manteniendo 2/3, Lista queda compacta e Iconos cambia el
+tile 1/1 entre 84, 96 y 112px. Sin sesion, favoritos y actividad local quedan
+deshabilitados en la UI normal.

@@ -86,7 +86,7 @@ test("preferencias corruptas no crashean y caen a defaults", async () => {
   });
 });
 
-test("favoritos locales alternan por clave de pack sin sesion", async () => {
+test("favoritos sin sesion no se escriben como perfil anonimo nuevo", async () => {
   await withTempDir(async (dir) => {
     const first = await toggleLibraryFavorite(config(dir), "space-invaders-week-1", {
       now: "2026-06-27T00:00:00.000Z",
@@ -95,11 +95,15 @@ test("favoritos locales alternan por clave de pack sin sesion", async () => {
       now: "2026-06-27T00:00:01.000Z",
     });
     const stored = await readLibraryFavorites(config(dir));
+    const filePath = path.join(config(dir).userDataDir, "library", "favorites.json");
 
-    assert.equal(first.favorites["space-invaders-week-1"], true);
+    assert.equal(first.disabled, true);
+    assert.equal(first.favorites["space-invaders-week-1"], undefined);
+    assert.equal(second.disabled, true);
     assert.equal(second.favorites["space-invaders-week-1"], undefined);
     assert.equal(stored.favorites["space-invaders-week-1"], undefined);
     assert.match(stored.filePath, /library[\\/]favorites\.json$/);
+    await assert.rejects(fsp.stat(filePath), /ENOENT/);
   });
 });
 
@@ -125,13 +129,17 @@ test("favoritos de biblioteca se guardan por playerKey", async () => {
   });
 });
 
-test("favoritos anonimos no se mezclan con favoritos de cuenta", async () => {
+test("favoritos legacy anonimos no se mezclan con favoritos de cuenta", async () => {
   await withTempDir(async (dir) => {
     const session = { email: "test3@gmail.com", hasSession: true, userId: "user-a" };
+    const filePath = path.join(config(dir).userDataDir, "library", "favorites.json");
 
-    await toggleLibraryFavorite(config(dir), "anonymous-pack", {
-      now: "2026-06-27T00:00:00.000Z",
-    });
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    await fsp.writeFile(filePath, JSON.stringify({
+      favorites: { "anonymous-pack": true },
+      schemaVersion: 1,
+      updatedAt: "2026-06-27T00:00:00.000Z",
+    }), "utf8");
     const anonymous = await readLibraryFavorites(config(dir));
     const account = await readLibraryFavorites(config(dir), session);
 

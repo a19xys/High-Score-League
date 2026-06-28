@@ -84,12 +84,15 @@ function renderPackVisual(pack, view) {
   `;
 }
 
-function renderFavorite(pack, disabled) {
+function renderFavorite(pack, disabled, hasSession) {
   const favorite = Boolean(pack.favorite);
-  const label = favorite ? "Quitar de favoritos" : "Marcar como favorito";
+  const blocked = !hasSession;
+  const label = blocked
+    ? "Inicia sesión para marcar favoritos"
+    : favorite ? "Quitar de favoritos" : "Marcar como favorito";
 
   return `
-    <button class="favorite-slot ${favorite ? "favorite-slot--active" : ""}" type="button" data-action="toggle-library-favorite" data-pack-key="${escapeHtml(pack.favoriteKey || pack.id)}" title="${label}" aria-label="${label}" aria-pressed="${favorite ? "true" : "false"}" ${disabled ? "disabled" : ""}>
+    <button class="favorite-slot ${favorite ? "favorite-slot--active" : ""} ${blocked ? "favorite-slot--locked" : ""}" type="button" data-action="toggle-library-favorite" data-pack-key="${escapeHtml(pack.favoriteKey || pack.id)}" title="${label}" aria-label="${label}" aria-pressed="${favorite ? "true" : "false"}" ${disabled || blocked ? "disabled" : ""}>
       ${renderIcon(favorite ? "star-filled" : "star-empty", { className: "favorite-icon", size: "sm" })}
     </button>
   `;
@@ -143,7 +146,7 @@ export function renderPackCard(pack, state, view = "covers") {
 
   return `
     <article class="${cardClass}" title="${escapeHtml(`${pack.title || "Pack local"} · ${subtitle}`)}" ${selectableAttributes}>
-      ${renderFavorite(pack, state.busy)}
+      ${renderFavorite(pack, state.busy, Boolean(state.data?.session?.hasSession))}
       ${renderBadges(pack, active, state.data?.readiness, view)}
       ${renderPackVisual(pack, view)}
       <div class="pack-card__body">

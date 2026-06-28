@@ -74,3 +74,10 @@ derecho ni persistencia de favoritos scoped.
 El refinamiento posterior fija ratios obligatorios: `Portadas` 2/3, `Iconos`
 1/1 y `Lista` como fila compacta. Tambien compacta `Más filtros`, cambia el
 placeholder a `Escribe aquí...` y pasa la estrella activa/hover a azul circuito.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-RESPONSIVE-AUTH-GUARDS-4
+
+La barra lateral queda anclada arriba y responde al ancho con container queries.
+`Más filtros` usa acento circuito, los controles pueden apilarse en estrecho y
+los botones de vista pueden quedar solo con icono. Sin sesion, favoritos y
+actividad local no se muestran como experiencias editables/vacias.

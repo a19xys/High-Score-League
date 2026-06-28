@@ -178,6 +178,17 @@ async function toggleLibraryFavorite(config = {}, packKey, options = {}) {
   const session = options.session || {};
   const current = await readLibraryFavorites(config, session);
 
+  if (!session?.hasSession) {
+    return {
+      ...current,
+      disabled: true,
+      warnings: [
+        ...(current.warnings || []),
+        "Inicia sesion para marcar favoritos.",
+      ],
+    };
+  }
+
   if (!safeKey) {
     return current;
   }

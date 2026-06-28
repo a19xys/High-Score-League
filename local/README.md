@@ -686,6 +686,13 @@ The current visual rule is proportional by view: `Portadas` keeps a 2/3 cover,
 search placeholder is `Escribe aquí...`, and active favorite stars use the
 circuit accent instead of the warning color.
 
+The library is top-aligned and responsive to the sidebar width. `Portadas` moves
+from two proportional columns to one narrow column, `Lista` stays compact, and
+`Iconos` scales its 1/1 tile by container width. Favorites are editable only
+with an active session; the legacy `userData/library/favorites.json` is not used
+as a normal anonymous profile, and local activity shows a login prompt instead
+of an empty synced state when there is no session.
+
 Before competition play and pending uploads, the GUI now checks whether the
 connected account belongs to the season for the active pack `weekId`. Known
 non-members, invalid weeks, missing sessions, and packs without `weekId` block

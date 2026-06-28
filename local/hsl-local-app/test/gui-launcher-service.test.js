@@ -372,6 +372,8 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /renderViewButton\(state, "covers", "Portadas", "covers"\)/);
   assert.match(libraryPanel, /renderViewButton\(state, "list", "Lista", "list"\)/);
   assert.match(libraryPanel, /renderViewButton\(state, "icons", "Iconos", "icons"\)/);
+  assert.match(libraryPanel, /aria-label="\$\{label\}"/);
+  assert.match(libraryPanel, /title="\$\{label\}"/);
   assert.equal(/Vista de logos|Vista de portadas|Vista de lista|Vista de iconos/.test(libraryPanel), false);
   assert.match(libraryPanel, /pack\.developer/);
   assert.match(libraryPanel, /pack\.publisher/);
@@ -395,6 +397,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /data-action="use-library-pack"/);
   assert.match(packCard, /data-action="toggle-library-favorite"/);
   assert.match(packCard, /data-pack-key/);
+  assert.match(packCard, /Inicia sesión para marcar favoritos/);
+  assert.match(packCard, /favorite-slot--locked/);
+  assert.match(packCard, /Boolean\(state\.data\?\.session\?\.hasSession\)/);
   assert.match(packCard, /renderIcon\(favorite \? "star-filled" : "star-empty"/);
   assert.match(packCard, /renderIcon\("calendar"/);
   assert.match(packCard, /renderIcon\(meta\.icon/);
@@ -411,6 +416,8 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /LOCAL-LAUNCHER-LIBRARY-CARDS-1/);
   assert.match(styles, /LOCAL-LAUNCHER-LIBRARY-CONTROLS-REVAMP-2/);
   assert.match(styles, /LOCAL-LAUNCHER-LIBRARY-LAYOUT-REFINEMENT-3/);
+  assert.match(styles, /LOCAL-LAUNCHER-LIBRARY-RESPONSIVE-AUTH-GUARDS-4/);
+  assert.match(styles, /\.library-panel[\s\S]*container-type: inline-size/);
   assert.match(styles, /\.library-title-row/);
   assert.match(styles, /\.library-count-pill/);
   assert.match(styles, /\.library-control-row--primary[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
@@ -419,12 +426,21 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.library-search input,\s*\n\.library-filters select[\s\S]*min-height: 32px/);
   assert.match(styles, /\.library-scroll[\s\S]*overflow: hidden/);
   assert.match(styles, /\.library-section--packs[\s\S]*overflow-y: auto/);
+  assert.match(styles, /\.library-section--packs[\s\S]*align-content: start/);
+  assert.match(styles, /\.season-group[\s\S]*align-content: start/);
+  assert.match(styles, /\.library-pack-grid[\s\S]*align-content: start/);
+  assert.match(styles, /\.library-control-button\[data-action="toggle-library-filters"\][\s\S]*var\(--circuit\)/);
   assert.match(styles, /\.library-pack-grid--covers[\s\S]*repeat\(auto-fit, minmax\(156px, 178px\)\)/);
+  assert.match(styles, /\.library-pack-grid--covers[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@container \(max-width: 410px\)[\s\S]*\.library-pack-grid--covers[\s\S]*grid-template-columns: minmax\(0, min\(100%, 230px\)\)/);
   assert.match(styles, /\.library-pack-grid--list/);
   assert.match(styles, /\.pack-card--list[\s\S]*min-height: 54px/);
   assert.match(styles, /\.pack-card--list \.pack-card__media[\s\S]*aspect-ratio: 1 \/ 1/);
   assert.match(styles, /\.library-pack-grid--icons/);
   assert.match(styles, /--library-icon-tile: 92px/);
+  assert.match(styles, /--library-icon-tile: 96px/);
+  assert.match(styles, /--library-icon-tile: 112px/);
+  assert.match(styles, /--library-icon-tile: 84px/);
   assert.match(styles, /\.library-pack-grid--icons[\s\S]*repeat\(auto-fill, var\(--library-icon-tile\)\)/);
   assert.match(styles, /\.pack-card--icons[\s\S]*width: var\(--library-icon-tile\)/);
   assert.match(styles, /\.pack-card__status-dot--error/);
@@ -433,6 +449,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.favorite-slot/);
   assert.match(styles, /\.favorite-slot[\s\S]*place-items: center/);
   assert.match(styles, /\.favorite-slot--active[\s\S]*var\(--circuit\)/);
+  assert.match(styles, /\.favorite-slot--locked/);
   assert.equal(/favorite-slot--active[\s\S]{0,140}var\(--warn\)/.test(styles), false);
   assert.match(styles, /\.favorite-icon/);
   assert.match(styles, /\.library-view-icon/);
@@ -464,6 +481,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /store\.setState\(\{ librarySeason: target\.value \}\)/);
   assert.match(app, /setLibraryPreferences/);
   assert.match(app, /toggleLibraryFavorite/);
+  assert.match(app, /button\.disabled \|\| !store\.getState\(\)\.data\?\.session\?\.hasSession/);
   assert.match(app, /event\.stopPropagation\(\)/);
   assert.match(app, /persistLibraryPreferences\(\{ libraryView \}\)/);
   assert.match(app, /LIBRARY_SIDEBAR_MIN = 360/);
@@ -476,6 +494,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /drawer-body/);
   assert.match(app, /target\?\.matches\("\[data-overlay-backdrop\]"\)/);
   assert.match(app, /data-action="close-overlay"/);
+  assert.match(app, /action === "show-activity-details"[\s\S]*!store\.getState\(\)\.data\?\.session\?\.hasSession[\s\S]*return/);
   assert.match(app, /event\.key !== "Escape"/);
   assert.match(app, /event\.key === "D" && event\.ctrlKey && event\.shiftKey/);
   assert.match(app, /!target\.closest\("\[data-account-menu\]"\)/);
@@ -547,6 +566,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/getReadyLabel|Competicion|Pack abierto|Ultimo pack cargado|Cola cuenta \+ pack|Pack abierto correctamente|Listo para competir|Sincronizacion automatica lista|data-action="check-membership"/.test(gamePanel), false);
   assert.equal(/game-panel__score/.test(gamePanel), false);
   assert.match(queuePanel, /Actividad local/);
+  assert.match(queuePanel, /Inicia sesión para ver tu actividad local/);
+  assert.match(queuePanel, /activity-summary-card--locked/);
+  assert.match(queuePanel, /activity-panel--locked/);
   assert.match(queuePanel, /data-action="show-activity-details"/);
   assert.match(queuePanel, /getActivitySummary/);
   assert.match(queuePanel, /activity-summary-card__label/);
@@ -1228,6 +1250,26 @@ test("library preferences and favorites stay local to userData", async () => {
     assert.equal(favorite.favorites.scope, "player");
     assert.equal(JSON.stringify(preferences).includes("access_token"), false);
     assert.equal(JSON.stringify(favorite).includes("refresh_token"), false);
+  });
+});
+
+test("library favorites require session from GUI", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const result = await toggleLibraryFavoriteFromGui("space-invaders-week-1", {
+      config,
+      includeState: false,
+      now: "2026-06-27T00:00:00.000Z",
+      session: { hasSession: false },
+    });
+    const legacyPath = path.join(config.userDataDir, "library", "favorites.json");
+
+    assert.equal(result.ok, false);
+    assert.equal(result.favorites.disabled, true);
+    assert.equal(result.favorites.favorites["space-invaders-week-1"], undefined);
+    await assert.rejects(fsp.stat(legacyPath), /ENOENT/);
   });
 });
 

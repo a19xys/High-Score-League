@@ -10,14 +10,15 @@ Separacion de favoritos de biblioteca por cuenta activa.
 userData/players/<playerKey>/preferences/favorites.json
 ```
 
-- Sin sesion, se mantiene el fallback anonimo:
+- Sin sesion ya no hay favoritos editables en la UI normal. El archivo global
+  queda solo como legado/anónimo desactivado:
 
 ```text
 userData/library/favorites.json
 ```
 
-- El renderer no cambia contrato visual: sigue recibiendo `pack.favorite` en el
-  estado de biblioteca.
+- El renderer sigue recibiendo `pack.favorite` en el estado de biblioteca con
+  sesion activa.
 - Cambiar de cuenta refresca las estrellas visibles porque el estado lee el
   mapa de favoritos del `playerKey` activo.
 - Cerrar sesion o olvidar una cuenta no borra favoritos, colas ni puntuaciones
@@ -29,8 +30,13 @@ userData/library/favorites.json
 ## Migracion
 
 No se migran automaticamente favoritos antiguos desde `userData/library` a una
-cuenta. Ese archivo queda como favoritos anonimos para evitar mezclar
-preferencias entre jugadores.
+cuenta. Ese archivo queda como legado para evitar mezclar preferencias entre
+jugadores y no se usa como perfil activo normal sin sesion.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-RESPONSIVE-AUTH-GUARDS-4
+
+La UI deshabilita la estrella sin sesion, el renderer no llama al toggle y el
+servicio rechaza la accion sin escribir favoritos anonimos nuevos.
 
 ## Fuera De Alcance
 

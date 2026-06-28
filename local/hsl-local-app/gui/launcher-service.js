@@ -550,14 +550,26 @@ async function stateFromContext(context) {
   const [library, libraryPreferences, libraryFavorites] = await Promise.all([
     scanPackLibrary(baseConfig),
     readLibraryPreferences(baseConfig, session),
-    readLibraryFavorites(baseConfig, session),
+    session.hasSession
+      ? readLibraryFavorites(baseConfig, session)
+      : Promise.resolve({
+        favorites: {},
+        filePath: null,
+        playerKey: null,
+        schemaVersion: 1,
+        scope: "disabled",
+        updatedAt: null,
+        warnings: [],
+      }),
   ]);
   const favoriteMap = libraryFavorites.favorites || {};
   const libraryState = {
     ...library,
     favorites: {
       count: Object.keys(favoriteMap).length,
+      disabled: !session.hasSession,
       filePath: libraryFavorites.filePath,
+      scope: libraryFavorites.scope,
       warnings: libraryFavorites.warnings || [],
     },
     packs: library.packs.map((pack) => ({
@@ -1656,6 +1668,23 @@ async function toggleLibraryFavoriteFromGui(packKey, options = {}) {
 
   const config = options.config || loadRuntimeConfig();
   const session = options.session || await getAuthState(config);
+
+  if (!session.hasSession) {
+    return {
+      action: "toggle-library-favorite",
+      favorites: {
+        disabled: true,
+        favorites: {},
+        filePath: null,
+        scope: "disabled",
+        warnings: ["Inicia sesion para marcar favoritos."],
+      },
+      ok: false,
+      state: options.includeState === false ? null : await getLauncherState(),
+      summary: "Inicia sesion para marcar favoritos.",
+    };
+  }
+
   const favorites = await toggleLibraryFavorite(config, packKey, {
     ...options,
     session,

@@ -179,6 +179,12 @@ La barra lateral queda refinada por composicion: caratulas 2/3, lista compacta,
 tiles de iconos 1/1 de 92px, filtros mas bajos, placeholder `Escribe aquí...` y
 favoritos centrados con azul circuito.
 
+## Continuidad LOCAL-LAUNCHER-LIBRARY-RESPONSIVE-AUTH-GUARDS-4
+
+La biblioteca queda anclada arriba y responde al ancho de sidebar por vista.
+Sin sesion, los favoritos no son editables y Actividad local muestra un estado
+neutro de inicio de sesion en lugar de una cola vacia.
+
 ## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 
 `Account Menu Polish` queda aplicado: el menu de cuenta usa una lista compacta

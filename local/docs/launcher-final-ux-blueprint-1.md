@@ -581,6 +581,14 @@ compacta e `Iconos` usa tiles 1/1 de 92px con punto de estado. La subtarjeta
 `Más filtros` es mas baja, el buscador dice `Escribe aquí...` y la estrella de
 favorito se centra con estado activo/hover en azul circuito.
 
+## Avance LOCAL-LAUNCHER-LIBRARY-RESPONSIVE-AUTH-GUARDS-4
+
+La biblioteca queda anclada arriba y responde al ancho real de la sidebar con
+reglas por vista: `Portadas` pasa de dos columnas 2/3 a una columna en estrecho,
+`Lista` sigue como fila compacta e `Iconos` escala tiles 1/1. Sin sesion, los
+favoritos no son editables ni escriben el fallback global, y Actividad local
+muestra un mensaje de inicio de sesion en vez de una cola vacia.
+
 ## Avance LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 
 El menu de cuenta queda como selector compacto de perfiles: chip superior,

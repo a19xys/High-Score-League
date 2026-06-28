@@ -549,6 +549,9 @@ function bindActions() {
     }
 
     if (action === "show-activity-details") {
+      if (!store.getState().data?.session?.hasSession) {
+        return;
+      }
       store.setState({ ...closeAccountMenuState(), activeOverlay: "activity" });
     }
 
@@ -569,6 +572,9 @@ function bindActions() {
     if (action === "toggle-library-favorite") {
       event.preventDefault();
       event.stopPropagation();
+      if (button.disabled || !store.getState().data?.session?.hasSession) {
+        return;
+      }
       toggleLibraryFavorite(button.dataset.packKey || "");
     }
 

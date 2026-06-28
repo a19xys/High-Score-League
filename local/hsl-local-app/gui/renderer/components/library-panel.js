@@ -77,7 +77,7 @@ function renderViewButton(state, view, label, icon) {
   const iconName = `view-${icon}`;
 
   return `
-    <button class="view-button ${active ? "view-button--active" : ""}" type="button" data-action="set-library-view" data-view="${view}" aria-pressed="${active}">
+    <button class="view-button ${active ? "view-button--active" : ""}" type="button" data-action="set-library-view" data-view="${view}" aria-label="${label}" title="${label}" aria-pressed="${active}">
       ${renderIcon(iconName, { className: `library-view-icon icon-slot icon-slot--${icon}` })}
       <span>${label}</span>
     </button>

@@ -163,6 +163,13 @@ e `Iconos` usa tile 1/1 de 92px. La subtarjeta de filtros se compacta, el
 placeholder pasa a `Escribe aquí...` y la estrella activa/hover usa azul
 circuito.
 
+## Continuidad LOCAL-LAUNCHER-LIBRARY-RESPONSIVE-AUTH-GUARDS-4
+
+Los grupos y packs quedan anclados arriba. Portadas usa dos columnas en ancho
+suficiente y una columna en estrecho; Lista mantiene fila compacta; Iconos
+ajusta tile 1/1 por ancho. Sin sesion, la estrella queda deshabilitada y no se
+escriben favoritos anonimos nuevos.
+
 ## Legacy
 
 Los packs legacy siguen operativos y filtrables, pero ya no forman un grupo

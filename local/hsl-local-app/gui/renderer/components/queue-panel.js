@@ -83,6 +83,20 @@ function renderFailedSection(failed) {
 
 export function renderQueuePanel(state) {
   const pending = state.data?.queue?.pending;
+  const hasSession = Boolean(state.data?.session?.hasSession);
+
+  if (!hasSession) {
+    return `
+      <section class="panel queue-panel activity-panel activity-panel--locked">
+        <div class="panel-heading compact">
+          <div>
+            <h2>Actividad local</h2>
+            <p>Inicia sesión para ver tu actividad local.</p>
+          </div>
+        </div>
+      </section>
+    `;
+  }
 
   if (!pending) {
     return `<section class="panel queue-panel"><h2>Puntuaciones pendientes</h2><p class="muted">Cargando cola local...</p></section>`;
@@ -157,6 +171,19 @@ export function getActivitySummary(queue, autoSync = {}) {
 }
 
 export function renderActivitySummaryCard(state) {
+  if (!state.data?.session?.hasSession) {
+    return `
+      <section class="activity-summary-card activity-summary-card--locked">
+        <div class="activity-summary-card__icon" aria-hidden="true">${renderIcon("user", { className: "status-icon icon-slot icon-slot--user" })}</div>
+        <div class="activity-summary-card__copy min-w-0">
+          <span class="activity-summary-card__label">Actividad local</span>
+          <strong>Inicia sesión</strong>
+          <p>Inicia sesión para ver tu actividad local.</p>
+        </div>
+      </section>
+    `;
+  }
+
   const summary = getActivitySummary(state.data?.queue, state.data?.autoSync);
 
   return `
@@ -176,6 +203,14 @@ export function renderActivitySummaryCard(state) {
 }
 
 export function renderActivityDrawer(state) {
+  if (!state.data?.session?.hasSession) {
+    return `
+      <section class="activity-drawer activity-drawer--locked">
+        <div class="empty-state">Inicia sesión para ver tu actividad local.</div>
+      </section>
+    `;
+  }
+
   const pending = state.data?.queue?.pending;
   const failed = state.data?.queue?.failed;
   const sent = state.data?.queue?.sent;
