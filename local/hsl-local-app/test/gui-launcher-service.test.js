@@ -281,6 +281,18 @@ test("launcher service wires auto-sync to safe GUI state transitions", async () 
   assert.match(service, /submitAll\(scoped\.config\)/);
 });
 
+test("launcher service prepares isolated plugin run for v2 competition", async () => {
+  const service = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "launcher-service.js"),
+    "utf8",
+  );
+
+  assert.match(service, /prepareV2CompetitionRun/);
+  assert.match(service, /preparedRun\.stagingPendingDir/);
+  assert.match(service, /launchMame\(launchConfig/);
+  assert.equal(/Competicion v2 bloqueada: falta cargar el plugin/.test(service), false);
+});
+
 test("renderer maps membership statuses and manual recheck action", async () => {
   const gamePanel = await fsp.readFile(
     path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js"),

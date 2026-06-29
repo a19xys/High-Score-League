@@ -78,18 +78,8 @@ function validateLaunchArgs(launchArgs) {
   });
 }
 
-function buildPackV2MameArgs(config, rom, mode) {
-  if (mode === "competition") {
-    throw new Error(
-      "Competicion v2 bloqueada: el pack puede declarar capture.pluginName y capture.adapter, pero el launcher aun no carga ese adaptador de forma segura. La practica v2 ya usa MAME compartido."
-    );
-  }
-
-  assertSharedMameRuntimeConfig(config);
-
-  const launch = resolveLaunchRom(rom);
+function addPackV2ResourceArgs(args, config) {
   const mame = config.pack?.contract?.mame || {};
-  const args = [launch.rom];
 
   if (!mame.romDir) {
     throw new Error("pack.json v2 debe incluir mame.romPath para lanzar MAME.");
@@ -110,6 +100,26 @@ function buildPackV2MameArgs(config, rom, mode) {
   }
 
   args.push(...validateLaunchArgs(mame.launchArgs));
+}
+
+function buildPackV2MameArgs(config, rom, mode) {
+  assertSharedMameRuntimeConfig(config);
+
+  const launch = resolveLaunchRom(rom);
+  const args = [launch.rom];
+  const pluginName = config.pack?.contract?.capture?.pluginName || DEFAULT_PLUGIN_NAME;
+
+  addPackV2ResourceArgs(args, config);
+
+  if (mode === "competition") {
+    const run = config.v2PluginRun;
+
+    if (!run?.pluginSearchDir || !run?.stagingPendingDir || run.pluginName !== pluginName) {
+      throw new Error("Competicion v2 requiere preparar plugin/adaptador aislado antes de lanzar MAME.");
+    }
+
+    args.push("-pluginspath", run.pluginSearchDir, "-plugins", "-plugin", pluginName);
+  }
 
   return {
     args,
@@ -117,9 +127,10 @@ function buildPackV2MameArgs(config, rom, mode) {
     cwd: path.dirname(config.sharedMameRuntime.mameExecutablePath.trim()),
     game: launch.game,
     mode,
-    pluginName: config.pack?.contract?.capture?.pluginName || DEFAULT_PLUGIN_NAME,
+    pluginName,
     rom: launch.rom,
     runtime: "shared-mame",
+    v2PluginRun: config.v2PluginRun || null,
   };
 }
 
@@ -186,6 +197,18 @@ function assertLaunchResources(config, launch) {
 
   if (!romDir || !fs.existsSync(romDir) || !fs.statSync(romDir).isDirectory()) {
     throw new Error("No encuentro el directorio de ROMs del pack v2.");
+  }
+
+  if (launch.mode === "competition") {
+    const run = config.v2PluginRun;
+
+    if (!run?.pluginSearchDir || !fs.existsSync(run.pluginSearchDir) || !fs.statSync(run.pluginSearchDir).isDirectory()) {
+      throw new Error("No encuentro el plugin preparado para competicion v2.");
+    }
+
+    if (!run?.stagingPendingDir || !fs.existsSync(run.stagingPendingDir) || !fs.statSync(run.stagingPendingDir).isDirectory()) {
+      throw new Error("No encuentro el staging preparado para competicion v2.");
+    }
   }
 }
 

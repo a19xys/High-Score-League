@@ -60,10 +60,14 @@ En v1/dev bridge, el plugin puede escribir en:
 Para la GUI esto es staging: despues de una partida competitiva v1 se adoptan
 solo capturas nuevas al scope actual.
 
-En `packVersion: 2`, staging competitivo queda pendiente de
-`LOCAL-MAME-PACK-PLUGIN-LOADING-2`. Hasta entonces la competicion v2 permanece
-bloqueada y readiness no evalua `userData/events` como si fuera staging del
-pack.
+En `packVersion: 2`, staging competitivo se prepara por ejecucion desde
+`LOCAL-MAME-PACK-PLUGIN-LOADING-2`:
+
+```text
+userData/runtime/runs/<runId>/events/pending
+```
+
+Readiness no evalua `userData/events` como si fuera staging del pack.
 
 ## Fuente de verdad de la GUI
 
@@ -99,7 +103,8 @@ Diagnose diferencia:
 - `file queue global legacy/CLI`;
 - `plugin staging temporal`;
 - `scoped queue actual`, derivada de la sesion y pack activos cuando existe;
-- `plugin staging v2 pendiente`, para recordar que no esta implementado.
+- `plugin staging v2 por ejecucion`, para separar el staging temporal moderno
+  de la cola global legacy.
 
 Diagnose no imprime tokens y no crea carpetas scoped. Si el fallback
 `userData/events` falta para un pack v2, lo informa como legacy, no como error

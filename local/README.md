@@ -206,6 +206,8 @@ Pack contract v2 notes:
 [`docs/pack-contract-2.md`](docs/pack-contract-2.md).
 Shared MAME runtime implementation notes:
 [`docs/shared-mame-runtime-1.md`](docs/shared-mame-runtime-1.md).
+MAME plugin/adapter loading v2 notes:
+[`docs/mame-pack-plugin-loading-2.md`](docs/mame-pack-plugin-loading-2.md).
 Pack library grid notes:
 [`docs/pack-library-grid-1.md`](docs/pack-library-grid-1.md).
 Account switcher notes:
@@ -768,11 +770,14 @@ detalle del juego y actividad local. Añade agrupación por temporadas, vistas d
 portadas/lista/iconos, búsqueda y filtros locales, manual seguro y fallback de
 ranking a `/weeks/<weekId>`.
 
-La competición v2 sigue bloqueada: el plugin actual todavía no carga
-`capture.adapter`. Readiness y diagnose explican modo, plugin, adaptador y
-existencia del archivo sin habilitar captura falsa. Consulta:
+La competición v2 para packs válidos usa preparación aislada por ejecución:
+la app copia el plugin controlado y `capture.adapter` a
+`userData/runtime/runs/<runId>`, genera `config.lua` y adopta capturas nuevas al
+scope de cuenta + pack. Readiness y diagnose explican modo, plugin, adaptador,
+staging y legacy. Consulta:
 
 - [`docs/mame-pack-plugin-loading-1.md`](docs/mame-pack-plugin-loading-1.md)
+- [`docs/mame-pack-plugin-loading-2.md`](docs/mame-pack-plugin-loading-2.md)
 - [`docs/launcher-ux-revamp-1.md`](docs/launcher-ux-revamp-1.md)
 - [`docs/pack-library-seasons-1.md`](docs/pack-library-seasons-1.md)
 - [`docs/pack-library-views-1.md`](docs/pack-library-views-1.md)

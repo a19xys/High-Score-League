@@ -105,8 +105,38 @@ test("packVersion 2 practice builds MAME args with shared runtime resources", ()
 test("packVersion 2 competition is blocked until capture adapter loading exists", () => {
   assert.throws(
     () => buildMameArgs(packV2Config(), "invaders", "competition"),
-    /Competicion v2 bloqueada.*capture\.pluginName.*capture\.adapter/
+    /requiere preparar plugin\/adaptador aislado/
   );
+});
+
+test("packVersion 2 competition uses prepared pluginpath and score plugin", () => {
+  const launch = buildMameArgs(packV2Config({
+    v2PluginRun: {
+      pluginName: "hsl-score",
+      pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
+      stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
+    },
+  }), "invaders", "competition");
+
+  assert.equal(launch.runtime, "shared-mame");
+  assert.equal(launch.v2PluginRun.pluginName, "hsl-score");
+  assert.deepEqual(launch.args, [
+    "invaders",
+    "-rompath",
+    "C:/Packs/space-invaders/roms",
+    "-artpath",
+    "C:/Packs/space-invaders/artwork",
+    "-samplepath",
+    "C:/Packs/space-invaders/samples",
+    "-cfg_directory",
+    "C:/Packs/space-invaders/cfg",
+    "-window",
+    "-pluginspath",
+    "C:/HSL/userData/runtime/runs/run-1/plugins",
+    "-plugins",
+    "-plugin",
+    "hsl-score",
+  ]);
 });
 
 test("packVersion 2 practice requires shared runtime", () => {

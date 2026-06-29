@@ -2,7 +2,7 @@
   "plugin": {
     "name": "hsl-score",
     "description": "High Score League",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "author": "HSL",
     "type": "plugin",
     "start": "false"

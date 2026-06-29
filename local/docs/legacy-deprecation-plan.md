@@ -14,6 +14,11 @@ reemplazo cubra práctica, competición, catálogo/instalador y desarrollo.
 | Dev bridge temporal | `config.json`, diagnose y launcher service | Permite probar el flujo end-to-end con el pack externo actual | Launcher instalado + packs v2 | Runtime/captura v2 y catálogo/instalador cubren desarrollo | `LOCAL-REMOVE-DEV-BRIDGE` |
 | MAME embebido en pack | Packs v1 y ejemplos antiguos | Compatibilidad con packs ya creados | MAME compartido | Ningún pack soportado depende de binarios pack-local | `LOCAL-REMOVE-PACK-V1-LEGACY` |
 
+`LOCAL-MAME-PACK-PLUGIN-LOADING-2` anade el reemplazo inicial de `sync-plugin`
+para packs v2: preparacion aislada por ejecucion en `userData/runtime/runs`.
+`sync-plugin` sigue existiendo solo para v1/dev bridge hasta que ese flujo se
+retire.
+
 ## LOCAL-LAUNCHER-SHELL-LAYOUT-2
 
 Legacy/deprecated sigue existiendo y no se elimina. La diferencia es visual:

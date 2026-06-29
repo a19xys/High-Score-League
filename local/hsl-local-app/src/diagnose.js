@@ -1,6 +1,7 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { buildMameArgs, DEFAULT_PLUGIN_NAME } = require("./mame-launcher");
+const { getV2CaptureReadiness } = require("./mame-plugin-run");
 const { resolveScopedQueue } = require("./scoped-queue");
 const { readSharedMameRuntime } = require("./shared-mame-runtime");
 
@@ -404,6 +405,8 @@ async function buildDiagnoseReport(config) {
   }
 
   if (config.pack?.contract?.version === 2) {
+    const captureReadiness = getV2CaptureReadiness(config);
+
     if (sharedMameRuntime?.available) {
       add(report, "mame", "OK", "packVersion 2 usara runtime MAME compartido para practica", sharedMameRuntime.mameExecutablePath);
     } else {
@@ -424,18 +427,52 @@ async function buildDiagnoseReport(config) {
 
     add(
       report,
-      "launcher",
-      "INFO",
-      "competition v2 bloqueada: falta carga segura de plugin/adaptador",
-      [
-        `capture.mode=${config.pack.contract.capture?.mode || "ausente"}`,
-        `capture.pluginName=${config.pack.contract.capture?.pluginName || "ausente"}`,
-        `capture.adapter=${config.pack.contract.capture?.adapter || "ausente"}`,
-        "La practica v2 ya usa MAME compartido.",
-      ]
+      "pack",
+      captureReadiness.ok ? "OK" : "WARN",
+      captureReadiness.ok
+        ? "cargador competitivo v2 disponible para preparacion por ejecucion"
+        : "cargador competitivo v2 no esta listo para este pack",
+      captureReadiness.ok
+        ? [
+            `plugin=${captureReadiness.pluginName}`,
+            captureReadiness.adapterPath,
+          ]
+        : captureReadiness.errors
     );
-    report.recommendations.push(
-      "Implementa la carga aislada del plugin/adaptador v2 en LOCAL-MAME-PACK-PLUGIN-LOADING-2 antes de habilitar competicion."
+
+    if (sharedMameRuntime?.mameExecutablePath) {
+      const runtimeDir = path.dirname(sharedMameRuntime.mameExecutablePath);
+      const pluginIni = await inspectPluginIni(runtimeDir, captureReadiness.pluginName || DEFAULT_PLUGIN_NAME);
+
+      if (pluginIni.active.length > 0) {
+        add(report, "mame", "WARN", `${captureReadiness.pluginName || DEFAULT_PLUGIN_NAME} parece activado globalmente en plugin.ini del runtime compartido`, pluginIni.active);
+        report.recommendations.push(
+          `Desactiva ${captureReadiness.pluginName || DEFAULT_PLUGIN_NAME} globalmente para que practica v2 no capture puntuaciones.`
+        );
+      } else if (pluginIni.found.length > 0) {
+        add(report, "mame", "OK", `No se detecto ${captureReadiness.pluginName || DEFAULT_PLUGIN_NAME} activo globalmente en runtime compartido`, pluginIni.found);
+      } else {
+        add(report, "mame", "INFO", "No se encontro plugin.ini del runtime compartido en rutas conocidas", pluginIni.candidates);
+      }
+    }
+
+    add(
+      report,
+      "launcher",
+      captureReadiness.ok ? "OK" : "INFO",
+      captureReadiness.ok
+        ? "competition v2 se prepara con plugin/adaptador aislado al lanzar"
+        : "competition v2 permanece bloqueada hasta corregir adapter/plugin/staging",
+      captureReadiness.ok
+        ? [
+            "La GUI crea userData/runtime/runs/<runId> por ejecucion.",
+            "El plugin escribe primero en staging de la ejecucion.",
+          ]
+        : [
+            `capture.mode=${config.pack.contract.capture?.mode || "ausente"}`,
+            `capture.pluginName=${config.pack.contract.capture?.pluginName || "ausente"}`,
+            `capture.adapter=${config.pack.contract.capture?.adapter || "ausente"}`,
+          ]
     );
   } else if (!config.mame || typeof config.mame !== "object") {
     add(report, "mame", "INFO", "No hay MAME activo en config global ni pack cargado");
@@ -611,8 +648,8 @@ async function buildDiagnoseReport(config) {
       report,
       "queues",
       "INFO",
-      "plugin staging v2 pendiente de LOCAL-MAME-PACK-PLUGIN-LOADING-2",
-      "La competicion v2 sigue bloqueada y diagnose no trata userData/events como staging del pack activo."
+      "plugin staging v2 se prepara por ejecucion",
+      "Diagnose no trata userData/events como staging del pack activo; la GUI crea userData/runtime/runs/<runId>/events/pending al lanzar competicion."
     );
   } else if (eventQueue.role === "plugin-staging" || eventQueue.role === "configured-file-queue") {
     add(report, "queues", "INFO", "plugin staging/bridge usa las rutas de eventos configuradas arriba");

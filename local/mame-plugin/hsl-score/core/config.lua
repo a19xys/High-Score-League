@@ -1,5 +1,27 @@
 local M = {}
 
+local function is_safe_module_path(value)
+  if type(value) ~= "string" or value == "" then
+    return false
+  end
+
+  if value:find("\0", 1, true) then
+    return false
+  end
+
+  if value:find(":", 1, true) or value:sub(1, 1) == "/" or value:sub(1, 1) == "\\" then
+    return false
+  end
+
+  for part in value:gmatch("[^/\\]+") do
+    if part == ".." then
+      return false
+    end
+  end
+
+  return true
+end
+
 local function default_config()
   return {
     -- Por defecto:
@@ -9,6 +31,10 @@ local function default_config()
     -- Si se define outputDir en config.lua, tiene prioridad absoluta.
     -- Ejemplo: outputDir = "C:/high-score-league-local/events/pending"
     outputDir = nil,
+
+    -- Modulo de juego/adaptador relativo a la carpeta del plugin preparado.
+    -- En competicion v2 la app genera config.lua con "games/adapter.lua".
+    gameModule = "games/invaders.lua",
 
     enableFrameTracking = true,
     trackingIntervalFrames = 5,
@@ -26,6 +52,10 @@ local function apply_user_config(config, user_config)
 
   if type(user_config.outputDir) == "string" and user_config.outputDir ~= "" then
     config.outputDir = user_config.outputDir
+  end
+
+  if is_safe_module_path(user_config.gameModule) then
+    config.gameModule = user_config.gameModule
   end
 
   if type(user_config.enableFrameTracking) == "boolean" then

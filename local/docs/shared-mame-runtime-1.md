@@ -94,11 +94,11 @@ Practica v2 queda disponible cuando:
 - el pack v2 tiene ROM;
 - `mame.romPath` esta normalizado a un directorio existente.
 
-Competicion v2 sigue bloqueada porque requiere carga segura de plugin/adaptador
-de captura. Esa parte queda para:
+Competicion v2 requiere carga segura de plugin/adaptador de captura. La primera
+capa de esa preparacion queda implementada en:
 
 ```text
-LOCAL-MAME-PACK-PLUGIN-LOADING-1
+LOCAL-MAME-PACK-PLUGIN-LOADING-2
 ```
 
 ## Compatibilidad v1
@@ -124,15 +124,15 @@ y packs v1 mientras no se complete la migracion.
 
 ## Estado tras el mega product pass
 
-Práctica v2 continúa usando el runtime compartido. Competición v2 permanece
-bloqueada porque el plugin actual no carga `capture.adapter`; readiness y
-diagnose muestran ahora el motivo exacto. La continuación técnica es
-`LOCAL-MAME-PACK-PLUGIN-LOADING-2`.
+Práctica v2 continúa usando el runtime compartido. Desde
+`LOCAL-MAME-PACK-PLUGIN-LOADING-2`, competición v2 prepara el plugin y
+`capture.adapter` por ejecución bajo `userData/runtime/runs/<runId>` cuando el
+pack, runtime, sesión, scope y membership son válidos.
 
 ## Colas y staging v2
 
 El runtime compartido no convierte `userData/events` en staging competitivo de
 packs v2. Esa ruta se conserva como file queue global legacy/CLI. La GUI usa la
 cola scoped por cuenta y pack en `userData/players/<playerKey>/packs/<packKey>/events`.
-El staging temporal de v2 se definira junto con la carga segura del
-plugin/adaptador en `LOCAL-MAME-PACK-PLUGIN-LOADING-2`.
+El staging temporal de v2 se crea por ejecución y luego se adopta al pending
+scoped del jugador.

@@ -87,8 +87,8 @@ La cola final del jugador vive en el scope de `userData`.
 
 `userData/events/{pending,sent,failed}` queda como file queue global
 legacy/CLI. No debe confundirse con el scope de la GUI ni con staging real de
-un pack v2. Para `packVersion: 2`, el staging competitivo queda pendiente de
-`LOCAL-MAME-PACK-PLUGIN-LOADING-2`.
+un pack v2. Para `packVersion: 2`, el staging competitivo se crea por ejecucion
+en `userData/runtime/runs/<runId>/events/pending`.
 
 ## Adopcion de capturas nuevas
 

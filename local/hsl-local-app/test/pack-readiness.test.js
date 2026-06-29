@@ -383,6 +383,58 @@ test("packVersion 2 con runtime y romDir permite practica pero no competicion", 
   });
 });
 
+test("packVersion 2 con adapter valido permite captura y competicion", async () => {
+  await withTempDir(async (dir) => {
+    const context = await createReadyFixture(dir);
+    const sharedMame = path.join(dir, "runtime", "mame.exe");
+    const romDir = path.join(context.config.packRoot, "roms");
+    const adapterPath = path.join(context.config.packRoot, "scripts", "invaders.lua");
+    await fsp.mkdir(path.dirname(sharedMame), { recursive: true });
+    await fsp.mkdir(romDir, { recursive: true });
+    await fsp.mkdir(path.dirname(adapterPath), { recursive: true });
+    await fsp.writeFile(sharedMame, "binary", "utf8");
+    await fsp.writeFile(adapterPath, "return {}", "utf8");
+
+    context.config.requiresSharedMameRuntime = true;
+    context.config.sharedMameRuntime = {
+      available: true,
+      configured: true,
+      mameExecutablePath: sharedMame,
+    };
+    context.config.mame = {
+      pluginName: "hsl-score",
+      requiresSharedMameRuntime: true,
+    };
+    context.config.pack = {
+      ...context.config.pack,
+      packVersion: 2,
+      contractStatus: "current",
+      deprecated: false,
+      contract: {
+        version: 2,
+        runtimeType: "mame",
+        mame: {
+          romDir,
+          romPath: "roms",
+        },
+        capture: {
+          mode: "plugin",
+          pluginName: "hsl-score",
+          adapter: "scripts/invaders.lua",
+          adapterPath,
+        },
+      },
+    };
+
+    const result = evaluatePackReadiness(context);
+
+    assert.equal(result.canPractice, true);
+    assert.equal(result.canCapture, true);
+    assert.equal(result.canPlayCompetition, true);
+    assert.ok(result.checks.some((item) => item.id === "capture-v2" && item.level === "ok"));
+  });
+});
+
 test("renderer expone resumen visual y checks técnicos sin secretos", async () => {
   const [gamePanel, devTools] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js"), "utf8"),

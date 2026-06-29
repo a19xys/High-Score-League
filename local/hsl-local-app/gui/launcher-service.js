@@ -45,6 +45,7 @@ const {
   resolvePackRanking,
   toRendererContentState,
 } = require("../src/pack-content");
+const { prepareV2CompetitionRun } = require("../src/mame-plugin-run");
 const { loadPackFromDir, resolvePackMamePaths } = require("../src/pack");
 const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-packs");
 const { writeSharedMameRuntime } = require("../src/shared-mame-runtime");
@@ -988,24 +989,6 @@ async function playCompetition() {
   await ensureRememberedPackLoaded();
   const baseConfig = getEffectiveConfig();
 
-  if (baseConfig.pack?.packVersion === 2 || baseConfig.pack?.contract?.version === 2) {
-    const capture = baseConfig.pack?.contract?.capture || {};
-    return {
-      action: "play-competition",
-      lines: [
-        "Competicion v2 bloqueada: falta cargar el plugin/adaptador de captura de forma segura.",
-        `Modo de captura: ${capture.mode || "no definido"}.`,
-        `Plugin: ${capture.pluginName || "no definido"}.`,
-        `Adaptador: ${capture.adapter || "no definido"}.`,
-        "La practica v2 ya usa MAME compartido.",
-        "Siguiente tarea tecnica: LOCAL-MAME-PACK-PLUGIN-LOADING-2.",
-      ],
-      ok: false,
-      summary: "Competicion v2 pendiente de carga segura del adaptador.",
-      state: await getLauncherState(),
-    };
-  }
-
   const session = await getAuthState(baseConfig);
   const membership = await checkSeasonMembership(baseConfig, session);
 
@@ -1041,17 +1024,39 @@ async function playCompetition() {
     };
   }
 
-  const snapshot = await listPendingFileSnapshot(baseConfig.eventsPendingDirAbs);
+  const isPackV2 = baseConfig.pack?.packVersion === 2 || baseConfig.pack?.contract?.version === 2;
+  let launchConfig = baseConfig;
+  let stagingPendingDir = baseConfig.eventsPendingDirAbs;
+  let snapshot = await listPendingFileSnapshot(stagingPendingDir);
+  let preparedRun = null;
+
+  if (isPackV2) {
+    try {
+      preparedRun = await prepareV2CompetitionRun(baseConfig, scoped.scope);
+      launchConfig = preparedRun.config;
+      stagingPendingDir = preparedRun.stagingPendingDir;
+      snapshot = new Map();
+    } catch (error) {
+      return {
+        action: "play-competition",
+        lines: [normalizeMessage(error)],
+        ok: false,
+        summary: "No se pudo preparar la captura competitiva.",
+        state: await getLauncherState(),
+      };
+    }
+  }
+
   const startedAtMs = Date.now();
-  const captured = await captureConsoleAsync(() => launchMame(baseConfig, baseConfig.pack?.rom || "invaders", "competition"));
+  const captured = await captureConsoleAsync(() => launchMame(launchConfig, baseConfig.pack?.rom || "invaders", "competition"));
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
   const adoption = await adoptNewStagingEvents(
-    baseConfig.eventsPendingDirAbs,
+    stagingPendingDir,
     scoped.config.eventsPendingDirAbs,
     snapshot,
     startedAtMs
   );
-  const legacyLine = snapshot.size > 0
+  const legacyLine = !isPackV2 && snapshot.size > 0
     ? `Hay ${snapshot.size} capturas antiguas sin asignar en staging; no se importaron automaticamente.`
     : null;
   const savedLocallyLine = adoption.adopted.length > 0 && (membership.status === "unknown" || membership.status === "error")
@@ -1065,6 +1070,9 @@ async function playCompetition() {
     lines: [
       ...(membership.status === "unknown" || membership.status === "error"
         ? [membership.message]
+        : []),
+      ...(preparedRun
+        ? [`Captura v2 preparada: ${preparedRun.runId}.`]
         : []),
       ...captured.lines,
       ...(adoption.adopted.length > 0

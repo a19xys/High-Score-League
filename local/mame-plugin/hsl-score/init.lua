@@ -1,17 +1,17 @@
 -- license:MIT
 -- High Score League - MAME Lua score event writer
--- v0.1.4: Space Invaders / invaders / manual capture + rollover tracker + compact JSON
+-- v0.1.5: adapter module selected by config.lua for isolated v2 runs
 
 local exports = {
   name = "hsl-score",
-  version = "0.1.4",
+  version = "0.1.5",
   description = "High Score League score event writer",
   license = "MIT",
   author = { name = "High Score League" }
 }
 
 local hsl_score = exports
-local PLUGIN_VERSION = "0.1.4"
+local PLUGIN_VERSION = "0.1.5"
 
 -- MAME deberia llamar a set_folder(path) con la carpeta real del plugin.
 -- Dejamos este fallback para instalaciones sencillas.
@@ -55,14 +55,19 @@ function hsl_score.startplugin()
   local tracking_module = load_module("core/tracking.lua")
   local writer_module = load_module("core/writer.lua")
   local menu_module = load_module("core/menu.lua")
-  local invaders = load_module("games/invaders.lua")
 
   local config = config_module.load(plugin_folder, emu)
+  local game = load_module(config.gameModule or "games/invaders.lua")
+
+  if type(game) ~= "table" or type(game.read_memory) ~= "function" or type(game.build_event) ~= "function" then
+    error("[HSL] Adapter invalido: debe exponer read_memory y build_event")
+  end
+
   local paths = paths_module.create(plugin_folder, config)
   local helpers = helpers_module.create(emu, manager)
-  local tracker = tracking_module.create(config, invaders, helpers)
-  local writer = writer_module.create(config, paths, json, helpers, tracker, invaders, PLUGIN_VERSION)
-  local menu = menu_module.create(config, paths, helpers, tracker, writer, invaders, PLUGIN_VERSION)
+  local tracker = tracking_module.create(config, game, helpers)
+  local writer = writer_module.create(config, paths, json, helpers, tracker, game, PLUGIN_VERSION)
+  local menu = menu_module.create(config, paths, helpers, tracker, writer, game, PLUGIN_VERSION)
 
   math.randomseed(os.time())
 
@@ -76,6 +81,7 @@ function hsl_score.startplugin()
 
   emu.print_info("[HSL] Plugin v" .. PLUGIN_VERSION .. " cargado")
   emu.print_info("[HSL] Plugin folder: " .. tostring(plugin_folder))
+  emu.print_info("[HSL] Game module: " .. tostring(config.gameModule))
   emu.print_info("[HSL] Output dir: " .. tostring(paths.get_output_dir()))
 end
 

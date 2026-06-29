@@ -66,8 +66,9 @@ Desde `LOCAL-PACK-CONTRACT-2`, readiness entiende `packVersion: 2` como contrato
 actual de pack ligero. Un pack v2 puede estar cargado y visible en la
 biblioteca. Desde `LOCAL-SHARED-MAME-RUNTIME-1`, practica v2 puede quedar lista
 si el runtime MAME compartido esta configurado, `mame.exe` existe y `romPath`
-apunta a un directorio del pack. Competicion v2 queda bloqueada hasta que
-`LOCAL-MAME-PACK-PLUGIN-LOADING-1` implemente plugin/adaptadores de captura.
+apunta a un directorio del pack. Desde `LOCAL-MAME-PACK-PLUGIN-LOADING-2`,
+competicion v2 puede quedar lista si `capture.adapter`, sesion, scope,
+membership y preparacion segura tambien estan disponibles.
 
 `packVersion: 1` sigue funcionando para el dev bridge y packs antiguos, pero se
 muestra como legacy/deprecated en detalles tecnicos.
@@ -148,7 +149,7 @@ No mueve archivos ni adopta staging.
 Sin sesion, readiness no inventa un scope. Con sesion y pack activo, la GUI
 prepara el scope bajo `userData/players/<playerKey>/packs/<packKey>/events`.
 Para pack v2, los warnings de staging global se omiten porque la competicion v2
-sigue bloqueada hasta la carga segura del plugin/adaptador.
+prepara staging aislado por ejecucion bajo `userData/runtime/runs/<runId>`.
 
 ## Relacion con la biblioteca visual
 
@@ -188,9 +189,17 @@ bloquea competicion y subida hasta activar o iniciar sesion con una cuenta.
 - No implementa grid final de biblioteca.
 - No implementa installer ni empaquetado.
 
-## Checks v2 añadidos
+## Checks v2 historicos
 
 Readiness separa `capture.mode`, `capture.pluginName`, existencia de
 `capture.adapter` y disponibilidad del cargador competitivo. Aunque los tres
 primeros sean válidos, competición permanece bloqueada mientras el cargador v2
 no exista. Práctica v2 puede seguir disponible.
+
+## Checks v2 actuales
+
+Readiness separa `capture.mode`, `capture.pluginName`, existencia de
+`capture.adapter` y disponibilidad del cargador competitivo. Desde
+`LOCAL-MAME-PACK-PLUGIN-LOADING-2`, un pack v2 valido puede quedar listo para
+competicion si runtime, sesion, scope, membership, adapter y preparacion segura
+estan disponibles. Practica v2 sigue sin activar captura.

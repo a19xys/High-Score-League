@@ -122,8 +122,8 @@ Para v2:
 La biblioteca puede detectar y mostrar packs v2 validos. Readiness puede cargar
 el pack y explicar su estado. Desde `LOCAL-SHARED-MAME-RUNTIME-1`, practica v2
 puede usar el runtime MAME compartido si esta configurado y `mame.romPath`
-existe. Competicion v2 sigue bloqueada hasta
-`LOCAL-MAME-PACK-PLUGIN-LOADING-1`.
+existe. Desde `LOCAL-MAME-PACK-PLUGIN-LOADING-2`, competicion v2 prepara
+plugin/adaptador por ejecucion cuando el resto de requisitos estan listos.
 
 ## Compatibilidad legacy
 
@@ -138,9 +138,33 @@ El soporte v1 se conserva para no romper:
 La eliminacion de v1 queda para `LOCAL-REMOVE-PACK-V1-LEGACY`, despues de tener
 runtime compartido estable, carga de plugin/adaptador y migracion de packs.
 
-## Estado de capture.adapter
+## Estado anterior de capture.adapter
 
 El contrato valida que `capture.adapter` sea relativo y permanezca dentro del
 pack. El launcher comprueba además si el archivo existe, pero todavía no lo
 ejecuta ni lo copia. Por seguridad, declarar el campo no habilita competición
 v2 hasta `LOCAL-MAME-PACK-PLUGIN-LOADING-2`.
+
+## Estado actual de capture.adapter
+
+Desde `LOCAL-MAME-PACK-PLUGIN-LOADING-2`, `capture.adapter` ya participa en la
+competicion v2 cuando el resto de requisitos estan listos: runtime compartido,
+sesion, scope, membership, plugin controlado por la app y staging de ejecucion.
+
+El adapter no se ejecuta directamente desde el pack. La app lo valida como ruta
+relativa segura, comprueba que exista y lo copia a:
+
+```text
+userData/runtime/runs/<runId>/plugins/hsl-score/games/adapter.lua
+```
+
+El contrato inicial del adapter es un modulo Lua que devuelve una tabla con:
+
+```lua
+read_memory(helpers)
+build_event(config, tracker_state, result, plugin_version, detected_at, score, helpers)
+```
+
+La app genera `config.lua` para la ejecucion, el plugin escribe en
+`userData/runtime/runs/<runId>/events/pending` y la GUI adopta luego al pending
+scoped.

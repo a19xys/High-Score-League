@@ -261,8 +261,61 @@ test("diagnose reports packVersion 2 shared runtime and practice args", async ()
     assert.ok(hasEntry(report.sections.runtime, "OK", /mame\.exe compartido encontrado/));
     assert.ok(hasEntry(report.sections.mame, "OK", /runtime MAME compartido para practica/));
     assert.ok(hasEntry(report.sections.launcher, "OK", /practice v2 construye argumentos/));
-    assert.ok(hasEntry(report.sections.launcher, "INFO", /competition v2 bloqueada/));
-    assert.ok(report.recommendations.some((item) => /LOCAL-MAME-PACK-PLUGIN-LOADING-2/.test(item)));
+    assert.ok(hasEntry(report.sections.launcher, "INFO", /competition v2 permanece bloqueada/));
+    assert.ok(hasEntry(report.sections.pack, "WARN", /cargador competitivo v2 no esta listo/));
+  });
+});
+
+test("diagnose reports packVersion 2 capture loader when adapter exists", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createBaseConfig(dir);
+    const sharedMame = path.join(dir, "runtime", "mame.exe");
+    const packRoot = path.join(dir, "pack");
+    const romDir = path.join(packRoot, "roms");
+    const adapterPath = path.join(packRoot, "scripts", "space-invaders.lua");
+    await fsp.mkdir(path.dirname(sharedMame), { recursive: true });
+    await fsp.mkdir(romDir, { recursive: true });
+    await fsp.mkdir(path.dirname(adapterPath), { recursive: true });
+    await fsp.writeFile(sharedMame, "binary", "utf8");
+    await fsp.writeFile(adapterPath, "return {}", "utf8");
+    config.userDataDir = path.join(dir, "userData");
+    config.sharedMameRuntime = {
+      available: true,
+      configured: true,
+      mameExecutablePath: sharedMame,
+      runtimeFile: path.join(config.userDataDir, "runtime", "mame-runtime.json"),
+      warnings: [],
+    };
+    config.requiresSharedMameRuntime = true;
+    config.packLoaded = true;
+    config.packRoot = packRoot;
+    config.pack = {
+      packVersion: 2,
+      packRoot,
+      rom: "invaders",
+      contractStatus: "current",
+      deprecated: false,
+      contract: {
+        version: 2,
+        runtimeType: "mame",
+        mame: {
+          romDir,
+          romPath: "roms",
+        },
+        capture: {
+          mode: "plugin",
+          pluginName: "hsl-score",
+          adapter: "scripts/space-invaders.lua",
+          adapterPath,
+        },
+      },
+    };
+
+    const report = await buildDiagnoseReport(config);
+
+    assert.ok(hasEntry(report.sections.pack, "OK", /cargador competitivo v2 disponible/));
+    assert.ok(hasEntry(report.sections.launcher, "OK", /competition v2 se prepara/));
+    assert.equal(report.recommendations.some((item) => /LOCAL-MAME-PACK-PLUGIN-LOADING-2/.test(item)), false);
   });
 });
 
@@ -371,7 +424,7 @@ test("diagnose classifies missing userData events as legacy for packVersion 2", 
     assert.ok(hasEntry(report.sections.queues, "INFO", /file queue global legacy\/CLI/));
     assert.ok(hasEntry(report.sections.queues, "INFO", /pending no existe/));
     assert.equal(report.errors.some((entry) => /No existe la carpeta pending/.test(entry.message)), false);
-    assert.ok(hasEntry(report.sections.queues, "INFO", /plugin staging v2 pendiente/));
+    assert.ok(hasEntry(report.sections.queues, "INFO", /plugin staging v2 se prepara por ejecucion/));
   });
 });
 
