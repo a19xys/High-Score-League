@@ -496,7 +496,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /@container \(max-width: 340px\)[\s\S]*\.library-view-button__icon[\s\S]*display: inline-grid/);
   assert.match(styles, /\.library-pack-grid--list/);
   assert.match(styles, /\.pack-card--list[\s\S]*min-height: 54px/);
-  assert.match(styles, /\.pack-card--list[\s\S]*padding: 6px 8px 6px 52px/);
+  assert.match(styles, /\.pack-card--list[\s\S]*padding: 6px 8px 6px 50px/);
   assert.match(styles, /\.pack-card--list \.pack-card__media[\s\S]*aspect-ratio: 1 \/ 1/);
   assert.match(styles, /\.library-pack-grid--icons/);
   assert.match(styles, /--library-icon-tile: 122px/);
@@ -561,6 +561,11 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /action === "toggle-library-sort-direction"/);
   assert.match(app, /button\.dataset\.direction === "desc" \? "desc" : "asc"/);
   assert.match(app, /function persistLibraryPreferencesSoon\(patch\)/);
+  assert.match(app, /libraryPreferencesPersistSequence/);
+  assert.match(app, /libraryPreferenceUserRevision/);
+  assert.match(app, /function libraryPreferencesStatePatch\(data, current, allowHydration = true\)/);
+  assert.match(app, /function currentLibraryPreferencesPatch\(patch = \{\}\)/);
+  assert.match(app, /startedWithLibraryPreferenceRevision === libraryPreferenceUserRevision/);
   assert.match(app, /persistLibraryPreferencesSoon\(\{ librarySortBy \}\)/);
   assert.match(app, /persistLibraryPreferencesSoon\(\{ librarySortDirection \}\)/);
   assert.match(app, /action === "toggle-library-favorite-filter"/);
@@ -575,7 +580,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /toggleLibraryFavorite/);
   assert.match(app, /button\.disabled \|\| !store\.getState\(\)\.data\?\.session\?\.hasSession/);
   assert.match(app, /event\.stopPropagation\(\)/);
-  assert.match(app, /persistLibraryPreferences\(\{ libraryView \}\)/);
+  assert.match(app, /persistLibraryPreferencesSoon\(\{ libraryView \}\)/);
+  assert.match(app, /await window\.hslLauncher\.setLibraryPreferences\(currentLibraryPreferencesPatch\(patch\)\)/);
+  assert.equal(/response\.state[\s\S]{0,400}libraryView/.test(app), false);
   assert.match(app, /LIBRARY_SIDEBAR_MIN = 320/);
   assert.match(app, /LIBRARY_SIDEBAR_MAX = 600/);
   assert.match(app, /library-panel-region/);
@@ -701,6 +708,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.app-main[\s\S]*minmax\(380px, 440px\)/);
   assert.match(styles, /\.game-hero-stage[\s\S]*aspect-ratio: 16 \/ 5/);
   assert.match(styles, /\.game-hero-stage[\s\S]*max-height: 220px/);
+  assert.equal(/\.game-hero-stage[\s\S]{0,220}max-height:\s*none/.test(styles), false);
   assert.match(styles, /\.game-detail-body/);
   assert.match(styles, /\.pack-metadata-grid[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.meta-label/);
@@ -802,8 +810,14 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
   assert.match(icon, /ui-icon__img/);
   assert.match(icon, /ui-icon__fallback/);
   assert.match(icon, /loading="lazy"/);
-  assert.match(icon, /onload="this\.parentElement\.classList\.remove\('ui-icon--missing'\);this\.parentElement\.classList\.add\('ui-icon--loaded'\)"/);
-  assert.match(icon, /onerror="this\.parentElement\.classList\.remove\('ui-icon--loaded'\);this\.parentElement\.classList\.add\('ui-icon--missing'\)"/);
+  assert.match(icon, /const iconLoadState = globalThis\.__hslIconLoadState/);
+  assert.match(icon, /globalThis\.__hslMarkIconLoaded/);
+  assert.match(icon, /globalThis\.__hslMarkIconMissing/);
+  assert.match(icon, /iconLoadState\.loaded\.has\(id\)/);
+  assert.match(icon, /iconLoadState\.missing\.has\(id\)/);
+  assert.match(icon, /onload="window\.__hslMarkIconLoaded\('\$\{escapeHtml\(id\)\}', this\)"/);
+  assert.match(icon, /onerror="window\.__hslMarkIconMissing\('\$\{escapeHtml\(id\)\}', this\)"/);
+  assert.equal(/ui-icon--pending/.test(icon + styles), false);
   assert.match(icon, /escapeHtml\(fallback\)/);
   assert.equal(/https?:\/\//.test(icon), false);
   assert.equal(/innerHTML|\.png|<svg|Authorization|access_token|refresh_token|--icon-url|ui-icon__probe|ui-icon__mask/.test(icon), false);

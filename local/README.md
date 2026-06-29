@@ -228,6 +228,8 @@ Library controls sort notes:
 [`docs/library-controls-fix-sort-6.md`](docs/library-controls-fix-sort-6.md).
 Library micropolish notes:
 [`docs/library-micropolish-sort-scroll-7.md`](docs/library-micropolish-sort-scroll-7.md).
+Render/state stability audit notes:
+[`docs/render-state-stability-audit-12.md`](docs/render-state-stability-audit-12.md).
 
 The current CLI still supports a development fallback that looks for
 `pack.json` next to the local development app shape. The product direction is

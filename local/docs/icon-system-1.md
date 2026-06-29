@@ -46,6 +46,8 @@ El helper:
 - renderiza el SVG local como `<img class="ui-icon__img">`;
 - oculta el fallback cuando el SVG carga;
 - oculta la imagen y muestra fallback si el SVG falla;
+- recuerda en memoria los iconos ya cargados o fallidos para que un re-render
+  normal no vuelva a pasar por un estado visual intermedio;
 - usa `aria-hidden="true"` para iconos decorativos o `aria-label` si se pasa
   `label`.
 
@@ -192,6 +194,11 @@ Si falta un SVG:
 - no se hacen requests externos;
 - no se rompe el render;
 - no se muestran secretos.
+
+Desde `LOCAL-LAUNCHER-RENDER-STATE-STABILITY-AUDIT-12`, el fallback permanece
+oculto por defecto y solo se muestra tras un `onerror` real. Si un icono ya
+cargo una vez, los renders posteriores nacen con `ui-icon--loaded`; si fallo,
+nacen con `ui-icon--missing`. No se usa una clase `pending` visible.
 
 ## Validacion
 

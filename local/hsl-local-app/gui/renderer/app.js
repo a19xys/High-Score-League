@@ -10,7 +10,7 @@ import { renderActivityDrawer } from "./components/queue-panel.js";
 
 const root = document.getElementById("app");
 const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
-const LIBRARY_SIDEBAR_MIN = 320;
+const LIBRARY_SIDEBAR_MIN = 340;
 const LIBRARY_SIDEBAR_MAX = 600;
 const LIBRARY_SIDEBAR_DEFAULT = 440;
 const LAUNCHER_VERSION = "v1.0.0";
@@ -41,6 +41,9 @@ const store = createStore({
 let accountMenuPointerStartedInside = false;
 let libraryPreferencesPersistTimer = null;
 let pendingLibraryPreferencesPatch = {};
+let libraryPreferencesPersistSequence = 0;
+let libraryPreferenceUserRevision = 0;
+let hydratedLibraryPreferencesScopeKey = null;
 let sidebarResize = null;
 
 function clampSidebarWidth(value) {
@@ -76,6 +79,48 @@ function restoreMainScrollState(scrollState) {
   if (libraryScroll) {
     libraryScroll.scrollTop = scrollState.library;
   }
+}
+
+function libraryPreferencesScopeKey(preferences = {}) {
+  return `${preferences.scope || "global"}:${preferences.playerKey || ""}`;
+}
+
+function markLibraryPreferenceUserChange() {
+  libraryPreferenceUserRevision += 1;
+}
+
+function libraryPreferencesStatePatch(data, current, allowHydration = true) {
+  if (!allowHydration) {
+    return {};
+  }
+
+  const preferences = data.library?.preferences || {};
+  const scopeKey = libraryPreferencesScopeKey(preferences);
+
+  if (hydratedLibraryPreferencesScopeKey === scopeKey) {
+    return {};
+  }
+
+  hydratedLibraryPreferencesScopeKey = scopeKey;
+
+  return {
+    librarySidebarWidth: clampSidebarWidth(preferences.sidebarWidth || current.librarySidebarWidth),
+    librarySortBy: preferences.librarySortBy || current.librarySortBy,
+    librarySortDirection: preferences.librarySortDirection || current.librarySortDirection,
+    libraryView: preferences.libraryView || current.libraryView,
+  };
+}
+
+function currentLibraryPreferencesPatch(patch = {}) {
+  const current = store.getState();
+
+  return {
+    librarySortBy: current.librarySortBy,
+    librarySortDirection: current.librarySortDirection,
+    libraryView: current.libraryView,
+    sidebarWidth: current.librarySidebarWidth,
+    ...patch,
+  };
 }
 
 function renderOverlay(state) {
@@ -180,9 +225,10 @@ function render() {
 }
 
 async function refreshState() {
+  const startedWithLibraryPreferenceRevision = libraryPreferenceUserRevision;
   const data = await window.hslLauncher.getState();
   const current = store.getState();
-  const libraryPreferences = data.library?.preferences || {};
+  const allowLibraryPreferenceHydration = startedWithLibraryPreferenceRevision === libraryPreferenceUserRevision;
   const noticeLogs = (data.notices || [])
     .filter((notice) => !current.noticeIds.includes(notice.id))
     .map((notice) => ({
@@ -195,10 +241,7 @@ async function refreshState() {
   store.setState({
     data,
     libraryFavoriteFilter: data.session?.hasSession ? current.libraryFavoriteFilter : "all",
-    librarySidebarWidth: clampSidebarWidth(libraryPreferences.sidebarWidth || current.librarySidebarWidth),
-    librarySortBy: libraryPreferences.librarySortBy || current.librarySortBy,
-    librarySortDirection: libraryPreferences.librarySortDirection || current.librarySortDirection,
-    libraryView: libraryPreferences.libraryView || current.libraryView,
+    ...libraryPreferencesStatePatch(data, current, allowLibraryPreferenceHydration),
     logs: noticeLogs.reduce((logs, notice) => appendLog(logs, notice), current.logs),
     noticeIds: [
       ...current.noticeIds,
@@ -208,20 +251,15 @@ async function refreshState() {
 }
 
 async function persistLibraryPreferences(patch) {
-  try {
-    const response = await window.hslLauncher.setLibraryPreferences(patch);
+  const requestId = ++libraryPreferencesPersistSequence;
 
-    if (response.state) {
-      const preferences = response.state.library?.preferences || {};
-      store.setState({
-        data: response.state,
-        librarySidebarWidth: clampSidebarWidth(preferences.sidebarWidth || store.getState().librarySidebarWidth),
-        librarySortBy: preferences.librarySortBy || store.getState().librarySortBy,
-        librarySortDirection: preferences.librarySortDirection || store.getState().librarySortDirection,
-        libraryView: preferences.libraryView || store.getState().libraryView,
-      });
-    }
+  try {
+    await window.hslLauncher.setLibraryPreferences(currentLibraryPreferencesPatch(patch));
   } catch (error) {
+    if (requestId !== libraryPreferencesPersistSequence) {
+      return;
+    }
+
     store.setState({
       logs: appendLog(store.getState().logs, {
         details: [error.message || String(error)],
@@ -273,6 +311,7 @@ async function toggleLibraryFavorite(packKey) {
 function updateSidebarWidth(width, save = false) {
   const nextWidth = clampSidebarWidth(width);
 
+  markLibraryPreferenceUserChange();
   store.setState({ librarySidebarWidth: nextWidth });
 
   if (save) {
@@ -504,6 +543,7 @@ function bindActions() {
 
     if (target.matches("[data-library-sort-by]")) {
       const librarySortBy = target.value;
+      markLibraryPreferenceUserChange();
       store.setState({ librarySortBy });
       persistLibraryPreferencesSoon({ librarySortBy });
     }
@@ -613,6 +653,7 @@ function bindActions() {
 
     if (action === "toggle-library-sort-direction") {
       const librarySortDirection = button.dataset.direction === "desc" ? "desc" : "asc";
+      markLibraryPreferenceUserChange();
       store.setState({ librarySortDirection });
       persistLibraryPreferencesSoon({ librarySortDirection });
     }
@@ -631,8 +672,9 @@ function bindActions() {
 
     if (action === "set-library-view") {
       const libraryView = button.dataset.view || "covers";
+      markLibraryPreferenceUserChange();
       store.setState({ libraryView });
-      persistLibraryPreferences({ libraryView });
+      persistLibraryPreferencesSoon({ libraryView });
     }
 
     if (action === "toggle-library-filters") {
