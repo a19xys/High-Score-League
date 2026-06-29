@@ -523,6 +523,8 @@ Submission recovery notes:
 [`docs/launcher-submission-recovery-1.md`](docs/launcher-submission-recovery-1.md).
 Scoped queue notes:
 [`docs/account-pack-scoped-queue-1.md`](docs/account-pack-scoped-queue-1.md).
+Scoped staging/readiness notes:
+[`docs/scoped-event-staging-readiness-14.md`](docs/scoped-event-staging-readiness-14.md).
 Pack metadata/assets notes:
 [`docs/pack-metadata-assets-1.md`](docs/pack-metadata-assets-1.md).
 Pack library locations notes:
@@ -728,9 +730,11 @@ It never exposes tokens or the `Authorization` header. The action `Comprobar de
 nuevo` recalculates only the active pack membership.
 
 The GUI also summarizes whether the active pack is ready before play. It checks
-pack metadata, MAME, ROM, plugin folders, staging folders, local session,
-scoped queue, membership and auto-sync state, then shows a player-friendly
-status for practice, competition and upload readiness. Technical checks stay in
+pack metadata, MAME, ROM, capture/plugin state, local session, scoped queue,
+membership and auto-sync state, then shows a player-friendly status for
+practice, competition and upload readiness. For v1/dev bridge, plugin event
+folders are staging. For v2, `userData/events` is only a legacy/CLI fallback and
+is not shown as staging for the active pack. Technical checks stay in
 development details and never expose secrets.
 
 This prototype is not packaged, not an installer, and not the final pack picker.
@@ -790,6 +794,14 @@ Event paths resolve as follows:
 2. Otherwise `eventsBaseDir` is used and `pending`, `sent`, and `failed` are
    derived below it.
 3. Otherwise the app uses `userData/events`.
+
+For the modern GUI, this resolved file queue is compatibility state unless it
+is explicitly being used as v1/dev bridge staging. The player-facing queue for
+the active account and pack is:
+
+```text
+userData/players/<playerKey>/packs/<packKey>/events
+```
 
 `sessionFile` can also point at user data:
 

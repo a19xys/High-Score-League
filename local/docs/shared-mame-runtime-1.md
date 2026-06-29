@@ -128,3 +128,11 @@ Práctica v2 continúa usando el runtime compartido. Competición v2 permanece
 bloqueada porque el plugin actual no carga `capture.adapter`; readiness y
 diagnose muestran ahora el motivo exacto. La continuación técnica es
 `LOCAL-MAME-PACK-PLUGIN-LOADING-2`.
+
+## Colas y staging v2
+
+El runtime compartido no convierte `userData/events` en staging competitivo de
+packs v2. Esa ruta se conserva como file queue global legacy/CLI. La GUI usa la
+cola scoped por cuenta y pack en `userData/players/<playerKey>/packs/<packKey>/events`.
+El staging temporal de v2 se definira junto con la carga segura del
+plugin/adaptador en `LOCAL-MAME-PACK-PLUGIN-LOADING-2`.

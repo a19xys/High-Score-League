@@ -328,3 +328,86 @@ test("diagnose session summary does not expose tokens", async () => {
     assert.equal(serialized.includes("secret-refresh-token"), false);
   });
 });
+
+test("diagnose classifies missing userData events as legacy for packVersion 2", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createBaseConfig(dir);
+    const legacyRoot = path.join(dir, "userData", "events");
+    await fsp.rm(legacyRoot, { recursive: true, force: true });
+    config.userDataDir = path.join(dir, "userData");
+    config.eventsSource = "eventsBaseDir";
+    config.eventQueueRole = "legacy-global";
+    config.eventsBaseDirAbs = legacyRoot;
+    config.eventsPendingDirAbs = path.join(legacyRoot, "pending");
+    config.eventsSentDirAbs = path.join(legacyRoot, "sent");
+    config.eventsFailedDirAbs = path.join(legacyRoot, "failed");
+    config.requiresSharedMameRuntime = true;
+    config.mame = {
+      pluginName: "hsl-score",
+      requiresSharedMameRuntime: true,
+    };
+    config.packLoaded = true;
+    config.pack = {
+      packVersion: 2,
+      rom: "invaders",
+      weekId: "week-1",
+      contractStatus: "current",
+      deprecated: false,
+      contract: {
+        version: 2,
+        runtimeType: "mame",
+        mame: {
+          romPath: "roms",
+        },
+        capture: {
+          mode: "plugin",
+          pluginName: "hsl-score",
+        },
+      },
+    };
+
+    const report = await buildDiagnoseReport(config);
+
+    assert.ok(hasEntry(report.sections.queues, "INFO", /file queue global legacy\/CLI/));
+    assert.ok(hasEntry(report.sections.queues, "INFO", /pending no existe/));
+    assert.equal(report.errors.some((entry) => /No existe la carpeta pending/.test(entry.message)), false);
+    assert.ok(hasEntry(report.sections.queues, "INFO", /plugin staging v2 pendiente/));
+  });
+});
+
+test("diagnose derives scoped queue from active session without requiring it to exist", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createBaseConfig(dir);
+    config.userDataDir = path.join(dir, "userData");
+    config.pack = {
+      gameId: "space-invaders",
+      packId: "space-invaders-week-1",
+      rom: "invaders",
+      weekId: "week-1",
+    };
+    await fsp.writeFile(
+      config.sessionFileAbs,
+      JSON.stringify({
+        schemaVersion: 1,
+        user: {
+          id: "User 1",
+          email: "player@example.com",
+        },
+        session: {
+          access_token: "secret-access-token",
+          refresh_token: "secret-refresh-token",
+        },
+      }),
+      "utf8"
+    );
+
+    const report = await buildDiagnoseReport(config);
+    const serialized = JSON.stringify(report);
+
+    assert.ok(hasEntry(report.sections.queues, "INFO", /scoped queue actual se derivo/));
+    assert.equal(serialized.includes("user_user-1"), true);
+    assert.equal(serialized.includes("pack_space-invaders-week-1"), true);
+    assert.equal(serialized.includes("secret-access-token"), false);
+    assert.equal(serialized.includes("secret-refresh-token"), false);
+  });
+});

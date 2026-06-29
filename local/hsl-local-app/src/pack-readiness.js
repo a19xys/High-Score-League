@@ -128,16 +128,24 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
   const pluginDir = !isPackV2 && config.mame?.workingDir && pluginName
     ? path.join(config.mame.workingDir, "plugins", pluginName)
     : null;
+  const hasPluginStaging = !isPackV2 && (
+    config.eventQueueRole === "plugin-staging" ||
+    config.eventsSource === "opened-pack" ||
+    config.eventsSource === "explicit" ||
+    Boolean(config.stagingEventsPendingDirAbs || config.stagingEventsSentDirAbs || config.stagingEventsFailedDirAbs)
+  );
   const stagingRoot = config.eventsBaseDirAbs || (
-    !isPackV2 && config.mame?.workingDir && pluginName
+    hasPluginStaging && config.mame?.workingDir && pluginName
       ? path.join(config.mame.workingDir, "plugins", pluginName, "events")
       : null
   );
-  const stagingDirs = [
-    config.stagingEventsPendingDirAbs || config.eventsPendingDirAbs || (stagingRoot ? path.join(stagingRoot, "pending") : null),
-    config.stagingEventsSentDirAbs || config.eventsSentDirAbs || (stagingRoot ? path.join(stagingRoot, "sent") : null),
-    config.stagingEventsFailedDirAbs || config.eventsFailedDirAbs || (stagingRoot ? path.join(stagingRoot, "failed") : null),
-  ];
+  const stagingDirs = hasPluginStaging
+    ? [
+        config.stagingEventsPendingDirAbs || config.eventsPendingDirAbs || (stagingRoot ? path.join(stagingRoot, "pending") : null),
+        config.stagingEventsSentDirAbs || config.eventsSentDirAbs || (stagingRoot ? path.join(stagingRoot, "sent") : null),
+        config.stagingEventsFailedDirAbs || config.eventsFailedDirAbs || (stagingRoot ? path.join(stagingRoot, "failed") : null),
+      ]
+    : [];
   const romPath = inferRomPath(config, rom);
 
   if (config.packLoaded || pack) {
@@ -299,15 +307,28 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
     checks.push(check("rom-file", "warning", "ROM", "No pude confirmar la ROM concreta, pero el directorio romPath existe.", [romPath]));
   }
 
-  for (const [index, dir] of stagingDirs.entries()) {
-    const box = ["pending", "sent", "failed"][index];
+  if (isPackV2) {
+    checks.push(check(
+      "staging-v2-deferred",
+      "ok",
+      "Captura",
+      "Staging competitivo v2 pendiente de la carga segura del plugin/adaptador.",
+      [
+        "La GUI usa cola scoped por cuenta y pack.",
+        "No se evalua userData/events como staging del pack v2.",
+      ]
+    ));
+  } else {
+    for (const [index, dir] of stagingDirs.entries()) {
+      const box = ["pending", "sent", "failed"][index];
 
-    if (isDirectory(dir)) {
-      checks.push(check(`staging-${box}`, "ok", "Captura", `Staging ${box} existe.`, [dir]));
-    } else if (dir && isDirectory(path.dirname(dir))) {
-      checks.push(check(`staging-${box}`, "warning", "Captura", `Staging ${box} no existe todavia, pero parece creable.`, [dir]));
-    } else {
-      checks.push(check(`staging-${box}`, "warning", "Captura", `Staging ${box} no esta preparado.`, [dir]));
+      if (isDirectory(dir)) {
+        checks.push(check(`staging-${box}`, "ok", "Captura", `Staging ${box} existe.`, [dir]));
+      } else if (dir && isDirectory(path.dirname(dir))) {
+        checks.push(check(`staging-${box}`, "warning", "Captura", `Staging ${box} no existe todavia, pero parece creable.`, [dir]));
+      } else {
+        checks.push(check(`staging-${box}`, "warning", "Captura", `Staging ${box} no esta preparado.`, [dir]));
+      }
     }
   }
 

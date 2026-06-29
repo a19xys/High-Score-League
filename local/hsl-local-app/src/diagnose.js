@@ -1,6 +1,7 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { buildMameArgs, DEFAULT_PLUGIN_NAME } = require("./mame-launcher");
+const { resolveScopedQueue } = require("./scoped-queue");
 const { readSharedMameRuntime } = require("./shared-mame-runtime");
 
 const REQUIRED_CONFIG_FIELDS = [
@@ -62,6 +63,44 @@ function isPathOutsideDir(targetPath, baseDir) {
 
   const relative = path.relative(path.resolve(baseDir), path.resolve(targetPath));
   return relative !== "" && (relative.startsWith("..") || path.isAbsolute(relative));
+}
+
+function isPackV2(config) {
+  return config.pack?.packVersion === 2 ||
+    config.pack?.contract?.version === 2 ||
+    config.requiresSharedMameRuntime === true;
+}
+
+function classifyEventQueue(config) {
+  if (config.eventsSource === "scoped-user-pack") {
+    return {
+      missingLevel: "ERROR",
+      name: "scoped queue actual",
+      role: "scoped",
+    };
+  }
+
+  if (config.eventQueueRole === "plugin-staging" || config.eventsSource === "opened-pack") {
+    return {
+      missingLevel: "ERROR",
+      name: "plugin staging temporal",
+      role: "plugin-staging",
+    };
+  }
+
+  if (isPackV2(config)) {
+    return {
+      missingLevel: "INFO",
+      name: "file queue global legacy/CLI",
+      role: "legacy-global",
+    };
+  }
+
+  return {
+    missingLevel: "ERROR",
+    name: config.eventsSource === "explicit" ? "file queue configurada/dev bridge" : "file queue global legacy/CLI",
+    role: config.eventsSource === "explicit" ? "configured-file-queue" : "legacy-global",
+  };
 }
 
 async function getPathInfo(targetPath) {
@@ -198,6 +237,7 @@ async function buildDiagnoseReport(config) {
       mame: [],
       launcher: [],
       pack: [],
+      queues: [],
       runtime: [],
       session: [],
     },
@@ -232,7 +272,10 @@ async function buildDiagnoseReport(config) {
     add(report, "runtime", "INFO", "userDataDir no existe todavía", config.userDataDir);
   }
 
+  const eventQueue = classifyEventQueue(config);
+
   add(report, "runtime", "OK", `eventos resueltos desde ${config.eventsSource || "rutas finales"}`);
+  add(report, "queues", "INFO", `cola activa clasificada como ${eventQueue.name}`);
   add(report, "runtime", "OK", "sessionFile final", config.sessionFileAbs);
 
   if (sharedMameRuntime) {
@@ -305,10 +348,13 @@ async function buildDiagnoseReport(config) {
 
     if (info.exists && info.isDirectory) {
       add(report, "events", "OK", `${field} existe`, dir);
+      add(report, "queues", "OK", `${eventQueue.name}: ${label} existe`, dir);
     } else if (info.exists) {
       add(report, "events", "ERROR", `${field} existe, pero no es una carpeta`, dir);
+      add(report, "queues", "ERROR", `${eventQueue.name}: ${label} existe, pero no es una carpeta`, dir);
     } else {
-      add(report, "events", "ERROR", `No existe la carpeta ${label}`, dir);
+      add(report, "events", eventQueue.missingLevel, `No existe la carpeta ${label}`, dir);
+      add(report, "queues", eventQueue.missingLevel, `${eventQueue.name}: ${label} no existe`, dir);
     }
   }
 
@@ -530,6 +576,48 @@ async function buildDiagnoseReport(config) {
     add(report, "session", "WARN", "El archivo de sesión existe, pero no contiene session", config.sessionFileAbs);
   }
 
+  if (!session.exists) {
+    add(report, "queues", "INFO", "scoped queue no resuelta: no hay sesion activa");
+  } else if (!session.validJson) {
+    add(report, "queues", "INFO", "scoped queue no resuelta: la sesion local no es JSON valido");
+  } else if (session.hasSession && config.userDataDir) {
+    const scope = resolveScopedQueue(config, session);
+
+    if (scope) {
+      const scopedInfo = await getPathInfo(scope.scopedQueueRoot);
+      add(
+        report,
+        "queues",
+        scopedInfo.exists && scopedInfo.isDirectory ? "OK" : "INFO",
+        scopedInfo.exists && scopedInfo.isDirectory
+          ? "scoped queue actual existe para la sesion y pack activos"
+          : "scoped queue actual se derivo, pero todavia no existe",
+        scope.scopedQueueRoot
+      );
+      add(report, "queues", "INFO", "scoped pending", scope.scopedPendingDir);
+      add(report, "queues", "INFO", "scoped sent", scope.scopedSentDir);
+      add(report, "queues", "INFO", "scoped failed", scope.scopedFailedDir);
+    } else {
+      add(report, "queues", "INFO", "scoped queue no resuelta: falta identidad de jugador");
+    }
+  } else if (session.hasSession) {
+    add(report, "queues", "INFO", "scoped queue no resuelta: falta userDataDir");
+  } else {
+    add(report, "queues", "INFO", "scoped queue no resuelta: el archivo local no contiene sesion activa");
+  }
+
+  if (isPackV2(config)) {
+    add(
+      report,
+      "queues",
+      "INFO",
+      "plugin staging v2 pendiente de LOCAL-MAME-PACK-PLUGIN-LOADING-2",
+      "La competicion v2 sigue bloqueada y diagnose no trata userData/events como staging del pack activo."
+    );
+  } else if (eventQueue.role === "plugin-staging" || eventQueue.role === "configured-file-queue") {
+    add(report, "queues", "INFO", "plugin staging/bridge usa las rutas de eventos configuradas arriba");
+  }
+
   if (report.errors.length > 0) {
     report.recommendations.push("Corrige los errores antes de usar play, practice, submit o submit-all.");
   }
@@ -587,6 +675,7 @@ function printDiagnoseReport(report) {
   printEntries("Pack", report.sections.pack);
   printEntries("Runtime", report.sections.runtime);
   printEntries("Eventos", report.sections.events);
+  printEntries("Colas", report.sections.queues);
   printEntries("MAME", report.sections.mame);
   printEntries("Launcher", report.sections.launcher);
   printEntries("Sesión", report.sections.session);

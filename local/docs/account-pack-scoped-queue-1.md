@@ -75,7 +75,8 @@ No guarda `access_token`, `refresh_token`, contrasena ni claves de Supabase.
 
 ## Staging del plugin
 
-El plugin de MAME no cambia en esta tarea. Puede seguir escribiendo en:
+El plugin de MAME no cambia en esta tarea. En v1/dev bridge puede seguir
+escribiendo en:
 
 ```text
 <pack>/plugins/hsl-score/events/pending
@@ -83,6 +84,11 @@ El plugin de MAME no cambia en esta tarea. Puede seguir escribiendo en:
 
 Para la GUI esa carpeta pasa a ser staging: una bandeja de captura temporal.
 La cola final del jugador vive en el scope de `userData`.
+
+`userData/events/{pending,sent,failed}` queda como file queue global
+legacy/CLI. No debe confundirse con el scope de la GUI ni con staging real de
+un pack v2. Para `packVersion: 2`, el staging competitivo queda pendiente de
+`LOCAL-MAME-PACK-PLUGIN-LOADING-2`.
 
 ## Adopcion de capturas nuevas
 

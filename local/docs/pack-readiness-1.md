@@ -45,7 +45,8 @@ La evaluacion revisa, sin efectos secundarios:
 - Ejecutable de MAME y working directory.
 - Nombre y carpeta del plugin.
 - ROM inferida en `roms/<rom>.zip` como aviso si no se puede confirmar.
-- Carpetas staging `pending`, `sent` y `failed`.
+- Carpetas staging `pending`, `sent` y `failed` solo cuando aplican al flujo
+  v1/dev bridge o plugin staging real.
 - Sesion local.
 - Cola scoped de cuenta y pack.
 - Membership de temporada.
@@ -70,6 +71,11 @@ apunta a un directorio del pack. Competicion v2 queda bloqueada hasta que
 
 `packVersion: 1` sigue funcionando para el dev bridge y packs antiguos, pero se
 muestra como legacy/deprecated en detalles tecnicos.
+
+Desde `LOCAL-SCOPED-EVENT-STAGING-READINESS-14`, readiness no trata el fallback
+`userData/events` como staging principal de packs v2. Ese fallback queda
+clasificado como file queue global legacy/CLI. La fuente de verdad de la GUI es
+la cola scoped de la cuenta y pack activos.
 
 Cuando se implemente `LOCAL-SHARED-MAME-RUNTIME-1`, readiness debera separar:
 
@@ -138,6 +144,11 @@ userData/players/<playerKey>/packs/<packKey>/events/{pending,failed,sent}
 
 Readiness solo comprueba que exista un scope activo para poder competir y subir.
 No mueve archivos ni adopta staging.
+
+Sin sesion, readiness no inventa un scope. Con sesion y pack activo, la GUI
+prepara el scope bajo `userData/players/<playerKey>/packs/<packKey>/events`.
+Para pack v2, los warnings de staging global se omiten porque la competicion v2
+sigue bloqueada hasta la carga segura del plugin/adaptador.
 
 ## Relacion con la biblioteca visual
 

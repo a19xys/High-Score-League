@@ -101,6 +101,7 @@ function deriveOpenedPackConfig(baseConfig, pack) {
   const eventsSentDirAbs = requiresSharedMameRuntime
     ? baseConfig.eventsSentDirAbs || path.join(eventsBaseDirAbs, "sent")
     : path.join(eventsBaseDirAbs, "sent");
+  const eventQueueRole = requiresSharedMameRuntime ? "legacy-global" : "plugin-staging";
 
   return {
     ...baseConfig,
@@ -114,6 +115,11 @@ function deriveOpenedPackConfig(baseConfig, pack) {
     eventsSentDir: null,
     eventsSentDirAbs,
     eventsSource: requiresSharedMameRuntime ? baseConfig.eventsSource || "userData" : "opened-pack",
+    eventQueueRole,
+    legacyEventsBaseDirAbs: requiresSharedMameRuntime ? eventsBaseDirAbs : null,
+    legacyEventsFailedDirAbs: requiresSharedMameRuntime ? eventsFailedDirAbs : null,
+    legacyEventsPendingDirAbs: requiresSharedMameRuntime ? eventsPendingDirAbs : null,
+    legacyEventsSentDirAbs: requiresSharedMameRuntime ? eventsSentDirAbs : null,
     mame,
     mameSource: requiresSharedMameRuntime ? "shared-runtime-pending" : "opened-pack",
     pack,

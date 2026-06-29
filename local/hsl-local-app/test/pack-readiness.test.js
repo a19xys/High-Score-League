@@ -98,6 +98,60 @@ test("pack valido con MAME, sesion, member y scope queda ready", async () => {
   });
 });
 
+test("packVersion 2 no trata userData/events como staging principal", async () => {
+  await withTempDir(async (dir) => {
+    const context = await createReadyFixture(dir);
+    const sharedMame = path.join(dir, "runtime", "mame.exe");
+    const romDir = path.join(context.config.packRoot, "roms");
+    const legacyEventsRoot = path.join(dir, "userData", "events");
+    await fsp.mkdir(path.dirname(sharedMame), { recursive: true });
+    await fsp.mkdir(romDir, { recursive: true });
+    await fsp.writeFile(sharedMame, "binary", "utf8");
+
+    context.config.requiresSharedMameRuntime = true;
+    context.config.eventQueueRole = "legacy-global";
+    context.config.eventsBaseDirAbs = legacyEventsRoot;
+    context.config.eventsPendingDirAbs = path.join(legacyEventsRoot, "pending");
+    context.config.eventsSentDirAbs = path.join(legacyEventsRoot, "sent");
+    context.config.eventsFailedDirAbs = path.join(legacyEventsRoot, "failed");
+    context.config.sharedMameRuntime = {
+      available: true,
+      configured: true,
+      mameExecutablePath: sharedMame,
+    };
+    context.config.mame = {
+      pluginName: "hsl-score",
+      requiresSharedMameRuntime: true,
+    };
+    context.config.pack = {
+      ...context.config.pack,
+      packVersion: 2,
+      contractStatus: "current",
+      deprecated: false,
+      contract: {
+        version: 2,
+        runtimeType: "mame",
+        mame: {
+          romDir,
+          romPath: "roms",
+        },
+        capture: {
+          mode: "plugin",
+          pluginName: "hsl-score",
+        },
+      },
+    };
+
+    const result = evaluatePackReadiness(context);
+    const stagingChecks = result.checks.filter((item) => /^staging-(pending|sent|failed)$/.test(item.id));
+
+    assert.deepEqual(stagingChecks, []);
+    assert.ok(result.checks.some((item) => item.id === "staging-v2-deferred" && item.level === "ok"));
+    assert.equal(result.warnings.some((message) => /Staging pending no esta preparado/.test(message)), false);
+    assert.equal(JSON.stringify(result).includes(path.join("userData", "events", "pending")), false);
+  });
+});
+
 test("sin mame.exe bloquea practica y competicion", async () => {
   await withTempDir(async (dir) => {
     const context = await createReadyFixture(dir);

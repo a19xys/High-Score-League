@@ -28,3 +28,7 @@ falso positivo de seguridad.
 aislada por ejecución. Debe definir cómo el plugin global carga el adaptador,
 cómo escribe en staging del scope activo y cómo evita mezclar dos packs.
 
+Hasta esa tarea, `packVersion: 2` no tiene staging competitivo preparado. La
+GUI usa la cola scoped por cuenta y pack para actividad y subidas, y
+`userData/events` queda clasificado como file queue global legacy/CLI, no como
+staging del pack activo v2.

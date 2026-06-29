@@ -1337,7 +1337,9 @@ test("deriveOpenedPackConfig keeps packVersion 2 on shared-runtime pending paths
     assert.equal(config.mame.workingDir, null);
     assert.equal(config.mame.pluginName, "hsl-score");
     assert.equal(config.mameSource, "shared-runtime-pending");
+    assert.equal(config.eventQueueRole, "legacy-global");
     assert.equal(config.eventsPendingDirAbs, baseConfig.eventsPendingDirAbs);
+    assert.equal(config.legacyEventsPendingDirAbs, baseConfig.eventsPendingDirAbs);
     assert.equal(config.pack.contractStatus, "current");
   });
 });

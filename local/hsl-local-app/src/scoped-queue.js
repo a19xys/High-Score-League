@@ -153,6 +153,13 @@ function applyScopedQueue(config, scope) {
     return config;
   }
 
+  const isPluginStaging =
+    config.eventQueueRole === "plugin-staging" ||
+    (Boolean(config.pack || config.mame?.workingDir) &&
+      !config.requiresSharedMameRuntime &&
+      config.pack?.packVersion !== 2 &&
+      config.pack?.contract?.version !== 2);
+
   return {
     ...config,
     eventsBaseDirAbs: scope.eventsRoot,
@@ -161,9 +168,13 @@ function applyScopedQueue(config, scope) {
     eventsSentDirAbs: scope.scopedSentDir,
     eventsSource: "scoped-user-pack",
     scopedQueue: scope,
-    stagingEventsFailedDirAbs: config.eventsFailedDirAbs,
-    stagingEventsPendingDirAbs: config.eventsPendingDirAbs,
-    stagingEventsSentDirAbs: config.eventsSentDirAbs,
+    legacyEventsBaseDirAbs: config.legacyEventsBaseDirAbs || (isPluginStaging ? null : config.eventsBaseDirAbs),
+    legacyEventsFailedDirAbs: config.legacyEventsFailedDirAbs || (isPluginStaging ? null : config.eventsFailedDirAbs),
+    legacyEventsPendingDirAbs: config.legacyEventsPendingDirAbs || (isPluginStaging ? null : config.eventsPendingDirAbs),
+    legacyEventsSentDirAbs: config.legacyEventsSentDirAbs || (isPluginStaging ? null : config.eventsSentDirAbs),
+    stagingEventsFailedDirAbs: isPluginStaging ? config.eventsFailedDirAbs : null,
+    stagingEventsPendingDirAbs: isPluginStaging ? config.eventsPendingDirAbs : null,
+    stagingEventsSentDirAbs: isPluginStaging ? config.eventsSentDirAbs : null,
   };
 }
 

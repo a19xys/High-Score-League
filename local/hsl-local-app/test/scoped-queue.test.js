@@ -141,3 +141,28 @@ test("applyScopedQueue keeps staging paths and switches active event dirs", () =
   assert.equal(scoped.stagingEventsPendingDirAbs, config.eventsPendingDirAbs);
   assert.equal(scoped.eventsSource, "scoped-user-pack");
 });
+
+test("applyScopedQueue keeps legacy global queue out of v2 staging", () => {
+  const config = baseConfig("C:/tmp", {
+    eventQueueRole: "legacy-global",
+    pack: {
+      packVersion: 2,
+      packId: "space-invaders-week-1",
+      gameId: "space-invaders",
+      rom: "invaders",
+      weekId: "week-1",
+    },
+    requiresSharedMameRuntime: true,
+  });
+  const scope = resolveScopedQueue(config, {
+    email: "player@example.com",
+    hasSession: true,
+    userId: "user-1",
+  });
+  const scoped = applyScopedQueue(config, scope);
+
+  assert.equal(scoped.eventsPendingDirAbs, scope.scopedPendingDir);
+  assert.equal(scoped.stagingEventsPendingDirAbs, null);
+  assert.equal(scoped.legacyEventsPendingDirAbs, config.eventsPendingDirAbs);
+  assert.equal(scoped.eventsSource, "scoped-user-pack");
+});
