@@ -36,21 +36,8 @@ function isActivePack(pack, data = {}) {
   return Boolean(activeName && activeWeek && activeName === pack.gameId && activeWeek === pack.weekId);
 }
 
-function statusMeta(pack, active, readiness) {
-  if (active && readiness?.status === "blocked") return { className: "badge-error", icon: "error", label: "Con errores" };
-  if (active) return { className: "badge-accent", icon: "check", label: "Activa" };
-  if (pack.status === "error") return { className: "badge-error", icon: "error", label: "Con errores" };
-  if (pack.status === "missing") return { className: "badge-warn", icon: "warning", label: "Inactiva" };
-  if (pack.status === "warning" && !pack.deprecated) return { className: "badge-warn", icon: "warning", label: "Con avisos" };
-  return { className: "badge-ok", icon: "check", label: "Instalado" };
-}
-
-function statusTone(meta) {
-  if (meta.label === "Inactiva") return "inactive";
-  if (meta.className === "badge-error") return "error";
-  if (meta.className === "badge-warn") return "warning";
-  if (meta.className === "badge-accent") return "active";
-  return "ok";
+function weekStatusMeta() {
+  return { className: "week-status--open", label: "ABIERTO" };
 }
 
 function subtitleForPack(pack) {
@@ -98,25 +85,12 @@ function renderFavorite(pack, disabled, hasSession) {
   `;
 }
 
-function renderBadges(pack, active, readiness, view) {
-  const meta = statusMeta(pack, active, readiness);
-
-  if (view === "icons") {
-    const tone = statusTone(meta);
-
-    return `
-      <div class="pack-card__status pack-card__status--dot">
-        <span class="pack-card__status-dot pack-card__status-dot--${tone}" role="img" title="${escapeHtml(meta.label)}" aria-label="${escapeHtml(meta.label)}"></span>
-      </div>
-    `;
-  }
-
-  const legacy = pack.deprecated ? `<span class="badge badge-muted pack-card__legacy">Legacy</span>` : "";
+function renderBadges() {
+  const meta = weekStatusMeta();
 
   return `
     <div class="pack-card__status">
-      <span class="badge ${meta.className}">${renderIcon(meta.icon, { className: "status-icon", size: "sm" })}${escapeHtml(meta.label)}</span>
-      ${legacy}
+      <span class="badge week-status-badge ${meta.className}">${escapeHtml(meta.label)}</span>
     </div>
   `;
 }
@@ -147,7 +121,7 @@ export function renderPackCard(pack, state, view = "covers") {
   return `
     <article class="${cardClass}" title="${escapeHtml(`${pack.title || "Pack local"} · ${subtitle}`)}" ${selectableAttributes}>
       ${renderFavorite(pack, state.busy, Boolean(state.data?.session?.hasSession))}
-      ${renderBadges(pack, active, state.data?.readiness, view)}
+      ${renderBadges()}
       ${renderPackVisual(pack, view)}
       <div class="pack-card__body">
         <div class="pack-card__text">
@@ -163,8 +137,7 @@ export function renderPackCard(pack, state, view = "covers") {
 export const packCardTestApi = {
   getInitials,
   isActivePack,
-  statusMeta,
-  statusTone,
   subtitleForPack,
   visualAsset,
+  weekStatusMeta,
 };

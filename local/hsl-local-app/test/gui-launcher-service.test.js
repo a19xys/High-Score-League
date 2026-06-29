@@ -362,8 +362,11 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /aria-expanded="\$\{filtersOpen \? "true" : "false"\}"/);
   assert.match(libraryPanel, /aria-controls="library-filter-card"/);
   assert.match(libraryPanel, /filtersOpen \? "library-filter-toggle--open" : ""/);
-  assert.match(libraryPanel, /Más filtros/);
-  assert.match(libraryPanel, /Cambiar directorio/);
+  assert.match(libraryPanel, /Filtros/);
+  assert.match(libraryPanel, /Añadir ubicación/);
+  assert.match(libraryPanel, /Cambiar ubicación/);
+  assert.match(libraryPanel, /renderIcon\("folder"/);
+  assert.match(libraryPanel, /renderIcon\("filter"/);
   assert.match(libraryPanel, /data-library-search/);
   assert.match(libraryPanel, /placeholder="Escribe aquí\.\.\."/);
   assert.match(libraryPanel, /Búsqueda general/);
@@ -375,6 +378,13 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /data-action="toggle-library-sort-direction"/);
   assert.match(libraryPanel, /data-direction="\$\{nextDirection\}"/);
   assert.match(libraryPanel, /renderIcon\(icon, \{ className: "library-sort-direction-icon"/);
+  assert.match(libraryPanel, /data-action="toggle-library-favorite-filter"/);
+  assert.match(libraryPanel, /library-favorite-filter-button/);
+  assert.match(libraryPanel, /favoriteFilterActive/);
+  assert.match(libraryPanel, /libraryFavoriteFilter === "favorites"/);
+  assert.match(libraryPanel, /Boolean\(pack\.favorite\)/);
+  assert.match(libraryPanel, /No hay favoritos todavía/);
+  assert.match(libraryPanel, /Marca algún pack como favorito/);
   assert.match(libraryPanel, /"arrow-down"/);
   assert.match(libraryPanel, /"arrow-up"/);
   assert.match(libraryPanel, /aria-label="\$\{label\}"/);
@@ -413,13 +423,16 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /groupPacks\(sorted\)/);
   assert.match(libraryPanel, /sortBy === "developer"/);
   assert.match(libraryPanel, /sortBy === "year"/);
-  assert.equal(/Anadir ubicacion|Añadir ubicación|Ubicaciones/.test(libraryPanel), false);
+  assert.equal(/Anadir ubicacion|Ubicaciones/.test(libraryPanel), false);
   assert.equal(/Añadir pack|Anadir pack/.test(libraryPanel), false);
   assert.match(emptyState, /library-empty-state/);
   assert.match(packCard, /if \(view === "covers"\) return pack\.cover \|\| pack\.icon \|\| pack\.logo/);
   assert.match(packCard, /return pack\.icon \|\| pack\.cover \|\| pack\.logo/);
   assert.match(packCard, /pack-card__placeholder/);
-  assert.match(packCard, /Activa/);
+  assert.match(packCard, /weekStatusMeta/);
+  assert.match(packCard, /ABIERTO/);
+  assert.match(packCard, /week-status-badge/);
+  assert.match(packCard, /week-status--open/);
   assert.equal(/Seleccionar|library-use-button|Ya activo/.test(packCard), false);
   assert.match(packCard, /data-action="use-library-pack"/);
   assert.match(packCard, /data-action="toggle-library-favorite"/);
@@ -429,14 +442,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /Boolean\(state\.data\?\.session\?\.hasSession\)/);
   assert.match(packCard, /renderIcon\(favorite \? "star-filled" : "star-empty"/);
   assert.match(packCard, /renderIcon\("calendar"/);
-  assert.match(packCard, /renderIcon\(meta\.icon/);
-  assert.match(packCard, /Con errores/);
-  assert.match(packCard, /pack-card__legacy/);
-  assert.match(packCard, /if \(view === "icons"\)/);
-  assert.match(packCard, /pack-card__status-dot/);
-  assert.match(packCard, /role="img"/);
-  assert.match(packCard, /aria-label="\$\{escapeHtml\(meta\.label\)\}"/);
-  assert.equal(/Legacy \/ deprecated"\s*}/.test(packCard), false);
+  assert.equal(/renderIcon\(meta\.icon|Con errores|Instalado|Legacy|pack-card__legacy|pack-card__status-dot|statusMeta|statusTone/.test(packCard), false);
   assert.match(packCard, /favorite-slot/);
   assert.match(packCard, /favorite-slot--active/);
   assert.match(styles, /\.library-pack-grid/);
@@ -452,14 +458,20 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.library-control-row--primary[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(styles, /\.library-filter-card/);
   assert.match(styles, /\.library-filter-card[\s\S]*padding: 8px/);
-  assert.match(styles, /\.library-search input,\s*\n\.library-filters select,\s*\n\.library-sort select,\s*\n\.library-sort-direction-button[\s\S]*min-height: 35px/);
+  assert.match(styles, /\.library-search input,\s*\n\.library-filters select,\s*\n\.library-sort select,\s*\n\.library-sort-direction-button,\s*\n\.library-favorite-filter-button[\s\S]*min-height: 35px/);
   assert.match(styles, /\.library-control-button,\s*\n\.view-button[\s\S]*min-height: 35px/);
   assert.match(styles, /\.library-control-button,\s*\n\.view-button[\s\S]*font-size: 12\.5px/);
-  assert.match(styles, /\.library-sort__controls[\s\S]*grid-template-columns: minmax\(0, 1fr\) 42px/);
-  assert.match(styles, /\.library-sort-direction-button[\s\S]*width: 42px/);
-  assert.match(styles, /\.library-sort-direction-icon\.ui-icon[\s\S]*var\(--circuit\)/);
+  assert.match(styles, /\.library-control-button[\s\S]*gap: 7px/);
+  assert.match(styles, /\.library-sort__controls[\s\S]*grid-template-columns: minmax\(0, 1fr\) 42px 42px/);
+  assert.match(styles, /\.library-sort-direction-button,\s*\n\.library-favorite-filter-button[\s\S]*width: 42px/);
+  assert.match(styles, /\.library-favorite-filter-button--active[\s\S]*var\(--circuit\)/);
+  assert.match(styles, /\.library-sort-direction-icon\.ui-icon,\s*\n\.library-favorite-filter-icon\.ui-icon,\s*\n\.library-control-icon\.ui-icon[\s\S]*color: currentColor/);
+  assert.match(styles, /\.library-filters select option,\s*\n\.library-sort select option[\s\S]*background: var\(--surface\)/);
+  assert.match(styles, /\.library-filters select option:hover,\s*\n\.library-sort select option:hover[\s\S]*var\(--circuit\)/);
+  assert.equal(/option:checked[\s\S]{0,120}var\(--circuit\)/.test(styles), false);
   assert.match(styles, /\.library-scroll[\s\S]*overflow: hidden/);
-  assert.match(styles, /\.library-section--packs[\s\S]*overflow-y: auto/);
+  assert.match(styles, /\.library-section--packs[\s\S]*overflow-y: scroll/);
+  assert.match(styles, /\.library-section--packs::after[\s\S]*height: 100%/);
   assert.match(styles, /\.library-section--packs[\s\S]*align-content: start/);
   assert.match(styles, /\.library-section--packs[\s\S]*padding-right: 10px/);
   assert.match(styles, /\.library-section--packs[\s\S]*scrollbar-gutter: stable/);
@@ -479,21 +491,34 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.pack-card--list[\s\S]*min-height: 54px/);
   assert.match(styles, /\.pack-card--list \.pack-card__media[\s\S]*aspect-ratio: 1 \/ 1/);
   assert.match(styles, /\.library-pack-grid--icons/);
-  assert.match(styles, /--library-icon-tile: 128px/);
+  assert.match(styles, /--library-icon-tile: 122px/);
+  assert.match(styles, /\.library-pack-grid--icons[\s\S]*gap: 12px 8px/);
   assert.equal(/--library-icon-tile: 84px|--library-icon-tile: 96px|--library-icon-tile: 112px/.test(styles), false);
   assert.match(styles, /\.library-pack-grid--icons[\s\S]*repeat\(auto-fill, var\(--library-icon-tile\)\)/);
   assert.match(styles, /\.pack-card--icons[\s\S]*width: var\(--library-icon-tile\)/);
-  assert.match(styles, /\.pack-card__status-dot--error/);
+  assert.match(styles, /\.week-status-badge[\s\S]*border-color: currentColor/);
+  assert.match(styles, /\.pack-card--icons \.pack-card__status \.week-status-badge[\s\S]*min-height: 20px/);
   assert.match(styles, /\.pack-card--active/);
   assert.match(styles, /\.pack-card__placeholder/);
   assert.match(styles, /\.favorite-slot/);
   assert.match(styles, /\.favorite-slot[\s\S]*place-items: center/);
+  assert.match(styles, /\.favorite-slot[\s\S]*border-radius: 8px/);
+  assert.match(styles, /\.pack-card--list \.favorite-slot[\s\S]*width: 28px[\s\S]*height: 28px/);
   assert.match(styles, /\.favorite-slot--active[\s\S]*var\(--circuit\)/);
   assert.match(styles, /\.favorite-slot--locked/);
   assert.equal(/favorite-slot--active[\s\S]{0,140}var\(--warn\)/.test(styles), false);
   assert.match(styles, /\.favorite-icon/);
   assert.match(styles, /\.library-view-icon/);
   assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*aspect-ratio: 2 \/ 3/);
+  assert.match(styles, /\.library-pack-grid--covers[\s\S]*align-items: stretch/);
+  assert.equal(/\.pack-card--covers \.pack-card__text h3[\s\S]{0,120}min-height: calc\(2 \* 1\.16em\)/.test(styles), false);
+  assert.match(styles, /\.pack-card__status \.badge[\s\S]*min-height: 22px/);
+  assert.match(styles, /\.pack-card__status \.badge[\s\S]*border-color: currentColor/);
+  assert.match(styles, /\.week-status--open[\s\S]*var\(--ok\)/);
+  assert.match(styles, /\.week-status--ending[\s\S]*#a78bfa/);
+  assert.match(styles, /\.week-status--closed[\s\S]*var\(--warn\)/);
+  assert.match(styles, /\.pack-card__subtitle[\s\S]*align-items: center/);
+  assert.match(styles, /\.pack-card__subtitle-icon\.ui-icon[\s\S]*transform: translateY\(1px\)/);
   assert.match(styles, /\.pack-card--icons \.pack-card__media[\s\S]*aspect-ratio: 1 \/ 1/);
   assert.equal(/escapeHtml\(pack\.packDir|escapeHtml\(pack\.packPath/.test(packCard), false);
   assert.equal(/checkSeasonMembership|membership/.test(libraryPanel + packCard), false);
@@ -517,6 +542,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /libraryFiltersOpen: false/);
   assert.match(app, /librarySortBy: "weeks"/);
   assert.match(app, /librarySortDirection: "asc"/);
+  assert.match(app, /libraryFavoriteFilter: "all"/);
   assert.match(app, /action === "toggle-library-filters"/);
   assert.match(app, /store\.setState\(\{ libraryFiltersOpen: !store\.getState\(\)\.libraryFiltersOpen \}\)/);
   assert.match(app, /store\.setState\(\{ libraryQuery: input\.value \}\)/);
@@ -525,8 +551,12 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/target\.matches\("\[data-library-sort-direction\]"\)/.test(app), false);
   assert.match(app, /action === "toggle-library-sort-direction"/);
   assert.match(app, /button\.dataset\.direction === "desc" \? "desc" : "asc"/);
-  assert.match(app, /persistLibraryPreferences\(\{ librarySortBy \}\)/);
-  assert.match(app, /persistLibraryPreferences\(\{ librarySortDirection \}\)/);
+  assert.match(app, /function persistLibraryPreferencesSoon\(patch\)/);
+  assert.match(app, /persistLibraryPreferencesSoon\(\{ librarySortBy \}\)/);
+  assert.match(app, /persistLibraryPreferencesSoon\(\{ librarySortDirection \}\)/);
+  assert.match(app, /action === "toggle-library-favorite-filter"/);
+  assert.match(app, /libraryFavoriteFilter: button\.dataset\.filter === "favorites" \? "favorites" : "all"/);
+  assert.match(app, /libraryFavoriteFilter: data\.session\?\.hasSession \? current\.libraryFavoriteFilter : "all"/);
   assert.match(app, /function readMainScrollState\(\)/);
   assert.match(app, /function restoreMainScrollState\(scrollState\)/);
   assert.match(app, /root\.querySelector\("\.game-scroll"\)\?\.scrollTop/);
@@ -717,6 +747,8 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
     "app.svg",
     "arrow-down.svg",
     "arrow-up.svg",
+    "filter.svg",
+    "folder.svg",
     "sun.svg",
     "moon.svg",
     "status-online.svg",

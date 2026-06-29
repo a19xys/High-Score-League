@@ -567,7 +567,7 @@ migracion automatica desde anonimo a cuenta para evitar mezclar jugadores.
 ## Avance LOCAL-LAUNCHER-LIBRARY-CONTROLS-REVAMP-2
 
 La biblioteca izquierda compacta su primera capa: cabecera `Biblioteca` con
-contador en pildora, fila `Más filtros`/`Cambiar directorio`, selector
+contador en pildora, fila `Filtros`/`Añadir ubicación` o `Cambiar ubicación`, selector
 `Portadas`/`Lista`/`Iconos` y subtarjeta plegable para busqueda y temporada.
 Las acciones `Gestionar biblioteca`, `Abrir directorio`, `Reescanear` y el
 filtro `Estado` salen de la superficie principal. La lista de juegos scrollea
@@ -578,7 +578,7 @@ por separado y `Iconos` usa tiles estables con punto de estado.
 La composicion visual de la biblioteca se afina por vista: `Portadas` mantiene
 caratulas 2/3 en columnas acotadas, `Lista` funciona como fila horizontal
 compacta e `Iconos` usa tiles 1/1 fijos con punto de estado. La subtarjeta
-`Más filtros` es mas baja, el buscador dice `Escribe aquí...` y la estrella de
+`Filtros` es mas baja, el buscador dice `Escribe aquí...` y la estrella de
 favorito se centra con estado activo/hover en azul circuito.
 
 ## Avance LOCAL-LAUNCHER-LIBRARY-RESPONSIVE-AUTH-GUARDS-4
@@ -598,10 +598,31 @@ filtros` queda neutro cerrado, azul circuito abierto.
 
 ## Avance LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7
 
-`Iconos` usa tile fijo de 128px para encajar 2 columnas en sidebar minima y 4
+`Iconos` usa tile fijo de 122px para encajar 2 columnas en sidebar minima y 4
 en sidebar maxima. `ORDENAR` elimina labels redundantes y cambia Asc/Desc por
 toggle con iconos. En modo oscuro los scrollbars usan azul circuito y abrir
 Actividad local conserva el scroll del panel de juego.
+
+## Avance LOCAL-LAUNCHER-LIBRARY-POLISH-STATUS-FAVORITES-8
+
+La zona de packs reserva scrollbar siempre. `Iconos` queda en tile fijo de
+122px con gap horizontal de 8px para mantener 2 columnas en 320px y 4 en 600px.
+La estrella pasa a cuadrada redondeada, `Filtros` incluye un toggle
+`Todos/Favoritos` bloqueado sin sesion, y el boton de carpeta distingue
+`Añadir ubicación` de `Cambiar ubicación`. Los selects reciben color de tema
+donde el popup nativo lo permite. Las badges suben de tamaño, el calendario se
+alinea con `Pack local` y `Portadas` alinea alturas por fila sin reservar
+siempre dos lineas. Quedan solo
+documentados para futuro los estados de semana `Abierto`/`Acabando`/`Cerrado`,
+instalar/reinstalar/jugar, desinstalacion y regalos sorpresa.
+
+## Avance LOCAL-LAUNCHER-LIBRARY-CORRECTION-BADGES-SCROLL-9
+
+La biblioteca usa `ABIERTO` como unico placeholder visible de estado de semana;
+los estados tecnicos `INSTALADO`, `CON ERRORES` y `LEGACY` salen de las cards y
+quedan para el detalle del juego. El hover de options intenta usar azul
+circuito, pero `option:checked` queda neutro. El scrollbar conserva carril y
+añade un indicador visual para el caso sin overflow.
 
 ## Avance LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 

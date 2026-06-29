@@ -4,9 +4,9 @@ Correccion de controles compactos y ordenacion basica de biblioteca.
 
 ## Controles
 
-`Mas filtros` usa el estado real `libraryFiltersOpen`:
+`Filtros` usa el estado real `libraryFiltersOpen`:
 
-- cerrado: boton neutro, igual que `Cambiar directorio`;
+- cerrado: boton neutro, igual que `Añadir ubicación` / `Cambiar ubicación`;
 - abierto: clase `library-filter-toggle--open` y acento circuito.
 
 El selector CSS activo tiene suficiente especificidad para ganar a la regla
@@ -25,10 +25,10 @@ visible, centrado y con tamano explicito.
 El orden superior se mantiene:
 
 ```text
-[Cambiar directorio] [Mas filtros]
+[Añadir ubicación/Cambiar ubicación] [Filtros]
 ```
 
-Si se apilan, `Cambiar directorio` queda arriba.
+Si se apilan, el boton de ubicacion queda arriba.
 
 ## Espaciado
 
@@ -37,7 +37,7 @@ eliminando el margen inferior de la cabecera dentro del panel de biblioteca.
 
 ## Ordenar
 
-La tarjeta `Mas filtros` incluye la seccion compacta `ORDENAR` con:
+La tarjeta `Filtros` incluye la seccion compacta `ORDENAR` con:
 
 - criterio: `Semanas`, `Alfabetico`, `Desarrollador`, `Ano`;
 - direccion: `Asc`, `Desc`.
@@ -69,8 +69,21 @@ fallback global de preferencias. No guarda tokens ni correos.
 
 `ORDENAR` elimina los labels visibles `Criterio` y `Direccion`. La direccion ya
 no es un `select`: es un boton toggle con `arrow-up.svg` / `arrow-down.svg` y
-fallback local. El tile fijo de `Iconos` sube a 128px para encajar 2 columnas en
+fallback local. El tile fijo de `Iconos` queda en 122px para encajar 2 columnas en
 sidebar minima y 4 en sidebar maxima.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-POLISH-STATUS-FAVORITES-8
+
+El tile vigente de `Iconos` queda en `122px` para conservar 2/4 columnas con el
+scrollbar reservado. La fila de orden suma un boton `Todos/Favoritos` y el
+select de criterio guarda preferencias con debounce. El copy visible pasa a
+`Añadir ubicación` / `Cambiar ubicación` y `Filtros`.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-CORRECTION-BADGES-SCROLL-9
+
+El select no colorea `option:checked`; solo se intenta tematizar `option:hover`.
+Los badges tecnicos dejan de mostrarse en biblioteca y se usa `ABIERTO` como
+placeholder de semana.
 
 ## Fuera De Alcance
 

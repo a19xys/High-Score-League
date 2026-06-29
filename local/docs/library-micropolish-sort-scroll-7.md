@@ -7,11 +7,11 @@ Microajustes de biblioteca, ordenacion y scroll.
 La vista `Iconos` sube el tile fijo a:
 
 ```text
-128px
+122px
 ```
 
 Con la sidebar minima de `320px`, el contenido util permite 2 iconos por fila
-con `10px` de gap y aire junto al scrollbar. Con la sidebar maxima de `600px`,
+con `8px` de gap horizontal y aire junto al scrollbar. Con la sidebar maxima de `600px`,
 entran 4 iconos por fila sin cambiar `LIBRARY_SIDEBAR_MAX`.
 
 El tile mantiene `aspect-ratio: 1 / 1`, el nombre usa el mismo ancho del tile y
@@ -76,6 +76,20 @@ En modo estrecho se oculta solo el label y el icono queda centrado.
 El renderer conserva `scrollTop` de `.game-scroll` y `.library-section--packs`
 antes de reconstruir el DOM y lo restaura despues del render. Abrir o cerrar
 `Actividad local` ya no debe subir el panel derecho al inicio.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-POLISH-STATUS-FAVORITES-8
+
+La zona de packs reserva scrollbar siempre con `overflow-y: scroll`. La vista
+`Iconos` baja a `122px` para asegurar 2 columnas en sidebar minima y 4 en
+maxima con gutter estable. La tarjeta `ORDENAR` suma un toggle local
+`Todos/Favoritos`; el criterio de orden se persiste con debounce para no
+interferir con el `select` nativo.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-CORRECTION-BADGES-SCROLL-9
+
+El tile vigente de `Iconos` queda en `122px`. El scrollbar nativo conserva el
+carril y se añade un indicador visual para el caso sin overflow. La biblioteca
+deja de mostrar badges tecnicos y usa `ABIERTO` como placeholder de semana.
 
 ## Fuera De Alcance
 

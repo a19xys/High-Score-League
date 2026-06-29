@@ -35,6 +35,10 @@ function matchesStatus(pack, filter) {
   return pack.status === filter;
 }
 
+function favoriteFilterActive(state) {
+  return state.libraryFavoriteFilter === "favorites" && Boolean(state.data?.session?.hasSession);
+}
+
 function normalizeSortBy(value) {
   return ["weeks", "title", "developer", "year"].includes(value) ? value : "weeks";
 }
@@ -120,6 +124,7 @@ function sortPacks(packs, state) {
 
 function filterPacks(packs, state) {
   const query = normalizeSearch(state.libraryQuery);
+  const favoritesOnly = favoriteFilterActive(state);
 
   return packs.filter((pack) => {
     const matchesQuery = !query || searchText(pack).includes(query);
@@ -127,8 +132,9 @@ function filterPacks(packs, state) {
       (state.librarySeason === "legacy" && pack.deprecated) ||
       (state.librarySeason === "unseasoned" && !pack.seasonId && !pack.deprecated) ||
       pack.seasonId === state.librarySeason;
+    const matchesFavorite = !favoritesOnly || Boolean(pack.favorite);
 
-    return matchesQuery && matchesSeason && matchesStatus(pack, state.libraryStatus);
+    return matchesQuery && matchesSeason && matchesFavorite && matchesStatus(pack, state.libraryStatus);
   });
 }
 
@@ -184,6 +190,22 @@ function renderSortDirectionButton(sortDirection) {
   `;
 }
 
+function renderFavoriteFilterButton(state) {
+  const hasSession = Boolean(state.data?.session?.hasSession);
+  const active = favoriteFilterActive(state);
+  const nextFilter = active ? "all" : "favorites";
+  const label = !hasSession
+    ? "Inicia sesión para filtrar favoritos"
+    : active ? "Mostrar todos" : "Mostrar favoritos";
+  const icon = active ? "star-filled" : "star-empty";
+
+  return `
+    <button class="library-favorite-filter-button ${active ? "library-favorite-filter-button--active" : ""}" type="button" data-action="toggle-library-favorite-filter" data-filter="${nextFilter}" aria-label="${label}" title="${label}" aria-pressed="${active ? "true" : "false"}" ${hasSession ? "" : "disabled"}>
+      ${renderIcon(icon, { className: "library-favorite-filter-icon" })}
+    </button>
+  `;
+}
+
 function renderFilterCard(state, packs) {
   if (!state.libraryFiltersOpen) {
     return "";
@@ -227,6 +249,7 @@ function renderFilterCard(state, packs) {
             ${sortOption("year", sortBy, "Año")}
           </select>
           ${renderSortDirectionButton(sortDirection)}
+          ${renderFavoriteFilterButton(state)}
         </div>
       </div>
     </div>
@@ -236,15 +259,19 @@ function renderFilterCard(state, packs) {
 function renderLibraryControls(state, packs) {
   const filtersOpen = Boolean(state.libraryFiltersOpen);
   const disabled = state.busy ? "disabled" : "";
+  const hasDirectory = Boolean(state.data?.library?.directory?.path);
+  const locationLabel = hasDirectory ? "Cambiar ubicación" : "Añadir ubicación";
 
   return `
     <div class="library-toolbar">
       <div class="library-control-row library-control-row--primary">
-        <button class="library-control-button" type="button" data-action="choose-pack-directory" ${disabled}>
-          Cambiar directorio
+        <button class="library-control-button" type="button" data-action="choose-pack-directory" ${disabled} aria-label="${locationLabel}" title="${locationLabel}">
+          ${renderIcon("folder", { className: "library-control-icon" })}
+          <span>${locationLabel}</span>
         </button>
-        <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-expanded="${filtersOpen ? "true" : "false"}" aria-controls="library-filter-card">
-          Más filtros
+        <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-label="Filtros" title="Filtros" aria-expanded="${filtersOpen ? "true" : "false"}" aria-controls="library-filter-card">
+          ${renderIcon("filter", { className: "library-control-icon" })}
+          <span>Filtros</span>
         </button>
       </div>
       ${renderFilterCard(state, packs)}
@@ -296,6 +323,14 @@ function renderPacks(state) {
   const sortBy = normalizeSortBy(state.librarySortBy);
 
   if (filtered.length === 0) {
+    if (favoriteFilterActive(state)) {
+      return renderLibraryEmptyState({
+        body: "Marca algún pack como favorito.",
+        state,
+        title: "No hay favoritos todavía.",
+      });
+    }
+
     return renderLibraryEmptyState({
       body: "Prueba otra búsqueda o temporada.",
       state,
@@ -355,6 +390,7 @@ export function renderLibraryPanel(state) {
 
 export const libraryPanelTestApi = {
   comparePacks,
+  favoriteFilterActive,
   filterPacks,
   groupPacks,
   normalizeSearch,

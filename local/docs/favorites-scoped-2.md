@@ -38,6 +38,13 @@ jugadores y no se usa como perfil activo normal sin sesion.
 La UI deshabilita la estrella sin sesion, el renderer no llama al toggle y el
 servicio rechaza la accion sin escribir favoritos anonimos nuevos.
 
+## Continuidad LOCAL-LAUNCHER-LIBRARY-POLISH-STATUS-FAVORITES-8
+
+La biblioteca añade un filtro visual `Todos/Favoritos` dentro de la tarjeta de
+filtros. Solo se habilita con sesion activa y filtra por `pack.favorite`; no
+cambia el archivo de favoritos ni crea favoritos anonimos. Si no hay favoritos,
+la lista muestra un estado vacio especifico.
+
 ## Fuera De Alcance
 
 No se toca MAME, runtime, plugin, captura, payload, endpoints, RLS, membership,

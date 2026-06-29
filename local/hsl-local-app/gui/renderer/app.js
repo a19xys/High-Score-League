@@ -24,6 +24,7 @@ const store = createStore({
   busyLabel: null,
   connectionStatus: navigator.onLine === false ? "offline" : "connected",
   data: null,
+  libraryFavoriteFilter: "all",
   libraryFiltersOpen: false,
   libraryQuery: "",
   librarySeason: "all",
@@ -38,6 +39,8 @@ const store = createStore({
 });
 
 let accountMenuPointerStartedInside = false;
+let libraryPreferencesPersistTimer = null;
+let pendingLibraryPreferencesPatch = {};
 let sidebarResize = null;
 
 function clampSidebarWidth(value) {
@@ -191,6 +194,7 @@ async function refreshState() {
 
   store.setState({
     data,
+    libraryFavoriteFilter: data.session?.hasSession ? current.libraryFavoriteFilter : "all",
     librarySidebarWidth: clampSidebarWidth(libraryPreferences.sidebarWidth || current.librarySidebarWidth),
     librarySortBy: libraryPreferences.librarySortBy || current.librarySortBy,
     librarySortDirection: libraryPreferences.librarySortDirection || current.librarySortDirection,
@@ -227,6 +231,24 @@ async function persistLibraryPreferences(patch) {
       }),
     });
   }
+}
+
+function persistLibraryPreferencesSoon(patch) {
+  pendingLibraryPreferencesPatch = {
+    ...pendingLibraryPreferencesPatch,
+    ...patch,
+  };
+
+  if (libraryPreferencesPersistTimer) {
+    window.clearTimeout(libraryPreferencesPersistTimer);
+  }
+
+  libraryPreferencesPersistTimer = window.setTimeout(() => {
+    const nextPatch = pendingLibraryPreferencesPatch;
+    pendingLibraryPreferencesPatch = {};
+    libraryPreferencesPersistTimer = null;
+    persistLibraryPreferences(nextPatch);
+  }, 250);
 }
 
 async function toggleLibraryFavorite(packKey) {
@@ -483,7 +505,7 @@ function bindActions() {
     if (target.matches("[data-library-sort-by]")) {
       const librarySortBy = target.value;
       store.setState({ librarySortBy });
-      persistLibraryPreferences({ librarySortBy });
+      persistLibraryPreferencesSoon({ librarySortBy });
     }
 
   });
@@ -592,7 +614,15 @@ function bindActions() {
     if (action === "toggle-library-sort-direction") {
       const librarySortDirection = button.dataset.direction === "desc" ? "desc" : "asc";
       store.setState({ librarySortDirection });
-      persistLibraryPreferences({ librarySortDirection });
+      persistLibraryPreferencesSoon({ librarySortDirection });
+    }
+
+    if (action === "toggle-library-favorite-filter") {
+      if (button.disabled || !store.getState().data?.session?.hasSession) {
+        return;
+      }
+
+      store.setState({ libraryFavoriteFilter: button.dataset.filter === "favorites" ? "favorites" : "all" });
     }
 
     if (action === "close-overlay") {

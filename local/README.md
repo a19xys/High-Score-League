@@ -679,24 +679,28 @@ directory stays compact in the UI; full paths, legacy `locations.json` fallback
 and warnings remain in development details.
 
 The library controls are compact in the launcher shell: `Biblioteca` shows the
-pack count in a pill, the first row has `Cambiar directorio` and `Más filtros`,
-and the second row keeps the official views `Portadas`, `Lista`, `Iconos`.
-Search, season filters and `ORDENAR` live in the collapsible `Más filtros`
+pack count in a pill, the first row has `Añadir ubicación` or `Cambiar ubicación`
+and `Filtros`, and the second row keeps the official views `Portadas`, `Lista`, `Iconos`.
+Search, season filters, `ORDENAR` and the local `Todos/Favoritos` toggle live in
+the collapsible `Filtros`
 card. `ORDENAR` uses a criterion select plus a compact up/down toggle for
 direction. `Semanas` keeps season groups; `Alfabético`, `Desarrollador` and
 `Año` show a flat list after filtering. The pack list scrolls inside the left
-panel, and the `Iconos` view uses fixed-size tiles with a status dot instead of
-textual status badges.
+panel with a reserved scrollbar and visual thumb indicator, and the `Iconos`
+view uses fixed-size tiles. Library cards show one placeholder week badge,
+`ABIERTO`; technical states such as installed, errors and legacy belong in the
+selected game detail.
 
 The current visual rule is proportional by view: `Portadas` keeps a 2/3 cover,
-`Lista` is a compact horizontal row, and `Iconos` uses a 1/1 128px tile. The
-search placeholder is `Escribe aquí...`, and active favorite stars use the
-circuit accent instead of the warning color.
+`Lista` is a compact horizontal row, and `Iconos` uses a 1/1 122px tile. The
+search placeholder is `Escribe aquí...`, active favorite stars use the circuit
+accent instead of the warning color, and the star button is square with rounded
+corners.
 
 The library is top-aligned and responsive to the sidebar width. The sidebar can
 shrink to `320px`. A shared `340px` library breakpoint moves `Portadas` from two
 proportional columns to one column and switches the view buttons to icon-only
-mode. `Lista` stays compact, and `Iconos` keeps a fixed 128px 1/1 tile. In dark
+mode. `Lista` stays compact, and `Iconos` keeps a fixed 122px 1/1 tile. In dark
 mode, visible scrollbars use the circuit accent.
 Favorites are editable only with an active session; the legacy
 `userData/library/favorites.json` is not used as a normal anonymous profile, and
