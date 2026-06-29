@@ -15,9 +15,9 @@ Pulido de la ficha del juego seleccionado en la primera capa del launcher.
 La ficha queda organizada como:
 
 ```text
-banner horizontal
+banner horizontal con logo centrado
 chips humanos
-logo + titulo + semana
+titulo + semana
 metadata con icono, etiqueta y valor
 descripcion local si existe
 botonera 2x2
@@ -27,6 +27,11 @@ actividad local integrada
 El banner usa `hero` y cae a `cover`. Si no hay asset, muestra un placeholder
 HSL contenido. El banner tiene altura maxima y deja de actuar como fondo gigante
 de toda la ficha.
+
+Desde `LOCAL-LAUNCHER-HERO-LOGO-LIST-PRELOAD-13`, `logo || icon` se renderiza
+dentro del banner como overlay centrado. El titulo textual queda debajo del
+banner sin el logo a la izquierda. El banner mantiene `max-height` acotado y no
+usa `max-height: none`.
 
 La metadata visible se limita a campos de presentacion local:
 

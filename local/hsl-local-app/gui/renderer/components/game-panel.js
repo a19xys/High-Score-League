@@ -71,7 +71,7 @@ function renderStatusBadges(readiness, membership, autoSync, bridge) {
     .join("");
 }
 
-function renderPackLogo(game) {
+function renderHeroLogo(game) {
   const logo = game?.assets?.logo || game?.assets?.icon;
 
   if (!logo?.url) {
@@ -79,19 +79,26 @@ function renderPackLogo(game) {
   }
 
   return `
-    <img class="pack-logo" src="${escapeHtml(logo.url)}" alt="${escapeHtml(game?.displayName || "Logo del pack")}">
+    <img class="game-hero__logo" src="${escapeHtml(logo.url)}" alt="">
   `;
 }
 
 function renderPackVisuals(game) {
   const hero = game?.assets?.hero || game?.assets?.cover;
+  const logo = game?.assets?.logo || game?.assets?.icon;
+  const heroClass = [
+    "game-hero-stage",
+    hero?.url ? "game-hero-stage--image" : "game-hero-stage--fallback",
+    logo?.url ? "game-hero-stage--with-logo" : "",
+  ].filter(Boolean).join(" ");
 
   return `
-    <div class="game-hero-stage" aria-hidden="true">
+    <div class="${heroClass}" aria-hidden="true">
       <div class="game-hero-media">
         ${hero?.url
           ? `<img class="game-panel__hero" src="${escapeHtml(hero.url)}" alt="">`
           : `<div class="game-panel__placeholder"><span>High Score League</span><strong>HSL</strong></div>`}
+        ${renderHeroLogo(game)}
       </div>
     </div>
   `;
@@ -157,7 +164,6 @@ export function renderGamePanel(state) {
           ${renderStatusBadges(readiness, membership, autoSync, bridge)}
         </div>
         <div class="pack-title-row">
-          ${renderPackLogo(game)}
           <div class="min-w-0">
             <div class="game-title-line">
               <h2>${escapeHtml(game?.displayName || "Space Invaders")}</h2>

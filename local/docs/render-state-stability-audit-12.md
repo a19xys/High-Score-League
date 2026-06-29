@@ -103,6 +103,17 @@ en disco queda desacoplado del control nativo.
 
 No se uso `setTimeout` ni un hack de foco.
 
+## Continuidad LOCAL-LAUNCHER-HERO-LOGO-LIST-PRELOAD-13
+
+La precarga visual de hero/logo al seleccionar un pack usa una secuencia local
+independiente (`libraryPackSelectionSequence`). No participa en la persistencia
+de preferencias, no rehidrata `libraryView`, `librarySortBy`,
+`librarySortDirection` ni `librarySidebarWidth`, y mantiene la regla de que el
+estado visible del usuario gana ante respuestas tardias.
+
+El estado pendiente de seleccion usa `pack-card--pending`. No se reintroduce
+`ui-icon--pending` ni un estado visual pendiente para los iconos del sistema.
+
 ## Iconos
 
 `renderIcon()` renderiza SVG locales con `<img>` y fallback textual. El fallback

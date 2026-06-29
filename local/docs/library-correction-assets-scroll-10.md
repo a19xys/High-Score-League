@@ -75,6 +75,11 @@ La biblioteca usa `cover` para `Portadas` e `icon` para `Lista`/`Iconos`, con
 fallback entre `cover` e `icon`. `hero` y `logo` quedan disponibles para detalle
 pero no se usan como fallback de cards de biblioteca.
 
+Desde `LOCAL-LAUNCHER-HERO-LOGO-LIST-PRELOAD-13`, la vista `Lista` conserva el
+icono de `42px` dentro de una ventana redondeada con `overflow: hidden`. La
+imagen puede recortarse ligeramente para no salirse de la fila, pero no se
+reduce el tamano visual de la miniatura.
+
 ## Seguridad
 
 Las rutas declaradas en metadata siguen rechazando:

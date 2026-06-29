@@ -111,11 +111,14 @@ function renderMetadata(pack, view) {
 
 export function renderPackCard(pack, state, view = "covers") {
   const active = isActivePack(pack, state.data);
-  const disabled = state.busy || active || pack.status === "error" || pack.status === "missing";
+  const pending = state.pendingLibraryPackId === pack.id;
+  const busyBlocksLibrarySelection = state.busy && !state.libraryActivationInProgress;
+  const disabled = busyBlocksLibrarySelection || active || pack.status === "error" || pack.status === "missing";
+  const busyAttribute = pending ? `aria-busy="true" ` : "";
   const selectableAttributes = disabled
-    ? `aria-disabled="true"`
-    : `data-action="use-library-pack" data-pack-id="${escapeHtml(pack.id)}" tabindex="0" role="button"`;
-  const cardClass = `pack-card pack-card--${view}${active ? " pack-card--active" : ""}`;
+    ? `${busyAttribute}aria-disabled="true"`
+    : `${busyAttribute}data-action="use-library-pack" data-pack-id="${escapeHtml(pack.id)}" tabindex="0" role="button"`;
+  const cardClass = `pack-card pack-card--${view}${active ? " pack-card--active" : ""}${pending ? " pack-card--pending" : ""}`;
   const subtitle = subtitleForPack(pack);
 
   return `

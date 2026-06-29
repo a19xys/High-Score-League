@@ -108,6 +108,16 @@ Para packs no activos en la biblioteca, la GUI usa solo la metadata ya cargada
 por `scanPackLibrary`. No ejecuta readiness completa ni consulta la web para
 cada pack.
 
+## Actualizacion LOCAL-LAUNCHER-HERO-LOGO-LIST-PRELOAD-13
+
+El detalle activo usa `hero || cover` como imagen ambiental y `logo || icon`
+como overlay centrado dentro del banner. El logo ya no se coloca junto al
+titulo textual de la ficha.
+
+Al activar un pack desde la biblioteca, el renderer precarga `hero || cover` y
+`logo || icon` con timeout acotado antes de pintar la nueva ficha. Esto reduce
+flashes visuales sin cambiar el contrato de assets ni la resolucion de rutas.
+
 ## Actualizacion LOCAL-LAUNCHER-LIBRARY-CORRECTION-ASSETS-SCROLL-10
 
 La biblioteca detecta assets convencionales aunque `metadata.json` no declare

@@ -14,6 +14,7 @@ const LIBRARY_SIDEBAR_MIN = 340;
 const LIBRARY_SIDEBAR_MAX = 600;
 const LIBRARY_SIDEBAR_DEFAULT = 440;
 const LAUNCHER_VERSION = "v1.0.0";
+const DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 600;
 const store = createStore({
   accountMenuOpen: false,
   activeOverlay: null,
@@ -25,6 +26,7 @@ const store = createStore({
   connectionStatus: navigator.onLine === false ? "offline" : "connected",
   data: null,
   libraryFavoriteFilter: "all",
+  libraryActivationInProgress: false,
   libraryFiltersOpen: false,
   libraryQuery: "",
   librarySeason: "all",
@@ -35,6 +37,7 @@ const store = createStore({
   libraryView: "covers",
   logs: [],
   noticeIds: [],
+  pendingLibraryPackId: null,
   theme: savedTheme,
 });
 
@@ -44,7 +47,9 @@ let pendingLibraryPreferencesPatch = {};
 let libraryPreferencesPersistSequence = 0;
 let libraryPreferenceUserRevision = 0;
 let hydratedLibraryPreferencesScopeKey = null;
+let libraryPackSelectionSequence = 0;
 let sidebarResize = null;
+const detailAssetPreloadCache = new Map();
 
 function clampSidebarWidth(value) {
   const numeric = Number(value);
@@ -121,6 +126,63 @@ function currentLibraryPreferencesPatch(patch = {}) {
     sidebarWidth: current.librarySidebarWidth,
     ...patch,
   };
+}
+
+function preloadImageUrl(url, timeoutMs = DETAIL_ASSET_PRELOAD_TIMEOUT_MS) {
+  if (!url) {
+    return Promise.resolve(true);
+  }
+
+  if (detailAssetPreloadCache.has(url)) {
+    return detailAssetPreloadCache.get(url);
+  }
+
+  const preload = new Promise((resolve) => {
+    const image = new Image();
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve(ok);
+    };
+    const timeout = window.setTimeout(() => finish(false), timeoutMs);
+
+    image.onload = () => finish(true);
+    image.onerror = () => finish(false);
+    image.src = url;
+  });
+
+  detailAssetPreloadCache.set(url, preload);
+  return preload;
+}
+
+function detailAssetUrlsFromGame(game = {}) {
+  return [
+    game.assets?.hero?.url || game.assets?.cover?.url,
+    game.assets?.logo?.url || game.assets?.icon?.url,
+  ].filter(Boolean);
+}
+
+function detailAssetUrlsFromLibraryPack(pack = {}) {
+  return [
+    pack.hero?.url || pack.cover?.url,
+    pack.logo?.url || pack.icon?.url,
+  ].filter(Boolean);
+}
+
+function preloadDetailAssetUrls(urls) {
+  const uniqueUrls = [...new Set(urls.filter(Boolean))];
+
+  if (uniqueUrls.length === 0) {
+    return Promise.resolve([]);
+  }
+
+  return Promise.all(uniqueUrls.map((url) => preloadImageUrl(url)));
+}
+
+function findLibraryPack(packId) {
+  return store.getState().data?.library?.packs?.find((pack) => pack.id === packId) || null;
 }
 
 function renderOverlay(state) {
@@ -515,6 +577,68 @@ async function switchAccount(button) {
   }
 }
 
+async function activateLibraryPackWithPreload(packId) {
+  const safePackId = String(packId || "");
+
+  if (!safePackId) return;
+
+  const requestId = ++libraryPackSelectionSequence;
+  const optimisticPack = findLibraryPack(safePackId);
+  const optimisticPreload = preloadDetailAssetUrls(detailAssetUrlsFromLibraryPack(optimisticPack));
+
+  store.setState({
+    ...closeAccountMenuState(),
+    busy: true,
+    busyLabel: "Activando pack",
+    libraryActivationInProgress: true,
+    pendingLibraryPackId: safePackId,
+  });
+
+  try {
+    const response = await window.hslLauncher.useLibraryPack(safePackId);
+
+    if (requestId !== libraryPackSelectionSequence) {
+      return;
+    }
+
+    await optimisticPreload;
+
+    if (response.state) {
+      await preloadDetailAssetUrls(detailAssetUrlsFromGame(response.state.game));
+    }
+
+    if (requestId !== libraryPackSelectionSequence) {
+      return;
+    }
+
+    store.setState({
+      busy: false,
+      busyLabel: null,
+      data: response.state || store.getState().data,
+      libraryActivationInProgress: false,
+      logs: appendLog(store.getState().logs, resultToLog("Usar pack de biblioteca", response)),
+      pendingLibraryPackId: null,
+    });
+  } catch (error) {
+    if (requestId !== libraryPackSelectionSequence) {
+      return;
+    }
+
+    store.setState({
+      busy: false,
+      busyLabel: null,
+      libraryActivationInProgress: false,
+      logs: appendLog(store.getState().logs, {
+        details: [error.message || String(error)],
+        ok: false,
+        summary: "No se pudo activar el pack desde biblioteca.",
+        title: "Usar pack de biblioteca",
+      }),
+      pendingLibraryPackId: null,
+    });
+  }
+}
+
 function bindActions() {
   root.addEventListener("input", (event) => {
     const input = event.target instanceof Element ? event.target.closest("[data-library-search]") : null;
@@ -744,7 +868,7 @@ function bindActions() {
 
     if (action === "use-library-pack") {
       const packId = button.dataset.packId;
-      runAction(action, "Activando pack", "Usar pack de biblioteca", () => window.hslLauncher.useLibraryPack(packId));
+      activateLibraryPackWithPreload(packId);
     }
 
     if (action === "open-membership-url") {

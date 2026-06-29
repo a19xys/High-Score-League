@@ -47,6 +47,13 @@ La primera capa deja de mostrar UUID, `weekId`, rutas, `packId`, HTTP/body,
 CARGADO`, `COLA CUENTA + PACK`, `Listo para competir` o `Sincronización
 automática lista`.
 
+## Continuidad LOCAL-LAUNCHER-HERO-LOGO-LIST-PRELOAD-13
+
+El logo del pack activo vive dentro del hero como overlay centrado. El banner
+mantiene altura maxima controlada y no usa `max-height: none`. Al seleccionar
+un pack desde la biblioteca, el renderer precarga `hero || cover` y
+`logo || icon` con timeout acotado para reducir flashes visuales.
+
 ## Botonera
 
 La botonera principal contiene solo:
