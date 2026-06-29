@@ -29,17 +29,20 @@ pack/
   metadata.json
   manifest.json
   assets/
-    hero.png | hero.jpg | hero.webp
-    logo.png | logo.svg
-    icon.png | icon.svg
-    cover.jpg | cover.png | cover.webp
+    hero.png | hero.jpg | hero.jpeg | hero.webp
+    logo.png | logo.jpg | logo.jpeg | logo.webp
+    icon.png | icon.jpg | icon.jpeg | icon.webp | icon.ico
+    cover.jpg | cover.jpeg | cover.png | cover.webp
   manual/
   roms/
   artwork/
   samples/
 ```
 
-`metadata.json` es opcional. Si falta, el launcher conserva el fallback actual: nombre de juego desde el registro local, `gameId`, ROM, semana y estado de cola.
+`metadata.json` es opcional. Si falta, el launcher conserva el fallback actual:
+nombre de juego desde el registro local, `gameId`, ROM, semana y estado de
+cola. Desde `LOCAL-LAUNCHER-LIBRARY-CORRECTION-ASSETS-SCROLL-10`, aunque falte
+metadata, el loader detecta assets convencionales en `pack/assets/`.
 
 En el modelo final documentado por
 `shared-mame-runtime-blueprint-1.md`, esta estructura pertenece a un pack
@@ -83,7 +86,7 @@ Los assets deben ser rutas relativas dentro del pack. Se aceptan:
 - `hero`: `.png`, `.jpg`, `.jpeg`, `.webp`;
 - `cover`: `.png`, `.jpg`, `.jpeg`, `.webp`;
 - `logo`: `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg`;
-- `icon`: `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg`.
+- `icon`: `.png`, `.jpg`, `.jpeg`, `.webp`, `.ico`, `.svg`.
 
 No se aceptan rutas absolutas, URLs remotas ni rutas con `../` que salgan del pack. Si un asset falta o no es válido, el loader devuelve un warning y la GUI usa fallback visual. No se bloquea `Abrir pack`, `Jugar` ni `Practicar`.
 
@@ -104,6 +107,29 @@ Los warnings de metadata/assets quedan en `Herramientas de desarrollo > Detalles
 Para packs no activos en la biblioteca, la GUI usa solo la metadata ya cargada
 por `scanPackLibrary`. No ejecuta readiness completa ni consulta la web para
 cada pack.
+
+## Actualizacion LOCAL-LAUNCHER-LIBRARY-CORRECTION-ASSETS-SCROLL-10
+
+La biblioteca detecta assets convencionales aunque `metadata.json` no declare
+`assets`:
+
+```text
+assets/cover.png|jpg|jpeg|webp
+assets/icon.png|jpg|jpeg|webp|ico
+assets/hero.png|jpg|jpeg|webp
+assets/logo.png|jpg|jpeg|webp
+```
+
+Prioridad:
+
+1. `metadata.assets.<kind>` valido;
+2. `assets/<kind>.*` convencional;
+3. fallback visual.
+
+En cards de biblioteca, `Portadas` usa `cover` y `Lista`/`Iconos` usan `icon`;
+si falta el asset preferido, se permite fallback entre `cover` e `icon`.
+`hero` y `logo` quedan para detalle y no se usan como fallback visible de cards
+de biblioteca.
 
 ## Pack plano hsl-invaders
 

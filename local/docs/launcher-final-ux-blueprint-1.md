@@ -621,8 +621,17 @@ instalar/reinstalar/jugar, desinstalacion y regalos sorpresa.
 La biblioteca usa `ABIERTO` como unico placeholder visible de estado de semana;
 los estados tecnicos `INSTALADO`, `CON ERRORES` y `LEGACY` salen de las cards y
 quedan para el detalle del juego. El hover de options intenta usar azul
-circuito, pero `option:checked` queda neutro. El scrollbar conserva carril y
-añade un indicador visual para el caso sin overflow.
+circuito, pero `option:checked` queda neutro. El scrollbar conserva carril
+nativo sin indicador flotante adicional.
+
+## Avance LOCAL-LAUNCHER-LIBRARY-CORRECTION-ASSETS-SCROLL-10
+
+Se elimina el falso thumb de scrollbar y se acepta la limitacion nativa de
+Chromium cuando no hay overflow. La lista gana aire entre estrella y miniatura,
+los controles `Ubicación`/`Filtros` centran icono y texto, y el foco visual se
+limita a los controles reales. `ABIERTO` vuelve a verde real por especificidad
+CSS. La biblioteca detecta `assets/cover.*` y `assets/icon.*` convencionales
+con validacion segura y mantiene fallbacks si faltan.
 
 ## Avance LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 

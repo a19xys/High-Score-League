@@ -1078,6 +1078,7 @@ button:disabled {
 }
 
 .library-search,
+.library-filter-field,
 .library-filters label,
 .library-sort label {
   display: grid;
@@ -1085,6 +1086,7 @@ button:disabled {
 }
 
 .library-search span,
+.library-filter-field span,
 .library-filters span,
 .library-sort span {
   color: var(--text-muted);
@@ -3509,9 +3511,16 @@ button:disabled .ui-icon,
 
 .library-control-button,
 .view-button {
+  align-items: center;
   min-height: 35px;
   border-radius: 7px;
   font-size: 12.5px;
+  line-height: 1;
+}
+
+.library-control-button span {
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
 }
 
@@ -3526,12 +3535,14 @@ button:disabled .ui-icon,
 }
 
 .library-search,
+.library-filter-field,
 .library-filters label,
 .library-sort label {
   gap: 4px;
 }
 
 .library-search span,
+.library-filter-field span,
 .library-filters span,
 .library-sort span {
   font-size: 10px;
@@ -3616,6 +3627,7 @@ button:disabled .ui-icon,
 .library-control-icon.ui-icon {
   width: 16px;
   height: 16px;
+  align-self: center;
   color: currentColor;
 }
 
@@ -3724,11 +3736,11 @@ button:disabled .ui-icon,
   min-height: 54px;
   border-radius: 8px;
   box-shadow: 0 8px 18px rgb(2 6 23 / 0.08);
-  padding: 6px 8px 6px 34px;
+  padding: 6px 8px 6px 50px;
 }
 
 .pack-card--list .favorite-slot {
-  left: 6px;
+  left: 10px;
   width: 28px;
   height: 28px;
 }
@@ -3879,7 +3891,6 @@ button:disabled .ui-icon,
 
 .library-section--packs {
   display: block;
-  position: relative;
   align-content: start;
   align-items: start;
   overflow-y: scroll;
@@ -3936,23 +3947,6 @@ button:disabled .ui-icon,
   justify-content: start;
 }
 
-.library-section--packs::after {
-  position: absolute;
-  z-index: 1;
-  top: 0;
-  right: 2px;
-  bottom: 0;
-  display: block;
-  width: 6px;
-  height: 100%;
-  min-height: 48px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--circuit) 46%, var(--surface));
-  content: "";
-  opacity: 0.48;
-  pointer-events: none;
-}
-
 .week-status--open {
   color: var(--ok);
 }
@@ -3972,7 +3966,18 @@ button:disabled .ui-icon,
 .week-status-badge {
   border-color: currentColor;
   background: color-mix(in srgb, currentColor 13%, rgb(2 6 23 / 0.58));
-  color: currentColor;
+}
+
+.week-status-badge.week-status--open {
+  color: var(--ok);
+}
+
+.week-status-badge.week-status--ending {
+  color: #a78bfa;
+}
+
+.week-status-badge.week-status--closed {
+  color: var(--warn);
 }
 
 .pack-card--icons .pack-card__status .week-status-badge {
@@ -3995,8 +4000,8 @@ button:disabled .ui-icon,
 
 .pack-card__subtitle-icon.ui-icon {
   align-self: center;
-  margin-top: 1px;
-  transform: translateY(1px);
+  margin-top: 0;
+  transform: none;
 }
 
 .library-view-button__icon,

@@ -8,6 +8,9 @@ La zona `.library-section--packs` usa `overflow-y: scroll` y
 `scrollbar-gutter: stable`. La barra queda reservada siempre, de modo que el
 contenido no se desplaza cuando la lista pasa de caber a necesitar scroll.
 
+Continuidad `LOCAL-LAUNCHER-LIBRARY-CORRECTION-ASSETS-SCROLL-10`: no hay thumb
+falso ni pseudo-elemento flotante; se usa solo el scrollbar nativo reservado.
+
 ## Iconos
 
 La vista `Iconos` mantiene tile fijo 1/1 y queda en:
@@ -55,6 +58,8 @@ cuenta activa.
   futuro.
 - En `Portadas`, las cards se igualan por fila sin reservar siempre dos lineas
   cuando todos los titulos son cortos.
+- La biblioteca detecta `assets/cover.*` y `assets/icon.*` convencionales; el
+  detalle puede seguir usando `hero`/`logo`.
 
 ## Futuro Documentado
 

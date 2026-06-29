@@ -5,8 +5,15 @@ const { pathToFileURL } = require("node:url");
 const ASSET_EXTENSIONS = {
   cover: new Set([".jpg", ".jpeg", ".png", ".webp"]),
   hero: new Set([".jpg", ".jpeg", ".png", ".webp"]),
-  icon: new Set([".jpg", ".jpeg", ".png", ".webp", ".svg"]),
+  icon: new Set([".jpg", ".jpeg", ".png", ".webp", ".ico", ".svg"]),
   logo: new Set([".jpg", ".jpeg", ".png", ".webp", ".svg"]),
+};
+
+const CONVENTIONAL_ASSET_EXTENSIONS = {
+  cover: [".png", ".jpg", ".jpeg", ".webp"],
+  hero: [".png", ".jpg", ".jpeg", ".webp"],
+  icon: [".png", ".jpg", ".jpeg", ".webp", ".ico"],
+  logo: [".png", ".jpg", ".jpeg", ".webp"],
 };
 
 const TEXT_FIELDS = [
@@ -121,6 +128,39 @@ function resolveAsset(kind, value, packDir, warnings) {
   };
 }
 
+function findConventionalAsset(kind, packDir, warnings) {
+  const extensions = CONVENTIONAL_ASSET_EXTENSIONS[kind] || [];
+
+  for (const extension of extensions) {
+    const relativePath = `assets/${kind}${extension}`;
+    const fullPath = path.join(packDir, relativePath);
+
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+      return resolveAsset(kind, relativePath, packDir, warnings);
+    }
+  }
+
+  return null;
+}
+
+function discoverConventionalAssets(packDir, warnings, existingAssets = {}) {
+  const assets = { ...existingAssets };
+
+  for (const kind of Object.keys(CONVENTIONAL_ASSET_EXTENSIONS)) {
+    if (assets[kind]) {
+      continue;
+    }
+
+    const asset = findConventionalAsset(kind, packDir, warnings);
+
+    if (asset) {
+      assets[kind] = asset;
+    }
+  }
+
+  return assets;
+}
+
 function normalizeMetadata(raw, packDir) {
   const warnings = [];
 
@@ -155,7 +195,7 @@ function normalizeMetadata(raw, packDir) {
     warnings.push("metadata.json: assets debe ser un objeto.");
   }
 
-  const assets = {};
+  let assets = {};
   const sourceAssets = isPlainObject(raw.assets) ? raw.assets : {};
 
   for (const kind of Object.keys(ASSET_EXTENSIONS)) {
@@ -165,6 +205,8 @@ function normalizeMetadata(raw, packDir) {
       assets[kind] = asset;
     }
   }
+
+  assets = discoverConventionalAssets(packDir, warnings, assets);
 
   if (Object.keys(assets).length > 0) {
     metadata.assets = assets;
@@ -180,11 +222,14 @@ function loadPackMetadata(packDir) {
   const metadataPath = path.join(packDir, "metadata.json");
 
   if (!fs.existsSync(metadataPath)) {
+    const warnings = [];
+    const assets = discoverConventionalAssets(packDir, warnings);
+
     return {
       loaded: false,
-      metadata: null,
+      metadata: Object.keys(assets).length > 0 ? { assets } : null,
       metadataPath,
-      warnings: [],
+      warnings,
     };
   }
 
@@ -210,6 +255,9 @@ function loadPackMetadata(packDir) {
 
 module.exports = {
   ASSET_EXTENSIONS,
+  CONVENTIONAL_ASSET_EXTENSIONS,
+  discoverConventionalAssets,
+  findConventionalAsset,
   loadPackMetadata,
   normalizeMetadata,
   resolveAsset,

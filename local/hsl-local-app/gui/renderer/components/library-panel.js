@@ -224,20 +224,20 @@ function renderFilterCard(state, packs) {
 
   return `
     <div class="library-filter-card" id="library-filter-card">
-      <label class="library-search">
-        <span>Búsqueda general</span>
-        <input type="search" placeholder="Escribe aquí..." data-library-search value="${escapeHtml(state.libraryQuery)}">
-      </label>
+      <div class="library-search">
+        <span id="library-search-label">Búsqueda general</span>
+        <input type="search" placeholder="Escribe aquí..." data-library-search value="${escapeHtml(state.libraryQuery)}" aria-labelledby="library-search-label">
+      </div>
       <div class="library-filters">
-        <label>
-          <span>Temporada</span>
-          <select data-library-season>
+        <div class="library-filter-field">
+          <span id="library-season-label">Temporada</span>
+          <select data-library-season aria-labelledby="library-season-label">
             <option value="all" ${state.librarySeason === "all" ? "selected" : ""}>Todas</option>
             ${[...seasons.entries()].map(([id, name]) => `<option value="${escapeHtml(id)}" ${state.librarySeason === id ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
             <option value="unseasoned" ${state.librarySeason === "unseasoned" ? "selected" : ""}>Sin temporada</option>
             <option value="legacy" ${state.librarySeason === "legacy" ? "selected" : ""}>Legacy</option>
           </select>
-        </label>
+        </div>
       </div>
       <div class="library-sort">
         <span class="library-filter-heading">ORDENAR</span>

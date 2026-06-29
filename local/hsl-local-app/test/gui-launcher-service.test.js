@@ -385,6 +385,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /Boolean\(pack\.favorite\)/);
   assert.match(libraryPanel, /No hay favoritos todavía/);
   assert.match(libraryPanel, /Marca algún pack como favorito/);
+  assert.match(libraryPanel, /class="library-filter-field"/);
+  assert.match(libraryPanel, /aria-labelledby="library-search-label"/);
+  assert.match(libraryPanel, /aria-labelledby="library-season-label"/);
+  assert.equal(/<label class="library-search"|<label>\s*<span>Temporada/.test(libraryPanel), false);
   assert.match(libraryPanel, /"arrow-down"/);
   assert.match(libraryPanel, /"arrow-up"/);
   assert.match(libraryPanel, /aria-label="\$\{label\}"/);
@@ -426,8 +430,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/Anadir ubicacion|Ubicaciones/.test(libraryPanel), false);
   assert.equal(/Añadir pack|Anadir pack/.test(libraryPanel), false);
   assert.match(emptyState, /library-empty-state/);
-  assert.match(packCard, /if \(view === "covers"\) return pack\.cover \|\| pack\.icon \|\| pack\.logo/);
-  assert.match(packCard, /return pack\.icon \|\| pack\.cover \|\| pack\.logo/);
+  assert.match(packCard, /if \(view === "covers"\) return pack\.cover \|\| pack\.icon/);
+  assert.match(packCard, /return pack\.icon \|\| pack\.cover/);
+  assert.equal(/pack\.logo/.test(packCard), false);
   assert.match(packCard, /pack-card__placeholder/);
   assert.match(packCard, /weekStatusMeta/);
   assert.match(packCard, /ABIERTO/);
@@ -460,18 +465,20 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.library-filter-card[\s\S]*padding: 8px/);
   assert.match(styles, /\.library-search input,\s*\n\.library-filters select,\s*\n\.library-sort select,\s*\n\.library-sort-direction-button,\s*\n\.library-favorite-filter-button[\s\S]*min-height: 35px/);
   assert.match(styles, /\.library-control-button,\s*\n\.view-button[\s\S]*min-height: 35px/);
+  assert.match(styles, /\.library-control-button,\s*\n\.view-button[\s\S]*align-items: center/);
+  assert.match(styles, /\.library-control-button span[\s\S]*align-items: center/);
   assert.match(styles, /\.library-control-button,\s*\n\.view-button[\s\S]*font-size: 12\.5px/);
   assert.match(styles, /\.library-control-button[\s\S]*gap: 7px/);
   assert.match(styles, /\.library-sort__controls[\s\S]*grid-template-columns: minmax\(0, 1fr\) 42px 42px/);
   assert.match(styles, /\.library-sort-direction-button,\s*\n\.library-favorite-filter-button[\s\S]*width: 42px/);
   assert.match(styles, /\.library-favorite-filter-button--active[\s\S]*var\(--circuit\)/);
-  assert.match(styles, /\.library-sort-direction-icon\.ui-icon,\s*\n\.library-favorite-filter-icon\.ui-icon,\s*\n\.library-control-icon\.ui-icon[\s\S]*color: currentColor/);
+  assert.match(styles, /\.library-sort-direction-icon\.ui-icon,\s*\n\.library-favorite-filter-icon\.ui-icon,\s*\n\.library-control-icon\.ui-icon[\s\S]*align-self: center[\s\S]*color: currentColor/);
   assert.match(styles, /\.library-filters select option,\s*\n\.library-sort select option[\s\S]*background: var\(--surface\)/);
   assert.match(styles, /\.library-filters select option:hover,\s*\n\.library-sort select option:hover[\s\S]*var\(--circuit\)/);
   assert.equal(/option:checked[\s\S]{0,120}var\(--circuit\)/.test(styles), false);
   assert.match(styles, /\.library-scroll[\s\S]*overflow: hidden/);
   assert.match(styles, /\.library-section--packs[\s\S]*overflow-y: scroll/);
-  assert.match(styles, /\.library-section--packs::after[\s\S]*height: 100%/);
+  assert.equal(/\.library-section--packs::after|\.library-scroll::after|library-scrollbar-thumb/.test(styles), false);
   assert.match(styles, /\.library-section--packs[\s\S]*align-content: start/);
   assert.match(styles, /\.library-section--packs[\s\S]*padding-right: 10px/);
   assert.match(styles, /\.library-section--packs[\s\S]*scrollbar-gutter: stable/);
@@ -489,6 +496,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /@container \(max-width: 340px\)[\s\S]*\.library-view-button__icon[\s\S]*display: inline-grid/);
   assert.match(styles, /\.library-pack-grid--list/);
   assert.match(styles, /\.pack-card--list[\s\S]*min-height: 54px/);
+  assert.match(styles, /\.pack-card--list[\s\S]*padding: 6px 8px 6px 52px/);
   assert.match(styles, /\.pack-card--list \.pack-card__media[\s\S]*aspect-ratio: 1 \/ 1/);
   assert.match(styles, /\.library-pack-grid--icons/);
   assert.match(styles, /--library-icon-tile: 122px/);
@@ -497,6 +505,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.library-pack-grid--icons[\s\S]*repeat\(auto-fill, var\(--library-icon-tile\)\)/);
   assert.match(styles, /\.pack-card--icons[\s\S]*width: var\(--library-icon-tile\)/);
   assert.match(styles, /\.week-status-badge[\s\S]*border-color: currentColor/);
+  assert.match(styles, /\.week-status-badge\.week-status--open[\s\S]*color: var\(--ok\)/);
   assert.match(styles, /\.pack-card--icons \.pack-card__status \.week-status-badge[\s\S]*min-height: 20px/);
   assert.match(styles, /\.pack-card--active/);
   assert.match(styles, /\.pack-card__placeholder/);
@@ -518,7 +527,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.week-status--ending[\s\S]*#a78bfa/);
   assert.match(styles, /\.week-status--closed[\s\S]*var\(--warn\)/);
   assert.match(styles, /\.pack-card__subtitle[\s\S]*align-items: center/);
-  assert.match(styles, /\.pack-card__subtitle-icon\.ui-icon[\s\S]*transform: translateY\(1px\)/);
+  assert.match(styles, /\.pack-card__subtitle-icon\.ui-icon[\s\S]*transform: none/);
   assert.match(styles, /\.pack-card--icons \.pack-card__media[\s\S]*aspect-ratio: 1 \/ 1/);
   assert.equal(/escapeHtml\(pack\.packDir|escapeHtml\(pack\.packPath/.test(packCard), false);
   assert.equal(/checkSeasonMembership|membership/.test(libraryPanel + packCard), false);
@@ -1057,6 +1066,81 @@ test("readPackForGui loads a valid external pack from a folder", async () => {
     assert.equal(result.pack.weekId, "week-1");
     assert.equal(result.pack.metadata.title, "Space Invaders Deluxe");
     assert.equal(result.pack.metadata.assets.hero.relativePath, "assets/hero.png");
+  });
+});
+
+test("pack metadata detects conventional local assets safely", async () => {
+  await withTempDir(async (dir) => {
+    await fsp.writeFile(path.join(dir, "pack.json"), JSON.stringify(validPack()), "utf8");
+    await fsp.mkdir(path.join(dir, "assets"), { recursive: true });
+    await fsp.writeFile(path.join(dir, "assets", "cover.webp"), "cover", "utf8");
+    await fsp.writeFile(path.join(dir, "assets", "icon.ico"), "icon", "utf8");
+    await fsp.writeFile(path.join(dir, "assets", "hero.jpg"), "hero", "utf8");
+    await fsp.writeFile(path.join(dir, "assets", "logo.png"), "logo", "utf8");
+
+    const result = readPackForGui(dir);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.pack.metadata.assets.cover.relativePath, "assets/cover.webp");
+    assert.equal(result.pack.metadata.assets.icon.relativePath, "assets/icon.ico");
+    assert.equal(result.pack.metadata.assets.hero.relativePath, "assets/hero.jpg");
+    assert.equal(result.pack.metadata.assets.logo.relativePath, "assets/logo.png");
+    assert.match(result.pack.metadata.assets.cover.url, /^file:/);
+    assert.equal(result.pack.metadataLoaded, false);
+  });
+});
+
+test("library uses cover and icon assets with metadata priority", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const packDir = await writeValidPack(libraryRoot);
+    await fsp.mkdir(path.join(packDir, "assets"), { recursive: true });
+    await fsp.writeFile(path.join(packDir, "assets", "cover.png"), "conventional-cover", "utf8");
+    await fsp.writeFile(path.join(packDir, "assets", "icon.png"), "conventional-icon", "utf8");
+    await fsp.writeFile(path.join(packDir, "assets", "custom-icon.png"), "metadata-icon", "utf8");
+    await fsp.writeFile(path.join(packDir, "metadata.json"), JSON.stringify({
+      assets: {
+        icon: "assets/custom-icon.png",
+      },
+    }), "utf8");
+    await setPackDirectory(config, libraryRoot);
+
+    const library = await scanPackLibrary(config);
+    const pack = library.packs[0];
+
+    assert.equal(pack.cover.relativePath, "assets/cover.png");
+    assert.equal(pack.icon.relativePath, "assets/custom-icon.png");
+    assert.equal(pack.logo, null);
+    assert.equal(pack.hero, null);
+  });
+});
+
+test("pack metadata rejects unsafe explicit assets and keeps conventional fallback", async () => {
+  await withTempDir(async (dir) => {
+    await fsp.writeFile(path.join(dir, "pack.json"), JSON.stringify(validPack()), "utf8");
+    await fsp.mkdir(path.join(dir, "assets"), { recursive: true });
+    await fsp.writeFile(path.join(dir, "assets", "cover.png"), "cover", "utf8");
+    await fsp.writeFile(path.join(dir, "assets", "icon.png"), "icon", "utf8");
+    await fsp.writeFile(path.join(dir, "metadata.json"), JSON.stringify({
+      assets: {
+        cover: "../outside.png",
+        hero: path.join(dir, "outside.png"),
+        icon: "https://example.com/icon.png",
+      },
+    }), "utf8");
+
+    const result = readPackForGui(dir);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.pack.metadata.assets.cover.relativePath, "assets/cover.png");
+    assert.equal(result.pack.metadata.assets.icon.relativePath, "assets/icon.png");
+    assert.ok(result.pack.metadataWarnings.some((warning) => /assets\.cover no puede salir/.test(warning)));
+    assert.ok(result.pack.metadataWarnings.some((warning) => /assets\.hero debe ser una ruta relativa/.test(warning)));
+    assert.ok(result.pack.metadataWarnings.some((warning) => /assets\.icon debe ser una ruta relativa/.test(warning)));
+    assert.equal(JSON.stringify(result.pack.metadata.assets).includes("https://"), false);
   });
 });
 

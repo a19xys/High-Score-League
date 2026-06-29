@@ -686,7 +686,7 @@ the collapsible `Filtros`
 card. `ORDENAR` uses a criterion select plus a compact up/down toggle for
 direction. `Semanas` keeps season groups; `Alfabético`, `Desarrollador` and
 `Año` show a flat list after filtering. The pack list scrolls inside the left
-panel with a reserved scrollbar and visual thumb indicator, and the `Iconos`
+panel with a reserved native scrollbar, and the `Iconos`
 view uses fixed-size tiles. Library cards show one placeholder week badge,
 `ABIERTO`; technical states such as installed, errors and legacy belong in the
 selected game detail.
@@ -706,6 +706,11 @@ Favorites are editable only with an active session; the legacy
 `userData/library/favorites.json` is not used as a normal anonymous profile, and
 local activity shows a login prompt instead of an empty synced state when there
 is no session.
+
+The pack library detects conventional local assets in `pack/assets/` even when
+`metadata.json` does not declare them. `cover.*` is used for `Portadas`,
+`icon.*` for `Lista` and `Iconos`, and missing assets keep the HSL initials
+fallback. Remote, absolute and traversal paths remain rejected.
 
 Before competition play and pending uploads, the GUI now checks whether the
 connected account belongs to the season for the active pack `weekId`. Known

@@ -48,8 +48,8 @@ function subtitleForPack(pack) {
 }
 
 function visualAsset(pack, view) {
-  if (view === "covers") return pack.cover || pack.icon || pack.logo;
-  return pack.icon || pack.cover || pack.logo;
+  if (view === "covers") return pack.cover || pack.icon;
+  return pack.icon || pack.cover;
 }
 
 function renderPackVisual(pack, view) {

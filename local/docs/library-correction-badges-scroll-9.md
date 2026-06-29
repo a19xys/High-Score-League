@@ -6,12 +6,12 @@ Correccion de malentendidos visuales de biblioteca.
 
 Chromium no expone una forma fiable de forzar que el thumb nativo ocupe todo el
 carril cuando el contenedor no tiene overflow. Se mantiene `overflow-y: scroll`
-y `scrollbar-gutter: stable`, y se añade un indicador visual no interactivo en
-`.library-section--packs::after` para que la sidebar conserve un thumb visible
-tambien con poco contenido.
+y `scrollbar-gutter: stable`.
 
-Cuando hay overflow, el scroll nativo sigue funcionando. El indicador visual no
-captura puntero ni crea una segunda interaccion.
+Continuidad `LOCAL-LAUNCHER-LIBRARY-CORRECTION-ASSETS-SCROLL-10`: se elimina
+el indicador visual no interactivo en `.library-section--packs::after` porque
+quedaba como una segunda linea azul fuera del carril real. Si no hay overflow,
+se prefiere carril reservado sin thumb antes que un falso thumb separado.
 
 ## Iconos
 
