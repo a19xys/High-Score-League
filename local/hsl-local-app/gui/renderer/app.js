@@ -55,6 +55,26 @@ function applyTheme(theme) {
   localStorage.setItem("hsl-launcher-theme", theme);
 }
 
+function readMainScrollState() {
+  return {
+    game: root.querySelector(".game-scroll")?.scrollTop || 0,
+    library: root.querySelector(".library-section--packs")?.scrollTop || 0,
+  };
+}
+
+function restoreMainScrollState(scrollState) {
+  const gameScroll = root.querySelector(".game-scroll");
+  const libraryScroll = root.querySelector(".library-section--packs");
+
+  if (gameScroll) {
+    gameScroll.scrollTop = scrollState.game;
+  }
+
+  if (libraryScroll) {
+    libraryScroll.scrollTop = scrollState.library;
+  }
+}
+
 function renderOverlay(state) {
   if (!state.activeOverlay) {
     return "";
@@ -131,6 +151,7 @@ function openAccountFormState(email = "") {
 
 function render() {
   const state = store.getState();
+  const scrollState = readMainScrollState();
   applyTheme(state.theme);
   const sidebarWidth = clampSidebarWidth(state.librarySidebarWidth);
 
@@ -152,6 +173,7 @@ function render() {
     ${renderStatusFooter()}
     ${renderOverlay(state)}
   `;
+  restoreMainScrollState(scrollState);
 }
 
 async function refreshState() {
@@ -464,12 +486,6 @@ function bindActions() {
       persistLibraryPreferences({ librarySortBy });
     }
 
-    if (target.matches("[data-library-sort-direction]")) {
-      const librarySortDirection = target.value;
-      store.setState({ librarySortDirection });
-      persistLibraryPreferences({ librarySortDirection });
-    }
-
   });
 
   root.addEventListener("pointerdown", (event) => {
@@ -571,6 +587,12 @@ function bindActions() {
         return;
       }
       store.setState({ ...closeAccountMenuState(), activeOverlay: "activity" });
+    }
+
+    if (action === "toggle-library-sort-direction") {
+      const librarySortDirection = button.dataset.direction === "desc" ? "desc" : "asc";
+      store.setState({ librarySortDirection });
+      persistLibraryPreferences({ librarySortDirection });
     }
 
     if (action === "close-overlay") {

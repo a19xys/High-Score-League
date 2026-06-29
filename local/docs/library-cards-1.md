@@ -159,7 +159,8 @@ sin badge textual.
 
 Las vistas quedan recompuestas con reglas de proporcion: `Portadas` mantiene
 caratula 2/3 en columnas acotadas, `Lista` queda como fila horizontal compacta
-e `Iconos` usa tile 1/1 de 92px. La subtarjeta de filtros se compacta, el
+e `Iconos` usa tile 1/1 fijo. El valor vigente tras
+`LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7` es 128px. La subtarjeta de filtros se compacta, el
 placeholder pasa a `Escribe aquí...` y la estrella activa/hover usa azul
 circuito.
 

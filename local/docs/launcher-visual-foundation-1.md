@@ -176,7 +176,7 @@ la vista `Iconos` mantiene tiles consistentes con punto de estado.
 ## Continuidad LOCAL-LAUNCHER-LIBRARY-LAYOUT-REFINEMENT-3
 
 La barra lateral queda refinada por composicion: caratulas 2/3, lista compacta,
-tiles de iconos 1/1 de 92px, filtros mas bajos, placeholder `Escribe aquí...` y
+tiles de iconos 1/1 fijos, filtros mas bajos, placeholder `Escribe aquí...` y
 favoritos centrados con azul circuito.
 
 ## Continuidad LOCAL-LAUNCHER-LIBRARY-RESPONSIVE-AUTH-GUARDS-4
@@ -189,8 +189,15 @@ neutro de inicio de sesion en lugar de una cola vacia.
 
 La sidebar baja su minimo a 320px y usa un breakpoint comun de 340px para que
 `Portadas` pase a una columna al mismo tiempo que las vistas quedan solo con
-icono. `Iconos` mantiene tile fijo de 92px y `Más filtros` solo se ilumina
+icono. `Iconos` mantiene tile fijo y `Más filtros` solo se ilumina
 cuando esta abierto.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7
+
+`Iconos` sube a tile fijo de 128px para encajar 2 columnas en sidebar minima y
+4 en sidebar maxima. `ORDENAR` usa select de criterio y toggle de direccion,
+los scrollbars oscuros usan azul circuito y abrir Actividad local conserva el
+scroll del panel de juego.
 
 ## Continuidad LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 

@@ -34,10 +34,11 @@ columna que ocupa el ancho util para evitar margenes laterales excesivos.
 
 ## Iconos
 
-`Iconos` vuelve a tile fijo:
+`Iconos` mantiene tile fijo. Desde
+`LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7` el valor vigente es:
 
 ```text
-92px
+128px
 ```
 
 La sidebar cambia columnas y huecos, pero no el tamaño del tile. El tile sigue
@@ -64,6 +65,12 @@ queda separado en `library-view-button__icon`, visible y centrado. La clase
 activa de `Mas filtros` gana especificidad con
 `.library-control-button.library-filter-toggle--open`. La tarjeta de filtros
 incluye `ORDENAR` con criterio y direccion.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7
+
+`Iconos` conserva tile fijo, ahora de 128px, para aprovechar la sidebar: 2
+columnas en 320px y 4 columnas en 600px. Se mantiene el breakpoint comun de
+340px para `Portadas` y botones solo icono.
 
 ## Fuera De Alcance
 

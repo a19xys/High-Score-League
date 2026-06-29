@@ -3,6 +3,8 @@ import { escapeHtml } from "./html.js";
 export const ICONS = Object.freeze({
   add: { fallback: "+", file: "add.svg" },
   app: { fallback: "HSL", file: "app.svg" },
+  "arrow-down": { fallback: "↓", file: "arrow-down.svg" },
+  "arrow-up": { fallback: "↑", file: "arrow-up.svg" },
   calendar: { fallback: "S", file: "calendar.svg" },
   check: { fallback: "OK", file: "check.svg" },
   "chevron-right": { fallback: ">", file: "chevron-right.svg" },

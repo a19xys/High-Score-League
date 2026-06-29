@@ -33,7 +33,7 @@ boton `Activo`, UUIDs ni rutas.
 
 ## Iconos
 
-`Iconos` usa tile estable de 92px con `aspect-ratio: 1 / 1`, estrella arriba
+`Iconos` usa tile estable de 128px con `aspect-ratio: 1 / 1`, estrella arriba
 izquierda, punto de estado arriba derecha, imagen/placeholder centrado y nombre
 de hasta dos lineas. El grid usa columnas fijas por tile, no `1fr`.
 
@@ -73,4 +73,5 @@ la UI normal.
 
 El breakpoint comun de biblioteca queda en 340px: en ese punto `Portadas` pasa
 a una columna y los botones de vista pasan a solo icono. La sidebar minima baja
-a 320px e `Iconos` conserva tile fijo de 92px.
+a 320px e `Iconos` conserva tile fijo. El valor vigente es 128px tras
+`LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7`.

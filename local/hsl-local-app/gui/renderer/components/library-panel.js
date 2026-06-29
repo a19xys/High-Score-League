@@ -171,6 +171,19 @@ function sortOption(value, current, label) {
   return `<option value="${value}" ${current === value ? "selected" : ""}>${label}</option>`;
 }
 
+function renderSortDirectionButton(sortDirection) {
+  const descending = sortDirection === "desc";
+  const nextDirection = descending ? "asc" : "desc";
+  const label = descending ? "Orden descendente" : "Orden ascendente";
+  const icon = descending ? "arrow-down" : "arrow-up";
+
+  return `
+    <button class="library-sort-direction-button" type="button" data-action="toggle-library-sort-direction" data-direction="${nextDirection}" aria-label="${label}" title="${label}">
+      ${renderIcon(icon, { className: "library-sort-direction-icon", fallback: descending ? "↓" : "↑" })}
+    </button>
+  `;
+}
+
 function renderFilterCard(state, packs) {
   if (!state.libraryFiltersOpen) {
     return "";
@@ -207,22 +220,13 @@ function renderFilterCard(state, packs) {
       <div class="library-sort">
         <span class="library-filter-heading">ORDENAR</span>
         <div class="library-sort__controls">
-          <label>
-            <span>Criterio</span>
-            <select data-library-sort-by>
-              ${sortOption("weeks", sortBy, "Semanas")}
-              ${sortOption("title", sortBy, "Alfabético")}
-              ${sortOption("developer", sortBy, "Desarrollador")}
-              ${sortOption("year", sortBy, "Año")}
-            </select>
-          </label>
-          <label class="library-sort__direction">
-            <span>Dirección</span>
-            <select data-library-sort-direction>
-              ${sortOption("asc", sortDirection, "Asc")}
-              ${sortOption("desc", sortDirection, "Desc")}
-            </select>
-          </label>
+          <select data-library-sort-by aria-label="Criterio de orden">
+            ${sortOption("weeks", sortBy, "Semanas")}
+            ${sortOption("title", sortBy, "Alfabético")}
+            ${sortOption("developer", sortBy, "Desarrollador")}
+            ${sortOption("year", sortBy, "Año")}
+          </select>
+          ${renderSortDirectionButton(sortDirection)}
         </div>
       </div>
     </div>

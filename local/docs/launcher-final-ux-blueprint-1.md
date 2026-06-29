@@ -577,7 +577,7 @@ por separado y `Iconos` usa tiles estables con punto de estado.
 
 La composicion visual de la biblioteca se afina por vista: `Portadas` mantiene
 caratulas 2/3 en columnas acotadas, `Lista` funciona como fila horizontal
-compacta e `Iconos` usa tiles 1/1 de 92px con punto de estado. La subtarjeta
+compacta e `Iconos` usa tiles 1/1 fijos con punto de estado. La subtarjeta
 `Más filtros` es mas baja, el buscador dice `Escribe aquí...` y la estrella de
 favorito se centra con estado activo/hover en azul circuito.
 
@@ -593,8 +593,15 @@ muestra un mensaje de inicio de sesion en vez de una cola vacia.
 
 El responsive de biblioteca usa un breakpoint comun de 340px: sincroniza
 `Portadas` de dos columnas a una con los botones de vista en modo solo icono.
-La sidebar puede bajar a 320px, `Iconos` mantiene tile fijo de 92px y `Más
+La sidebar puede bajar a 320px, `Iconos` mantiene tile fijo y `Más
 filtros` queda neutro cerrado, azul circuito abierto.
+
+## Avance LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7
+
+`Iconos` usa tile fijo de 128px para encajar 2 columnas en sidebar minima y 4
+en sidebar maxima. `ORDENAR` elimina labels redundantes y cambia Asc/Desc por
+toggle con iconos. En modo oscuro los scrollbars usan azul circuito y abrir
+Actividad local conserva el scroll del panel de juego.
 
 ## Avance LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1
 

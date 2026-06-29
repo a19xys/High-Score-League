@@ -46,7 +46,7 @@ Iconos
 ```
 
 La vista `Iconos` queda refinada por
-`LOCAL-LAUNCHER-LIBRARY-LAYOUT-REFINEMENT-3`: usa tiles de 92px con estrella,
+`LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7`: usa tiles de 128px con estrella,
 punto de estado, visual cuadrado y nombre de hasta dos lineas. El cambio de
 anchura de sidebar cambia columnas y huecos, no estira el tile.
 
@@ -91,6 +91,7 @@ estrecho de 340px activa a la vez `Portadas` a una columna y vistas solo icono.
 ## Continuidad LOCAL-LAUNCHER-LIBRARY-CONTROLS-FIX-SORT-6
 
 `Más filtros` mantiene el orden anterior y ahora incluye `ORDENAR` con criterio
-`Semanas`, `Alfabético`, `Desarrollador`, `Año` y direccion `Asc`/`Desc`.
+`Semanas`, `Alfabético`, `Desarrollador`, `Año` y direccion con toggle
+arriba/abajo.
 `Semanas` conserva grupos; el resto muestra lista plana. Los botones de vista
 separan icono y label para que el modo compacto nunca quede vacio.

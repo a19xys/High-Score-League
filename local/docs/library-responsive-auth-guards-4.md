@@ -17,7 +17,7 @@ La biblioteca usa container queries sobre `.library-panel`.
   `aspect-ratio: 2 / 3`.
 - `Lista`: fila horizontal compacta de altura controlada, con miniatura 1/1,
   estrella, texto y estado alineados.
-- `Iconos`: grid anclado arriba con tile fijo 1/1 de 92px.
+- `Iconos`: grid anclado arriba con tile fijo 1/1 de 128px.
 
 Los controles superiores se adaptan: `Cambiar directorio` va a la izquierda y
 `Más filtros` a la derecha. `Más filtros` solo usa acento circuito abierto. En
@@ -29,7 +29,8 @@ icono en el mismo breakpoint de 340px.
 
 El breakpoint comun queda fijado en `340px` y la sidebar minima baja a `320px`.
 Ese breakpoint coordina el paso de `Portadas` a una columna con los botones de
-vista en modo solo icono. `Iconos` mantiene tile fijo de 92px.
+vista en modo solo icono. `Iconos` mantiene tile fijo; el valor vigente es
+128px tras `LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7`.
 
 ## Continuidad LOCAL-LAUNCHER-LIBRARY-CONTROLS-FIX-SORT-6
 
@@ -37,6 +38,12 @@ El modo solo icono oculta unicamente el label de los botones de vista. La
 tarjeta `Más filtros` incorpora ordenacion compacta; solo `Semanas` agrupa por
 temporada, mientras `Alfabético`, `Desarrollador` y `Año` renderizan lista
 plana despues de aplicar busqueda y temporada.
+
+## Continuidad LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7
+
+La zona scrollable de packs gana aire con `padding-right` y gutter estable. En
+modo oscuro los scrollbars usan color circuito. Abrir el drawer de Actividad
+local conserva el scroll del panel de juego y de la biblioteca.
 
 ## Guardas Sin Sesion
 

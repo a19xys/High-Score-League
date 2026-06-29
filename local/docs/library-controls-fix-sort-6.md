@@ -65,6 +65,13 @@ La ordenacion se persiste en las preferencias de biblioteca junto a vista y
 anchura de sidebar. Con sesion se guarda por `playerKey`; sin sesion usa el
 fallback global de preferencias. No guarda tokens ni correos.
 
+## Continuidad LOCAL-LAUNCHER-LIBRARY-MICROPOLISH-SORT-SCROLL-7
+
+`ORDENAR` elimina los labels visibles `Criterio` y `Direccion`. La direccion ya
+no es un `select`: es un boton toggle con `arrow-up.svg` / `arrow-down.svg` y
+fallback local. El tile fijo de `Iconos` sube a 128px para encajar 2 columnas en
+sidebar minima y 4 en sidebar maxima.
+
 ## Fuera De Alcance
 
 No se toca MAME, runtime, plugin, captura, payloads, endpoints, RLS,
