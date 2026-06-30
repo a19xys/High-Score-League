@@ -165,6 +165,11 @@ carpeta en la primera capa, mientras la configuracion del launcher agrupa
 biblioteca de packs, runtime MAME y diagnostico avanzado. La importacion ZIP,
 catalogo remoto y actualizador quedan fuera del MVP.
 
+`LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3` refuerza el modelo local: al reescanear,
+el launcher reconcilia el detalle activo si un duplicado se resuelve, si sigue
+duplicado, si desaparece o si un pack con error pasa a valido. No borra ni mueve
+packs; solo actualiza la seleccion local.
+
 ## Biblioteca de packs
 
 La vista principal final debe ser una biblioteca visual de packs reconocidos:
@@ -215,6 +220,10 @@ Ver ranking
 ```
 
 `Jugar` debe ser el botón primario y más visible. `Practicar` es secundario. `Diagnóstico`, rutas, staging, `sync-plugin`, JSON y detalles técnicos deben vivir en una sección avanzada, no en la experiencia principal.
+
+El detalle puede mostrar un chip compacto de `Favorito` junto al titulo cuando
+el pack seleccionado esta marcado como favorito en la biblioteca. Los grupos de
+duplicados no muestran favorito porque no representan una carpeta real segura.
 
 ## Assets del pack
 

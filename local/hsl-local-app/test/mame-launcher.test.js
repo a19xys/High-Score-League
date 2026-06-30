@@ -87,6 +87,18 @@ function packV2Config(overrides = {}) {
   };
 }
 
+function sharedMameArtworkPath() {
+  return path.join("C:/HSL/runtime/mame", "artwork");
+}
+
+function sharedMameBgfxPath() {
+  return path.join("C:/HSL/runtime/mame", "bgfx");
+}
+
+function packArtworkPath() {
+  return `C:/Packs/space-invaders/artwork${path.delimiter}${sharedMameArtworkPath()}`;
+}
+
 test("packVersion 2 practice builds MAME args with shared runtime resources", () => {
   const launch = buildMameArgs(packV2Config(), "invaders", "practice");
 
@@ -99,7 +111,7 @@ test("packVersion 2 practice builds MAME args with shared runtime resources", ()
     "-rompath",
     "C:/Packs/space-invaders/roms",
     "-artpath",
-    "C:/Packs/space-invaders/artwork",
+    packArtworkPath(),
     "-samplepath",
     "C:/Packs/space-invaders/samples",
     "-cfg_directory",
@@ -134,7 +146,7 @@ test("packVersion 2 competition uses prepared pluginpath and score plugin", () =
     "-rompath",
     "C:/Packs/space-invaders/roms",
     "-artpath",
-    "C:/Packs/space-invaders/artwork",
+    packArtworkPath(),
     "-samplepath",
     "C:/Packs/space-invaders/samples",
     "-cfg_directory",
@@ -177,13 +189,13 @@ test("packVersion 2 launch applies mode-specific MAME profile", () => {
   });
   const launch = buildMameArgs(config, "invaders", "competition");
 
-  assert.deepEqual(launch.args.slice(0, 15), [
+  assert.deepEqual(launch.args.slice(0, 17), [
     "invaders",
     "-skip_gameinfo",
     "-rompath",
     "C:/Packs/space-invaders/roms",
     "-artpath",
-    "C:/Packs/space-invaders/artwork",
+    packArtworkPath(),
     "-samplepath",
     "C:/Packs/space-invaders/samples",
     "-cfg_directory",
@@ -193,7 +205,71 @@ test("packVersion 2 launch applies mode-specific MAME profile", () => {
     "bgfx",
     "-bgfx_screen_chains",
     "crt-geom",
+    "-bgfx_path",
+    sharedMameBgfxPath(),
   ]);
+});
+
+test("packVersion 2 BGFX keeps pack artwork before MAME artwork and adds bgfx_path once", () => {
+  const config = packV2Config({
+    pack: {
+      ...packV2Config().pack,
+      contract: {
+        ...packV2Config().pack.contract,
+        mame: {
+          ...packV2Config().pack.contract.mame,
+          profiles: {
+            competition: {
+              launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+            },
+          },
+        },
+      },
+    },
+    v2PluginRun: {
+      pluginName: "hsl-score",
+      runId: "run-1",
+      runRoot: "C:/HSL/userData/runtime/runs/run-1",
+      pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
+      stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
+    },
+  });
+  const launch = buildMameArgs(config, "invaders", "competition");
+
+  assert.equal(launch.args[launch.args.indexOf("-artpath") + 1], packArtworkPath());
+  assert.equal(launch.args[launch.args.indexOf("-bgfx_path") + 1], sharedMameBgfxPath());
+  assert.equal(launch.args.filter((item) => item === "-bgfx_path").length, 1);
+});
+
+test("packVersion 2 BGFX respects explicit bgfx_path", () => {
+  const explicitBgfxPath = "D:/Custom/bgfx";
+  const config = packV2Config({
+    pack: {
+      ...packV2Config().pack,
+      contract: {
+        ...packV2Config().pack.contract,
+        mame: {
+          ...packV2Config().pack.contract.mame,
+          profiles: {
+            competition: {
+              launchArgs: ["-video", "bgfx", "-bgfx_path", explicitBgfxPath],
+            },
+          },
+        },
+      },
+    },
+    v2PluginRun: {
+      pluginName: "hsl-score",
+      runId: "run-1",
+      runRoot: "C:/HSL/userData/runtime/runs/run-1",
+      pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
+      stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
+    },
+  });
+  const launch = buildMameArgs(config, "invaders", "competition");
+
+  assert.equal(launch.args.filter((item) => item === "-bgfx_path").length, 1);
+  assert.equal(launch.args[launch.args.indexOf("-bgfx_path") + 1], explicitBgfxPath);
 });
 
 test("packVersion 2 practice ignores competition-only video profile", () => {
@@ -224,6 +300,7 @@ test("packVersion 2 practice ignores competition-only video profile", () => {
   assert.equal(launch.args.includes("-plugin"), false);
   assert.equal(launch.args.includes("-video"), false);
   assert.equal(launch.args.includes("crt-geom"), false);
+  assert.equal(launch.args.includes("-bgfx_path"), false);
 });
 
 test("packVersion 2 competition pluginpath keeps isolated plugin before MAME base plugins", () => {

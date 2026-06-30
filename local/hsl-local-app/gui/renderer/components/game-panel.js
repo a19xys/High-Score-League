@@ -125,7 +125,7 @@ function renderPackMetadata(game) {
   return `
     <div class="pack-metadata-grid">
       ${items.map(([icon, label, value]) => `
-        <div class="pack-metadata-item" title="${escapeHtml(label)}: ${escapeHtml(value)}">
+        <div class="pack-metadata-item pack-metadata-item--${escapeHtml(icon)}" title="${escapeHtml(label)}: ${escapeHtml(value)}">
           ${renderIcon(icon, { className: `meta-icon icon-slot icon-slot--${icon}` })}
           <span class="meta-copy">
             <span class="meta-label">${escapeHtml(label)}</span>
@@ -209,8 +209,9 @@ export function renderGamePanel(state) {
         <div class="pack-title-row">
           <div class="min-w-0">
             <div class="game-title-line">
-              <h2>${escapeHtml(game?.displayName || "Space Invaders")}</h2>
+              <h2 title="${escapeHtml(game?.displayName || "Space Invaders")}">${escapeHtml(game?.displayName || "Space Invaders")}</h2>
               ${weekLabel ? `<span class="badge badge-muted week-chip">${renderIcon("calendar", { className: "status-icon icon-slot icon-slot--calendar" })}${escapeHtml(weekLabel)}</span>` : ""}
+              ${game?.favorite ? `<span class="game-favorite-chip" title="Favorito">${renderIcon("star-filled", { className: "status-icon game-favorite-icon", size: "sm" })}<span>Favorito</span></span>` : ""}
             </div>
           </div>
         </div>

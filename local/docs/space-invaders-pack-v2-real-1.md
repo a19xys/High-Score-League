@@ -204,6 +204,17 @@ El resumen local de lanzamiento imprime los argumentos finales. Para este pack,
 -video bgfx -bgfx_screen_chains crt-geom
 ```
 
+Desde `LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3`, cuando ese perfil usa BGFX, los
+argumentos finales tambien garantizan:
+
+```text
+-artpath <pack>/artwork;<mame>/artwork
+-bgfx_path <mame>/bgfx
+```
+
+El artwork del pack va antes que el artwork compartido de MAME. Si el pack
+declara su propio `-bgfx_path`, el launcher lo respeta y no anade otro.
+
 `Practicar` puede heredar `mame.launchArgs` comun y el perfil `practice`, pero
 no debe cargar `hsl-score` ni heredar el filtro competitivo si solo esta
 declarado en `profiles.competition`.

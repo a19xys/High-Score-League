@@ -116,7 +116,7 @@ function renderFavorite(pack, disabled, hasSession) {
     : pending ? "Guardando favorito" : favorite ? "Quitar de favoritos" : "Marcar como favorito";
 
   return `
-    <button class="favorite-slot ${favorite ? "favorite-slot--active" : ""} ${pending ? "favorite-slot--pending" : ""} ${blocked ? "favorite-slot--locked" : ""}" type="button" data-action="toggle-library-favorite" data-pack-key="${escapeHtml(pack.favoriteKey || pack.id)}" title="${label}" aria-label="${label}" aria-pressed="${favorite ? "true" : "false"}" ${disabled || blocked || pending ? "disabled" : ""}>
+    <button class="favorite-slot ${favorite ? "favorite-slot--active" : ""} ${pending ? "favorite-slot--pending" : ""} ${blocked ? "favorite-slot--locked" : ""}" type="button" data-action="toggle-library-favorite" data-pack-key="${escapeHtml(pack.favoriteKey || pack.id)}" title="${label}" aria-label="${label}" aria-pressed="${favorite ? "true" : "false"}" ${disabled || blocked ? "disabled" : ""}>
       ${renderIcon(favorite ? "star-filled" : "star-empty", { className: "favorite-icon", size: "sm" })}
     </button>
   `;

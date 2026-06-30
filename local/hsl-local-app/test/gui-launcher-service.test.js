@@ -97,6 +97,15 @@ function validV2Pack() {
   };
 }
 
+async function writeValidV2PackDir(packDir, overrides = {}) {
+  await fsp.mkdir(path.join(packDir, "roms"), { recursive: true });
+  await fsp.writeFile(path.join(packDir, "pack.json"), JSON.stringify({
+    ...validV2Pack(),
+    ...overrides,
+  }), "utf8");
+  await fsp.writeFile(path.join(packDir, "roms", "invaders.zip"), "rom", "utf8");
+}
+
 function autoSyncContext(overrides = {}) {
   return {
     config: {
@@ -576,9 +585,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
 });
 
 test("renderer product hierarchy includes connection, player actions, activity and advanced options", async () => {
-  const [app, header, gamePanel, queuePanel, devTools, styles] = await Promise.all([
+  const [app, header, copy, gamePanel, queuePanel, devTools, styles] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "header.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "copy.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "queue-panel.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "dev-tools.js"), "utf8"),
@@ -624,16 +634,21 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /persistLibraryPreferencesSoon\(\{ libraryView \}\)/);
   assert.match(app, /await window\.hslLauncher\.setLibraryPreferences\(currentLibraryPreferencesPatch\(patch\)\)/);
   assert.equal(/response\.state[\s\S]{0,400}libraryView/.test(app), false);
-  assert.match(app, /LIBRARY_SIDEBAR_MIN = 280/);
-  assert.match(app, /LIBRARY_SIDEBAR_MAX = 520/);
-  assert.match(app, /LIBRARY_SIDEBAR_DEFAULT = 380/);
+  assert.match(app, /LIBRARY_SIDEBAR_MIN = 340/);
+  assert.match(app, /LIBRARY_SIDEBAR_MAX = 600/);
+  assert.match(app, /LIBRARY_SIDEBAR_DEFAULT = 440/);
   assert.match(app, /pendingFavoriteKeys: \{\}/);
+  assert.match(app, /const favoriteSyncByKey = new Map\(\)/);
   assert.match(app, /function withFavoritePatch\(data, packKey, patch\)/);
-  assert.match(app, /current\.pendingFavoriteKeys\[packKey\]/);
+  assert.match(app, /desiredFavorite: nextFavorite/);
+  assert.match(app, /rollbackFavorite: existingSync\.inFlight \? existingSync\.rollbackFavorite : previousFavorite/);
+  assert.match(app, /sequence: existingSync\.sequence \+ 1/);
+  assert.match(app, /if \(existingSync\.inFlight\) \{\s*return;\s*\}/);
   assert.match(app, /favoritePending: true/);
   assert.match(app, /response\.ok === false/);
+  assert.match(app, /latestSync && latestSync\.sequence !== requestSequence/);
   assert.match(app, /delete latestPending\[packKey\]/);
-  assert.match(app, /favorite: previousFavorite/);
+  assert.match(app, /favorite: favoriteBeforeRequest/);
   assert.match(app, /summary: "No se pudo actualizar el favorito\."/);
   assert.match(app, /DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 600/);
   assert.match(app, /function preloadImageUrl\(url, timeoutMs = DETAIL_ASSET_PRELOAD_TIMEOUT_MS\)/);
@@ -701,6 +716,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /account-forget-button/);
   assert.match(header, /No has iniciado sesión/);
   assert.match(header, /account-mini-avatar--empty/);
+  assert.match(copy, /launcherSubtitle: "Tu compañero para jugar la liga\."/);
   assert.equal(/Cambio rápido disponible|Cambio rÃ¡pido disponible|Cuenta activa|badge badge-ok|No se guardan contrase|Las puntuaciones se guardan|No borra puntuaciones/.test(header), false);
   assert.match(gamePanel, /data-action="play"/);
   assert.match(gamePanel, /data-action="practice"/);
@@ -714,6 +730,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /game-hero__logo/);
   assert.match(gamePanel, /game-detail-body/);
   assert.match(gamePanel, /pack-metadata-grid/);
+  assert.match(gamePanel, /pack-metadata-item--\$\{escapeHtml\(icon\)\}/);
   assert.match(gamePanel, /meta-label/);
   assert.match(gamePanel, /meta-value/);
   assert.match(gamePanel, /const joinValue = \(value, splitCommas = false\) =>/);
@@ -728,6 +745,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /renderIcon\("calendar"/);
   assert.match(gamePanel, /renderIcon\("play"/);
   assert.match(gamePanel, /renderIcon\("practice"/);
+  assert.match(gamePanel, /<h2 title="\$\{escapeHtml\(game\?\.displayName \|\| "Space Invaders"\)\}"/);
+  assert.match(gamePanel, /game-favorite-chip/);
+  assert.match(gamePanel, /renderIcon\("star-filled"/);
   assert.match(gamePanel, /"manual"/);
   assert.match(gamePanel, /renderStatusBadges/);
   assert.match(gamePanel, /function renderPackErrors\(game, readiness\)/);
@@ -764,17 +784,18 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(queuePanel, /Puntuaciones con error/);
   assert.match(devTools, /data-action="check-membership"/);
   assert.match(styles, /\.app-main/);
-  assert.match(styles, /width: min\(100%, 1760px\)/);
+  assert.match(styles, /LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3-FINAL/);
+  assert.match(styles, /width: min\(100%, 1840px\)/);
   assert.match(styles, /margin-inline: auto/);
-  assert.match(styles, /var\(--library-sidebar-width, 380px\) 8px minmax\(0, 1fr\)/);
+  assert.match(styles, /var\(--library-sidebar-width, 440px\) 8px minmax\(0, 1fr\)/);
   assert.equal(/@media \(max-width: 1080px\)[\s\S]{0,160}\.app-main[\s\S]{0,80}grid-template-columns: 1fr/.test(styles), false);
-  assert.match(styles, /\.app-main::before[\s\S]*left: -100vw[\s\S]*right: calc\(100% - var\(--library-sidebar-width, 380px\)\)/);
+  assert.match(styles, /\.app-main::before[\s\S]*right: calc\(100% - var\(--library-sidebar-width, 440px\)\)[\s\S]*background: var\(--library-sidebar-bg\)/);
   assert.match(styles, /\.library-resizer/);
   assert.match(styles, /\.library-panel-region/);
   assert.match(styles, /\.game-panel-region/);
   assert.match(styles, /\.brand-lockup/);
   assert.match(styles, /\.app-icon-slot[\s\S]*border: 0[\s\S]*background: transparent/);
-  assert.match(styles, /\.app-brand-icon\.ui-icon[\s\S]*width: 34px[\s\S]*height: 34px/);
+  assert.match(styles, /\.app-brand-icon\.ui-icon[\s\S]*width: 42px[\s\S]*height: 42px/);
   assert.match(styles, /\.session-chip--button \.account-mini-avatar[\s\S]*width: 38px[\s\S]*height: 38px/);
   assert.match(styles, /\.action-grid/);
   assert.match(styles, /\.activity-summary-card/);
@@ -794,13 +815,12 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.status-icon/);
   assert.match(styles, /\.account-icon/);
   assert.match(styles, /LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1/);
-  assert.match(styles, /\.app-main[\s\S]*minmax\(280px, 380px\)/);
   assert.match(styles, /\.game-scroll[\s\S]*scrollbar-gutter: stable both-edges/);
-  assert.match(styles, /\.game-detail-card[\s\S]*width: min\(100%, 1120px\)/);
+  assert.match(styles, /\.game-detail-card[\s\S]*width: min\(100%, 1280px\)/);
   assert.match(styles, /\.game-detail-card[\s\S]*justify-self: center/);
   assert.match(styles, /\.game-hero-stage[\s\S]*aspect-ratio: 1920 \/ 620/);
   assert.match(styles, /\.game-hero-stage[\s\S]*width: 100%/);
-  assert.match(styles, /\.game-hero-stage[\s\S]*max-height: 340px/);
+  assert.match(styles, /\.game-hero-stage[\s\S]*max-height: 330px/);
   assert.match(styles, /\.game-hero-stage[\s\S]*margin-inline: auto/);
   assert.equal(/\.game-hero-stage[\s\S]{0,220}max-height:\s*none/.test(styles), false);
   assert.match(styles, /\.game-hero__logo[\s\S]*position: absolute/);
@@ -811,13 +831,17 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-hero__logo[\s\S]*transform: translate\(-50%, -50%\)/);
   assert.match(styles, /\.game-panel__hero[\s\S]*object-fit: cover/);
   assert.match(styles, /\.game-detail-body/);
-  assert.match(styles, /\.pack-metadata-grid[\s\S]*repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /@media \(max-width: 1080px\)[\s\S]*\.pack-metadata-grid[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.pack-metadata-grid[\s\S]*grid-template-areas:\s*"developer year"\s*"genre playtime"/);
+  assert.match(styles, /@container \(max-width: 720px\)[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
+  assert.match(styles, /@container \(max-width: 720px\)[\s\S]*\.pack-metadata-item \.icon-slot,[\s\S]*\.pack-metadata-item \.meta-icon\.ui-icon[\s\S]*display: none/);
   assert.match(styles, /\.pack-metadata-item[\s\S]*border-right: 1px solid var\(--border\)/);
   assert.match(styles, /\.meta-label/);
   assert.match(styles, /\.meta-value/);
-  assert.match(styles, /\.game-detail-card \.primary-action-tile[\s\S]*min-height: 86px/);
+  assert.match(styles, /\.game-detail-card \.primary-action-tile[\s\S]*min-height: 88px/);
   assert.match(styles, /\.game-detail-card \.compact-action[\s\S]*min-height: 64px/);
+  assert.match(styles, /\.play-button \.ui-icon__fallback,[\s\S]*\.secondary-action \.ui-icon__fallback[\s\S]*display: none !important/);
+  assert.match(styles, /\.favorite-slot--pending[\s\S]*opacity: 1[\s\S]*cursor: pointer/);
+  assert.match(styles, /\.pack-card--icons \.pack-card__status-dot[\s\S]*border: 0[\s\S]*box-shadow: none/);
   assert.match(styles, /\.action-button-label[\s\S]*overflow: visible/);
   assert.match(styles, /\.game-detail-card \.activity-summary-card/);
   assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*aspect-ratio: 2 \/ 3/);
@@ -850,7 +874,7 @@ test("manual and ranking IPC stay in main process", async () => {
   assert.match(main, /shell\.openPath/);
   assert.match(main, /launcher:open-ranking/);
   assert.match(main, /shell\.openExternal/);
-  assert.match(main, /minWidth: 920/);
+  assert.match(main, /minWidth: 1180/);
   assert.match(main, /minHeight: 620/);
   assert.match(preload, /openManual/);
   assert.match(preload, /openRanking/);
@@ -1552,9 +1576,7 @@ test("activateLibraryPack selecciona grupo duplicado sin abrir el pack equivocad
     const second = path.join(libraryRoot, "Second");
 
     for (const packDir of [first, second]) {
-      await fsp.mkdir(path.join(packDir, "roms"), { recursive: true });
-      await fsp.writeFile(path.join(packDir, "pack.json"), JSON.stringify(validV2Pack()), "utf8");
-      await fsp.writeFile(path.join(packDir, "roms", "invaders.zip"), "rom", "utf8");
+      await writeValidV2PackDir(packDir);
     }
 
     await setPackDirectory(config, libraryRoot);
@@ -1572,6 +1594,111 @@ test("activateLibraryPack selecciona grupo duplicado sin abrir el pack equivocad
     assert.equal(result.state.readiness.canPractice, false);
     assert.equal(result.state.readiness.canPlayCompetition, false);
     assert.deepEqual(result.state.game.duplicatePaths.sort(), [first, second].sort());
+  });
+});
+
+test("rescanPackDirectory reconcilia un duplicado resuelto con el pack real", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const first = path.join(libraryRoot, "First");
+    const second = path.join(libraryRoot, "Second");
+
+    await writeValidV2PackDir(first);
+    await writeValidV2PackDir(second);
+    await setPackDirectory(config, libraryRoot);
+    const library = await scanPackLibrary(config);
+
+    await activateLibraryPack(library.packs[0].id, { config });
+    await fsp.rm(second, { recursive: true, force: true });
+    const result = await rescanPackDirectory({ config });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.state.bridge.mode, "opened-pack");
+    assert.equal(result.state.bridge.packRoot, first);
+    assert.equal(result.state.game.duplicateGroup, null);
+  });
+});
+
+test("rescanPackDirectory mantiene actualizado un duplicado que sigue existiendo", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const first = path.join(libraryRoot, "First");
+    const second = path.join(libraryRoot, "Second");
+    const third = path.join(libraryRoot, "Third");
+
+    await writeValidV2PackDir(first);
+    await writeValidV2PackDir(second);
+    await setPackDirectory(config, libraryRoot);
+    const library = await scanPackLibrary(config);
+
+    await activateLibraryPack(library.packs[0].id, { config });
+    await fsp.rm(second, { recursive: true, force: true });
+    await writeValidV2PackDir(third);
+    const result = await rescanPackDirectory({ config });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.state.bridge.mode, "duplicate-group");
+    assert.deepEqual(result.state.game.duplicatePaths.sort(), [first, third].sort());
+  });
+});
+
+test("rescanPackDirectory limpia un duplicado seleccionado que desaparece", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const first = path.join(libraryRoot, "First");
+    const second = path.join(libraryRoot, "Second");
+
+    await writeValidV2PackDir(first);
+    await writeValidV2PackDir(second);
+    await setPackDirectory(config, libraryRoot);
+    const library = await scanPackLibrary(config);
+
+    await activateLibraryPack(library.packs[0].id, { config });
+    await fsp.rm(first, { recursive: true, force: true });
+    await fsp.rm(second, { recursive: true, force: true });
+    const result = await rescanPackDirectory({ config });
+
+    assert.equal(result.ok, true);
+    assert.notEqual(result.state.bridge.mode, "duplicate-group");
+    assert.deepEqual(result.state.game.duplicatePaths, []);
+  });
+});
+
+test("rescanPackDirectory reconcilia un pack con error que pasa a valido", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const packDir = path.join(libraryRoot, "Broken");
+
+    await fsp.mkdir(packDir, { recursive: true });
+    await fsp.writeFile(path.join(packDir, "pack.json"), "{", "utf8");
+    await setPackDirectory(config, libraryRoot);
+    let library = await scanPackLibrary(config);
+    const selected = await activateLibraryPack(library.packs[0].id, { config });
+
+    assert.equal(selected.ok, true);
+    assert.equal(selected.state.bridge.mode, "pack-issue");
+
+    await writeValidV2PackDir(packDir);
+    library = await scanPackLibrary(config);
+    assert.equal(library.packs[0].status, "ok");
+
+    const result = await rescanPackDirectory({ config });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.state.bridge.mode, "opened-pack");
+    assert.equal(result.state.bridge.packRoot, packDir);
   });
 });
 

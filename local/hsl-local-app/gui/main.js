@@ -8,7 +8,7 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1240,
     height: 820,
-    minWidth: 920,
+    minWidth: 1180,
     minHeight: 620,
     backgroundColor: "#0f172a",
     title: "High Score League Launcher",

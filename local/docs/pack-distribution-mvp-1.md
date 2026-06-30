@@ -71,6 +71,11 @@ El launcher puede:
 
 El launcher no borra, mueve ni modifica packs al cambiar carpeta o reescanear.
 
+Tras `LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3`, reescanear tambien reconcilia el
+detalle activo: si un duplicado se resuelve a una sola carpeta se abre el pack
+real, si sigue duplicado se actualizan las rutas, si desaparece se limpia el
+conflicto y si un pack roto pasa a valido se activa.
+
 ## Importacion manual
 
 Para este MVP no se implementa importacion ZIP. La opcion segura para primera
@@ -177,6 +182,17 @@ MAME compartido
 ```
 
 Esta tarea no cambia endpoint, payload competitivo, RLS ni membership.
+
+Para packs v2 con BGFX, el launcher combina recursos del pack y recursos del
+runtime MAME compartido:
+
+```text
+-artpath <pack>/artwork;<mame>/artwork
+-bgfx_path <mame>/bgfx
+```
+
+El pack no debe copiar recursos BGFX ni artwork base de MAME. El runtime
+compartido aporta esos recursos desde su propia instalacion.
 
 ## Errores visibles para jugador
 

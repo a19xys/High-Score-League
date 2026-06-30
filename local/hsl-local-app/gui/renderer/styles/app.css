@@ -2426,6 +2426,440 @@ main,
   }
 }
 
+/* LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3-FINAL: final cascade overrides. */
+body {
+  min-width: 1180px;
+}
+
+.app-main {
+  --library-sidebar-bg: color-mix(in srgb, var(--surface) 74%, transparent);
+  width: min(100%, 1840px);
+  grid-template-columns: var(--library-sidebar-width, 440px) 8px minmax(0, 1fr);
+}
+
+.app-main::before {
+  right: calc(100% - var(--library-sidebar-width, 440px));
+  background: var(--library-sidebar-bg);
+}
+
+.library-panel-region {
+  background: var(--library-sidebar-bg);
+}
+
+@media (max-width: 1080px) {
+  .app-main {
+    grid-template-columns: var(--library-sidebar-width, 440px) 8px minmax(0, 1fr);
+  }
+}
+
+.game-panel-region,
+.game-scroll,
+.game-detail-card {
+  min-width: 0;
+}
+
+.game-scroll {
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.game-detail-card {
+  container-type: inline-size;
+  width: min(100%, 1280px);
+}
+
+.game-hero-stage {
+  max-height: 330px;
+}
+
+.brand-lockup {
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+}
+
+.app-icon-slot {
+  width: 46px;
+  height: 46px;
+  border: 0;
+  background: transparent;
+}
+
+.app-brand-icon.ui-icon {
+  width: 42px;
+  height: 42px;
+}
+
+.game-title-line {
+  align-items: flex-end;
+  gap: 9px;
+}
+
+.game-detail-card h2 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--text);
+  font-size: 38px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.week-chip {
+  align-items: center;
+  gap: 2px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.game-favorite-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-end;
+  gap: 4px;
+  min-height: 24px;
+  border: 1px solid color-mix(in srgb, var(--circuit) 34%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--circuit) 10%, transparent);
+  color: var(--circuit);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  padding-inline: 8px;
+  text-transform: uppercase;
+}
+
+.game-favorite-icon.ui-icon {
+  width: 13px;
+  height: 13px;
+  color: currentColor;
+}
+
+.pack-metadata-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(150px, 0.75fr);
+  grid-template-areas:
+    "developer year"
+    "genre playtime";
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-muted) 58%, transparent);
+}
+
+.pack-metadata-item {
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.pack-metadata-item--developer { grid-area: developer; }
+.pack-metadata-item--year { grid-area: year; }
+.pack-metadata-item--genre { grid-area: genre; }
+.pack-metadata-item--playtime { grid-area: playtime; }
+
+.pack-metadata-item--year,
+.pack-metadata-item--playtime {
+  border-right: 0;
+}
+
+.pack-metadata-item--genre,
+.pack-metadata-item--playtime {
+  border-bottom: 0;
+}
+
+.meta-label {
+  white-space: nowrap;
+}
+
+@container (max-width: 720px) {
+  .pack-metadata-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "developer developer"
+      "genre genre"
+      "year playtime";
+  }
+
+  .pack-metadata-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pack-metadata-item .icon-slot,
+  .pack-metadata-item .meta-icon.ui-icon {
+    display: none;
+  }
+
+  .pack-metadata-item--developer,
+  .pack-metadata-item--genre,
+  .pack-metadata-item--year {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .pack-metadata-item--playtime {
+    border-bottom: 0;
+  }
+}
+
+.game-detail-card .play-button,
+.game-detail-card .primary-action-tile {
+  min-height: 88px;
+}
+
+.game-detail-card .compact-action {
+  min-height: 64px;
+}
+
+.game-detail-card .play-button span,
+.game-detail-card .secondary-action span {
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.play-button .ui-icon__fallback,
+.secondary-action .ui-icon__fallback {
+  display: none !important;
+}
+
+.favorite-slot--pending {
+  opacity: 1;
+  cursor: pointer;
+}
+
+.pack-card--icons .pack-card__status--dot {
+  border: 0;
+  background: transparent !important;
+  box-shadow: none;
+  outline: 0;
+}
+
+.pack-card--icons .pack-card__status-dot {
+  border: 0;
+  box-shadow: none;
+}
+
+/* LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3: stable shell, detail and action fixes. */
+body {
+  min-width: 1180px;
+}
+
+.app-main {
+  --library-sidebar-bg: color-mix(in srgb, var(--surface) 74%, transparent);
+  width: min(100%, 1840px);
+  grid-template-columns: var(--library-sidebar-width, 440px) 8px minmax(0, 1fr);
+}
+
+.app-main::before {
+  right: calc(100% - var(--library-sidebar-width, 440px));
+  background: var(--library-sidebar-bg);
+}
+
+.library-panel-region {
+  background: var(--library-sidebar-bg);
+}
+
+@media (max-width: 1080px) {
+  .app-main {
+    grid-template-columns: var(--library-sidebar-width, 440px) 8px minmax(0, 1fr);
+  }
+}
+
+.game-panel-region,
+.game-scroll,
+.game-detail-card {
+  min-width: 0;
+}
+
+.game-scroll {
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.game-detail-card {
+  container-type: inline-size;
+  width: min(100%, 1280px);
+}
+
+.game-hero-stage {
+  max-height: 330px;
+}
+
+.brand-lockup {
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+}
+
+.app-icon-slot {
+  width: 46px;
+  height: 46px;
+  border: 0;
+  background: transparent;
+}
+
+.app-brand-icon.ui-icon {
+  width: 42px;
+  height: 42px;
+}
+
+.game-title-line {
+  align-items: flex-end;
+  gap: 9px;
+}
+
+.game-detail-card h2 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--text);
+  font-size: 38px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.week-chip {
+  align-items: center;
+  gap: 2px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.game-favorite-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-end;
+  gap: 4px;
+  min-height: 24px;
+  border: 1px solid color-mix(in srgb, var(--circuit) 34%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--circuit) 10%, transparent);
+  color: var(--circuit);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  padding-inline: 8px;
+  text-transform: uppercase;
+}
+
+.game-favorite-icon.ui-icon {
+  width: 13px;
+  height: 13px;
+  color: currentColor;
+}
+
+.pack-metadata-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(150px, 0.75fr);
+  grid-template-areas:
+    "developer year"
+    "genre playtime";
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-muted) 58%, transparent);
+}
+
+.pack-metadata-item {
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.pack-metadata-item--developer { grid-area: developer; }
+.pack-metadata-item--year { grid-area: year; }
+.pack-metadata-item--genre { grid-area: genre; }
+.pack-metadata-item--playtime { grid-area: playtime; }
+
+.pack-metadata-item--year,
+.pack-metadata-item--playtime {
+  border-right: 0;
+}
+
+.pack-metadata-item--genre,
+.pack-metadata-item--playtime {
+  border-bottom: 0;
+}
+
+.meta-label {
+  white-space: nowrap;
+}
+
+@container (max-width: 720px) {
+  .pack-metadata-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "developer developer"
+      "genre genre"
+      "year playtime";
+  }
+
+  .pack-metadata-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pack-metadata-item .icon-slot,
+  .pack-metadata-item .meta-icon.ui-icon {
+    display: none;
+  }
+
+  .pack-metadata-item--developer,
+  .pack-metadata-item--genre,
+  .pack-metadata-item--year {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .pack-metadata-item--playtime {
+    border-bottom: 0;
+  }
+}
+
+.game-detail-card .play-button,
+.game-detail-card .primary-action-tile {
+  min-height: 88px;
+}
+
+.game-detail-card .compact-action {
+  min-height: 64px;
+}
+
+.game-detail-card .play-button span,
+.game-detail-card .secondary-action span {
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.play-button .ui-icon__fallback,
+.secondary-action .ui-icon__fallback {
+  display: none !important;
+}
+
+.favorite-slot--pending {
+  opacity: 1;
+  cursor: pointer;
+}
+
+.pack-card--icons .pack-card__status--dot {
+  border: 0;
+  background: transparent !important;
+  box-shadow: none;
+  outline: 0;
+}
+
+.pack-card--icons .pack-card__status-dot {
+  border: 0;
+  box-shadow: none;
+}
+
 /* LOCAL-LAUNCHER-LIBRARY-CARDS-1: visual pack library cards and sidebar resize. */
 .app-main {
   grid-template-columns: var(--library-sidebar-width, 380px) 8px minmax(0, 1fr);

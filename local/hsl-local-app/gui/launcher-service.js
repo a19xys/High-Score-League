@@ -227,8 +227,8 @@ function deriveLibraryIssueConfig(baseConfig, item) {
   };
 }
 
-function getEffectiveConfig() {
-  const baseConfig = loadRuntimeConfig();
+function getEffectiveConfig(baseConfigOverride = null) {
+  const baseConfig = baseConfigOverride || loadRuntimeConfig();
 
   if (activeDuplicateGroup) {
     return deriveDuplicateGroupConfig(baseConfig, activeDuplicateGroup);
@@ -622,9 +622,12 @@ async function getScopedGuiConfig(baseConfig, session) {
   };
 }
 
-async function getLauncherContext() {
-  await ensureRememberedPackLoaded();
-  const baseConfig = getEffectiveConfig();
+async function getLauncherContext(options = {}) {
+  if (!options.config) {
+    await ensureRememberedPackLoaded();
+  }
+
+  const baseConfig = getEffectiveConfig(options.config || null);
   const session = await getAuthState(baseConfig);
   const accountsStore = session.hasSession
     ? await rememberSessionAccount(baseConfig, session)
@@ -688,6 +691,14 @@ async function stateFromContext(context) {
     })),
     preferences: libraryPreferences,
   };
+  const activeLibraryPack = libraryState.packs.find((pack) => (
+    (config.packRoot && pack.packDir === config.packRoot) ||
+    (config.pack?.packId && pack.packId === config.pack.packId && !pack.duplicatePackId)
+  ));
+  const game = {
+    ...getGameState(config),
+    favorite: Boolean(activeLibraryPack?.favorite),
+  };
   const readiness = evaluatePackReadiness({
     autoSync,
     config,
@@ -702,7 +713,7 @@ async function stateFromContext(context) {
     autoSync,
     bridge: getBridgeState(config),
     configPath: config.configPath,
-    game: getGameState(config),
+    game,
     library: libraryState,
     membership,
     notices: recentPackNotices,
@@ -1001,7 +1012,7 @@ async function openPackManual(options = {}) {
   return {
     action: "open-manual",
     ...result,
-    state: options.includeState === false ? null : await getLauncherState(),
+    state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
   };
 }
 
@@ -1018,7 +1029,7 @@ async function openPackRanking(options = {}) {
   return {
     action: "open-ranking",
     ...result,
-    state: options.includeState === false ? null : await getLauncherState(),
+    state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
   };
 }
 
@@ -1065,17 +1076,22 @@ function getBridgeState(config) {
 }
 
 async function getLauncherState(options = {}) {
-  const context = await getLauncherContext();
+  const context = await getLauncherContext({ config: options.config || null });
 
   if (options.attemptAutoSync) {
     const result = await runAutoSyncIfEligible(context);
 
     if (result.attempted) {
-      return stateFromContext(await getLauncherContext());
+      return stateFromContext(await getLauncherContext({ config: options.config || null }));
     }
   }
 
   return stateFromContext(context);
+}
+
+function stateOptionsForAction(options = {}, config = null) {
+  const stateConfig = options.config || options.rememberConfig || config;
+  return stateConfig ? { config: stateConfig } : {};
 }
 
 async function recheckSeasonMembership() {
@@ -1659,7 +1675,7 @@ async function activatePackDirectory(packDir, options = {}) {
       summary: result.code === "missing_pack_json"
         ? "No encuentro pack.json en esta carpeta. Elige la carpeta raiz del pack o crea un pack.json a partir del ejemplo de desarrollo."
         : "El pack no parece valido para High Score League.",
-      state: options.includeState === false ? null : await getLauncherState(),
+      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options)),
     };
   }
 
@@ -1695,7 +1711,10 @@ async function activatePackDirectory(packDir, options = {}) {
       weekId: result.pack.weekId,
     },
     summary: options.summary || "Pack abierto correctamente.",
-    state: options.includeState === false ? null : await getLauncherState({ attemptAutoSync: true }),
+    state: options.includeState === false ? null : await getLauncherState({
+      ...stateOptionsForAction(options),
+      attemptAutoSync: true,
+    }),
   };
 }
 
@@ -1751,7 +1770,7 @@ async function chooseSharedMameRuntimeFromGui(mameExecutablePath, options = {}) 
       ok: runtime.available,
       runtime,
       summary,
-      state: options.includeState === false ? null : await getLauncherState(),
+      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
     };
   } catch (error) {
     return {
@@ -1759,7 +1778,7 @@ async function chooseSharedMameRuntimeFromGui(mameExecutablePath, options = {}) 
       lines: [normalizeMessage(error)],
       ok: false,
       summary: "No se pudo configurar MAME compartido.",
-      state: options.includeState === false ? null : await getLauncherState(),
+      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
     };
   }
 }
@@ -1785,7 +1804,7 @@ async function openSharedMameRuntimeDirectory(options = {}) {
       lines: ["Todavia no has configurado MAME compartido."],
       ok: false,
       summary: "Todavia no has configurado MAME compartido.",
-      state: options.includeState === false ? null : await getLauncherState(),
+      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
     };
   }
 
@@ -1809,7 +1828,7 @@ async function openSharedMameRuntimeDirectory(options = {}) {
       lines: [normalizeMessage(error)],
       ok: false,
       summary: "No se pudo abrir la carpeta de MAME.",
-      state: options.includeState === false ? null : await getLauncherState(),
+      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
     };
   }
 
@@ -1832,7 +1851,7 @@ async function openConfiguredPackDirectory(options = {}) {
       lines: ["Todavia no has elegido un directorio de packs."],
       ok: false,
       summary: "Todavia no has elegido un directorio de packs.",
-      state: options.includeState === false ? null : await getLauncherState(),
+      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
     };
   }
 
@@ -1842,7 +1861,7 @@ async function openConfiguredPackDirectory(options = {}) {
       lines: ["No encuentro el directorio de packs. Puedes cambiarlo o volver a crearlo."],
       ok: false,
       summary: "No encuentro el directorio de packs.",
-      state: options.includeState === false ? null : await getLauncherState(),
+      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
     };
   }
 
@@ -1871,13 +1890,110 @@ async function openConfiguredPackDirectory(options = {}) {
   };
 }
 
+function matchesLibrarySelection(pack, selected) {
+  if (!pack || !selected) {
+    return false;
+  }
+
+  return Boolean(
+    (selected.id && pack.id === selected.id) ||
+    (selected.instanceKey && pack.instanceKey === selected.instanceKey) ||
+    (selected.packDir && pack.packDir === selected.packDir) ||
+    (selected.packId && pack.packId === selected.packId)
+  );
+}
+
+async function reconcileActiveLibrarySelection(config, library) {
+  if (activeDuplicateGroup) {
+    const packId = activeDuplicateGroup.packId;
+    const matches = library.packs.filter((pack) => pack.packId && pack.packId === packId);
+
+    if (matches.length === 0) {
+      activeDuplicateGroup = null;
+      return;
+    }
+
+    const duplicate = matches.find((pack) => pack.duplicateGroup);
+
+    if (duplicate) {
+      activeDuplicateGroup = {
+        ...duplicate,
+        selectedAt: activeDuplicateGroup.selectedAt,
+      };
+      return;
+    }
+
+    if (matches.length === 1 && matches[0].packDir) {
+      activeDuplicateGroup = null;
+      activeLibraryIssue = null;
+      const response = await activatePackDirectory(matches[0].packDir, {
+        action: "rescan-pack-directory",
+        includeState: false,
+        rememberConfig: config,
+        summary: "Pack reconciliado tras reescaneo.",
+      });
+
+      if (!response.ok && matches[0].status === "error") {
+        activeOpenedPack = null;
+        activeLibraryIssue = {
+          ...matches[0],
+          selectedAt: new Date().toISOString(),
+        };
+      }
+    }
+
+    return;
+  }
+
+  if (activeLibraryIssue) {
+    const match = library.packs.find((pack) => matchesLibrarySelection(pack, activeLibraryIssue));
+
+    if (!match) {
+      activeLibraryIssue = null;
+      return;
+    }
+
+    if (match.duplicateGroup) {
+      activeOpenedPack = null;
+      activeDuplicateGroup = {
+        ...match,
+        selectedAt: activeLibraryIssue.selectedAt,
+      };
+      activeLibraryIssue = null;
+      return;
+    }
+
+    if (match.status === "error") {
+      activeLibraryIssue = {
+        ...match,
+        selectedAt: activeLibraryIssue.selectedAt,
+      };
+      return;
+    }
+
+    if (match.packDir) {
+      activeLibraryIssue = null;
+      await activatePackDirectory(match.packDir, {
+        action: "rescan-pack-directory",
+        includeState: false,
+        rememberConfig: config,
+        summary: "Pack reconciliado tras reescaneo.",
+      });
+    }
+  }
+}
+
 async function rescanPackDirectory(options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  const library = await scanPackLibrary(config);
+  await reconcileActiveLibrarySelection(config, library);
+
   return {
     action: "rescan-pack-directory",
     lines: ["Biblioteca reescaneada."],
     ok: true,
     summary: "Biblioteca reescaneada.",
-    state: options.includeState === false ? null : await getLauncherState(),
+    state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
   };
 }
 
@@ -1967,7 +2083,7 @@ async function activateLibraryPack(packId, options = {}) {
       lines: ["No se encontro ese pack en la biblioteca."],
       ok: false,
       summary: "No se encontro ese pack en la biblioteca.",
-      state: options.includeState === false ? null : await getLauncherState(),
+      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
     };
   }
 
@@ -1993,7 +2109,7 @@ async function activateLibraryPack(packId, options = {}) {
         packId: pack.packId || null,
       },
       summary: "Pack duplicado seleccionado.",
-      state: options.includeState === false ? null : await getLauncherState(),
+      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
     };
   }
 
@@ -2020,7 +2136,7 @@ async function activateLibraryPack(packId, options = {}) {
       ],
       ok: true,
       summary: "Pack con errores seleccionado.",
-      state: options.includeState === false ? null : await getLauncherState(),
+      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
     };
   }
 

@@ -70,3 +70,17 @@ Los tests de renderer protegen:
 - descripcion antes de metadata;
 - metadata 4 columnas con fallback 2x2;
 - jerarquia entre acciones principales y secundarias.
+
+## Hotfix posterior
+
+`LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3` reemplaza algunos valores de esta tarea:
+
+- ventana minima: `1180x620`;
+- sidebar: `340px` a `600px`, default `440px`;
+- shell maxima: `1840px`;
+- detalle maximo: `1280px`;
+- hero maximo: `330px`;
+- metadata: layout 2x2 principal con container query estrecha.
+
+Tambien corrige BGFX/`crt-geom`, favoritos optimistas y reconciliacion de
+duplicados tras reescaneo.

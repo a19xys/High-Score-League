@@ -84,7 +84,48 @@ function getPackV2ModeProfile(config, mode) {
   return config.pack?.contract?.mame?.profiles?.[mode] || {};
 }
 
-function addPackV2ResourceArgs(args, config, mode) {
+function uniquePathList(entries) {
+  const seen = new Set();
+  const result = [];
+
+  for (const entry of entries) {
+    if (!entry) {
+      continue;
+    }
+
+    const key = String(entry).trim().replace(/[\\/]+$/, "").toLowerCase();
+
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(entry);
+  }
+
+  return result;
+}
+
+function getArgValue(args, option) {
+  const index = args.lastIndexOf(option);
+
+  return index >= 0 ? args[index + 1] || null : null;
+}
+
+function hasArg(args, option) {
+  return args.includes(option);
+}
+
+function usesBgfx(args) {
+  return args.some((value, index) => (
+    value === "-bgfx_screen_chains" ||
+    value === "-bgfx_path" ||
+    value.startsWith("-bgfx_") ||
+    (value === "-video" && args[index + 1] === "bgfx")
+  ));
+}
+
+function addPackV2ResourceArgs(args, config, mode, mameRoot) {
   const mame = config.pack?.contract?.mame || {};
   const profile = getPackV2ModeProfile(config, mode);
 
@@ -95,7 +136,9 @@ function addPackV2ResourceArgs(args, config, mode) {
   args.push("-rompath", mame.romDir);
 
   if (mame.artworkDir) {
-    args.push("-artpath", mame.artworkDir);
+    const mameArtworkDir = mameRoot ? path.join(mameRoot, "artwork") : null;
+    const artpath = uniquePathList([mame.artworkDir, mameArtworkDir]).join(path.delimiter);
+    args.push("-artpath", artpath);
   }
 
   if (mame.sampleDir) {
@@ -108,6 +151,10 @@ function addPackV2ResourceArgs(args, config, mode) {
 
   args.push(...validateLaunchArgs(mame.launchArgs));
   args.push(...validateLaunchArgs(profile.launchArgs, `mame.profiles.${mode}.launchArgs`));
+
+  if (mameRoot && usesBgfx(args) && !hasArg(args, "-bgfx_path")) {
+    args.push("-bgfx_path", path.join(mameRoot, "bgfx"));
+  }
 }
 
 function addDefaultLaunchArgs(args) {
@@ -135,7 +182,7 @@ function buildPackV2MameArgs(config, rom, mode) {
   const cwd = path.dirname(command);
 
   addDefaultLaunchArgs(args);
-  addPackV2ResourceArgs(args, config, mode);
+  addPackV2ResourceArgs(args, config, mode, cwd);
 
   if (mode === "competition") {
     const run = config.v2PluginRun;
@@ -217,6 +264,17 @@ function printLaunchSummary(launch) {
   console.log(`Ejecutable: ${launch.command}`);
   console.log(`Working dir: ${launch.cwd}`);
   console.log(`Args: ${launch.args.join(" ")}`);
+
+  const artpath = getArgValue(launch.args, "-artpath");
+  const bgfxPath = getArgValue(launch.args, "-bgfx_path");
+
+  if (artpath) {
+    console.log(`Artpath: ${artpath}`);
+  }
+
+  if (bgfxPath) {
+    console.log(`BGFX path: ${bgfxPath}`);
+  }
 
   if (launch.runtime === "shared-mame") {
     console.log("Runtime: MAME compartido");

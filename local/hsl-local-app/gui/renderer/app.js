@@ -10,9 +10,9 @@ import { renderActivityDrawer } from "./components/queue-panel.js";
 
 const root = document.getElementById("app");
 const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
-const LIBRARY_SIDEBAR_MIN = 280;
-const LIBRARY_SIDEBAR_MAX = 520;
-const LIBRARY_SIDEBAR_DEFAULT = 380;
+const LIBRARY_SIDEBAR_MIN = 340;
+const LIBRARY_SIDEBAR_MAX = 600;
+const LIBRARY_SIDEBAR_DEFAULT = 440;
 const LAUNCHER_VERSION = "v1.0.0";
 const DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 600;
 const store = createStore({
@@ -51,6 +51,7 @@ let hydratedLibraryPreferencesScopeKey = null;
 let libraryPackSelectionSequence = 0;
 let sidebarResize = null;
 const detailAssetPreloadCache = new Map();
+const favoriteSyncByKey = new Map();
 
 function clampSidebarWidth(value) {
   const numeric = Number(value);
@@ -376,12 +377,26 @@ async function toggleLibraryFavorite(packKey) {
   const current = store.getState();
   const pack = current.data?.library?.packs?.find((item) => item.favoriteKey === packKey);
 
-  if (!packKey || !pack || current.pendingFavoriteKeys[packKey] || pack.favoriteDisabled || pack.duplicatePackId) {
+  if (!packKey || !pack || pack.favoriteDisabled || pack.duplicatePackId) {
     return;
   }
 
   const previousFavorite = Boolean(pack.favorite);
-  const nextFavorite = !previousFavorite;
+  const nextFavorite = !Boolean(pack.favorite);
+  const existingSync = favoriteSyncByKey.get(packKey) || {
+    desiredFavorite: previousFavorite,
+    inFlight: false,
+    rollbackFavorite: previousFavorite,
+    sequence: 0,
+  };
+  const nextSync = {
+    ...existingSync,
+    desiredFavorite: nextFavorite,
+    rollbackFavorite: existingSync.inFlight ? existingSync.rollbackFavorite : previousFavorite,
+    sequence: existingSync.sequence + 1,
+  };
+
+  favoriteSyncByKey.set(packKey, nextSync);
 
   store.setState({
     data: withFavoritePatch(current.data, packKey, {
@@ -390,51 +405,124 @@ async function toggleLibraryFavorite(packKey) {
     }),
     pendingFavoriteKeys: {
       ...current.pendingFavoriteKeys,
-      [packKey]: true,
+      [packKey]: nextSync.sequence,
     },
   });
 
-  try {
-    const response = await window.hslLauncher.toggleLibraryFavorite(packKey);
+  if (existingSync.inFlight) {
+    return;
+  }
 
-    if (response.ok === false) {
-      throw new Error(response.summary || "No se pudo actualizar el favorito.");
+  syncLibraryFavorite(packKey);
+}
+
+async function syncLibraryFavorite(packKey) {
+  while (favoriteSyncByKey.has(packKey)) {
+    const sync = favoriteSyncByKey.get(packKey);
+    const currentPack = store.getState().data?.library?.packs?.find((item) => item.favoriteKey === packKey);
+
+    if (!currentPack) {
+      favoriteSyncByKey.delete(packKey);
+      const latestPending = { ...store.getState().pendingFavoriteKeys };
+      delete latestPending[packKey];
+      store.setState({ pendingFavoriteKeys: latestPending });
+      return;
     }
 
-    const latestPending = { ...store.getState().pendingFavoriteKeys };
-    delete latestPending[packKey];
+    const requestSequence = sync.sequence;
+    const favoriteBeforeRequest = Boolean(sync.rollbackFavorite);
+    favoriteSyncByKey.set(packKey, {
+      ...sync,
+      inFlight: true,
+    });
 
-    if (response.state) {
-      store.setState({
-        data: response.state,
-        pendingFavoriteKeys: latestPending,
+    try {
+      const response = await window.hslLauncher.toggleLibraryFavorite(packKey);
+
+      if (response.ok === false) {
+        throw new Error(response.summary || "No se pudo actualizar el favorito.");
+      }
+
+      const latestSync = favoriteSyncByKey.get(packKey);
+
+      if (response.state) {
+        store.setState({
+          data: response.state,
+        });
+      } else {
+        store.setState({
+          data: withFavoritePatch(store.getState().data, packKey, {
+            favorite: sync.desiredFavorite,
+          }),
+        });
+      }
+
+      const afterResponseSync = favoriteSyncByKey.get(packKey) || latestSync;
+      const latestPack = store.getState().data?.library?.packs?.find((item) => item.favoriteKey === packKey);
+
+      if (!afterResponseSync || !latestPack) {
+        continue;
+      }
+
+      favoriteSyncByKey.set(packKey, {
+        ...afterResponseSync,
+        inFlight: false,
+        rollbackFavorite: Boolean(latestPack.favorite),
       });
-    } else {
+
+      if (Boolean(latestPack.favorite) !== afterResponseSync.desiredFavorite) {
+        store.setState({
+          data: withFavoritePatch(store.getState().data, packKey, {
+            favorite: afterResponseSync.desiredFavorite,
+            favoritePending: true,
+          }),
+        });
+        continue;
+      }
+    } catch (error) {
+      const latestSync = favoriteSyncByKey.get(packKey);
+
+      if (latestSync && latestSync.sequence !== requestSequence) {
+        favoriteSyncByKey.set(packKey, {
+          ...latestSync,
+          inFlight: false,
+        });
+        continue;
+      }
+
+      favoriteSyncByKey.delete(packKey);
+      const latestPending = { ...store.getState().pendingFavoriteKeys };
+      delete latestPending[packKey];
+
       store.setState({
         data: withFavoritePatch(store.getState().data, packKey, {
-          favorite: nextFavorite,
+          favorite: favoriteBeforeRequest,
           favoritePending: false,
+        }),
+        logs: appendLog(store.getState().logs, {
+          details: [error.message || String(error)],
+          ok: false,
+          summary: "No se pudo actualizar el favorito.",
+          title: "Biblioteca",
         }),
         pendingFavoriteKeys: latestPending,
       });
+      return;
     }
-  } catch (error) {
-    const latestPending = { ...store.getState().pendingFavoriteKeys };
-    delete latestPending[packKey];
 
-    store.setState({
-      data: withFavoritePatch(store.getState().data, packKey, {
-        favorite: previousFavorite,
-        favoritePending: false,
-      }),
-      logs: appendLog(store.getState().logs, {
-        details: [error.message || String(error)],
-        ok: false,
-        summary: "No se pudo actualizar el favorito.",
-        title: "Biblioteca",
-      }),
-      pendingFavoriteKeys: latestPending,
-    });
+    const latestSync = favoriteSyncByKey.get(packKey);
+    const latestPack = store.getState().data?.library?.packs?.find((item) => item.favoriteKey === packKey);
+
+    if (!latestSync || !latestPack || Boolean(latestPack.favorite) === latestSync.desiredFavorite) {
+      favoriteSyncByKey.delete(packKey);
+      const latestPending = { ...store.getState().pendingFavoriteKeys };
+      delete latestPending[packKey];
+      store.setState({
+        data: withFavoritePatch(store.getState().data, packKey, { favoritePending: false }),
+        pendingFavoriteKeys: latestPending,
+      });
+      return;
+    }
   }
 }
 

@@ -9,7 +9,7 @@ export const COPY = {
     submit: "Subir pendientes",
     syncPlugin: "Sincronizar plugin",
   },
-  launcherSubtitle: "Tu compañero local para jugar la liga.",
+  launcherSubtitle: "Tu compañero para jugar la liga.",
 };
 
 export function formatCount(value, singular, plural) {
