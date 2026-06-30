@@ -720,3 +720,22 @@ imprime los args finales para comprobar casos como
 No hay watcher automatico, importador ZIP, catalogo remoto ni updater en este
 avance. La siguiente tarea recomendada es `LOCAL-PACK-IMPORT-MVP-1` con la
 regla: distribuir comprimido, instalar descomprimido, jugar descomprimido.
+
+## Avance LOCAL-LAUNCHER-SHELL-DETAIL-POLISH-2
+
+La shell se reequilibra antes de abrir importacion de packs: biblioteca,
+resizer y detalle permanecen siempre en la misma fila, incluso en el breakpoint
+estrecho. La app baja a minimos `920x620`, la biblioteca se ajusta entre
+`280px` y `520px`, y el detalle aprovecha mejor el espacio liberado sin volver
+a un hero infinito.
+
+En fullscreen, el shell sube su limite visual a `1760px` y el detalle a
+`1120px`, con fondo extendido a la izquierda de la biblioteca para evitar cortes
+de tono. El header deja el icono HSL sin caja y equilibra el avatar de cuenta
+con los botones de tema/configuracion.
+
+El detalle recupera jerarquia del revamp: descripcion antes de metadata,
+metadata horizontal ligera 4->2, subtitulo redundante fuera, semana alineada al
+titulo y botones centrados. `Jugar` y `Practicar` quedan como acciones mas
+altas; `Manual` y `Ranking` quedan secundarios. No se toca MAME, runtime,
+plugin, payloads, endpoints, membership, colas ni importacion.

@@ -10,9 +10,9 @@ import { renderActivityDrawer } from "./components/queue-panel.js";
 
 const root = document.getElementById("app");
 const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
-const LIBRARY_SIDEBAR_MIN = 300;
-const LIBRARY_SIDEBAR_MAX = 560;
-const LIBRARY_SIDEBAR_DEFAULT = 400;
+const LIBRARY_SIDEBAR_MIN = 280;
+const LIBRARY_SIDEBAR_MAX = 520;
+const LIBRARY_SIDEBAR_DEFAULT = 380;
 const LAUNCHER_VERSION = "v1.0.0";
 const DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 600;
 const store = createStore({

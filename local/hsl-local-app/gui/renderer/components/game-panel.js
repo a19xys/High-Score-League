@@ -105,10 +105,20 @@ function renderPackVisuals(game) {
 }
 
 function renderPackMetadata(game) {
+  const joinValue = (value, splitCommas = false) => {
+    if (Array.isArray(value)) {
+      return value.filter(Boolean).join(" · ");
+    }
+
+    return String(value || "")
+      .split(splitCommas ? /\s*[·,;]\s*/ : /\s*[·;]\s*/)
+      .filter(Boolean)
+      .join(" · ");
+  };
   const items = [
-    ["developer", "Desarrollador", game?.developer || game?.publisher || "Sin datos"],
+    ["developer", "Desarrollador", joinValue(game?.developer || game?.publisher) || "Sin datos"],
     ["year", "Año", game?.year ? String(game.year) : "Sin datos"],
-    ["genre", "Género", game?.genre?.length ? game.genre.join(", ") : "Sin datos"],
+    ["genre", "Género", joinValue(game?.genre, true) || "Sin datos"],
     ["playtime", "Tiempo jugado", game?.playTime || "Sin datos"],
   ];
 
@@ -187,7 +197,6 @@ export function renderGamePanel(state) {
   const practiceDisabled = state.busy || readiness?.canPractice === false ? "disabled" : "";
   const competitionDisabled = state.busy || !data?.session?.hasSession || membershipBlocksCompetition || readinessBlocksCompetition ? "disabled" : "";
   const weekLabel = game?.weekNumber ? `Semana ${game.weekNumber}` : game?.weekId ? "Semana" : null;
-  const subtitle = game?.subtitle || [game?.seasonName, weekLabel].filter(Boolean).join(" · ");
   const description = game?.shortDescription || "";
 
   return `
@@ -203,18 +212,17 @@ export function renderGamePanel(state) {
               <h2>${escapeHtml(game?.displayName || "Space Invaders")}</h2>
               ${weekLabel ? `<span class="badge badge-muted week-chip">${renderIcon("calendar", { className: "status-icon icon-slot icon-slot--calendar" })}${escapeHtml(weekLabel)}</span>` : ""}
             </div>
-            ${subtitle ? `<p class="game-week">${escapeHtml(subtitle)}</p>` : ""}
-            ${renderPackMetadata(game)}
           </div>
         </div>
         ${description ? `<p class="ready-copy">${escapeHtml(description)}</p>` : ""}
+        ${renderPackMetadata(game)}
         ${renderPackErrors(game, readiness)}
         <div class="primary-actions action-grid">
           <button class="play-button action-tile" type="button" data-action="play" ${competitionDisabled}>
             ${renderIcon("play", { className: "action-icon icon-slot icon-slot--play" })}
             <span class="action-button-label">${COPY.actions.play}</span>
           </button>
-          <button class="secondary-action compact-action action-tile" type="button" data-action="practice" ${practiceDisabled}>
+          <button class="secondary-action primary-action-tile action-tile" type="button" data-action="practice" ${practiceDisabled}>
             ${renderIcon("practice", { className: "action-icon icon-slot icon-slot--practice" })}
             <span class="action-button-label">Practicar</span>
           </button>
