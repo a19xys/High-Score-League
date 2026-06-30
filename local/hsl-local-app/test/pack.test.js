@@ -93,7 +93,7 @@ test("loadPack loads a packVersion 2 lightweight pack", async () => {
     assert.equal(result.pack.contractStatus, "current");
     assert.equal(result.pack.deprecated, false);
     assert.equal(result.pack.contract.mame.romDir, path.join(dir, "roms"));
-    assert.equal(result.pack.contract.capture.adapterPath, path.join(dir, "scripts", "space-invaders.lua"));
+    assert.equal(result.pack.contract.capture.adapterPath, path.join(dir, "scripts", "invaders.lua"));
   });
 });
 

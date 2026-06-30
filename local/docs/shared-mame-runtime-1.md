@@ -120,7 +120,6 @@ y packs v1 mientras no se complete la migracion.
 - updates de MAME;
 - catalogo remoto;
 - descarga o instalacion de packs;
-- plugin/adaptador competitivo v2 definitivo;
 - eliminacion de v1;
 - cambios en scoped queue, payload, duplicateKey, endpoint, membership, RLS o
   plugin MAME.
@@ -139,3 +138,6 @@ packs v2. Esa ruta se conserva como file queue global legacy/CLI. La GUI usa la
 cola scoped por cuenta y pack en `userData/players/<playerKey>/packs/<packKey>/events`.
 El staging temporal de v2 se crea por ejecución y luego se adopta al pending
 scoped del jugador.
+
+Space Invaders queda como referencia de pack v2 real en
+`LOCAL-SPACE-INVADERS-PACK-V2-REAL-1`.

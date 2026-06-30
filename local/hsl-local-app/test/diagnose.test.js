@@ -205,7 +205,7 @@ test("diagnose reports packVersion 2 missing shared runtime without treating it 
         capture: {
           mode: "plugin",
           pluginName: "hsl-score",
-          adapter: "scripts/space-invaders.lua",
+          adapter: "scripts/invaders.lua",
         },
       },
     };
@@ -272,7 +272,7 @@ test("diagnose reports packVersion 2 capture loader when adapter exists", async 
     const sharedMame = path.join(dir, "runtime", "mame.exe");
     const packRoot = path.join(dir, "pack");
     const romDir = path.join(packRoot, "roms");
-    const adapterPath = path.join(packRoot, "scripts", "space-invaders.lua");
+    const adapterPath = path.join(packRoot, "scripts", "invaders.lua");
     await fsp.mkdir(path.dirname(sharedMame), { recursive: true });
     await fsp.mkdir(romDir, { recursive: true });
     await fsp.mkdir(path.dirname(adapterPath), { recursive: true });
@@ -305,7 +305,7 @@ test("diagnose reports packVersion 2 capture loader when adapter exists", async 
         capture: {
           mode: "plugin",
           pluginName: "hsl-score",
-          adapter: "scripts/space-invaders.lua",
+          adapter: "scripts/invaders.lua",
           adapterPath,
         },
       },

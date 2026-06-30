@@ -191,6 +191,36 @@ test("packVersion 2 launch applies mode-specific MAME profile", () => {
   ]);
 });
 
+test("packVersion 2 practice ignores competition-only video profile", () => {
+  const config = packV2Config({
+    pack: {
+      ...packV2Config().pack,
+      contract: {
+        ...packV2Config().pack.contract,
+        mame: {
+          ...packV2Config().pack.contract.mame,
+          profiles: {
+            practice: {
+              launchArgs: [],
+            },
+            competition: {
+              cfgDir: "C:/Packs/space-invaders/cfg",
+              launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+            },
+          },
+        },
+      },
+    },
+  });
+  const launch = buildMameArgs(config, "invaders", "practice");
+
+  assert.equal(launch.mode, "practice");
+  assert.equal(launch.args.includes("-plugins"), false);
+  assert.equal(launch.args.includes("-plugin"), false);
+  assert.equal(launch.args.includes("-video"), false);
+  assert.equal(launch.args.includes("crt-geom"), false);
+});
+
 test("packVersion 2 competition pluginpath keeps isolated plugin before MAME base plugins", () => {
   const pluginSearchPath = buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins", "C:/HSL/runtime/mame");
 

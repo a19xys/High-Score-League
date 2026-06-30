@@ -61,7 +61,7 @@ function validV2Pack(overrides = {}) {
     capture: {
       mode: "plugin",
       pluginName: "hsl-score",
-      adapter: "scripts/space-invaders.lua",
+      adapter: "scripts/invaders.lua",
     },
     ...overrides,
   };
@@ -93,8 +93,48 @@ test("v2 valido queda current y normaliza rutas internas", async () => {
     assert.equal(result.normalized.contract.runtimeType, "mame");
     assert.equal(result.normalized.contract.mame.romPath, "roms");
     assert.equal(result.normalized.contract.mame.romDir, path.join(dir, "roms"));
-    assert.equal(result.normalized.contract.capture.adapter, "scripts/space-invaders.lua");
-    assert.equal(result.normalized.contract.capture.adapterPath, path.join(dir, "scripts", "space-invaders.lua"));
+    assert.equal(result.normalized.contract.capture.adapter, "scripts/invaders.lua");
+    assert.equal(result.normalized.contract.capture.adapterPath, path.join(dir, "scripts", "invaders.lua"));
+  });
+});
+
+test("v2 acepta el pack de referencia de Space Invaders con perfil competitivo crt-geom", async () => {
+  await withTempDir(async (dir) => {
+    const result = normalizePackContract(validV2Pack({
+      packId: "space-invaders-dev-pack-v2",
+      seasonId: "16da66c8-9267-48ea-b8b5-faea5f1d481c",
+      seasonSlug: "temporada-test",
+      seasonName: "Temporada Test",
+      weekId: "7e8576e0-cab6-495c-9030-8e405d31dcad",
+      mame: {
+        ...validV2Pack().mame,
+        profiles: {
+          practice: {
+            launchArgs: [],
+          },
+          competition: {
+            cfgPath: "cfg",
+            launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+          },
+        },
+      },
+    }), {
+      packRoot: dir,
+    });
+
+    assert.deepEqual(result.errors, []);
+    assert.deepEqual(result.warnings, []);
+    assert.equal(result.normalized.packId, "space-invaders-dev-pack-v2");
+    assert.equal(result.normalized.contract.capture.adapter, "scripts/invaders.lua");
+    assert.equal(result.normalized.contract.mame.profiles.practice.cfgPath, null);
+    assert.deepEqual(result.normalized.contract.mame.profiles.practice.launchArgs, []);
+    assert.equal(result.normalized.contract.mame.profiles.competition.cfgPath, "cfg");
+    assert.deepEqual(result.normalized.contract.mame.profiles.competition.launchArgs, [
+      "-video",
+      "bgfx",
+      "-bgfx_screen_chains",
+      "crt-geom",
+    ]);
   });
 });
 
@@ -160,7 +200,7 @@ test("v2 rechaza runtime distinto de mame", () => {
 
 test("v2 rechaza rutas locales inseguras", () => {
   assert.equal(isUnsafePackRelativePath("roms"), false);
-  assert.equal(isUnsafePackRelativePath("scripts/space-invaders.lua"), false);
+  assert.equal(isUnsafePackRelativePath("scripts/invaders.lua"), false);
   assert.equal(isUnsafePackRelativePath("../roms"), true);
   assert.equal(isUnsafePackRelativePath("C:/packs/roms"), true);
   assert.equal(isUnsafePackRelativePath("/usr/share/roms"), true);

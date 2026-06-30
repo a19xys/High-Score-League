@@ -13,6 +13,8 @@ It is separate from the main web app.
   writes JSON events into `events/pending`.
 - `mame-plugin/hsl-score/events/`: queue folders used by the local app.
 - `pack.example.json`: example metadata for a downloadable game/week pack.
+- `pack.v2.example.json`: current lightweight pack contract example based on
+  the Space Invaders reference pack, without ROMs or proprietary assets.
 - `examples/`: extra local development manifests, including the flat
   `hsl-invaders` pack example used to test `Abrir pack`, plus optional
   `metadata.json` examples for local pack presentation and a lightweight
@@ -168,9 +170,10 @@ capture mode. The v1 `mame.relativeExecutablePath` field remains temporary
 compatibility for current tests, examples and the development bridge.
 
 The app now stores the shared MAME executable path in
-`userData/runtime/mame-runtime.json`. Practice for v2 packs can use that shared
-runtime with pack-local resources. Competition for v2 remains blocked until the
-plugin/adaptor loading task is implemented.
+`userData/runtime/mame-runtime.json`. Practice for v2 packs uses that shared
+runtime with pack-local resources. Competition for v2 prepares `hsl-score` and
+the pack adapter in an isolated run, then adopts captured events into the
+account + pack scoped queue.
 
 Pack contract notes:
 [`docs/pack-contract-2.md`](docs/pack-contract-2.md).
@@ -208,6 +211,8 @@ Shared MAME runtime implementation notes:
 [`docs/shared-mame-runtime-1.md`](docs/shared-mame-runtime-1.md).
 MAME plugin/adapter loading v2 notes:
 [`docs/mame-pack-plugin-loading-2.md`](docs/mame-pack-plugin-loading-2.md).
+Space Invaders pack v2 reference:
+[`docs/space-invaders-pack-v2-real-1.md`](docs/space-invaders-pack-v2-real-1.md).
 Pack library grid notes:
 [`docs/pack-library-grid-1.md`](docs/pack-library-grid-1.md).
 Account switcher notes:

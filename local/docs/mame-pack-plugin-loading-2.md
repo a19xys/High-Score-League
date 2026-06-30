@@ -135,6 +135,11 @@ Esto permite aplicar filtros como `crt-geom` solo en competicion. En Space
 Invaders, MAME declara por defecto `Lives=3` y `Bonus Life=1500`; no se ha
 implementado bloqueo fuerte de menu TAB/DIPs.
 
+La referencia real de Space Invaders mantiene `crt-geom` solo en el perfil
+`competition`, no en practica. Sus archivos `cfg/default.cfg` e
+`cfg/invaders.cfg` auditados son autogenerados por MAME y no se consideran
+regla competitiva.
+
 ## Legacy v1
 
 `packVersion: 1`, dev bridge y `sync-plugin` se conservan. El flujo v1 puede

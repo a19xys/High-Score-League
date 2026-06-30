@@ -19,11 +19,25 @@
     "artworkPath": "artwork",
     "samplePath": "samples",
     "cfgPath": "cfg",
-    "launchArgs": []
+    "launchArgs": [],
+    "profiles": {
+      "practice": {
+        "launchArgs": []
+      },
+      "competition": {
+        "cfgPath": "cfg",
+        "launchArgs": [
+          "-video",
+          "bgfx",
+          "-bgfx_screen_chains",
+          "crt-geom"
+        ]
+      }
+    }
   },
   "capture": {
     "mode": "plugin",
     "pluginName": "hsl-score",
-    "adapter": "scripts/space-invaders.lua"
+    "adapter": "scripts/invaders.lua"
   }
 }

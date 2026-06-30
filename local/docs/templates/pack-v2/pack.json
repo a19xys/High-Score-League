@@ -1,12 +1,12 @@
 {
   "packVersion": 2,
-  "packId": "space-invaders-season-1-week-1",
-  "gameId": "space-invaders",
-  "rom": "invaders",
-  "seasonId": "PON_AQUI_EL_SEASON_ID",
-  "seasonSlug": "season-1",
-  "seasonName": "Temporada 1",
-  "weekId": "PON_AQUI_EL_WEEK_ID",
+  "packId": "game-season-week",
+  "gameId": "game-id",
+  "rom": "romname",
+  "seasonId": "SEASON_ID",
+  "seasonSlug": "season-slug",
+  "seasonName": "Season Name",
+  "weekId": "WEEK_ID",
   "weekNumber": 1,
   "webBaseUrl": "https://high-score-league.vercel.app",
   "runtime": {
@@ -25,19 +25,13 @@
         "launchArgs": []
       },
       "competition": {
-        "cfgPath": "cfg",
-        "launchArgs": [
-          "-video",
-          "bgfx",
-          "-bgfx_screen_chains",
-          "crt-geom"
-        ]
+        "launchArgs": []
       }
     }
   },
   "capture": {
     "mode": "plugin",
     "pluginName": "hsl-score",
-    "adapter": "scripts/invaders.lua"
+    "adapter": "scripts/adapter.lua"
   }
 }

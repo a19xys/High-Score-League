@@ -1,15 +1,15 @@
 {
   "title": "Space Invaders",
-  "subtitle": "Pack de desarrollo",
+  "subtitle": "Pack v2 de referencia",
   "developer": "Taito",
   "publisher": "Taito",
   "year": 1978,
   "genre": ["Fixed shooter", "Arcade"],
-  "shortDescription": "Defiende la Tierra disparando a formaciones alienigenas cada vez mas amenazantes.",
+  "shortDescription": "El clasico arcade que lo empezo todo. Defiende la Tierra de las oleadas de invasores y consigue la mejor puntuacion.",
   "assets": {
     "hero": "assets/hero.png",
     "logo": "assets/logo.png",
-    "icon": "assets/icon.png",
-    "cover": "assets/cover.jpg"
+    "icon": "assets/icon.ico",
+    "cover": "assets/cover.png"
   }
 }

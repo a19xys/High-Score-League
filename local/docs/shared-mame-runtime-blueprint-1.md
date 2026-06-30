@@ -195,7 +195,7 @@ Contrato inicial definido por `LOCAL-PACK-CONTRACT-2`:
   "capture": {
     "mode": "plugin",
     "pluginName": "hsl-score",
-    "adapter": "scripts/space-invaders.lua"
+    "adapter": "scripts/invaders.lua"
   }
 }
 ```

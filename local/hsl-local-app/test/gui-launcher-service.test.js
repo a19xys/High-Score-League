@@ -92,7 +92,7 @@ function validV2Pack() {
     capture: {
       mode: "plugin",
       pluginName: "hsl-score",
-      adapter: "scripts/space-invaders.lua",
+      adapter: "scripts/invaders.lua",
     },
   };
 }
@@ -1367,7 +1367,7 @@ test("readPackForGui loads a valid packVersion 2 folder", async () => {
     assert.equal(result.pack.packVersion, 2);
     assert.equal(result.pack.contractStatus, "current");
     assert.equal(result.pack.contract.mame.romDir, path.join(dir, "roms"));
-    assert.equal(result.pack.contract.capture.adapterPath, path.join(dir, "scripts", "space-invaders.lua"));
+    assert.equal(result.pack.contract.capture.adapterPath, path.join(dir, "scripts", "invaders.lua"));
   });
 });
 

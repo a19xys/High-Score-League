@@ -65,7 +65,7 @@ roms
 artwork
 samples
 cfg
-scripts/space-invaders.lua
+scripts/invaders.lua
 ```
 
 Se rechazan rutas absolutas, traversal y URLs para recursos locales:
@@ -84,6 +84,19 @@ Se validan especialmente `mame.romPath`, `mame.artworkPath`,
 
 `mame.profiles.practice.cfgPath` y `mame.profiles.competition.cfgPath`, si se
 declaran, siguen las mismas reglas de ruta relativa segura.
+
+## Pack de referencia
+
+Space Invaders es el primer pack v2 de referencia real. Su adapter canonico es
+`scripts/invaders.lua`, los assets canonicos son `assets/cover.png`,
+`assets/hero.png`, `assets/icon.ico` y `assets/logo.png`, y el filtro
+`crt-geom` se declara solo en `mame.profiles.competition.launchArgs`.
+
+La estructura y decisiones completas estan documentadas en:
+
+```text
+local/docs/space-invaders-pack-v2-real-1.md
+```
 
 ## Normalizacion
 

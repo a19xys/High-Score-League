@@ -104,6 +104,41 @@ test("assets relativos se resuelven dentro del pack", async () => {
   });
 });
 
+test("metadata de referencia de Space Invaders declara assets canonicos", async () => {
+  await withTempDir(async (dir) => {
+    await fsp.mkdir(path.join(dir, "assets"), { recursive: true });
+    await fsp.writeFile(path.join(dir, "assets", "cover.png"), "cover", "utf8");
+    await fsp.writeFile(path.join(dir, "assets", "hero.png"), "hero", "utf8");
+    await fsp.writeFile(path.join(dir, "assets", "icon.ico"), "icon", "utf8");
+    await fsp.writeFile(path.join(dir, "assets", "logo.png"), "logo", "utf8");
+    await writeJson(path.join(dir, "metadata.json"), {
+      title: "Space Invaders",
+      subtitle: "Pack v2 de referencia",
+      developer: "Taito",
+      publisher: "Taito",
+      year: 1978,
+      genre: ["Fixed shooter", "Arcade"],
+      shortDescription: "El clasico arcade que lo empezo todo.",
+      assets: {
+        cover: "assets/cover.png",
+        hero: "assets/hero.png",
+        icon: "assets/icon.ico",
+        logo: "assets/logo.png",
+      },
+    });
+
+    const result = loadPackMetadata(dir);
+
+    assert.equal(result.loaded, true);
+    assert.deepEqual(result.warnings, []);
+    assert.equal(result.metadata.title, "Space Invaders");
+    assert.equal(result.metadata.assets.cover.relativePath, "assets/cover.png");
+    assert.equal(result.metadata.assets.hero.relativePath, "assets/hero.png");
+    assert.equal(result.metadata.assets.icon.relativePath, "assets/icon.ico");
+    assert.equal(result.metadata.assets.logo.relativePath, "assets/logo.png");
+  });
+});
+
 test("asset con traversal se rechaza", async () => {
   await withTempDir(async (dir) => {
     await writeJson(path.join(dir, "metadata.json"), {

@@ -1,0 +1,15 @@
+{
+  "title": "Game Title",
+  "subtitle": "Pack v2",
+  "developer": "Developer",
+  "publisher": "Publisher",
+  "year": 1978,
+  "genre": ["Arcade"],
+  "shortDescription": "Short local launcher description.",
+  "assets": {
+    "cover": "assets/cover.png",
+    "hero": "assets/hero.png",
+    "icon": "assets/icon.ico",
+    "logo": "assets/logo.png"
+  }
+}

@@ -66,7 +66,7 @@ function validV2Pack(overrides = {}) {
     capture: {
       mode: "plugin",
       pluginName: "hsl-score",
-      adapter: "scripts/space-invaders.lua",
+      adapter: "scripts/invaders.lua",
     },
     ...overrides,
   };
