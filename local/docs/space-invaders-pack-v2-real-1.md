@@ -197,15 +197,29 @@ userData/players/<playerKey>/packs/<packKey>/events/pending
 No se usa `userData/events` como staging competitivo v2 y no se copia
 `hsl-score` a `C:/MAME/plugins`.
 
+El resumen local de lanzamiento imprime los argumentos finales. Para este pack,
+`Jugar` debe incluir:
+
+```text
+-video bgfx -bgfx_screen_chains crt-geom
+```
+
+`Practicar` puede heredar `mame.launchArgs` comun y el perfil `practice`, pero
+no debe cargar `hsl-score` ni heredar el filtro competitivo si solo esta
+declarado en `profiles.competition`.
+
 Si falta `roms/invaders.zip`, el pack queda bloqueado antes de lanzar MAME:
 `Practicar` y `Jugar` se deshabilitan y la UI muestra que falta la ROM
 necesaria. La comprobacion existe tambien en el launcher backend para evitar
 abrir MAME aunque una accion visual quedase habilitada por error.
 
-Si hay dos carpetas de pack con `packId: space-invaders-dev-pack-v2`, ambas se
-marcan como conflicto. No se intenta elegir una automaticamente porque el
-`packId` es identidad competitiva y mezclarla entre duplicados puede activar el
-pack equivocado o compartir favoritos/colas de forma confusa.
+Si hay dos o mas carpetas de pack con `packId: space-invaders-dev-pack-v2`, la
+biblioteca muestra una sola entrada agrupada de conflicto. Esa entrada es
+seleccionable para explicar el problema y listar rutas, pero `Practicar`,
+`Jugar` y favorito quedan bloqueados. No se intenta elegir una carpeta
+automaticamente porque el `packId` es identidad competitiva y mezclarla entre
+duplicados puede activar el pack equivocado o compartir favoritos/colas de
+forma confusa.
 
 ## cfg y DIPs
 
@@ -233,6 +247,14 @@ Decision actual: aplicar `crt-geom` solo en el perfil `competition`, mediante
 Motivo: el filtro no se aplica de forma fiable por estar en `cfg`; necesita los
 argumentos BGFX. No se fuerza en practica para mantener practica como modo no
 competitivo y evitar cambios visuales obligatorios fuera de partida oficial.
+
+El contrato de perfiles queda:
+
+- `mame.launchArgs` se aplica como base comun;
+- `mame.profiles.practice.launchArgs` se suma solo en `Practicar`;
+- `mame.profiles.competition.launchArgs` se suma solo en `Jugar`;
+- competicion prepara el plugin HSL por run;
+- practica sigue sin `hsl-score`.
 
 ## Samples y artwork
 
@@ -275,6 +297,8 @@ No versionar:
 - manifest con checksums/firma del pack;
 - instalador/catalogo remoto;
 - distribucion ZIP/importacion automatica desde el launcher;
+- importacion local segura de pack comprimido (`LOCAL-PACK-IMPORT-MVP-1`):
+  distribuir comprimido, instalar descomprimido, jugar descomprimido;
 - hardening anti-cheat;
 - bloqueo o auditoria fuerte de TAB/DIPs;
 - politica de plugins auxiliares aprobados por juego;

@@ -331,7 +331,46 @@ test("printLaunchSummary explains competition and practice plugin behavior", () 
   assert.match(output, /Plugin: hsl-score activado explicitamente/);
   assert.match(output, /Modo: practica/);
   assert.match(output, /Plugin: hsl-score no se activa explicitamente/);
+  assert.match(output, /Args: invaders -skip_gameinfo -plugins -plugin hsl-score/);
   assert.match(output, /plugin\.ini/);
+});
+
+test("printLaunchSummary shows final competition profile args", () => {
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (line = "") => lines.push(String(line));
+
+  try {
+    const config = packV2Config({
+      pack: {
+        ...packV2Config().pack,
+        contract: {
+          ...packV2Config().pack.contract,
+          mame: {
+            ...packV2Config().pack.contract.mame,
+            profiles: {
+              competition: {
+                launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+              },
+            },
+          },
+        },
+      },
+      v2PluginRun: {
+        pluginName: "hsl-score",
+        runId: "run-1",
+        runRoot: "C:/HSL/userData/runtime/runs/run-1",
+        pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
+        stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
+      },
+    });
+
+    printLaunchSummary(buildMameArgs(config, "invaders", "competition"));
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.match(lines.join("\n"), /Args: .* -video bgfx -bgfx_screen_chains crt-geom /);
 });
 
 test("packVersion 2 launch requires the concrete ROM zip before spawn", async () => {

@@ -137,8 +137,9 @@ function buildLibraryPackItem(directory, packDir, packResult) {
   };
 }
 
-function markDuplicatePackIds(packs) {
+function groupDuplicatePackIds(packs) {
   const byPackId = new Map();
+  const duplicateKeys = new Set();
 
   for (const pack of packs) {
     if (!pack.packId) {
@@ -158,22 +159,66 @@ function markDuplicatePackIds(packs) {
     byPackId.get(key).push(pack);
   }
 
-  for (const duplicates of byPackId.values()) {
+  for (const [key, duplicates] of byPackId.entries()) {
     if (duplicates.length < 2) {
       continue;
     }
 
-    for (const pack of duplicates) {
-      const message = "Hay otro pack con el mismo packId. Cambia el packId o elimina el duplicado.";
-      pack.duplicatePackId = true;
-      pack.duplicatePackIdCount = duplicates.length;
-      pack.status = "error";
-      pack.errors = [...new Set([...(pack.errors || []), message])];
-      pack.warnings = (pack.warnings || []).filter((item) => item !== message);
-    }
+    duplicateKeys.add(key);
   }
 
-  return packs;
+  if (duplicateKeys.size === 0) {
+    return packs;
+  }
+
+  const grouped = [];
+  const emitted = new Set();
+  const message = "Hay otro pack con el mismo packId. Cambia el packId o elimina el duplicado.";
+
+  for (const pack of packs) {
+    const key = pack.packId ? String(pack.packId).trim().toLowerCase() : "";
+
+    if (!duplicateKeys.has(key)) {
+      grouped.push(pack);
+      continue;
+    }
+
+    if (emitted.has(key)) {
+      continue;
+    }
+
+    emitted.add(key);
+    const duplicates = byPackId.get(key);
+    const representative = duplicates[0];
+    const paths = duplicates.map((item) => item.packDir).filter(Boolean);
+
+    grouped.push({
+      ...representative,
+      duplicateGroup: true,
+      duplicatePackId: true,
+      duplicatePackIdCount: duplicates.length,
+      duplicatePacks: duplicates.map((item) => ({
+        errors: item.errors || [],
+        id: item.id,
+        instanceKey: item.instanceKey,
+        packDir: item.packDir,
+        status: item.status,
+        title: item.title,
+      })),
+      duplicatePaths: paths,
+      errors: [...new Set([message, ...duplicates.flatMap((item) => item.errors || [])])],
+      favoriteDisabled: true,
+      favoriteKey: null,
+      id: hashId(`duplicate-pack-id|${key}|${paths.join("|")}`, "pack_group"),
+      instanceKey: hashId(`duplicate-pack-id|${key}|${paths.join("|")}`, "instance_group"),
+      packDir: null,
+      status: "error",
+      subtitle: `Pack duplicado (${duplicates.length} carpetas)`,
+      warnings: [],
+    });
+  }
+
+  return grouped;
 }
 
 async function pathExistsAsDirectory(targetPath) {
@@ -291,7 +336,7 @@ async function scanDirectory(directoryState) {
     }
   }
 
-  const markedPacks = markDuplicatePackIds(packs);
+  const markedPacks = groupDuplicatePackIds(packs);
 
   return {
     directory: {
@@ -347,7 +392,7 @@ module.exports = {
   getPackSubtitle,
   getPackTitle,
   humanizeIdentifier,
-  markDuplicatePackIds,
+  groupDuplicatePackIds,
   scanDirectory,
   scanPackLibrary,
   weekLabel,

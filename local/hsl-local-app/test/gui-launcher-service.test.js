@@ -373,6 +373,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /data-action="toggle-library-filters"/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"[\s\S]*data-action="toggle-library-filters"/);
   assert.match(libraryPanel, /data-action="open-pack-directory"[\s\S]*<h2>Biblioteca<\/h2>[\s\S]*data-action="rescan-pack-directory"/);
+  assert.match(libraryPanel, /renderIcon\("library"/);
   assert.match(libraryPanel, /renderIcon\("refresh"/);
   assert.match(libraryPanel, /library-heading-button--spinning/);
   assert.equal(/<span>Reescanear<\/span>|<span>Abrir carpeta<\/span>/.test(libraryPanel), false);
@@ -464,8 +465,12 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /data-pack-key/);
   assert.match(packCard, /Inicia sesión para marcar favoritos/);
   assert.match(packCard, /favorite-slot--locked/);
+  assert.match(packCard, /favoritePending/);
+  assert.match(packCard, /favorite-slot--pending/);
   assert.match(packCard, /pack\.favoriteDisabled/);
   assert.match(packCard, /pack\.duplicatePackId/);
+  assert.equal(/const disabled = [^;]*pack\.status === "error"/.test(packCard), false);
+  assert.match(packCard, /pack\.status === "missing"/);
   assert.match(packCard, /if \(activeRoot\) \{\s*return false;\s*\}/);
   assert.match(packCard, /Boolean\(state\.data\?\.session\?\.hasSession\)/);
   assert.match(packCard, /pendingLibraryPackId/);
@@ -484,6 +489,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /LOCAL-LAUNCHER-LIBRARY-RESPONSIVE-AUTH-GUARDS-4/);
   assert.match(styles, /\.library-panel[\s\S]*container-type: inline-size/);
   assert.match(styles, /\.library-title-row/);
+  assert.match(styles, /\.pack-card--icons \.pack-card__status--dot[\s\S]*background: transparent/);
+  assert.match(styles, /\.pack-card--icons \.pack-card__status--dot[\s\S]*box-shadow: none/);
+  assert.match(styles, /\.favorite-slot--pending/);
+  assert.match(styles, /\.pack-error-panel/);
   assert.match(styles, /\.library-count-pill/);
   assert.match(styles, /\.library-panel[\s\S]*gap: 8px/);
   assert.match(styles, /\.library-panel > \.panel-heading[\s\S]*margin-bottom: 0/);
@@ -615,8 +624,17 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /persistLibraryPreferencesSoon\(\{ libraryView \}\)/);
   assert.match(app, /await window\.hslLauncher\.setLibraryPreferences\(currentLibraryPreferencesPatch\(patch\)\)/);
   assert.equal(/response\.state[\s\S]{0,400}libraryView/.test(app), false);
-  assert.match(app, /LIBRARY_SIDEBAR_MIN = 340/);
-  assert.match(app, /LIBRARY_SIDEBAR_MAX = 600/);
+  assert.match(app, /LIBRARY_SIDEBAR_MIN = 300/);
+  assert.match(app, /LIBRARY_SIDEBAR_MAX = 560/);
+  assert.match(app, /LIBRARY_SIDEBAR_DEFAULT = 400/);
+  assert.match(app, /pendingFavoriteKeys: \{\}/);
+  assert.match(app, /function withFavoritePatch\(data, packKey, patch\)/);
+  assert.match(app, /current\.pendingFavoriteKeys\[packKey\]/);
+  assert.match(app, /favoritePending: true/);
+  assert.match(app, /response\.ok === false/);
+  assert.match(app, /delete latestPending\[packKey\]/);
+  assert.match(app, /favorite: previousFavorite/);
+  assert.match(app, /summary: "No se pudo actualizar el favorito\."/);
   assert.match(app, /DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 600/);
   assert.match(app, /function preloadImageUrl\(url, timeoutMs = DETAIL_ASSET_PRELOAD_TIMEOUT_MS\)/);
   assert.match(app, /new Image\(\)/);
@@ -708,6 +726,12 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /renderIcon\("practice"/);
   assert.match(gamePanel, /"manual"/);
   assert.match(gamePanel, /renderStatusBadges/);
+  assert.match(gamePanel, /function renderPackErrors\(game, readiness\)/);
+  assert.match(gamePanel, /Pack duplicado/);
+  assert.match(gamePanel, /Este pack tiene errores/);
+  assert.match(gamePanel, /duplicatePaths/);
+  assert.match(gamePanel, /pack-error-paths/);
+  assert.match(gamePanel, /renderPackErrors\(game, readiness\)/);
   assert.match(gamePanel, /\.slice\(0, 4\)/);
   assert.match(gamePanel, /action-button-label/);
   assert.match(gamePanel, /action-grid/);
@@ -736,7 +760,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(queuePanel, /Puntuaciones con error/);
   assert.match(devTools, /data-action="check-membership"/);
   assert.match(styles, /\.app-main/);
-  assert.match(styles, /var\(--library-sidebar-width, 440px\) 8px minmax\(0, 1fr\)/);
+  assert.match(styles, /width: min\(100%, 1540px\)/);
+  assert.match(styles, /margin-inline: auto/);
+  assert.match(styles, /var\(--library-sidebar-width, 400px\) 8px minmax\(0, 1fr\)/);
   assert.match(styles, /\.library-resizer/);
   assert.match(styles, /\.library-panel-region/);
   assert.match(styles, /\.game-panel-region/);
@@ -759,9 +785,14 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.status-icon/);
   assert.match(styles, /\.account-icon/);
   assert.match(styles, /LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1/);
-  assert.match(styles, /\.app-main[\s\S]*minmax\(380px, 440px\)/);
+  assert.match(styles, /\.app-main[\s\S]*minmax\(300px, 400px\)/);
+  assert.match(styles, /\.game-scroll[\s\S]*scrollbar-gutter: stable/);
+  assert.match(styles, /\.game-detail-card[\s\S]*width: min\(100%, 980px\)/);
+  assert.match(styles, /\.game-detail-card[\s\S]*justify-self: center/);
   assert.match(styles, /\.game-hero-stage[\s\S]*aspect-ratio: 1920 \/ 620/);
-  assert.match(styles, /\.game-hero-stage[\s\S]*max-height: 220px/);
+  assert.match(styles, /\.game-hero-stage[\s\S]*width: min\(100%, 980px\)/);
+  assert.match(styles, /\.game-hero-stage[\s\S]*max-height: 320px/);
+  assert.match(styles, /\.game-hero-stage[\s\S]*margin-inline: auto/);
   assert.equal(/\.game-hero-stage[\s\S]{0,220}max-height:\s*none/.test(styles), false);
   assert.match(styles, /\.game-hero__logo[\s\S]*position: absolute/);
   assert.match(styles, /\.game-hero__logo[\s\S]*left: 50%/);
@@ -787,6 +818,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.drawer-layer[\s\S]*overflow: hidden/);
   assert.match(styles, /\.drawer-body[\s\S]*overflow-y: auto/);
   assert.match(styles, /\.game-scroll[\s\S]*overflow-y: auto/);
+  assert.match(styles, /\.pack-error-panel/);
   assert.match(styles, /\.advanced-shell/);
   assert.match(styles, /\.activity-stats/);
   assert.equal(/\.advanced-entry/.test(styles), false);
@@ -804,6 +836,8 @@ test("manual and ranking IPC stay in main process", async () => {
   assert.match(main, /shell\.openPath/);
   assert.match(main, /launcher:open-ranking/);
   assert.match(main, /shell\.openExternal/);
+  assert.match(main, /minWidth: 960/);
+  assert.match(main, /minHeight: 660/);
   assert.match(preload, /openManual/);
   assert.match(preload, /openRanking/);
   assert.match(app, /window\.hslLauncher\.openManual/);
@@ -856,6 +890,7 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
     "warning.svg",
     "error.svg",
     "info.svg",
+    "library.svg",
     "add.svg",
     "logout.svg",
     "forget-account.svg",
@@ -1493,7 +1528,7 @@ test("rescanPackDirectory returns fresh state action", async () => {
   assert.equal(result.action, "rescan-pack-directory");
 });
 
-test("activateLibraryPack rechaza packId duplicado para no abrir el pack equivocado", async () => {
+test("activateLibraryPack selecciona grupo duplicado sin abrir el pack equivocado", async () => {
   await withTempDir(async (dir) => {
     const config = {
       userDataDir: path.join(dir, "userData"),
@@ -1512,13 +1547,17 @@ test("activateLibraryPack rechaza packId duplicado para no abrir el pack equivoc
     const library = await scanPackLibrary(config);
     const result = await activateLibraryPack(library.packs[0].id, {
       config,
-      includeState: false,
     });
 
-    assert.equal(library.packs.every((pack) => pack.duplicatePackId), true);
-    assert.equal(result.ok, false);
+    assert.equal(library.packs.length, 1);
+    assert.equal(library.packs[0].duplicateGroup, true);
+    assert.equal(result.ok, true);
     assert.match(result.summary, /duplicado/i);
-    assert.match(result.lines.join("\n"), /mismo packId/);
+    assert.deepEqual(result.pack.duplicatePaths.sort(), [first, second].sort());
+    assert.equal(result.state.bridge.mode, "duplicate-group");
+    assert.equal(result.state.readiness.canPractice, false);
+    assert.equal(result.state.readiness.canPlayCompetition, false);
+    assert.deepEqual(result.state.game.duplicatePaths.sort(), [first, second].sort());
   });
 });
 

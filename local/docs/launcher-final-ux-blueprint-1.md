@@ -668,8 +668,9 @@ descomprimir packs.
 El detalle y el backend bloquean packs v2 sin ROM concreta
 (`roms/<rom>.zip`): `Practicar` y `Jugar` quedan deshabilitados y MAME no se
 lanza. Los duplicados de `packId` se consideran conflicto en todos los packs
-afectados, se bloquean para activacion y se evita compartir seleccion o
-favorito visual usando una clave interna por ruta para la card.
+afectados, se bloquean para lanzamiento y se evita compartir seleccion o
+favorito visual usando una identidad interna distinta de la identidad
+competitiva.
 
 El manual local acepta `metadata.manualPath`, `metadata.manual.path`,
 `manual/manual.pdf`, `manual/manual.html`, `manual/index.html`, un unico PDF en
@@ -680,3 +681,42 @@ global.
 
 Los botones de cierre usan `close.svg` via `renderIcon()` y el boton de tema
 muestra luna en modo oscuro y sol en modo claro.
+
+## Avance LOCAL-LAUNCHER-MVP-POLISH-3
+
+La biblioteca agrupa varios packs con el mismo `packId` como una sola entrada
+de conflicto. Esa entrada es seleccionable, muestra `Pack duplicado` en el
+detalle, lista las rutas implicadas y bloquea `Practicar`, `Jugar` y favorito
+para no abrir el pack equivocado ni mezclar identidad competitiva.
+
+Los packs con errores tambien pueden seleccionarse cuando hay informacion util.
+El panel derecho muestra `Este pack tiene errores` con mensajes de jugador y
+mantiene los detalles tecnicos fuera de la primera capa. Las acciones se
+bloquean desde readiness y backend si falta ROM, runtime, adapter o si hay un
+conflicto de identidad.
+
+Los favoritos de biblioteca son optimistas: la estrella cambia al instante, el
+toggle queda pendiente para evitar carreras de clics, se confirma con backend y
+se revierte con feedback no invasivo si falla. Sin sesion o en duplicados, el
+favorito sigue bloqueado.
+
+La cabecera de `Biblioteca` usa `library.svg` para representar la biblioteca;
+`folder.svg` queda para abrir carpeta. El punto de estado de las cards de
+iconos ya no tiene caja de fondo. El icono de recarga gira solo para
+operaciones de biblioteca/packs como reescanear, validar o una futura
+importacion; no actua como spinner global de login, sync, ranking ni MAME.
+
+El detalle derecho ajusta responsive: scrollbar estable, hero con
+`aspect-ratio`, altura maxima mayor, anchura visual limitada y contenido
+centrado en fullscreen. La ventana reduce minimos sin hacer inutilizable el
+launcher.
+
+MAME conserva `mame.launchArgs` como base comun y aplica
+`mame.profiles.practice.launchArgs` en practica y
+`mame.profiles.competition.launchArgs` en jugar. El resumen de lanzamiento
+imprime los args finales para comprobar casos como
+`-video bgfx -bgfx_screen_chains crt-geom`.
+
+No hay watcher automatico, importador ZIP, catalogo remoto ni updater en este
+avance. La siguiente tarea recomendada es `LOCAL-PACK-IMPORT-MVP-1` con la
+regla: distribuir comprimido, instalar descomprimido, jugar descomprimido.

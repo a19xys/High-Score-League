@@ -409,9 +409,11 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
   const hasSession = Boolean(session?.hasSession);
   const hasScope = Boolean(scope?.scopedQueueRoot);
   const hasWeek = Boolean(weekId);
+  const hasDuplicateConflict = Boolean(pack?.duplicatePackId || pack?.duplicateGroup);
+  const hasPackErrors = Boolean(config.packErrors?.length > 0 || pack?.errors?.length > 0);
   const membershipStatus = membership?.status || "unknown";
   const membershipAllowsCompetition = membershipStatus === "member" || membershipStatus === "unknown" || membershipStatus === "error";
-  const canPractice = hasMame && hasRom && hasRomDir;
+  const canPractice = !hasDuplicateConflict && !hasPackErrors && hasMame && hasRom && hasRomDir;
   const canCapture = hasPlugin;
   const canPlayCompetition = canPractice && canCapture && hasSession && hasScope && hasWeek && membershipAllowsCompetition;
   const canSubmit = Boolean(hasSession && hasScope && hasWeek && config.webBaseUrl && membership?.canSubmit === true);

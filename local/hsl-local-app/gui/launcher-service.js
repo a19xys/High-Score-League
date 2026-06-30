@@ -60,6 +60,8 @@ const {
 } = require("../src/season-membership");
 
 let activeOpenedPack = null;
+let activeDuplicateGroup = null;
+let activeLibraryIssue = null;
 let recentPackLoadAttempted = false;
 let recentPackNotices = [];
 let autoSyncInProgress = false;
@@ -133,8 +135,108 @@ function deriveOpenedPackConfig(baseConfig, pack) {
   };
 }
 
+function deriveDuplicateGroupConfig(baseConfig, group) {
+  const pack = {
+    contractStatus: group.contractStatus || null,
+    deprecated: Boolean(group.deprecated),
+    duplicateGroup: true,
+    duplicatePackId: true,
+    duplicatePackIdCount: group.duplicatePackIdCount || group.duplicatePaths?.length || 0,
+    duplicatePaths: group.duplicatePaths || [],
+    errors: group.errors || [],
+    gameId: group.gameId || null,
+    metadata: {
+      assets: {
+        cover: group.cover || null,
+        hero: group.hero || null,
+        icon: group.icon || null,
+        logo: group.logo || null,
+      },
+      developer: group.developer || null,
+      genre: group.genre || [],
+      publisher: group.publisher || null,
+      shortDescription: "El launcher no puede decidir que carpeta usar para este pack.",
+      subtitle: group.subtitle || null,
+      title: group.title || "Pack duplicado",
+      year: group.year || null,
+    },
+    packId: group.packId || null,
+    packRoot: null,
+    rom: group.rom || null,
+    seasonId: group.seasonId || null,
+    seasonName: group.seasonName || null,
+    seasonSlug: group.seasonSlug || null,
+    weekId: group.weekId || null,
+    weekNumber: group.weekNumber || null,
+  };
+
+  return {
+    ...baseConfig,
+    configSource: "pack duplicado",
+    defaultWeekId: group.weekId || null,
+    pack,
+    packErrors: group.errors || [],
+    packLoaded: true,
+    packPath: null,
+    packRoot: null,
+    webBaseUrl: baseConfig.webBaseUrl,
+  };
+}
+
+function deriveLibraryIssueConfig(baseConfig, item) {
+  const pack = {
+    contractStatus: item.contractStatus || null,
+    deprecated: Boolean(item.deprecated),
+    errors: item.errors || [],
+    gameId: item.gameId || null,
+    metadata: {
+      assets: {
+        cover: item.cover || null,
+        hero: item.hero || null,
+        icon: item.icon || null,
+        logo: item.logo || null,
+      },
+      developer: item.developer || null,
+      genre: item.genre || [],
+      publisher: item.publisher || null,
+      shortDescription: "Este pack necesita atencion antes de poder jugarse.",
+      subtitle: item.subtitle || null,
+      title: item.title || "Pack con errores",
+      year: item.year || null,
+    },
+    packId: item.packId || null,
+    packRoot: item.packDir || null,
+    rom: item.rom || null,
+    seasonId: item.seasonId || null,
+    seasonName: item.seasonName || null,
+    seasonSlug: item.seasonSlug || null,
+    weekId: item.weekId || null,
+    weekNumber: item.weekNumber || null,
+  };
+
+  return {
+    ...baseConfig,
+    configSource: "pack con errores",
+    defaultWeekId: item.weekId || null,
+    pack,
+    packErrors: item.errors || [],
+    packLoaded: true,
+    packPath: item.packPath || null,
+    packRoot: item.packDir || null,
+    webBaseUrl: baseConfig.webBaseUrl,
+  };
+}
+
 function getEffectiveConfig() {
   const baseConfig = loadRuntimeConfig();
+
+  if (activeDuplicateGroup) {
+    return deriveDuplicateGroupConfig(baseConfig, activeDuplicateGroup);
+  }
+
+  if (activeLibraryIssue) {
+    return deriveLibraryIssueConfig(baseConfig, activeLibraryIssue);
+  }
 
   if (!activeOpenedPack) {
     return baseConfig;
@@ -307,7 +409,7 @@ async function resolveRememberedPack(config) {
 }
 
 async function ensureRememberedPackLoaded() {
-  if (activeOpenedPack || recentPackLoadAttempted) {
+  if (activeOpenedPack || activeDuplicateGroup || activeLibraryIssue || recentPackLoadAttempted) {
     return;
   }
 
@@ -799,11 +901,18 @@ function getGameState(config) {
     webBaseUrl: config.pack?.webBaseUrl || config.webBaseUrl,
     weekId: config.pack?.weekId || config.defaultWeekId,
   }, config.webBaseUrl);
+  const errors = [
+    ...(config.packErrors || []),
+    ...(config.pack?.errors || []),
+  ];
 
   return {
     assets: metadata?.assets || {},
     developer: metadata?.developer || null,
     displayName: metadata?.title || supportedGame?.title || config.pack?.gameId || "Space Invaders",
+    duplicateGroup: config.pack?.duplicateGroup || null,
+    duplicatePaths: config.pack?.duplicatePaths || [],
+    errors: [...new Set(errors)],
     genre: metadata?.genre || [],
     gameId: config.pack?.gameId || supportedGame?.gameId || "space-invaders",
     manual: toRendererContentState(manual),
@@ -916,8 +1025,14 @@ async function openPackRanking(options = {}) {
 function getBridgeState(config) {
   const hasExternalMame = Boolean(config.mame?.executablePath && config.mame?.workingDir);
   const packOpened = config.configSource === "pack abierto";
+  const duplicateGroup = config.configSource === "pack duplicado";
+  const packIssue = config.configSource === "pack con errores";
   const mode = packOpened
     ? "opened-pack"
+    : duplicateGroup
+      ? "duplicate-group"
+      : packIssue
+        ? "pack-issue"
     : config.configExists && !config.packLoaded && hasExternalMame
     ? "dev-bridge"
     : config.packLoaded
@@ -932,6 +1047,8 @@ function getBridgeState(config) {
     devBridge: mode === "dev-bridge",
     mode,
     packOpened,
+    duplicateGroup,
+    packIssue,
     packRemembered: Boolean(activeOpenedPack?.remembered),
     packLoaded: config.packLoaded,
     packMetadataLoaded: Boolean(config.pack?.metadataLoaded),
@@ -1551,6 +1668,8 @@ async function activatePackDirectory(packDir, options = {}) {
     pack: result.pack,
     remembered: false,
   };
+  activeDuplicateGroup = null;
+  activeLibraryIssue = null;
   recentPackNotices = [];
   let recentWriteWarning = null;
 
@@ -1852,12 +1971,28 @@ async function activateLibraryPack(packId, options = {}) {
     };
   }
 
-  if (pack.duplicatePackId) {
+  if (pack.duplicateGroup) {
+    activeOpenedPack = null;
+    activeDuplicateGroup = {
+      ...pack,
+      selectedAt: new Date().toISOString(),
+    };
+    activeLibraryIssue = null;
+    recentPackNotices = [];
+
     return {
       action: "use-library-pack",
-      lines: ["Hay otro pack con el mismo packId. Cambia el packId o elimina el duplicado."],
-      ok: false,
-      summary: "Pack duplicado bloqueado.",
+      lines: [
+        "Pack duplicado seleccionado para revision.",
+        "El launcher no abrira MAME hasta que elimines las copias o cambies el packId.",
+      ],
+      ok: true,
+      pack: {
+        duplicateGroup: true,
+        duplicatePaths: pack.duplicatePaths || [],
+        packId: pack.packId || null,
+      },
+      summary: "Pack duplicado seleccionado.",
       state: options.includeState === false ? null : await getLauncherState(),
     };
   }
@@ -1868,6 +2003,26 @@ async function activateLibraryPack(packId, options = {}) {
     rememberConfig: config,
     summary: "Pack activado desde biblioteca.",
   });
+
+  if (!response.ok && pack.status === "error") {
+    activeOpenedPack = null;
+    activeDuplicateGroup = null;
+    activeLibraryIssue = {
+      ...pack,
+      selectedAt: new Date().toISOString(),
+    };
+
+    return {
+      action: "use-library-pack",
+      lines: [
+        "Pack seleccionado para revision.",
+        ...(pack.errors || []),
+      ],
+      ok: true,
+      summary: "Pack con errores seleccionado.",
+      state: options.includeState === false ? null : await getLauncherState(),
+    };
+  }
 
   return {
     ...response,

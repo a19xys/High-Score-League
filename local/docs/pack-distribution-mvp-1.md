@@ -66,7 +66,8 @@ El launcher puede:
 - reescanear;
 - abrir la carpeta en el explorador;
 - detectar packs validos;
-- mostrar packs rotos sin romper toda la biblioteca.
+- mostrar packs rotos sin romper toda la biblioteca;
+- agrupar duplicados de `packId` como un solo conflicto seleccionable.
 
 El launcher no borra, mueve ni modifica packs al cambiar carpeta o reescanear.
 
@@ -78,6 +79,18 @@ descomprima dentro de su carpeta de packs.
 
 La importacion ZIP queda como siguiente tarea porque debe cubrir traversal,
 colisiones, sobrescritura, validacion previa y errores claros.
+
+Siguiente tarea recomendada: `LOCAL-PACK-IMPORT-MVP-1`.
+
+Regla de producto para esa tarea:
+
+```text
+Distribuir comprimido.
+Instalar descomprimido.
+Jugar descomprimido.
+```
+
+El launcher no debe ejecutar packs directamente desde ZIP.
 
 ## Contenido de un pack
 
@@ -144,6 +157,7 @@ Practicar:
 ```text
 MAME compartido
 + recursos del pack
++ mame.launchArgs comun si existe
 + perfil practice si existe
 sin hsl-score
 sin captura competitiva
@@ -154,6 +168,7 @@ Jugar:
 ```text
 MAME compartido
 + recursos del pack
++ mame.launchArgs comun si existe
 + perfil competition si existe
 + hsl-score preparado por run
 + adapter del pack copiado al run
@@ -198,7 +213,9 @@ La biblioteca tambien muestra acciones directas para elegir/cambiar carpeta,
 reescanear y abrir carpeta. En la superficie principal, abrir carpeta y
 reescanear viven como iconos en la cabecera de `Biblioteca`: carpeta antes del
 titulo y recarga despues del titulo. El icono de recarga gira mientras el
-reescaneo manual esta en curso.
+reescaneo manual esta en curso. Ese spinner queda limitado a operaciones de
+biblioteca/packs como reescanear, validar o una futura importacion; no se usa
+como spinner global de login, ranking, sync o lanzamiento de MAME.
 
 No hay watcher automatico de la carpeta de packs en este MVP. Queda pospuesto
 hasta implementar un canal IPC con debounce probado para evitar multiples
@@ -213,22 +230,44 @@ Un pack v2 requiere la ROM concreta declarada por `rom` dentro de
 el pack como `Requiere atencion`, `Practicar` y `Jugar` quedan deshabilitados y
 el servicio no lanza MAME aunque la UI fallase.
 
-Los `packId` duplicados se tratan como conflicto. Todos los packs con el mismo
-`packId` quedan bloqueados con el mensaje:
+Los `packId` duplicados se tratan como conflicto agrupado. Si varias carpetas
+declaran el mismo `packId`, la biblioteca muestra una sola entrada de problema,
+seleccionable, con estado `Requiere atencion`. El detalle lista las rutas
+implicadas y prioriza el error sobre cualquier asset disponible. `Practicar`,
+`Jugar` y favorito quedan bloqueados porque el launcher no puede decidir que
+instancia representa la identidad competitiva.
+
+El mensaje principal es:
 
 ```text
 Hay otro pack con el mismo packId. Cambia el packId o elimina el duplicado.
 ```
 
-La card usa una clave interna derivada de la ruta del pack para seleccion y
+La card de conflicto usa una clave interna sintetica para seleccion y
 renderizado, pero `packId` sigue siendo identidad competitiva. En conflicto, el
-favorito queda deshabilitado para evitar estados compartidos confusos.
+favorito queda deshabilitado para evitar estados compartidos confusos y no se
+abre ningun pack fisico automaticamente.
+
+Los packs rotos que no son duplicados tambien son seleccionables cuando hay
+informacion util que mostrar. El detalle enseña `Este pack tiene errores`,
+lista mensajes de jugador y mantiene las acciones bloqueadas si falta una ROM,
+runtime, adapter o cualquier requisito critico.
+
+Los favoritos usan actualizacion optimista: la estrella cambia al instante, el
+toggle queda pendiente para evitar carreras de clics, se confirma con el
+backend y se revierte con feedback no invasivo si el guardado falla. Sin sesion
+o en conflictos de identidad, el favorito no se puede activar.
 
 ## MAME
 
 El launcher anade `-skip_gameinfo` tanto en practica como en competicion para
 evitar la pantalla inicial automatica de informacion de MAME sin depender del
 `mame.ini` global del usuario.
+
+Los argumentos finales de lanzamiento se imprimen en el resumen local. Esto
+permite comprobar que `Jugar` recibe los argumentos del perfil competitivo, por
+ejemplo `-video bgfx -bgfx_screen_chains crt-geom`, y que `Practicar` recibe el
+perfil `practice` sin activar `hsl-score`.
 
 ## Pospuesto
 

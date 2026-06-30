@@ -382,7 +382,7 @@ export function renderLibraryPanel(state) {
       <div class="panel-heading compact">
         <div class="library-title-row">
           <button class="library-heading-button" type="button" data-action="open-pack-directory" ${openDirectoryDisabled} aria-label="Abrir carpeta de packs" title="Abrir carpeta de packs">
-            ${renderIcon("folder", { className: "library-heading-icon" })}
+            ${renderIcon("library", { className: "library-heading-icon" })}
           </button>
           <h2>Biblioteca</h2>
           <button class="library-heading-button ${rescanning ? "library-heading-button--spinning" : ""}" type="button" data-action="rescan-pack-directory" ${disabled} aria-label="Reescanear biblioteca" title="Reescanear biblioteca" aria-busy="${rescanning ? "true" : "false"}">

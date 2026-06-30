@@ -1684,7 +1684,7 @@ body {
 }
 
 body {
-  min-width: 1200px;
+  min-width: 960px;
 }
 
 #app {
@@ -1736,9 +1736,10 @@ main,
 
 .app-main {
   display: grid;
-  width: 100%;
+  width: min(100%, 1540px);
+  margin-inline: auto;
   min-height: 0;
-  grid-template-columns: minmax(400px, 470px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
   gap: 0;
   overflow: hidden;
 }
@@ -1767,6 +1768,7 @@ main,
   align-content: start;
   gap: 14px;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .library-scroll .library-panel,
@@ -2044,7 +2046,7 @@ main,
 
 /* LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1: selected game detail layer. */
 .app-main {
-  grid-template-columns: minmax(380px, 440px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
 }
 
 .game-scroll {
@@ -2053,8 +2055,10 @@ main,
 
 .game-detail-card {
   display: grid;
+  width: min(100%, 980px);
   grid-template-columns: 1fr;
   gap: 0;
+  justify-self: center;
   overflow: hidden;
   border-color: color-mix(in srgb, var(--circuit) 22%, var(--border));
   background: var(--surface);
@@ -2068,9 +2072,10 @@ main,
 .game-hero-stage {
   position: relative;
   overflow: hidden;
-  width: 100%;
+  width: min(100%, 980px);
   min-height: 150px;
-  max-height: 220px;
+  max-height: 320px;
+  margin-inline: auto;
   aspect-ratio: 1920 / 620;
   border-bottom: 1px solid color-mix(in srgb, var(--circuit) 22%, var(--border));
   background:
@@ -2247,6 +2252,43 @@ main,
   font-size: 14px;
 }
 
+.pack-error-panel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--error) 36%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--error-bg) 42%, var(--surface));
+  color: var(--text);
+  padding: 12px;
+}
+
+.pack-error-panel h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.pack-error-panel p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.pack-error-list,
+.pack-error-paths {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.pack-error-paths {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  overflow-wrap: anywhere;
+}
+
 .game-detail-card .action-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
@@ -2335,7 +2377,7 @@ main,
 
 /* LOCAL-LAUNCHER-LIBRARY-CARDS-1: visual pack library cards and sidebar resize. */
 .app-main {
-  grid-template-columns: var(--library-sidebar-width, 440px) 8px minmax(0, 1fr);
+  grid-template-columns: var(--library-sidebar-width, 400px) 8px minmax(0, 1fr);
 }
 
 .library-resizer {
@@ -3505,6 +3547,10 @@ button:disabled .ui-icon,
   display: block;
   width: 10px;
   height: 10px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }
 
 .pack-card__status-dot {
@@ -3915,6 +3961,10 @@ button:disabled .ui-icon,
 .pack-card--icons .pack-card__status--dot {
   top: 8px;
   right: 8px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }
 
 .pack-card__status-dot {
@@ -3952,6 +4002,11 @@ button:disabled .ui-icon,
 .favorite-slot--locked {
   opacity: 0.42;
   cursor: not-allowed;
+}
+
+.favorite-slot--pending {
+  opacity: 0.72;
+  cursor: wait;
 }
 
 .activity-summary-card--locked,

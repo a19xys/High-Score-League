@@ -10,9 +10,9 @@ import { renderActivityDrawer } from "./components/queue-panel.js";
 
 const root = document.getElementById("app");
 const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
-const LIBRARY_SIDEBAR_MIN = 340;
-const LIBRARY_SIDEBAR_MAX = 600;
-const LIBRARY_SIDEBAR_DEFAULT = 440;
+const LIBRARY_SIDEBAR_MIN = 300;
+const LIBRARY_SIDEBAR_MAX = 560;
+const LIBRARY_SIDEBAR_DEFAULT = 400;
 const LAUNCHER_VERSION = "v1.0.0";
 const DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 600;
 const store = createStore({
@@ -37,6 +37,7 @@ const store = createStore({
   libraryView: "covers",
   logs: [],
   noticeIds: [],
+  pendingFavoriteKeys: {},
   pendingLibraryPackId: null,
   theme: savedTheme,
 });
@@ -183,6 +184,24 @@ function preloadDetailAssetUrls(urls) {
 
 function findLibraryPack(packId) {
   return store.getState().data?.library?.packs?.find((pack) => pack.id === packId) || null;
+}
+
+function withFavoritePatch(data, packKey, patch) {
+  if (!data?.library?.packs || !packKey) {
+    return data;
+  }
+
+  return {
+    ...data,
+    library: {
+      ...data.library,
+      packs: data.library.packs.map((pack) => (
+        pack.favoriteKey === packKey
+          ? { ...pack, ...patch }
+          : pack
+      )),
+    },
+  };
 }
 
 function renderOverlay(state) {
@@ -354,20 +373,67 @@ function persistLibraryPreferencesSoon(patch) {
 }
 
 async function toggleLibraryFavorite(packKey) {
+  const current = store.getState();
+  const pack = current.data?.library?.packs?.find((item) => item.favoriteKey === packKey);
+
+  if (!packKey || !pack || current.pendingFavoriteKeys[packKey] || pack.favoriteDisabled || pack.duplicatePackId) {
+    return;
+  }
+
+  const previousFavorite = Boolean(pack.favorite);
+  const nextFavorite = !previousFavorite;
+
+  store.setState({
+    data: withFavoritePatch(current.data, packKey, {
+      favorite: nextFavorite,
+      favoritePending: true,
+    }),
+    pendingFavoriteKeys: {
+      ...current.pendingFavoriteKeys,
+      [packKey]: true,
+    },
+  });
+
   try {
     const response = await window.hslLauncher.toggleLibraryFavorite(packKey);
 
+    if (response.ok === false) {
+      throw new Error(response.summary || "No se pudo actualizar el favorito.");
+    }
+
+    const latestPending = { ...store.getState().pendingFavoriteKeys };
+    delete latestPending[packKey];
+
     if (response.state) {
-      store.setState({ data: response.state });
+      store.setState({
+        data: response.state,
+        pendingFavoriteKeys: latestPending,
+      });
+    } else {
+      store.setState({
+        data: withFavoritePatch(store.getState().data, packKey, {
+          favorite: nextFavorite,
+          favoritePending: false,
+        }),
+        pendingFavoriteKeys: latestPending,
+      });
     }
   } catch (error) {
+    const latestPending = { ...store.getState().pendingFavoriteKeys };
+    delete latestPending[packKey];
+
     store.setState({
+      data: withFavoritePatch(store.getState().data, packKey, {
+        favorite: previousFavorite,
+        favoritePending: false,
+      }),
       logs: appendLog(store.getState().logs, {
         details: [error.message || String(error)],
         ok: false,
         summary: "No se pudo actualizar el favorito.",
         title: "Biblioteca",
       }),
+      pendingFavoriteKeys: latestPending,
     });
   }
 }

@@ -216,6 +216,7 @@ function printLaunchSummary(launch) {
 
   console.log(`Ejecutable: ${launch.command}`);
   console.log(`Working dir: ${launch.cwd}`);
+  console.log(`Args: ${launch.args.join(" ")}`);
 
   if (launch.runtime === "shared-mame") {
     console.log("Runtime: MAME compartido");

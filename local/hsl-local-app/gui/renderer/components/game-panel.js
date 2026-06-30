@@ -140,6 +140,40 @@ function renderContentAction(action, label, content, disabled) {
   `;
 }
 
+function renderPackErrors(game, readiness) {
+  const errors = [
+    ...(game?.errors || []),
+    ...(readiness?.blockers || []),
+  ].filter(Boolean);
+  const uniqueErrors = [...new Set(errors)];
+  const duplicatePaths = game?.duplicatePaths || [];
+
+  if (uniqueErrors.length === 0 && duplicatePaths.length === 0) {
+    return "";
+  }
+
+  const title = game?.duplicateGroup ? "Pack duplicado" : "Este pack tiene errores";
+  const intro = game?.duplicateGroup && duplicatePaths.length > 0
+    ? `Se han encontrado ${duplicatePaths.length} carpetas con el mismo packId:`
+    : "Corrige estos puntos antes de jugar:";
+
+  return `
+    <section class="pack-error-panel" aria-label="${escapeHtml(title)}">
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(intro)}</p>
+      ${duplicatePaths.length > 0
+        ? `<ul class="pack-error-paths">${duplicatePaths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+        : ""}
+      ${uniqueErrors.length > 0
+        ? `<ul class="pack-error-list">${uniqueErrors.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+        : ""}
+      ${game?.duplicateGroup
+        ? `<p>El launcher no puede decidir cual usar. Elimina las copias o cambia el packId de los packs duplicados.</p>`
+        : ""}
+    </section>
+  `;
+}
+
 export function renderGamePanel(state) {
   const data = state.data;
   const game = data?.game;
@@ -174,6 +208,7 @@ export function renderGamePanel(state) {
           </div>
         </div>
         ${description ? `<p class="ready-copy">${escapeHtml(description)}</p>` : ""}
+        ${renderPackErrors(game, readiness)}
         <div class="primary-actions action-grid">
           <button class="play-button action-tile" type="button" data-action="play" ${competitionDisabled}>
             ${renderIcon("play", { className: "action-icon icon-slot icon-slot--play" })}
