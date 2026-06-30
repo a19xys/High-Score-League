@@ -5,6 +5,7 @@ const { getGameByRom } = require("./games");
 
 const DEFAULT_PLUGIN_NAME = "hsl-score";
 const MODES = new Set(["competition", "practice"]);
+const OUTPUT_TAIL_LIMIT = 200;
 
 function isPackV2Config(config) {
   return config?.pack?.packVersion === 2 || config?.pack?.contract?.version === 2;
@@ -60,26 +61,31 @@ function resolveLaunchRom(rom) {
   };
 }
 
-function validateLaunchArgs(launchArgs) {
+function validateLaunchArgs(launchArgs, label = "mame.launchArgs") {
   if (launchArgs === undefined || launchArgs === null) {
     return [];
   }
 
   if (!Array.isArray(launchArgs)) {
-    throw new Error("pack.json mame.launchArgs debe ser un array");
+    throw new Error(`pack.json ${label} debe ser un array`);
   }
 
   return launchArgs.map((value) => {
     if (typeof value !== "string" || value.includes("\0")) {
-      throw new Error("pack.json mame.launchArgs solo puede incluir strings seguros");
+      throw new Error(`pack.json ${label} solo puede incluir strings seguros`);
     }
 
     return value;
   });
 }
 
-function addPackV2ResourceArgs(args, config) {
+function getPackV2ModeProfile(config, mode) {
+  return config.pack?.contract?.mame?.profiles?.[mode] || {};
+}
+
+function addPackV2ResourceArgs(args, config, mode) {
   const mame = config.pack?.contract?.mame || {};
+  const profile = getPackV2ModeProfile(config, mode);
 
   if (!mame.romDir) {
     throw new Error("pack.json v2 debe incluir mame.romPath para lanzar MAME.");
@@ -95,11 +101,19 @@ function addPackV2ResourceArgs(args, config) {
     args.push("-samplepath", mame.sampleDir);
   }
 
-  if (mame.cfgDir) {
-    args.push("-cfg_directory", mame.cfgDir);
+  if (profile.cfgDir || mame.cfgDir) {
+    args.push("-cfg_directory", profile.cfgDir || mame.cfgDir);
   }
 
   args.push(...validateLaunchArgs(mame.launchArgs));
+  args.push(...validateLaunchArgs(profile.launchArgs, `mame.profiles.${mode}.launchArgs`));
+}
+
+function buildPluginSearchPath(runPluginSearchDir, mameCwd) {
+  const stockPluginSearchDir = path.join(mameCwd, "plugins");
+  const entries = [runPluginSearchDir, stockPluginSearchDir].filter(Boolean);
+
+  return [...new Set(entries)].join(path.delimiter);
 }
 
 function buildPackV2MameArgs(config, rom, mode) {
@@ -108,23 +122,33 @@ function buildPackV2MameArgs(config, rom, mode) {
   const launch = resolveLaunchRom(rom);
   const args = [launch.rom];
   const pluginName = config.pack?.contract?.capture?.pluginName || DEFAULT_PLUGIN_NAME;
+  const command = config.sharedMameRuntime.mameExecutablePath.trim();
+  const cwd = path.dirname(command);
 
-  addPackV2ResourceArgs(args, config);
+  addPackV2ResourceArgs(args, config, mode);
 
   if (mode === "competition") {
     const run = config.v2PluginRun;
 
-    if (!run?.pluginSearchDir || !run?.stagingPendingDir || run.pluginName !== pluginName) {
+    if (!run?.runRoot || !run?.pluginSearchDir || !run?.stagingPendingDir || run.pluginName !== pluginName) {
       throw new Error("Competicion v2 requiere preparar plugin/adaptador aislado antes de lanzar MAME.");
     }
 
-    args.push("-pluginspath", run.pluginSearchDir, "-plugins", "-plugin", pluginName);
+    args.push(
+      "-homepath",
+      run.runRoot,
+      "-pluginspath",
+      buildPluginSearchPath(run.pluginSearchDir, cwd),
+      "-plugins",
+      "-plugin",
+      pluginName
+    );
   }
 
   return {
     args,
-    command: config.sharedMameRuntime.mameExecutablePath.trim(),
-    cwd: path.dirname(config.sharedMameRuntime.mameExecutablePath.trim()),
+    command,
+    cwd,
     game: launch.game,
     mode,
     pluginName,
@@ -185,6 +209,12 @@ function printLaunchSummary(launch) {
     console.log("Runtime: MAME compartido");
   }
 
+  if (launch.v2PluginRun) {
+    console.log(`Run v2: ${launch.v2PluginRun.runId || launch.v2PluginRun.runRoot}`);
+    console.log(`Pluginpath v2: ${buildPluginSearchPath(launch.v2PluginRun.pluginSearchDir, launch.cwd)}`);
+    console.log(`Staging v2: ${launch.v2PluginRun.stagingPendingDir}`);
+  }
+
   console.log("");
 }
 
@@ -202,8 +232,18 @@ function assertLaunchResources(config, launch) {
   if (launch.mode === "competition") {
     const run = config.v2PluginRun;
 
+    if (!run?.runRoot || !fs.existsSync(run.runRoot) || !fs.statSync(run.runRoot).isDirectory()) {
+      throw new Error("No encuentro el run preparado para competicion v2.");
+    }
+
     if (!run?.pluginSearchDir || !fs.existsSync(run.pluginSearchDir) || !fs.statSync(run.pluginSearchDir).isDirectory()) {
       throw new Error("No encuentro el plugin preparado para competicion v2.");
+    }
+
+    const stockPluginBoot = path.join(launch.cwd, "plugins", "boot.lua");
+
+    if (!fs.existsSync(stockPluginBoot) || !fs.statSync(stockPluginBoot).isFile()) {
+      throw new Error("No encuentro boot.lua en los plugins base de MAME compartido.");
     }
 
     if (!run?.stagingPendingDir || !fs.existsSync(run.stagingPendingDir) || !fs.statSync(run.stagingPendingDir).isDirectory()) {
@@ -228,10 +268,59 @@ function launchMame(config, rom, mode, spawnImpl = spawn) {
   });
 }
 
+function trimOutputLines(lines) {
+  if (lines.length <= OUTPUT_TAIL_LIMIT) {
+    return lines;
+  }
+
+  return [
+    `... ${lines.length - OUTPUT_TAIL_LIMIT} linea(s) anteriores omitidas ...`,
+    ...lines.slice(-OUTPUT_TAIL_LIMIT),
+  ];
+}
+
+function launchMameDetailed(config, rom, mode, spawnImpl = spawn) {
+  const launch = buildMameArgs(config, rom, mode);
+  assertLaunchResources(config, launch);
+  printLaunchSummary(launch);
+
+  return new Promise((resolve, reject) => {
+    const stdoutLines = [];
+    const stderrLines = [];
+    const child = spawnImpl(launch.command, launch.args, {
+      cwd: launch.cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    const collect = (target) => (chunk) => {
+      const lines = String(chunk).split(/\r?\n/).filter((line) => line.trim() !== "");
+      target.push(...lines);
+    };
+
+    if (child.stdout?.on) {
+      child.stdout.on("data", collect(stdoutLines));
+    }
+
+    if (child.stderr?.on) {
+      child.stderr.on("data", collect(stderrLines));
+    }
+
+    child.on("error", reject);
+    child.on("close", (code) => resolve({
+      exitCode: code ?? 1,
+      launch,
+      stderrLines: trimOutputLines(stderrLines),
+      stdoutLines: trimOutputLines(stdoutLines),
+    }));
+  });
+}
+
 module.exports = {
   DEFAULT_PLUGIN_NAME,
   assertMameConfig,
   buildMameArgs,
+  buildPluginSearchPath,
+  launchMameDetailed,
   launchMame,
   printLaunchSummary,
 };

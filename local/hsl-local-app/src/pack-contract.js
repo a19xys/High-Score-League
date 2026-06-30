@@ -25,6 +25,7 @@ const V2_RECOMMENDED_FIELDS = [
   "capture.pluginName",
   "capture.adapter",
 ];
+const V2_MAME_PROFILE_MODES = ["practice", "competition"];
 
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -114,6 +115,70 @@ function validateLocalPathField(pack, field, errors, options = {}) {
   }
 
   return normalizeRelativePath(value);
+}
+
+function validateLaunchArgsField(pack, field, errors) {
+  const value = getNestedValue(pack, field);
+
+  if (value === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    errors.push(`pack.json ${field} debe ser un array`);
+    return [];
+  }
+
+  return value.filter((item) => {
+    if (typeof item !== "string" || item.includes("\0")) {
+      errors.push(`pack.json ${field} solo puede incluir strings seguros`);
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function normalizeMameProfiles(pack, packRoot, errors) {
+  const profiles = {};
+
+  if (pack.mame?.profiles !== undefined && !isObject(pack.mame.profiles)) {
+    errors.push("pack.json mame.profiles debe ser un objeto");
+    return profiles;
+  }
+
+  for (const mode of V2_MAME_PROFILE_MODES) {
+    const profile = pack.mame?.profiles?.[mode];
+
+    if (profile === undefined) {
+      profiles[mode] = {
+        cfgDir: null,
+        cfgPath: null,
+        launchArgs: [],
+      };
+      continue;
+    }
+
+    if (!isObject(profile)) {
+      errors.push(`pack.json mame.profiles.${mode} debe ser un objeto`);
+      profiles[mode] = {
+        cfgDir: null,
+        cfgPath: null,
+        launchArgs: [],
+      };
+      continue;
+    }
+
+    const cfgPath = validateLocalPathField(pack, `mame.profiles.${mode}.cfgPath`, errors);
+
+    profiles[mode] = {
+      cfgDir: resolvePackResourcePath(cfgPath, packRoot),
+      cfgPath,
+      launchArgs: validateLaunchArgsField(pack, `mame.profiles.${mode}.launchArgs`, errors),
+    };
+  }
+
+  return profiles;
 }
 
 function baseNormalized(pack, overrides) {
@@ -219,13 +284,12 @@ function normalizeV2Pack(pack, options = {}) {
     errors.push("pack.json debe incluir capture.mode");
   }
 
-  if (pack.mame?.launchArgs !== undefined && !Array.isArray(pack.mame.launchArgs)) {
-    errors.push("pack.json mame.launchArgs debe ser un array");
-  }
+  const launchArgs = validateLaunchArgsField(pack, "mame.launchArgs", errors);
 
   addRecommendedFieldWarnings(pack, V2_RECOMMENDED_FIELDS, warnings);
 
   const packRoot = options.packRoot || null;
+  const profiles = normalizeMameProfiles(pack, packRoot, errors);
   const normalized = {
     ...baseNormalized(pack, {
       contractStatus: "current",
@@ -244,7 +308,8 @@ function normalizeV2Pack(pack, options = {}) {
         artworkPath,
         cfgDir: resolvePackResourcePath(cfgPath, packRoot),
         cfgPath,
-        launchArgs: Array.isArray(pack.mame?.launchArgs) ? [...pack.mame.launchArgs] : [],
+        launchArgs,
+        profiles,
         romDir: resolvePackResourcePath(romPath, packRoot),
         romPath,
         sampleDir: resolvePackResourcePath(samplePath, packRoot),

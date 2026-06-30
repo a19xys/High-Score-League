@@ -44,8 +44,15 @@ gameModule = "games/adapter.lua"
 MAME se lanza con runtime compartido, recursos del pack y:
 
 ```text
--pluginspath <run>/plugins -plugins -plugin hsl-score
+-homepath <run>
+-pluginspath <run>/plugins;<mame>/plugins -plugins -plugin hsl-score
 ```
+
+El orden del `pluginspath` es intencionado: el run va primero para que
+`hsl-score` salga de la preparacion aislada, y el directorio `plugins` del MAME
+compartido va despues para que MAME encuentre su `boot.lua` base. Si se usa
+solo `<run>/plugins`, MAME arranca el juego pero no inicializa el gestor de
+plugins.
 
 ## Por que no se eligieron otras opciones
 
@@ -101,6 +108,32 @@ para soporte; no se borran capturas automaticamente.
 
 Practica v2 sigue usando MAME compartido y recursos del pack, pero no anade
 `-plugins`, `-plugin` ni `-pluginspath`. No prepara staging competitivo.
+
+## Perfiles de lanzamiento
+
+`packVersion: 2` puede declarar perfiles opcionales por modo en
+`mame.profiles.practice` y `mame.profiles.competition`:
+
+```json
+{
+  "mame": {
+    "cfgPath": "cfg",
+    "launchArgs": [],
+    "profiles": {
+      "competition": {
+        "cfgPath": "cfg/competition",
+        "launchArgs": ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"]
+      }
+    }
+  }
+}
+```
+
+El launcher usa `cfgPath` del perfil si existe; si no, usa `mame.cfgPath`.
+Tambien anade primero `mame.launchArgs` y despues los `launchArgs` del perfil.
+Esto permite aplicar filtros como `crt-geom` solo en competicion. En Space
+Invaders, MAME declara por defecto `Lives=3` y `Bonus Life=1500`; no se ha
+implementado bloqueo fuerte de menu TAB/DIPs.
 
 ## Legacy v1
 

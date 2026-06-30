@@ -69,6 +69,7 @@ runtime MAME compartido
 + contract.mame.sampleDir
 + contract.mame.cfgDir
 + contract.mame.launchArgs
++ contract.mame.profiles.<mode>
 ```
 
 Argumentos basicos:
@@ -80,11 +81,13 @@ mame.exe <rom>
   -samplepath <pack>/samples
   -cfg_directory <pack>/cfg
   <launchArgs>
+  <profile.launchArgs>
 ```
 
 `-artpath`, `-samplepath`, `-cfg_directory` y `launchArgs` solo se anaden si el
-pack los declara. Los nombres de flags quedan pendientes de validacion final
-con MAME real antes de cerrar empaquetado.
+pack los declara. Si el perfil del modo declara `cfgPath`, sustituye a
+`mame.cfgPath` para ese lanzamiento. Los nombres de flags quedan pendientes de
+validacion final con MAME real antes de cerrar empaquetado.
 
 ## Practica y competicion
 

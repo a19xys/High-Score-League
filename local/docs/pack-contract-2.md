@@ -82,6 +82,9 @@ Se validan especialmente `mame.romPath`, `mame.artworkPath`,
 `mame.samplePath`, `mame.cfgPath` y `capture.adapter`. `mame.romPath` y
 `capture.adapter`, cuando se declara, fallan si son inseguros.
 
+`mame.profiles.practice.cfgPath` y `mame.profiles.competition.cfgPath`, si se
+declaran, siguen las mismas reglas de ruta relativa segura.
+
 ## Normalizacion
 
 El loader normaliza v1 y v2 con campos comunes:
@@ -124,6 +127,34 @@ el pack y explicar su estado. Desde `LOCAL-SHARED-MAME-RUNTIME-1`, practica v2
 puede usar el runtime MAME compartido si esta configurado y `mame.romPath`
 existe. Desde `LOCAL-MAME-PACK-PLUGIN-LOADING-2`, competicion v2 prepara
 plugin/adaptador por ejecucion cuando el resto de requisitos estan listos.
+
+## Perfiles MAME opcionales
+
+El contrato acepta `mame.profiles.practice` y `mame.profiles.competition` para
+ajustar el lanzamiento por modo sin cambiar el runtime compartido:
+
+```json
+{
+  "mame": {
+    "cfgPath": "cfg",
+    "launchArgs": [],
+    "profiles": {
+      "practice": {
+        "cfgPath": "cfg/practice",
+        "launchArgs": []
+      },
+      "competition": {
+        "cfgPath": "cfg/competition",
+        "launchArgs": ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"]
+      }
+    }
+  }
+}
+```
+
+El launcher usa el `cfgPath` del perfil si existe, y concatena
+`mame.launchArgs` con los argumentos del perfil. Los argumentos siguen siendo
+una lista explicita de strings; no hay parseo de shell.
 
 ## Compatibilidad legacy
 

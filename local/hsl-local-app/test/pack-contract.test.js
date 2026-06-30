@@ -98,6 +98,39 @@ test("v2 valido queda current y normaliza rutas internas", async () => {
   });
 });
 
+test("v2 normaliza perfiles MAME por modo", async () => {
+  await withTempDir(async (dir) => {
+    const result = normalizePackContract(validV2Pack({
+      mame: {
+        ...validV2Pack().mame,
+        profiles: {
+          practice: {
+            cfgPath: "cfg/practice",
+          },
+          competition: {
+            cfgPath: "cfg/competition",
+            launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+          },
+        },
+      },
+    }), {
+      packRoot: dir,
+    });
+
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.normalized.contract.mame.profiles.practice.cfgPath, "cfg/practice");
+    assert.equal(result.normalized.contract.mame.profiles.practice.cfgDir, path.join(dir, "cfg", "practice"));
+    assert.equal(result.normalized.contract.mame.profiles.competition.cfgPath, "cfg/competition");
+    assert.equal(result.normalized.contract.mame.profiles.competition.cfgDir, path.join(dir, "cfg", "competition"));
+    assert.deepEqual(result.normalized.contract.mame.profiles.competition.launchArgs, [
+      "-video",
+      "bgfx",
+      "-bgfx_screen_chains",
+      "crt-geom",
+    ]);
+  });
+});
+
 test("v2 exige campos requeridos", () => {
   const pack = validV2Pack({
     packId: "",
@@ -161,4 +194,21 @@ test("v2 no acepta rutas legacy de MAME embebido", () => {
   }));
 
   assert.ok(result.errors.some((item) => /packVersion 2 no acepta mame\.relativeExecutablePath/.test(item)));
+});
+
+test("v2 rechaza perfiles MAME inseguros", () => {
+  const result = normalizePackContract(validV2Pack({
+    mame: {
+      ...validV2Pack().mame,
+      profiles: {
+        competition: {
+          cfgPath: "../cfg",
+          launchArgs: ["-video", 42],
+        },
+      },
+    },
+  }));
+
+  assert.ok(result.errors.some((item) => /mame\.profiles\.competition\.cfgPath/.test(item)));
+  assert.ok(result.errors.some((item) => /mame\.profiles\.competition\.launchArgs/.test(item)));
 });

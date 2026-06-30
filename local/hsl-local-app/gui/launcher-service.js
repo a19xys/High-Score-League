@@ -30,7 +30,7 @@ const {
 const { buildDiagnoseReport } = require("../src/diagnose");
 const { listJsonFiles, readEventFile } = require("../src/event-files");
 const { listSupportedGames } = require("../src/games");
-const { launchMame } = require("../src/mame-launcher");
+const { launchMame, launchMameDetailed } = require("../src/mame-launcher");
 const { evaluatePackReadiness } = require("../src/pack-readiness");
 const { readPackDirectory, setPackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
@@ -822,6 +822,26 @@ function getGameState(config) {
   };
 }
 
+function summarizeMameOutput(result) {
+  if (!result || (!Array.isArray(result.stdoutLines) && !Array.isArray(result.stderrLines))) {
+    return [];
+  }
+
+  const interesting = [
+    ...(result.stdoutLines || []),
+    ...(result.stderrLines || []),
+  ].filter((line) => /HSL|hsl-score|plugin|Lua|error|warning|unknown option/i.test(line));
+
+  if (interesting.length === 0) {
+    return [];
+  }
+
+  return [
+    "Salida MAME relevante:",
+    ...interesting.slice(-40),
+  ];
+}
+
 async function openPackContent(target, options = {}) {
   if (!target.available) {
     return {
@@ -1048,8 +1068,13 @@ async function playCompetition() {
   }
 
   const startedAtMs = Date.now();
-  const captured = await captureConsoleAsync(() => launchMame(launchConfig, baseConfig.pack?.rom || "invaders", "competition"));
-  const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
+  const captured = await captureConsoleAsync(() => (
+    isPackV2
+      ? launchMameDetailed(launchConfig, baseConfig.pack?.rom || "invaders", "competition")
+      : launchMame(launchConfig, baseConfig.pack?.rom || "invaders", "competition")
+  ));
+  const exitCode = Number.isInteger(captured.result) ? captured.result : captured.result?.exitCode ?? captured.exitCode;
+  const mameOutputLines = summarizeMameOutput(captured.result);
   const adoption = await adoptNewStagingEvents(
     stagingPendingDir,
     scoped.config.eventsPendingDirAbs,
@@ -1075,6 +1100,7 @@ async function playCompetition() {
         ? [`Captura v2 preparada: ${preparedRun.runId}.`]
         : []),
       ...captured.lines,
+      ...mameOutputLines,
       ...(adoption.adopted.length > 0
         ? [`${adoption.adopted.length} captura(s) nueva(s) movida(s) a la cola de esta cuenta y pack.`]
         : ["No se detectaron capturas nuevas para adoptar."]),

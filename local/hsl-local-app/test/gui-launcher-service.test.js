@@ -289,7 +289,8 @@ test("launcher service prepares isolated plugin run for v2 competition", async (
 
   assert.match(service, /prepareV2CompetitionRun/);
   assert.match(service, /preparedRun\.stagingPendingDir/);
-  assert.match(service, /launchMame\(launchConfig/);
+  assert.match(service, /launchMameDetailed\(launchConfig/);
+  assert.match(service, /Salida MAME relevante/);
   assert.equal(/Competicion v2 bloqueada: falta cargar el plugin/.test(service), false);
 });
 

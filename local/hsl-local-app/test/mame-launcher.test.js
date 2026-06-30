@@ -1,10 +1,13 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
+const path = require("node:path");
 const {
   DEFAULT_PLUGIN_NAME,
   buildMameArgs,
+  buildPluginSearchPath,
   launchMame,
+  launchMameDetailed,
   printLaunchSummary,
 } = require("../src/mame-launcher");
 
@@ -113,6 +116,8 @@ test("packVersion 2 competition uses prepared pluginpath and score plugin", () =
   const launch = buildMameArgs(packV2Config({
     v2PluginRun: {
       pluginName: "hsl-score",
+      runId: "run-1",
+      runRoot: "C:/HSL/userData/runtime/runs/run-1",
       pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
       stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
     },
@@ -131,12 +136,65 @@ test("packVersion 2 competition uses prepared pluginpath and score plugin", () =
     "-cfg_directory",
     "C:/Packs/space-invaders/cfg",
     "-window",
+    "-homepath",
+    "C:/HSL/userData/runtime/runs/run-1",
     "-pluginspath",
-    "C:/HSL/userData/runtime/runs/run-1/plugins",
+    buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins", "C:/HSL/runtime/mame"),
     "-plugins",
     "-plugin",
     "hsl-score",
   ]);
+});
+
+test("packVersion 2 launch applies mode-specific MAME profile", () => {
+  const config = packV2Config({
+    pack: {
+      ...packV2Config().pack,
+      contract: {
+        ...packV2Config().pack.contract,
+        mame: {
+          ...packV2Config().pack.contract.mame,
+          profiles: {
+            competition: {
+              cfgDir: "C:/Packs/space-invaders/cfg-competition",
+              launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+            },
+          },
+        },
+      },
+    },
+    v2PluginRun: {
+      pluginName: "hsl-score",
+      runId: "run-1",
+      runRoot: "C:/HSL/userData/runtime/runs/run-1",
+      pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
+      stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
+    },
+  });
+  const launch = buildMameArgs(config, "invaders", "competition");
+
+  assert.deepEqual(launch.args.slice(0, 14), [
+    "invaders",
+    "-rompath",
+    "C:/Packs/space-invaders/roms",
+    "-artpath",
+    "C:/Packs/space-invaders/artwork",
+    "-samplepath",
+    "C:/Packs/space-invaders/samples",
+    "-cfg_directory",
+    "C:/Packs/space-invaders/cfg-competition",
+    "-window",
+    "-video",
+    "bgfx",
+    "-bgfx_screen_chains",
+    "crt-geom",
+  ]);
+});
+
+test("packVersion 2 competition pluginpath keeps isolated plugin before MAME base plugins", () => {
+  const pluginSearchPath = buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins", "C:/HSL/runtime/mame");
+
+  assert.equal(pluginSearchPath, `C:/HSL/userData/runtime/runs/run-1/plugins${path.delimiter}${path.join("C:/HSL/runtime/mame", "plugins")}`);
 });
 
 test("packVersion 2 practice requires shared runtime", () => {
@@ -185,6 +243,40 @@ test("launchMame uses spawn with inherited stdio and returns the exit code", asy
   }
 
   assert.equal(exitCode, 0);
+});
+
+test("launchMameDetailed captures stdout and stderr tails", async () => {
+  const originalLog = console.log;
+  console.log = () => {};
+
+  let result;
+
+  try {
+    result = await launchMameDetailed(mameConfig(), "invaders", "competition", (command, args, options) => {
+      assert.equal(command, "C:/MAME/mame.exe");
+      assert.deepEqual(args, ["invaders", "-plugins", "-plugin", "hsl-score"]);
+      assert.deepEqual(options, {
+        cwd: "C:/MAME",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      const child = new EventEmitter();
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      process.nextTick(() => {
+        child.stdout.emit("data", "[HSL] Plugin cargado\n");
+        child.stderr.emit("data", "Lua warning\n");
+        child.emit("close", 0);
+      });
+      return child;
+    });
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(result.stdoutLines, ["[HSL] Plugin cargado"]);
+  assert.deepEqual(result.stderrLines, ["Lua warning"]);
 });
 
 test("printLaunchSummary explains competition and practice plugin behavior", () => {
