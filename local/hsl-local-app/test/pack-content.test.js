@@ -129,7 +129,28 @@ test("ranking usa ruta web de weekId como fallback claro", () => {
   assert.equal(result.url, "https://high-score-league.example/weeks/week%201");
 });
 
-test("ranking sin URL ni weekId no inventa endpoint", () => {
+test("ranking usa temporada si no hay weekId", () => {
+  const result = resolvePackRanking({
+    seasonSlug: "temporada-test",
+    webBaseUrl: "https://high-score-league.example",
+  });
+
+  assert.equal(result.available, true);
+  assert.equal(result.source, "season-web-route");
+  assert.equal(result.url, "https://high-score-league.example/seasons/temporada-test");
+});
+
+test("ranking usa webBaseUrl como fallback seguro", () => {
+  const result = resolvePackRanking({
+    webBaseUrl: "https://high-score-league.example",
+  });
+
+  assert.equal(result.available, true);
+  assert.equal(result.source, "web-base-url");
+  assert.equal(result.url, "https://high-score-league.example");
+});
+
+test("ranking sin URL valida no inventa endpoint", () => {
   const result = resolvePackRanking({}, null);
 
   assert.equal(result.available, false);

@@ -260,6 +260,7 @@ function renderLibraryControls(state, packs) {
   const filtersOpen = Boolean(state.libraryFiltersOpen);
   const disabled = state.busy ? "disabled" : "";
   const hasDirectory = Boolean(state.data?.library?.directory?.path);
+  const openDirectoryDisabled = !hasDirectory ? "disabled" : disabled;
   const locationLabel = hasDirectory ? "Cambiar ubicación" : "Añadir ubicación";
 
   return `
@@ -272,6 +273,16 @@ function renderLibraryControls(state, packs) {
         <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-label="Filtros" title="Filtros" aria-expanded="${filtersOpen ? "true" : "false"}" aria-controls="library-filter-card">
           ${renderIcon("filter", { className: "library-control-icon" })}
           <span>Filtros</span>
+        </button>
+      </div>
+      <div class="library-control-row library-control-row--secondary">
+        <button class="library-control-button" type="button" data-action="rescan-pack-directory" ${disabled} aria-label="Reescanear biblioteca" title="Reescanear biblioteca">
+          ${renderIcon("sync-ok", { className: "library-control-icon" })}
+          <span>Reescanear</span>
+        </button>
+        <button class="library-control-button" type="button" data-action="open-pack-directory" ${openDirectoryDisabled} aria-label="Abrir carpeta de packs" title="Abrir carpeta de packs">
+          ${renderIcon("folder", { className: "library-control-icon" })}
+          <span>Abrir carpeta</span>
         </button>
       </div>
       ${renderFilterCard(state, packs)}

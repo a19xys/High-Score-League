@@ -143,6 +143,7 @@ function resolvePackRanking(pack, fallbackWebBaseUrl = null) {
 
   const baseUrl = pack?.webBaseUrl || fallbackWebBaseUrl;
   const weekId = pack?.weekId;
+  const seasonKey = pack?.seasonSlug || pack?.seasonId;
 
   if (isHttpUrl(baseUrl) && typeof weekId === "string" && weekId.trim() !== "") {
     const url = new URL(`/weeks/${encodeURIComponent(weekId.trim())}`, baseUrl.trim());
@@ -152,6 +153,26 @@ function resolvePackRanking(pack, fallbackWebBaseUrl = null) {
       kind: "external",
       source: "week-web-route",
       url: url.toString(),
+    };
+  }
+
+  if (isHttpUrl(baseUrl) && typeof seasonKey === "string" && seasonKey.trim() !== "") {
+    const url = new URL(`/seasons/${encodeURIComponent(seasonKey.trim())}`, baseUrl.trim());
+
+    return {
+      available: true,
+      kind: "external",
+      source: "season-web-route",
+      url: url.toString(),
+    };
+  }
+
+  if (isHttpUrl(baseUrl)) {
+    return {
+      available: true,
+      kind: "external",
+      source: "web-base-url",
+      url: baseUrl.trim(),
     };
   }
 

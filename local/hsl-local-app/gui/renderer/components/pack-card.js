@@ -36,8 +36,40 @@ function isActivePack(pack, data = {}) {
   return Boolean(activeName && activeWeek && activeName === pack.gameId && activeWeek === pack.weekId);
 }
 
-function weekStatusMeta() {
-  return { className: "week-status--open", label: "ABIERTO" };
+function statusMeta(pack) {
+  if (pack.status === "error") {
+    return {
+      className: "week-status--error",
+      dotClassName: "pack-card__status-dot--error",
+      label: "REQUIERE ATENCION",
+      title: "Este pack esta incompleto o no es valido.",
+    };
+  }
+
+  if (pack.deprecated) {
+    return {
+      className: "week-status--legacy",
+      dotClassName: "pack-card__status-dot--warning",
+      label: "LEGACY",
+      title: "Este pack usa un contrato antiguo.",
+    };
+  }
+
+  if (pack.status === "warning") {
+    return {
+      className: "week-status--warning",
+      dotClassName: "pack-card__status-dot--warning",
+      label: "AVISO",
+      title: "Este pack puede usarse, pero tiene avisos.",
+    };
+  }
+
+  return {
+    className: "week-status--ready",
+    dotClassName: "pack-card__status-dot--ok",
+    label: "LISTO",
+    title: "Pack detectado y listo para abrir.",
+  };
 }
 
 function subtitleForPack(pack) {
@@ -85,11 +117,19 @@ function renderFavorite(pack, disabled, hasSession) {
   `;
 }
 
-function renderBadges() {
-  const meta = weekStatusMeta();
+function renderBadges(pack, view) {
+  const meta = statusMeta(pack);
+
+  if (view === "icons") {
+    return `
+      <div class="pack-card__status pack-card__status--dot" title="${escapeHtml(meta.title)}">
+        <span class="pack-card__status-dot ${meta.dotClassName}" aria-label="${escapeHtml(meta.label)}"></span>
+      </div>
+    `;
+  }
 
   return `
-    <div class="pack-card__status">
+    <div class="pack-card__status" title="${escapeHtml(meta.title)}">
       <span class="badge week-status-badge ${meta.className}">${escapeHtml(meta.label)}</span>
     </div>
   `;
@@ -124,7 +164,7 @@ export function renderPackCard(pack, state, view = "covers") {
   return `
     <article class="${cardClass}" title="${escapeHtml(`${pack.title || "Pack local"} · ${subtitle}`)}" ${selectableAttributes}>
       ${renderFavorite(pack, state.busy, Boolean(state.data?.session?.hasSession))}
-      ${renderBadges()}
+      ${renderBadges(pack, view)}
       ${renderPackVisual(pack, view)}
       <div class="pack-card__body">
         <div class="pack-card__text">
@@ -140,7 +180,7 @@ export function renderPackCard(pack, state, view = "covers") {
 export const packCardTestApi = {
   getInitials,
   isActivePack,
+  statusMeta,
   subtitleForPack,
   visualAsset,
-  weekStatusMeta,
 };

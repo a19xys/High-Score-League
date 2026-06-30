@@ -194,11 +194,11 @@ function renderOverlay(state) {
 
   return `
     <div class="modal-layer" data-overlay-backdrop>
-      <aside class="drawer-layer" role="dialog" aria-modal="true" aria-label="${isActivity ? "Actividad local" : "Opciones avanzadas"}" data-drawer>
+      <aside class="drawer-layer" role="dialog" aria-modal="true" aria-label="${isActivity ? "Actividad local" : "Configuracion del launcher"}" data-drawer>
         <div class="drawer-header">
           <div>
-            <p class="eyebrow">${isActivity ? "Cola local" : "Soporte"}</p>
-            <h2>${isActivity ? "Actividad local" : "Opciones avanzadas"}</h2>
+            <p class="eyebrow">${isActivity ? "Cola local" : "Launcher"}</p>
+            <h2>${isActivity ? "Actividad local" : "Configuracion"}</h2>
           </div>
           <button class="icon-button" type="button" data-action="close-overlay" title="Cerrar">x</button>
         </div>
@@ -762,6 +762,10 @@ function bindActions() {
 
     if (action === "toggle-theme") {
       store.setState({ theme: store.getState().theme === "dark" ? "light" : "dark" });
+    }
+
+    if (action === "show-settings") {
+      store.setState({ ...closeAccountMenuState(), activeOverlay: "advanced" });
     }
 
     if (action === "toggle-account-menu") {

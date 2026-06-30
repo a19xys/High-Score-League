@@ -159,6 +159,12 @@ solo directorio en `userData/libraries/pack-directory.json`, permite elegirlo,
 cambiarlo, abrirlo y reescanearlo, y conserva `locations.json` solo como
 compatibilidad temporal no destructiva.
 
+`LOCAL-PACK-DISTRIBUTION-MVP-1` consolida esta direccion para la primera
+competicion: la biblioteca muestra elegir/cambiar carpeta, reescanear y abrir
+carpeta en la primera capa, mientras la configuracion del launcher agrupa
+biblioteca de packs, runtime MAME y diagnostico avanzado. La importacion ZIP,
+catalogo remoto y actualizador quedan fuera del MVP.
+
 ## Biblioteca de packs
 
 La vista principal final debe ser una biblioteca visual de packs reconocidos:

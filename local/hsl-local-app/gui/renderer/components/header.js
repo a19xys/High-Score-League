@@ -205,6 +205,9 @@ export function renderHeader(state) {
         <button class="theme-button theme-button--icon" type="button" data-action="toggle-theme" title="${themeLabel}" aria-label="${themeLabel}">
           ${renderIcon(themeIcon, { className: "button-icon theme-icon", size: "sm" })}
         </button>
+        <button class="theme-button theme-button--icon" type="button" data-action="show-settings" title="Configuracion" aria-label="Configuracion">
+          ${renderIcon("settings", { className: "button-icon settings-icon", size: "sm" })}
+        </button>
         <div class="account-menu-shell">
           <button class="session-chip session-chip--button ${sessionChipClass}" type="button" data-action="toggle-account-menu" aria-expanded="${state.accountMenuOpen ? "true" : "false"}" title="${escapeHtml(sessionChipLabel)}" aria-label="${escapeHtml(sessionChipLabel)}">
             ${sessionChipContent}

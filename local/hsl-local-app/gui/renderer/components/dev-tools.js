@@ -62,6 +62,8 @@ export function renderDevTools(state) {
   const runtimeAvailable = Boolean(runtime?.available);
   const runtimeButtonLabel = runtimeConfigured ? "Cambiar MAME" : "Elegir mame.exe";
   const packDirectory = library?.directory || {};
+  const packDirectoryConfigured = Boolean(packDirectory.path);
+  const packDirectoryLabel = packDirectoryConfigured ? "Cambiar carpeta" : "Elegir carpeta";
   const libraryWarnings = [
     library?.error,
     ...(library?.warnings || []),
@@ -81,6 +83,26 @@ export function renderDevTools(state) {
         </div>
       </div>
       <div class="dev-actions">
+        <button class="tool-button" type="button" data-action="choose-pack-directory" ${disabled}>
+          ${escapeHtml(packDirectoryLabel)}
+          <small>Biblioteca de packs</small>
+        </button>
+        <button class="tool-button" type="button" data-action="rescan-pack-directory" ${disabled}>
+          Reescanear biblioteca
+          <small>${library?.totals?.packs || 0} packs detectados</small>
+        </button>
+        <button class="tool-button" type="button" data-action="open-pack-directory" ${disabled || !packDirectoryConfigured ? "disabled" : ""}>
+          Abrir carpeta de packs
+          <small>${packDirectory.exists ? "Carpeta disponible" : "Revisar carpeta"}</small>
+        </button>
+        <button class="tool-button" type="button" data-action="choose-shared-mame-runtime" ${disabled}>
+          ${escapeHtml(runtimeButtonLabel)}
+          <small>Runtime MAME compartido</small>
+        </button>
+        <button class="tool-button" type="button" data-action="open-shared-mame-runtime" ${disabled || !runtime?.mameExecutablePath ? "disabled" : ""}>
+          Abrir carpeta MAME
+          <small>${runtimeAvailable ? "mame.exe encontrado" : "Revisar ruta"}</small>
+        </button>
         <button class="tool-button" type="button" data-action="diagnose" ${disabled}>
           Diagnosticar
         </button>
@@ -95,14 +117,6 @@ export function renderDevTools(state) {
         <button class="tool-button" type="button" data-action="sync-plugin" ${syncDisabled}>
           Sincronizar plugin
           <small>Legacy / deprecated</small>
-        </button>
-        <button class="tool-button" type="button" data-action="choose-shared-mame-runtime" ${disabled}>
-          ${escapeHtml(runtimeButtonLabel)}
-          <small>Runtime MAME compartido</small>
-        </button>
-        <button class="tool-button" type="button" data-action="open-shared-mame-runtime" ${disabled || !runtime?.mameExecutablePath ? "disabled" : ""}>
-          Abrir carpeta MAME
-          <small>${runtimeAvailable ? "mame.exe encontrado" : "Revisar ruta"}</small>
         </button>
         <button class="tool-button" type="button" data-action="logout" ${disabled}>
           Cerrar sesión local

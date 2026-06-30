@@ -430,8 +430,8 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /pack\.genre/);
   assert.match(libraryPanel, /pack\.rom/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"/);
-  assert.equal(/data-action="open-pack-directory"/.test(libraryPanel), false);
-  assert.equal(/data-action="rescan-pack-directory"/.test(libraryPanel), false);
+  assert.match(libraryPanel, /data-action="open-pack-directory"/);
+  assert.match(libraryPanel, /data-action="rescan-pack-directory"/);
   assert.equal(/Gestionar biblioteca|<summary>/.test(libraryPanel), false);
   assert.equal(/Juegos instalados|Temporadas y packs disponibles|juegos instalados/.test(libraryPanel), false);
   assert.match(libraryPanel, /renderPackCard\(pack, state, state\.libraryView\)/);
@@ -447,10 +447,13 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /return pack\.icon \|\| pack\.cover/);
   assert.equal(/pack\.logo/.test(packCard), false);
   assert.match(packCard, /pack-card__placeholder/);
-  assert.match(packCard, /weekStatusMeta/);
-  assert.match(packCard, /ABIERTO/);
+  assert.match(packCard, /statusMeta/);
+  assert.match(packCard, /REQUIERE ATENCION/);
+  assert.match(packCard, /LEGACY/);
+  assert.match(packCard, /LISTO/);
   assert.match(packCard, /week-status-badge/);
-  assert.match(packCard, /week-status--open/);
+  assert.match(packCard, /week-status--ready/);
+  assert.equal(/ABIERTO/.test(packCard), false);
   assert.equal(/Seleccionar|library-use-button|Ya activo/.test(packCard), false);
   assert.match(packCard, /data-action="use-library-pack"/);
   assert.match(packCard, /data-action="toggle-library-favorite"/);
@@ -464,7 +467,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /aria-busy="true"/);
   assert.match(packCard, /renderIcon\(favorite \? "star-filled" : "star-empty"/);
   assert.match(packCard, /renderIcon\("calendar"/);
-  assert.equal(/renderIcon\(meta\.icon|Con errores|Instalado|Legacy|pack-card__legacy|pack-card__status-dot|statusMeta|statusTone/.test(packCard), false);
+  assert.equal(/renderIcon\(meta\.icon|Con errores|Instalado|pack-card__legacy|statusTone/.test(packCard), false);
   assert.match(packCard, /favorite-slot/);
   assert.match(packCard, /favorite-slot--active/);
   assert.match(styles, /\.library-pack-grid/);
@@ -634,7 +637,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /event\.key !== "Escape"/);
   assert.match(app, /event\.key === "D" && event\.ctrlKey && event\.shiftKey/);
   assert.match(app, /!target\.closest\("\[data-account-menu\]"\)/);
-  assert.match(app, /Opciones avanzadas/);
+  assert.match(app, /Configuracion/);
   assert.match(app, /renderLibraryPanel\(state\)[\s\S]*renderGamePanel\(state\)/);
   assert.equal(/renderQueuePanel\(state\)|advanced-entry|show-advanced-options/.test(app), false);
   assert.equal(/renderPlayerSummary/.test(app), false);
@@ -977,6 +980,22 @@ test("pack directory actions are exposed without legacy location UI", async () =
     path.join(__dirname, "..", "gui", "renderer", "app.js"),
     "utf8",
   );
+  const header = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "header.js"),
+    "utf8",
+  );
+  const libraryPanel = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "library-panel.js"),
+    "utf8",
+  );
+  const devTools = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "dev-tools.js"),
+    "utf8",
+  );
+  const packCard = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "pack-card.js"),
+    "utf8",
+  );
 
   assert.match(main, /launcher:choose-pack-directory/);
   assert.match(main, /launcher:open-pack-directory/);
@@ -999,6 +1018,20 @@ test("pack directory actions are exposed without legacy location UI", async () =
   assert.match(app, /window\.hslLauncher\.rescanPackDirectory/);
   assert.match(app, /window\.hslLauncher\.setLibraryPreferences/);
   assert.match(app, /window\.hslLauncher\.toggleLibraryFavorite/);
+  assert.match(app, /action === "show-settings"/);
+  assert.match(header, /data-action="show-settings"/);
+  assert.match(libraryPanel, /data-action="choose-pack-directory"/);
+  assert.match(libraryPanel, /data-action="rescan-pack-directory"/);
+  assert.match(libraryPanel, /data-action="open-pack-directory"/);
+  assert.match(devTools, /Biblioteca de packs/);
+  assert.match(devTools, /data-action="choose-pack-directory"/);
+  assert.match(devTools, /data-action="rescan-pack-directory"/);
+  assert.match(devTools, /data-action="open-pack-directory"/);
+  assert.match(devTools, /data-action="choose-shared-mame-runtime"/);
+  assert.match(packCard, /REQUIERE ATENCION/);
+  assert.match(packCard, /LEGACY/);
+  assert.match(packCard, /LISTO/);
+  assert.equal(/ABIERTO/.test(packCard), false);
   assert.equal(/addLibraryLocation|removeLibraryLocation|launcher:add-library-location|launcher:remove-library-location/.test(main + preload + app), false);
 });
 

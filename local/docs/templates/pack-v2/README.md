@@ -18,6 +18,8 @@ Pack Name/
   artwork/
   samples/
   cfg/
+  manual/
+    manual.pdf
   scripts/
     adapter.lua
 ```

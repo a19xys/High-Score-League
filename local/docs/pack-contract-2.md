@@ -98,6 +98,13 @@ La estructura y decisiones completas estan documentadas en:
 local/docs/space-invaders-pack-v2-real-1.md
 ```
 
+La distribucion MVP de packs locales para una primera competicion esta
+documentada en:
+
+```text
+local/docs/pack-distribution-mvp-1.md
+```
+
 ## Normalizacion
 
 El loader normaliza v1 y v2 con campos comunes:

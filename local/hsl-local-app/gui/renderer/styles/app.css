@@ -3333,6 +3333,10 @@ button:disabled .ui-icon,
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
+.library-control-row--secondary {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
 .library-control-button {
   display: inline-flex;
   min-height: 34px;
@@ -3984,12 +3988,25 @@ button:disabled .ui-icon,
   color: var(--ok);
 }
 
+.week-status--ready {
+  color: var(--ok);
+}
+
 .week-status--ending {
   color: #a78bfa;
 }
 
 .week-status--closed {
   color: var(--warn);
+}
+
+.week-status--warning,
+.week-status--legacy {
+  color: var(--warn);
+}
+
+.week-status--error {
+  color: var(--error);
 }
 
 .library-pack-grid--covers {
@@ -4074,6 +4091,10 @@ button:disabled .ui-icon,
   }
 
   .library-control-row--primary {
+    grid-template-columns: 1fr;
+  }
+
+  .library-control-row--secondary {
     grid-template-columns: 1fr;
   }
 

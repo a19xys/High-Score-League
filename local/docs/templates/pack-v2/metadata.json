@@ -6,6 +6,7 @@
   "year": 1978,
   "genre": ["Arcade"],
   "shortDescription": "Short local launcher description.",
+  "manualPath": "manual/manual.pdf",
   "assets": {
     "cover": "assets/cover.png",
     "hero": "assets/hero.png",

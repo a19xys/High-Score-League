@@ -213,6 +213,8 @@ MAME plugin/adapter loading v2 notes:
 [`docs/mame-pack-plugin-loading-2.md`](docs/mame-pack-plugin-loading-2.md).
 Space Invaders pack v2 reference:
 [`docs/space-invaders-pack-v2-real-1.md`](docs/space-invaders-pack-v2-real-1.md).
+Pack distribution MVP notes:
+[`docs/pack-distribution-mvp-1.md`](docs/pack-distribution-mvp-1.md).
 Pack library grid notes:
 [`docs/pack-library-grid-1.md`](docs/pack-library-grid-1.md).
 Account switcher notes:

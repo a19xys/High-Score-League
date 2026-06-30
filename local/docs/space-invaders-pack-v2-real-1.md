@@ -255,7 +255,12 @@ No versionar:
 
 - manifest con checksums/firma del pack;
 - instalador/catalogo remoto;
+- distribucion ZIP/importacion automatica desde el launcher;
 - hardening anti-cheat;
 - bloqueo o auditoria fuerte de TAB/DIPs;
 - politica de plugins auxiliares aprobados por juego;
 - validacion automatica de MAME real y `-listxml` sin depender de ROM en tests.
+
+Para una primera competicion, Space Invaders se distribuye como carpeta de pack
+descomprimida dentro del directorio de packs elegido por el usuario. El flujo de
+distribucion MVP esta documentado en `local/docs/pack-distribution-mvp-1.md`.
