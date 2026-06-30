@@ -77,11 +77,17 @@ async function writeJson(filePath, value) {
   await fsp.writeFile(filePath, JSON.stringify(value, null, 2), "utf8");
 }
 
+async function writeV2Rom(packDir, rom = "invaders") {
+  await fsp.mkdir(path.join(packDir, "roms"), { recursive: true });
+  await fsp.writeFile(path.join(packDir, "roms", `${rom}.zip`), "rom", "utf8");
+}
+
 test("escaneo detecta subcarpeta directa con pack.json", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");
     const packDir = path.join(libraryRoot, "Space Invaders");
     await writeJson(path.join(packDir, "pack.json"), validV2Pack());
+    await writeV2Rom(packDir);
     await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));
@@ -110,6 +116,7 @@ test("escaneo devuelve error por pack invalido sin romper otros packs", async ()
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");
     await writeJson(path.join(libraryRoot, "Valid", "pack.json"), validV2Pack());
+    await writeV2Rom(path.join(libraryRoot, "Valid"));
     await writeJson(path.join(libraryRoot, "Invalid", "pack.json"), { packVersion: 2 });
     await setPackDirectory(config(dir), libraryRoot);
 
@@ -153,6 +160,44 @@ test("escaneo marca packVersion 2 invalido como requiere atencion", async () => 
     assert.equal(library.packs.length, 1);
     assert.equal(library.packs[0].status, "error");
     assert.ok(library.packs[0].errors.some((item) => /mame\.romPath/.test(item)));
+  });
+});
+
+test("escaneo marca packVersion 2 sin ROM concreta como requiere atencion", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = path.join(dir, "library");
+    const packDir = path.join(libraryRoot, "Missing Rom");
+    await writeJson(path.join(packDir, "pack.json"), validV2Pack());
+    await fsp.mkdir(path.join(packDir, "roms"), { recursive: true });
+    await setPackDirectory(config(dir), libraryRoot);
+
+    const library = await scanPackLibrary(config(dir));
+
+    assert.equal(library.packs.length, 1);
+    assert.equal(library.packs[0].status, "error");
+    assert.ok(library.packs[0].errors.some((item) => /Falta la ROM necesaria: roms\/invaders\.zip/.test(item)));
+  });
+});
+
+test("escaneo marca todos los packId duplicados como conflicto", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = path.join(dir, "library");
+    const first = path.join(libraryRoot, "First");
+    const second = path.join(libraryRoot, "Second");
+    await writeJson(path.join(first, "pack.json"), validV2Pack({ packId: "duplicate-pack" }));
+    await writeJson(path.join(second, "pack.json"), validV2Pack({ packId: "duplicate-pack" }));
+    await writeV2Rom(first);
+    await writeV2Rom(second);
+    await setPackDirectory(config(dir), libraryRoot);
+
+    const library = await scanPackLibrary(config(dir));
+
+    assert.equal(library.packs.length, 2);
+    assert.equal(library.packs.every((pack) => pack.status === "error"), true);
+    assert.equal(library.packs.every((pack) => pack.duplicatePackId === true), true);
+    assert.notEqual(library.packs[0].id, library.packs[1].id);
+    assert.notEqual(library.packs[0].instanceKey, library.packs[1].instanceKey);
+    assert.ok(library.packs.every((pack) => pack.errors.some((item) => /mismo packId/.test(item))));
   });
 });
 
@@ -218,6 +263,7 @@ test("pack v2 expone temporada y metadata para vistas y filtros", async () => {
     const libraryRoot = path.join(dir, "library");
     const packDir = path.join(libraryRoot, "Space Invaders");
     await writeJson(path.join(packDir, "pack.json"), validV2Pack());
+    await writeV2Rom(packDir);
     await writeJson(path.join(packDir, "metadata.json"), {
       developer: "Taito",
       genre: ["Fixed shooter", "Arcade"],

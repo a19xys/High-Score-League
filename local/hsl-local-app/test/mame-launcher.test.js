@@ -1,6 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
+const fsp = require("node:fs/promises");
+const os = require("node:os");
 const path = require("node:path");
 const {
   DEFAULT_PLUGIN_NAME,
@@ -29,13 +31,13 @@ test("play builds MAME args for invaders with the configured plugin", () => {
   assert.equal(launch.cwd, "C:/MAME");
   assert.equal(launch.rom, "invaders");
   assert.equal(launch.game.gameId, "space-invaders");
-  assert.deepEqual(launch.args, ["invaders", "-plugins", "-plugin", "hsl-score"]);
+  assert.deepEqual(launch.args, ["invaders", "-skip_gameinfo", "-plugins", "-plugin", "hsl-score"]);
 });
 
 test("practice builds MAME args without the score plugin", () => {
   const launch = buildMameArgs(mameConfig(), "invaders", "practice");
 
-  assert.deepEqual(launch.args, ["invaders"]);
+  assert.deepEqual(launch.args, ["invaders", "-skip_gameinfo"]);
 });
 
 test("unknown ROMs are rejected before launching MAME", () => {
@@ -93,6 +95,7 @@ test("packVersion 2 practice builds MAME args with shared runtime resources", ()
   assert.equal(launch.runtime, "shared-mame");
   assert.deepEqual(launch.args, [
     "invaders",
+    "-skip_gameinfo",
     "-rompath",
     "C:/Packs/space-invaders/roms",
     "-artpath",
@@ -127,6 +130,7 @@ test("packVersion 2 competition uses prepared pluginpath and score plugin", () =
   assert.equal(launch.v2PluginRun.pluginName, "hsl-score");
   assert.deepEqual(launch.args, [
     "invaders",
+    "-skip_gameinfo",
     "-rompath",
     "C:/Packs/space-invaders/roms",
     "-artpath",
@@ -173,8 +177,9 @@ test("packVersion 2 launch applies mode-specific MAME profile", () => {
   });
   const launch = buildMameArgs(config, "invaders", "competition");
 
-  assert.deepEqual(launch.args.slice(0, 14), [
+  assert.deepEqual(launch.args.slice(0, 15), [
     "invaders",
+    "-skip_gameinfo",
     "-rompath",
     "C:/Packs/space-invaders/roms",
     "-artpath",
@@ -258,7 +263,7 @@ test("launchMame uses spawn with inherited stdio and returns the exit code", asy
   try {
     exitCode = await launchMame(mameConfig(), "invaders", "competition", (command, args, options) => {
       assert.equal(command, "C:/MAME/mame.exe");
-      assert.deepEqual(args, ["invaders", "-plugins", "-plugin", "hsl-score"]);
+      assert.deepEqual(args, ["invaders", "-skip_gameinfo", "-plugins", "-plugin", "hsl-score"]);
       assert.deepEqual(options, {
         cwd: "C:/MAME",
         stdio: "inherit",
@@ -284,7 +289,7 @@ test("launchMameDetailed captures stdout and stderr tails", async () => {
   try {
     result = await launchMameDetailed(mameConfig(), "invaders", "competition", (command, args, options) => {
       assert.equal(command, "C:/MAME/mame.exe");
-      assert.deepEqual(args, ["invaders", "-plugins", "-plugin", "hsl-score"]);
+      assert.deepEqual(args, ["invaders", "-skip_gameinfo", "-plugins", "-plugin", "hsl-score"]);
       assert.deepEqual(options, {
         cwd: "C:/MAME",
         stdio: ["ignore", "pipe", "pipe"],
@@ -327,4 +332,35 @@ test("printLaunchSummary explains competition and practice plugin behavior", () 
   assert.match(output, /Modo: practica/);
   assert.match(output, /Plugin: hsl-score no se activa explicitamente/);
   assert.match(output, /plugin\.ini/);
+});
+
+test("packVersion 2 launch requires the concrete ROM zip before spawn", async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-mame-launcher-test-"));
+
+  try {
+    const romDir = path.join(dir, "roms");
+    await fsp.mkdir(romDir, { recursive: true });
+    const config = packV2Config({
+      pack: {
+        ...packV2Config().pack,
+        contract: {
+          ...packV2Config().pack.contract,
+          mame: {
+            ...packV2Config().pack.contract.mame,
+            romDir,
+            romPath: "roms",
+          },
+        },
+      },
+    });
+
+    assert.throws(
+      () => launchMame(config, "invaders", "practice", () => {
+        throw new Error("spawn should not run");
+      }),
+      /Falta la ROM necesaria: roms\/invaders\.zip/
+    );
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true });
+  }
 });

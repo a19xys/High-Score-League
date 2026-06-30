@@ -3298,11 +3298,56 @@ button:disabled .ui-icon,
   display: flex;
   width: 100%;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.library-title-row h2 {
+  margin-right: 4px;
+}
+
+.library-heading-button {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+}
+
+.library-heading-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.library-heading-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.library-heading-icon.ui-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.library-heading-button--spinning .ui-icon {
+  animation: hsl-spin 0.8s linear infinite;
+}
+
+@keyframes hsl-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .library-count-pill {
+  margin-left: auto;
   display: inline-flex;
   min-height: 28px;
   align-items: center;

@@ -1,4 +1,5 @@
 const crypto = require("node:crypto");
+const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { readPackDirectory } = require("./pack-directory");
@@ -67,9 +68,34 @@ function getFavoriteKey(pack, packDir) {
     packDir;
 }
 
+function getMissingRomMessage(pack) {
+  const isPackV2 = pack?.packVersion === 2 || pack?.contract?.version === 2;
+  const rom = pack?.rom;
+  const romDir = pack?.contract?.mame?.romDir;
+
+  if (!isPackV2 || !rom || !romDir) {
+    return null;
+  }
+
+  const romFile = path.join(romDir, `${rom}.zip`);
+
+  if (fs.existsSync(romFile)) {
+    return null;
+  }
+
+  const romPath = pack?.contract?.mame?.romPath || "roms";
+  const relativeRom = `${String(romPath).replaceAll("\\", "/").replace(/\/+$/, "")}/${rom}.zip`;
+
+  return `Falta la ROM necesaria: ${relativeRom}.`;
+}
+
 function buildLibraryPackItem(directory, packDir, packResult) {
   const pack = packResult.pack || {};
-  const errors = packResult.errors || [];
+  const missingRomMessage = getMissingRomMessage(pack);
+  const errors = [
+    ...(packResult.errors || []),
+    ...(missingRomMessage ? [missingRomMessage] : []),
+  ];
   const warnings = pack.warnings || packResult.warnings || pack.metadataWarnings || [];
   const status = errors.length > 0 ? "error" : warnings.length > 0 ? "warning" : "ok";
   const assets = pack.metadata?.assets || {};
@@ -86,6 +112,7 @@ function buildLibraryPackItem(directory, packDir, packResult) {
     hero: assetForLibrary(assets.hero),
     icon: assetForLibrary(assets.icon),
     id: hashId(`${directory.id}|${packDir}`, "pack"),
+    instanceKey: hashId(path.resolve(packDir).toLowerCase(), "instance"),
     favoriteKey: getFavoriteKey(pack, packDir),
     locationId: directory.id,
     logo: assetForLibrary(assets.logo),
@@ -108,6 +135,45 @@ function buildLibraryPackItem(directory, packDir, packResult) {
     weekNumber: pack.weekNumber || null,
     year: pack.metadata?.year || null,
   };
+}
+
+function markDuplicatePackIds(packs) {
+  const byPackId = new Map();
+
+  for (const pack of packs) {
+    if (!pack.packId) {
+      continue;
+    }
+
+    const key = String(pack.packId).trim().toLowerCase();
+
+    if (!key) {
+      continue;
+    }
+
+    if (!byPackId.has(key)) {
+      byPackId.set(key, []);
+    }
+
+    byPackId.get(key).push(pack);
+  }
+
+  for (const duplicates of byPackId.values()) {
+    if (duplicates.length < 2) {
+      continue;
+    }
+
+    for (const pack of duplicates) {
+      const message = "Hay otro pack con el mismo packId. Cambia el packId o elimina el duplicado.";
+      pack.duplicatePackId = true;
+      pack.duplicatePackIdCount = duplicates.length;
+      pack.status = "error";
+      pack.errors = [...new Set([...(pack.errors || []), message])];
+      pack.warnings = (pack.warnings || []).filter((item) => item !== message);
+    }
+  }
+
+  return packs;
 }
 
 async function pathExistsAsDirectory(targetPath) {
@@ -225,13 +291,15 @@ async function scanDirectory(directoryState) {
     }
   }
 
+  const markedPacks = markDuplicatePackIds(packs);
+
   return {
     directory: {
       ...status,
-      packCount: packs.length,
-      status: packs.some((pack) => pack.status === "error") ? "warning" : "ok",
+      packCount: markedPacks.length,
+      status: markedPacks.some((pack) => pack.status === "error") ? "warning" : "ok",
     },
-    packs,
+    packs: markedPacks,
   };
 }
 
@@ -279,6 +347,7 @@ module.exports = {
   getPackSubtitle,
   getPackTitle,
   humanizeIdentifier,
+  markDuplicatePackIds,
   scanDirectory,
   scanPackLibrary,
   weekLabel,

@@ -47,6 +47,21 @@ test("manual/manual.pdf se detecta dentro del pack", async () => {
   });
 });
 
+test("manual/invaders.pdf se detecta si es el unico PDF en manual", async () => {
+  await withTempDir(async (dir) => {
+    const manualPath = path.join(dir, "manual", "invaders.pdf");
+    await fsp.mkdir(path.dirname(manualPath), { recursive: true });
+    await fsp.writeFile(manualPath, "pdf", "utf8");
+
+    const result = resolvePackManual({ packRoot: dir });
+
+    assert.equal(result.available, true);
+    assert.equal(result.path, manualPath);
+    assert.equal(result.relativePath, "manual/invaders.pdf");
+    assert.equal(result.source, "manual/*.pdf");
+  });
+});
+
 test("metadata.manualPath relativo se detecta", async () => {
   await withTempDir(async (dir) => {
     const manualPath = path.join(dir, "docs", "guide.pdf");
@@ -63,6 +78,22 @@ test("metadata.manualPath relativo se detecta", async () => {
   });
 });
 
+test("metadata.manual.path relativo se detecta", async () => {
+  await withTempDir(async (dir) => {
+    const manualPath = path.join(dir, "docs", "guide.html");
+    await fsp.mkdir(path.dirname(manualPath), { recursive: true });
+    await fsp.writeFile(manualPath, "<html></html>", "utf8");
+
+    const result = resolvePackManual({
+      metadata: { manual: { path: "docs/guide.html" } },
+      packRoot: dir,
+    });
+
+    assert.equal(result.available, true);
+    assert.equal(result.source, "metadata.manual.path");
+  });
+});
+
 test("manual local rechaza traversal, ruta absoluta y file URL", async () => {
   await withTempDir(async (dir) => {
     for (const manualPath of ["../manual.pdf", path.join(dir, "manual.pdf"), "file:///tmp/manual.pdf"]) {
@@ -74,6 +105,19 @@ test("manual local rechaza traversal, ruta absoluta y file URL", async () => {
       assert.equal(result.available, false);
       assert.match(result.reason, /seguro dentro del pack/);
     }
+  });
+});
+
+test("manual unico ambiguo exige declaracion explicita", async () => {
+  await withTempDir(async (dir) => {
+    await fsp.mkdir(path.join(dir, "manual"), { recursive: true });
+    await fsp.writeFile(path.join(dir, "manual", "a.pdf"), "pdf", "utf8");
+    await fsp.writeFile(path.join(dir, "manual", "b.pdf"), "pdf", "utf8");
+
+    const result = resolvePackManual({ packRoot: dir });
+
+    assert.equal(result.available, false);
+    assert.match(result.reason, /varios manuales/i);
   });
 });
 

@@ -3,8 +3,8 @@ const path = require("node:path");
 const { isUnsafePackRelativePath } = require("./pack-contract");
 
 const DEFAULT_MANUAL_PATHS = [
-  "manual/manual.html",
   "manual/manual.pdf",
+  "manual/manual.html",
   "manual/index.html",
 ];
 
@@ -59,12 +59,61 @@ function resolveLocalManual(packRoot, relativePath, source) {
   };
 }
 
+function manualPathFromValue(value) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value && typeof value === "object" && typeof value.path === "string") {
+    return value.path;
+  }
+
+  return null;
+}
+
+function findSingleManualByExtension(packRoot, extension, source) {
+  const manualDir = packRoot ? path.join(packRoot, "manual") : null;
+
+  if (!manualDir) {
+    return null;
+  }
+
+  let entries;
+
+  try {
+    entries = fs.readdirSync(manualDir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+
+  const files = entries
+    .filter((entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === extension)
+    .map((entry) => `manual/${entry.name}`)
+    .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+
+  if (files.length === 1) {
+    return resolveLocalManual(packRoot, files[0], source);
+  }
+
+  if (files.length > 1) {
+    return {
+      available: false,
+      kind: "missing",
+      reason: `Hay varios manuales ${extension.toUpperCase()} en manual/. Declara metadata.manualPath para elegir uno.`,
+      source,
+    };
+  }
+
+  return null;
+}
+
 function resolvePackManual(pack) {
   const metadata = pack?.metadata || {};
   const packRoot = pack?.packRoot || null;
   const explicitLocalCandidates = [
-    ["metadata.manual", metadata.manual],
     ["metadata.manualPath", metadata.manualPath],
+    ["metadata.manual.path", manualPathFromValue(metadata.manual)],
+    ["metadata.manual", typeof metadata.manual === "string" ? metadata.manual : null],
   ];
 
   for (const [source, candidate] of explicitLocalCandidates) {
@@ -110,6 +159,24 @@ function resolvePackManual(pack) {
     if (resolved) {
       return resolved;
     }
+  }
+
+  const singlePdf = findSingleManualByExtension(packRoot, ".pdf", "manual/*.pdf");
+
+  if (singlePdf) {
+    return singlePdf;
+  }
+
+  const singleHtml = findSingleManualByExtension(packRoot, ".html", "manual/*.html");
+
+  if (singleHtml) {
+    return singleHtml;
+  }
+
+  const singleHtm = findSingleManualByExtension(packRoot, ".htm", "manual/*.htm");
+
+  if (singleHtm) {
+    return singleHtm;
   }
 
   return {

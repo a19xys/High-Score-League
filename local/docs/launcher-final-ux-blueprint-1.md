@@ -655,3 +655,28 @@ La GUI tiene una base local de iconos: carpeta versionada
 SVG estables para header, tema, acciones principales, metadata, actividad,
 biblioteca, favoritos y cuenta. Si un SVG falta, el renderer muestra fallback
 textual discreto sin usar URLs remotas.
+
+## Avance LOCAL-DISTRIBUTION-MVP-POLISH-2
+
+La biblioteca MVP mueve `Abrir carpeta` y `Reescanear` a la cabecera de
+`Biblioteca`: icono de carpeta antes del titulo e icono de recarga despues. El
+reescaneo sigue siendo manual y el icono de recarga gira mientras la accion esta
+en curso. No se implementa watcher automatico todavia; queda pendiente un
+watcher con debounce e IPC probado para evitar reescaneos masivos al copiar o
+descomprimir packs.
+
+El detalle y el backend bloquean packs v2 sin ROM concreta
+(`roms/<rom>.zip`): `Practicar` y `Jugar` quedan deshabilitados y MAME no se
+lanza. Los duplicados de `packId` se consideran conflicto en todos los packs
+afectados, se bloquean para activacion y se evita compartir seleccion o
+favorito visual usando una clave interna por ruta para la card.
+
+El manual local acepta `metadata.manualPath`, `metadata.manual.path`,
+`manual/manual.pdf`, `manual/manual.html`, `manual/index.html`, un unico PDF en
+`manual/` o un unico HTML/HTM en `manual/`, siempre como ruta relativa segura
+dentro del pack. El launcher anade `-skip_gameinfo` en practica y competicion
+para ocultar la pantalla inicial de informacion de MAME sin editar el runtime
+global.
+
+Los botones de cierre usan `close.svg` via `renderIcon()` y el boton de tema
+muestra luna en modo oscuro y sol en modo claro.

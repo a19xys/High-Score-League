@@ -26,6 +26,10 @@ function isActivePack(pack, data = {}) {
     return true;
   }
 
+  if (activeRoot) {
+    return false;
+  }
+
   const activeName = bridge.activePackName;
   const activeWeek = data.game?.weekId;
 
@@ -105,7 +109,7 @@ function renderPackVisual(pack, view) {
 
 function renderFavorite(pack, disabled, hasSession) {
   const favorite = Boolean(pack.favorite);
-  const blocked = !hasSession;
+  const blocked = !hasSession || pack.favoriteDisabled || pack.duplicatePackId;
   const label = blocked
     ? "Inicia sesión para marcar favoritos"
     : favorite ? "Quitar de favoritos" : "Marcar como favorito";

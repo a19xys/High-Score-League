@@ -107,6 +107,7 @@ test("packVersion 2 no trata userData/events como staging principal", async () =
     await fsp.mkdir(path.dirname(sharedMame), { recursive: true });
     await fsp.mkdir(romDir, { recursive: true });
     await fsp.writeFile(sharedMame, "binary", "utf8");
+    await fsp.writeFile(path.join(romDir, "invaders.zip"), "rom", "utf8");
 
     context.config.requiresSharedMameRuntime = true;
     context.config.eventQueueRole = "legacy-global";
@@ -339,6 +340,7 @@ test("packVersion 2 con runtime y romDir permite practica pero no competicion", 
     await fsp.mkdir(path.dirname(sharedMame), { recursive: true });
     await fsp.mkdir(romDir, { recursive: true });
     await fsp.writeFile(sharedMame, "binary", "utf8");
+    await fsp.writeFile(path.join(romDir, "invaders.zip"), "rom", "utf8");
 
     context.config.requiresSharedMameRuntime = true;
     context.config.sharedMameRuntime = {
@@ -383,6 +385,59 @@ test("packVersion 2 con runtime y romDir permite practica pero no competicion", 
   });
 });
 
+test("packVersion 2 sin ROM concreta bloquea practica y competicion", async () => {
+  await withTempDir(async (dir) => {
+    const context = await createReadyFixture(dir);
+    const sharedMame = path.join(dir, "runtime", "mame.exe");
+    const romDir = path.join(context.config.packRoot, "roms");
+    const adapterPath = path.join(context.config.packRoot, "scripts", "invaders.lua");
+    await fsp.mkdir(path.dirname(sharedMame), { recursive: true });
+    await fsp.mkdir(romDir, { recursive: true });
+    await fsp.mkdir(path.dirname(adapterPath), { recursive: true });
+    await fsp.writeFile(sharedMame, "binary", "utf8");
+    await fsp.writeFile(adapterPath, "return {}", "utf8");
+
+    context.config.requiresSharedMameRuntime = true;
+    context.config.sharedMameRuntime = {
+      available: true,
+      configured: true,
+      mameExecutablePath: sharedMame,
+    };
+    context.config.mame = {
+      pluginName: "hsl-score",
+      requiresSharedMameRuntime: true,
+    };
+    context.config.pack = {
+      ...context.config.pack,
+      packVersion: 2,
+      contractStatus: "current",
+      deprecated: false,
+      contract: {
+        version: 2,
+        runtimeType: "mame",
+        mame: {
+          romDir,
+          romPath: "roms",
+        },
+        capture: {
+          mode: "plugin",
+          pluginName: "hsl-score",
+          adapter: "scripts/invaders.lua",
+          adapterPath,
+        },
+      },
+    };
+
+    const result = evaluatePackReadiness(context);
+
+    assert.equal(result.status, "blocked");
+    assert.equal(result.canPractice, false);
+    assert.equal(result.canPlayCompetition, false);
+    assert.ok(result.checks.some((item) => item.id === "rom-file" && item.level === "error"));
+    assert.match(result.message, /Falta la ROM necesaria: roms\/invaders\.zip/);
+  });
+});
+
 test("packVersion 2 con adapter valido permite captura y competicion", async () => {
   await withTempDir(async (dir) => {
     const context = await createReadyFixture(dir);
@@ -393,6 +448,7 @@ test("packVersion 2 con adapter valido permite captura y competicion", async () 
     await fsp.mkdir(romDir, { recursive: true });
     await fsp.mkdir(path.dirname(adapterPath), { recursive: true });
     await fsp.writeFile(sharedMame, "binary", "utf8");
+    await fsp.writeFile(path.join(romDir, "invaders.zip"), "rom", "utf8");
     await fsp.writeFile(adapterPath, "return {}", "utf8");
 
     context.config.requiresSharedMameRuntime = true;

@@ -581,7 +581,8 @@ async function stateFromContext(context) {
     },
     packs: library.packs.map((pack) => ({
       ...pack,
-      favorite: Boolean(favoriteMap[pack.favoriteKey]),
+      favorite: pack.duplicatePackId ? false : Boolean(favoriteMap[pack.favoriteKey]),
+      favoriteDisabled: Boolean(pack.duplicatePackId),
     })),
     preferences: libraryPreferences,
   };
@@ -986,6 +987,30 @@ async function withFreshState(action, fn) {
   };
 }
 
+function readinessBlockedResponse(action, readiness, capability) {
+  const blocked = capability === "competition"
+    ? readiness?.canPlayCompetition === false
+    : readiness?.canPractice === false;
+
+  if (!blocked) {
+    return null;
+  }
+
+  const summary = capability === "competition"
+    ? "No se puede jugar competicion con este pack."
+    : "No se puede practicar con este pack.";
+
+  return {
+    action,
+    lines: [
+      readiness?.message || summary,
+      ...(readiness?.blockers || []).filter((item) => item !== readiness?.message),
+    ],
+    ok: false,
+    summary,
+  };
+}
+
 async function runDiagnose() {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
@@ -1040,6 +1065,24 @@ async function playCompetition() {
       lines: [scoped.reason || "No se pudo preparar la cola local de esta cuenta."],
       ok: false,
       summary: "No se pudo preparar la cola local.",
+      state: await getLauncherState(),
+    };
+  }
+
+  const readinessQueue = await getQueueState(scoped.config);
+  const readiness = evaluatePackReadiness({
+    autoSync: autoSyncState,
+    config: scoped.config,
+    membership,
+    queue: readinessQueue,
+    scope: scoped.scope,
+    session,
+  });
+  const readinessBlock = readinessBlockedResponse("play-competition", readiness, "competition");
+
+  if (readinessBlock) {
+    return {
+      ...readinessBlock,
       state: await getLauncherState(),
     };
   }
@@ -1113,8 +1156,44 @@ async function playCompetition() {
   };
 }
 
-function playPractice() {
-  return withFreshState("practice", (config) => launchMame(config, config.pack?.rom || "invaders", "practice"));
+async function playPractice() {
+  await ensureRememberedPackLoaded();
+  const context = await getLauncherContext();
+  const autoSync = getAutoSyncDisplayState({
+    autoSyncInProgress,
+    membership: context.membership,
+    queue: context.queue,
+    scope: context.scoped.scope,
+    session: context.session,
+  }, autoSyncState);
+  const readiness = evaluatePackReadiness({
+    autoSync,
+    config: context.config,
+    membership: context.membership,
+    queue: context.queue,
+    scope: context.scoped.scope,
+    session: context.session,
+  });
+  const readinessBlock = readinessBlockedResponse("practice", readiness, "practice");
+
+  if (readinessBlock) {
+    return {
+      ...readinessBlock,
+      state: await getLauncherState(),
+    };
+  }
+
+  const captured = await captureConsoleAsync(() => launchMame(context.config, context.config.pack?.rom || "invaders", "practice"));
+  const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
+
+  return {
+    action: "practice",
+    exitCode,
+    lines: captured.lines,
+    ok: exitCode === 0,
+    result: captured.result || null,
+    state: await getLauncherState(),
+  };
 }
 
 async function submitAllPending() {
@@ -1725,6 +1804,25 @@ async function toggleLibraryFavoriteFromGui(packKey, options = {}) {
     };
   }
 
+  const library = await scanPackLibrary(config);
+  const conflicted = library.packs.find((pack) => pack.duplicatePackId && pack.favoriteKey === packKey);
+
+  if (conflicted) {
+    return {
+      action: "toggle-library-favorite",
+      favorites: {
+        disabled: true,
+        favorites: {},
+        filePath: null,
+        scope: "disabled",
+        warnings: ["Hay otro pack con el mismo packId. Cambia el packId o elimina el duplicado."],
+      },
+      ok: false,
+      state: options.includeState === false ? null : await getLauncherState(),
+      summary: "No se puede marcar favorito en un pack duplicado.",
+    };
+  }
+
   const favorites = await toggleLibraryFavorite(config, packKey, {
     ...options,
     session,
@@ -1750,6 +1848,16 @@ async function activateLibraryPack(packId, options = {}) {
       lines: ["No se encontro ese pack en la biblioteca."],
       ok: false,
       summary: "No se encontro ese pack en la biblioteca.",
+      state: options.includeState === false ? null : await getLauncherState(),
+    };
+  }
+
+  if (pack.duplicatePackId) {
+    return {
+      action: "use-library-pack",
+      lines: ["Hay otro pack con el mismo packId. Cambia el packId o elimina el duplicado."],
+      ok: false,
+      summary: "Pack duplicado bloqueado.",
       state: options.includeState === false ? null : await getLauncherState(),
     };
   }

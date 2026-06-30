@@ -372,6 +372,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/const id = pack\.deprecated/.test(libraryPanel), false);
   assert.match(libraryPanel, /data-action="toggle-library-filters"/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"[\s\S]*data-action="toggle-library-filters"/);
+  assert.match(libraryPanel, /data-action="open-pack-directory"[\s\S]*<h2>Biblioteca<\/h2>[\s\S]*data-action="rescan-pack-directory"/);
+  assert.match(libraryPanel, /renderIcon\("refresh"/);
+  assert.match(libraryPanel, /library-heading-button--spinning/);
+  assert.equal(/<span>Reescanear<\/span>|<span>Abrir carpeta<\/span>/.test(libraryPanel), false);
   assert.match(libraryPanel, /aria-expanded="\$\{filtersOpen \? "true" : "false"\}"/);
   assert.match(libraryPanel, /aria-controls="library-filter-card"/);
   assert.match(libraryPanel, /filtersOpen \? "library-filter-toggle--open" : ""/);
@@ -460,6 +464,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /data-pack-key/);
   assert.match(packCard, /Inicia sesión para marcar favoritos/);
   assert.match(packCard, /favorite-slot--locked/);
+  assert.match(packCard, /pack\.favoriteDisabled/);
+  assert.match(packCard, /pack\.duplicatePackId/);
+  assert.match(packCard, /if \(activeRoot\) \{\s*return false;\s*\}/);
   assert.match(packCard, /Boolean\(state\.data\?\.session\?\.hasSession\)/);
   assert.match(packCard, /pendingLibraryPackId/);
   assert.match(packCard, /libraryActivationInProgress/);
@@ -633,6 +640,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /drawer-body/);
   assert.match(app, /target\?\.matches\("\[data-overlay-backdrop\]"\)/);
   assert.match(app, /data-action="close-overlay"/);
+  assert.match(app, /renderIcon\("close"/);
+  assert.match(app, /aria-label="Cerrar"/);
   assert.match(app, /action === "show-activity-details"[\s\S]*!store\.getState\(\)\.data\?\.session\?\.hasSession[\s\S]*return/);
   assert.match(app, /event\.key !== "Escape"/);
   assert.match(app, /event\.key === "D" && event\.ctrlKey && event\.shiftKey/);
@@ -646,6 +655,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /app-icon-slot/);
   assert.match(header, /renderIcon\("app"/);
   assert.match(header, /renderIcon\(themeIcon/);
+  assert.match(header, /state\.theme === "dark" \? "moon" : "sun"/);
   assert.match(header, /theme-button--icon/);
   assert.match(header, /aria-label="\$\{themeLabel\}"/);
   assert.equal(/<span>\$\{themeLabel\}<\/span>/.test(header), false);
@@ -827,6 +837,7 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
     "practice.svg",
     "manual.svg",
     "ranking.svg",
+    "refresh.svg",
     "developer.svg",
     "year.svg",
     "genre.svg",
@@ -1021,8 +1032,8 @@ test("pack directory actions are exposed without legacy location UI", async () =
   assert.match(app, /action === "show-settings"/);
   assert.match(header, /data-action="show-settings"/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"/);
-  assert.match(libraryPanel, /data-action="rescan-pack-directory"/);
-  assert.match(libraryPanel, /data-action="open-pack-directory"/);
+  assert.match(libraryPanel, /data-action="open-pack-directory"[\s\S]*<h2>Biblioteca<\/h2>[\s\S]*data-action="rescan-pack-directory"/);
+  assert.equal(/<span>Reescanear<\/span>|<span>Abrir carpeta<\/span>/.test(libraryPanel), false);
   assert.match(devTools, /Biblioteca de packs/);
   assert.match(devTools, /data-action="choose-pack-directory"/);
   assert.match(devTools, /data-action="rescan-pack-directory"/);
@@ -1480,6 +1491,35 @@ test("rescanPackDirectory returns fresh state action", async () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.action, "rescan-pack-directory");
+});
+
+test("activateLibraryPack rechaza packId duplicado para no abrir el pack equivocado", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const first = path.join(libraryRoot, "First");
+    const second = path.join(libraryRoot, "Second");
+
+    for (const packDir of [first, second]) {
+      await fsp.mkdir(path.join(packDir, "roms"), { recursive: true });
+      await fsp.writeFile(path.join(packDir, "pack.json"), JSON.stringify(validV2Pack()), "utf8");
+      await fsp.writeFile(path.join(packDir, "roms", "invaders.zip"), "rom", "utf8");
+    }
+
+    await setPackDirectory(config, libraryRoot);
+    const library = await scanPackLibrary(config);
+    const result = await activateLibraryPack(library.packs[0].id, {
+      config,
+      includeState: false,
+    });
+
+    assert.equal(library.packs.every((pack) => pack.duplicatePackId), true);
+    assert.equal(result.ok, false);
+    assert.match(result.summary, /duplicado/i);
+    assert.match(result.lines.join("\n"), /mismo packId/);
+  });
 });
 
 test("library preferences and favorites stay local to userData", async () => {

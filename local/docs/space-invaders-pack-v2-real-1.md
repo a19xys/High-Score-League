@@ -29,6 +29,7 @@ Space Invaders/
     default.cfg
     invaders.cfg
   manual/
+    invaders.pdf
   roms/
     invaders.zip
   samples/
@@ -118,6 +119,12 @@ Campos minimos de presentacion:
 Campos recomendables para packs futuros, sin convertirlos en autoridad
 competitiva: `manual`, `manualPath`, `manualUrl` y `rankingUrl`.
 
+Para manual local, el launcher abre primero `metadata.manualPath` o
+`metadata.manual.path` si existen. Si no estan declarados, acepta
+`manual/manual.pdf`, `manual/manual.html`, `manual/index.html` o un unico PDF
+dentro de `manual/`. Por eso `manual/invaders.pdf` funciona sin visor PDF
+interno y se abre con el visor predeterminado del sistema.
+
 ## Adapter Lua
 
 `scripts/invaders.lua` es especifico de Space Invaders y cumple el contrato de
@@ -142,6 +149,7 @@ Practica v2 usa:
 
 ```text
 MAME compartido
++ -skip_gameinfo
 + recursos del pack
 + mame.launchArgs
 + mame.profiles.practice.launchArgs
@@ -156,6 +164,7 @@ Competicion v2 usa:
 
 ```text
 MAME compartido
++ -skip_gameinfo
 + recursos del pack
 + mame.launchArgs
 + mame.profiles.competition.launchArgs
@@ -187,6 +196,16 @@ userData/players/<playerKey>/packs/<packKey>/events/pending
 
 No se usa `userData/events` como staging competitivo v2 y no se copia
 `hsl-score` a `C:/MAME/plugins`.
+
+Si falta `roms/invaders.zip`, el pack queda bloqueado antes de lanzar MAME:
+`Practicar` y `Jugar` se deshabilitan y la UI muestra que falta la ROM
+necesaria. La comprobacion existe tambien en el launcher backend para evitar
+abrir MAME aunque una accion visual quedase habilitada por error.
+
+Si hay dos carpetas de pack con `packId: space-invaders-dev-pack-v2`, ambas se
+marcan como conflicto. No se intenta elegir una automaticamente porque el
+`packId` es identidad competitiva y mezclarla entre duplicados puede activar el
+pack equivocado o compartir favoritos/colas de forma confusa.
 
 ## cfg y DIPs
 
@@ -260,6 +279,7 @@ No versionar:
 - bloqueo o auditoria fuerte de TAB/DIPs;
 - politica de plugins auxiliares aprobados por juego;
 - validacion automatica de MAME real y `-listxml` sin depender de ROM en tests.
+- watcher de carpeta de packs con debounce para reescaneo automatico seguro.
 
 Para una primera competicion, Space Invaders se distribuye como carpeta de pack
 descomprimida dentro del directorio de packs elegido por el usuario. El flujo de

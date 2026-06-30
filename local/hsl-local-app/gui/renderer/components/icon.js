@@ -26,6 +26,7 @@ export const ICONS = Object.freeze({
   playtime: { fallback: "T", file: "playtime.svg" },
   practice: { fallback: "P", file: "practice.svg" },
   ranking: { fallback: "#", file: "ranking.svg" },
+  refresh: { fallback: "R", file: "refresh.svg" },
   settings: { fallback: "*", file: "settings.svg" },
   "star-empty": { fallback: "-", file: "star-empty.svg" },
   "star-filled": { fallback: "*", file: "star-filled.svg" },

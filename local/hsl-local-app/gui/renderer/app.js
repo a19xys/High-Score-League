@@ -200,7 +200,9 @@ function renderOverlay(state) {
             <p class="eyebrow">${isActivity ? "Cola local" : "Launcher"}</p>
             <h2>${isActivity ? "Actividad local" : "Configuracion"}</h2>
           </div>
-          <button class="icon-button" type="button" data-action="close-overlay" title="Cerrar">x</button>
+          <button class="icon-button" type="button" data-action="close-overlay" title="Cerrar" aria-label="Cerrar">
+            ${renderIcon("close", { className: "button-icon", size: "sm" })}
+          </button>
         </div>
         <div class="drawer-body">
           ${isActivity ? renderActivityDrawer(state) : `

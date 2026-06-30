@@ -175,7 +175,7 @@ function renderAccountMenu(state) {
 
 export function renderHeader(state) {
   const themeLabel = state.theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
-  const themeIcon = state.theme === "dark" ? "sun" : "moon";
+  const themeIcon = state.theme === "dark" ? "moon" : "sun";
   const busyText = state.busy ? `<span class="busy-chip">${escapeHtml(state.busyLabel || "Ejecutando")}</span>` : "";
   const session = state.data?.session;
   const activeAccount = getActiveAccount(state.data?.accounts, session);

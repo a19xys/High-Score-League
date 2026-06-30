@@ -4,6 +4,7 @@ const path = require("node:path");
 const { getGameByRom } = require("./games");
 
 const DEFAULT_PLUGIN_NAME = "hsl-score";
+const DEFAULT_LAUNCH_ARGS = ["-skip_gameinfo"];
 const MODES = new Set(["competition", "practice"]);
 const OUTPUT_TAIL_LIMIT = 200;
 
@@ -109,6 +110,14 @@ function addPackV2ResourceArgs(args, config, mode) {
   args.push(...validateLaunchArgs(profile.launchArgs, `mame.profiles.${mode}.launchArgs`));
 }
 
+function addDefaultLaunchArgs(args) {
+  for (const value of DEFAULT_LAUNCH_ARGS) {
+    if (!args.includes(value)) {
+      args.push(value);
+    }
+  }
+}
+
 function buildPluginSearchPath(runPluginSearchDir, mameCwd) {
   const stockPluginSearchDir = path.join(mameCwd, "plugins");
   const entries = [runPluginSearchDir, stockPluginSearchDir].filter(Boolean);
@@ -125,6 +134,7 @@ function buildPackV2MameArgs(config, rom, mode) {
   const command = config.sharedMameRuntime.mameExecutablePath.trim();
   const cwd = path.dirname(command);
 
+  addDefaultLaunchArgs(args);
   addPackV2ResourceArgs(args, config, mode);
 
   if (mode === "competition") {
@@ -171,6 +181,8 @@ function buildMameArgs(config, rom, mode) {
 
   const launch = resolveLaunchRom(rom);
   const args = [launch.rom];
+
+  addDefaultLaunchArgs(args);
 
   if (mode === "competition") {
     args.push("-plugins", "-plugin", config.mame.pluginName || DEFAULT_PLUGIN_NAME);
@@ -224,9 +236,14 @@ function assertLaunchResources(config, launch) {
   }
 
   const romDir = config.pack?.contract?.mame?.romDir;
+  const romPath = romDir && launch.rom ? path.join(romDir, `${launch.rom}.zip`) : null;
 
   if (!romDir || !fs.existsSync(romDir) || !fs.statSync(romDir).isDirectory()) {
     throw new Error("No encuentro el directorio de ROMs del pack v2.");
+  }
+
+  if (!romPath || !fs.existsSync(romPath) || !fs.statSync(romPath).isFile()) {
+    throw new Error(`Falta la ROM necesaria: ${config.pack?.contract?.mame?.romPath || "roms"}/${launch.rom}.zip.`);
   }
 
   if (launch.mode === "competition") {
@@ -317,6 +334,7 @@ function launchMameDetailed(config, rom, mode, spawnImpl = spawn) {
 
 module.exports = {
   DEFAULT_PLUGIN_NAME,
+  DEFAULT_LAUNCH_ARGS,
   assertMameConfig,
   buildMameArgs,
   buildPluginSearchPath,

@@ -109,10 +109,15 @@ sin licencia y autorizacion explicitas.
 
 MVP:
 
-- si existe `metadata.manualPath`, se abre si es HTML/PDF relativo dentro del
-  pack;
-- si no, se buscan `manual/manual.html`, `manual/manual.pdf` y
+- si existe `metadata.manualPath` o `metadata.manual.path`, se abre si es
+  HTML/PDF relativo dentro del pack;
+- si no, se buscan `manual/manual.pdf`, `manual/manual.html` y
   `manual/index.html`;
+- si no existe ninguno de esos nombres, se acepta exactamente un PDF dentro de
+  `manual/`, por ejemplo `manual/invaders.pdf`;
+- si no hay PDF unico, se acepta exactamente un HTML/HTM dentro de `manual/`;
+- si hay varios PDF/HTML sin declaracion explicita, el launcher pide declarar
+  `metadata.manualPath`;
 - si existe `metadata.manualUrl`, se abre en navegador solo si es `http(s)`;
 - rutas absolutas, traversal y `file://` se rechazan;
 - si falta manual, el launcher muestra un mensaje claro.
@@ -190,7 +195,40 @@ La configuracion del launcher expone:
 - diagnostico y readiness tecnicos en avanzado.
 
 La biblioteca tambien muestra acciones directas para elegir/cambiar carpeta,
-reescanear y abrir carpeta.
+reescanear y abrir carpeta. En la superficie principal, abrir carpeta y
+reescanear viven como iconos en la cabecera de `Biblioteca`: carpeta antes del
+titulo y recarga despues del titulo. El icono de recarga gira mientras el
+reescaneo manual esta en curso.
+
+No hay watcher automatico de la carpeta de packs en este MVP. Queda pospuesto
+hasta implementar un canal IPC con debounce probado para evitar multiples
+reescaneos al descomprimir/copiar packs, flicker visual y perdida de seleccion.
+El watcher futuro solo podra disparar reescaneo; nunca borrar, mover ni
+modificar packs.
+
+## Readiness local de packs
+
+Un pack v2 requiere la ROM concreta declarada por `rom` dentro de
+`mame.romPath`. Si falta, por ejemplo `roms/invaders.zip`, la biblioteca marca
+el pack como `Requiere atencion`, `Practicar` y `Jugar` quedan deshabilitados y
+el servicio no lanza MAME aunque la UI fallase.
+
+Los `packId` duplicados se tratan como conflicto. Todos los packs con el mismo
+`packId` quedan bloqueados con el mensaje:
+
+```text
+Hay otro pack con el mismo packId. Cambia el packId o elimina el duplicado.
+```
+
+La card usa una clave interna derivada de la ruta del pack para seleccion y
+renderizado, pero `packId` sigue siendo identidad competitiva. En conflicto, el
+favorito queda deshabilitado para evitar estados compartidos confusos.
+
+## MAME
+
+El launcher anade `-skip_gameinfo` tanto en practica como en competicion para
+evitar la pantalla inicial automatica de informacion de MAME sin depender del
+`mame.ini` global del usuario.
 
 ## Pospuesto
 

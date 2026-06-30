@@ -76,6 +76,14 @@ function inferRomPath(config, rom) {
   return path.join(config.mame.workingDir, "roms", `${rom}.zip`);
 }
 
+function expectedRomLabel(config, rom) {
+  if (config?.pack?.contract?.version === 2 && config.pack.contract.mame?.romPath && rom) {
+    return `${String(config.pack.contract.mame.romPath).replaceAll("\\", "/").replace(/\/+$/, "")}/${rom}.zip`;
+  }
+
+  return rom ? `roms/${rom}.zip` : "roms/<rom>.zip";
+}
+
 function buildTitle(status) {
   if (status === "ready") {
     return "Listo para jugar";
@@ -160,6 +168,16 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
     checks.push(check("pack-valid", "error", "Pack", "El pack tiene errores de configuracion.", config.packErrors));
   } else {
     checks.push(check("pack-valid", "ok", "Pack", "Configuracion basica del pack valida."));
+  }
+
+  if (pack?.duplicatePackId) {
+    checks.push(check(
+      "pack-id-duplicate",
+      "error",
+      "Pack",
+      "Hay otro pack con el mismo packId. Cambia el packId o elimina el duplicado.",
+      [pack.packId]
+    ));
   }
 
   if (pack?.contractStatus) {
@@ -310,7 +328,9 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
   } else if (!isPackV2 && romPath && isDirectory(config.mame?.workingDir)) {
     checks.push(check("rom-file", "warning", "ROM", "No pude confirmar la ROM en roms/. MAME podria usar otra ruta.", [romPath]));
   } else if (isPackV2 && romPath && isDirectory(pack?.contract?.mame?.romDir)) {
-    checks.push(check("rom-file", "warning", "ROM", "No pude confirmar la ROM concreta, pero el directorio romPath existe.", [romPath]));
+    checks.push(check("rom-file", "error", "ROM", `Falta la ROM necesaria: ${expectedRomLabel(config, rom)}.`, [romPath]));
+  } else if (isPackV2 && romPath) {
+    checks.push(check("rom-file", "error", "ROM", `Falta la ROM necesaria: ${expectedRomLabel(config, rom)}.`, [romPath]));
   }
 
   if (isPackV2) {
@@ -378,7 +398,10 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
     ? checks.find((item) => item.id === "runtime-shared")?.level === "ok"
     : checks.find((item) => item.id === "mame-executable")?.level === "ok" &&
       checks.find((item) => item.id === "mame-working-dir")?.level === "ok";
-  const hasRom = Boolean(rom);
+  const hasRom = Boolean(rom) && (
+    checks.find((item) => item.id === "rom-file")?.level === "ok" ||
+    (!isPackV2 && checks.find((item) => item.id === "rom-file")?.level !== "error")
+  );
   const hasRomDir = !isPackV2 || checks.find((item) => item.id === "rom-dir")?.level === "ok";
   const hasPlugin = isPackV2
     ? Boolean(v2Capture?.ok)
@@ -425,4 +448,5 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
 
 module.exports = {
   evaluatePackReadiness,
+  inferRomPath,
 };
