@@ -170,12 +170,14 @@ function renderContentAction(action, label, content, disabled) {
 
 function renderDetailFavoriteMark(game) {
   const favorite = Boolean(game?.favorite);
-  const label = favorite ? "Juego favorito" : "Juego no favorito";
-  const icon = favorite ? "star-filled" : "star-empty";
+
+  if (!favorite) {
+    return "";
+  }
 
   return `
-    <span class="game-favorite-mark ${favorite ? "game-favorite-mark--active" : ""}" role="img" aria-label="${label}" title="${label}" aria-hidden="false">
-      ${renderIcon(icon, { className: "game-favorite-mark__icon", size: "sm" })}
+    <span class="game-favorite-mark game-favorite-mark--active" role="img" aria-label="Juego favorito" title="Juego favorito">
+      ${renderIcon("star-filled", { className: "game-favorite-mark__icon", size: "sm" })}
     </span>
   `;
 }

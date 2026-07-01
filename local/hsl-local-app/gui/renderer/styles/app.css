@@ -4807,16 +4807,24 @@ button:disabled .ui-icon,
 
 .game-title-main {
   display: flex;
+  width: 100%;
   min-width: 0;
   gap: 7px;
   align-items: flex-start;
 }
 
 .game-title-main h2 {
-  flex: 0 1 auto;
-  max-width: calc(100% - 25px);
+  width: 100%;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  max-width: 100%;
   min-width: 0;
+  padding-inline-end: var(--favorite-star-safe-space, 0px);
   overflow-wrap: anywhere;
+}
+
+.game-title-main:has(.game-favorite-mark) h2 {
+  --favorite-star-safe-space: 33px;
 }
 
 .game-week-subtitle {
@@ -4967,16 +4975,24 @@ button:disabled .ui-icon,
 
 .game-title-main {
   display: flex;
+  width: 100%;
   min-width: 0;
   align-items: flex-start;
   gap: 7px;
 }
 
 .game-title-main h2 {
-  flex: 0 1 auto;
-  max-width: calc(100% - 25px);
+  width: 100%;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  max-width: 100%;
   min-width: 0;
+  padding-inline-end: var(--favorite-star-safe-space, 0px);
   overflow-wrap: anywhere;
+}
+
+.game-title-main:has(.game-favorite-mark) h2 {
+  --favorite-star-safe-space: 33px;
 }
 
 .game-favorite-mark {
@@ -5049,4 +5065,61 @@ button:disabled .ui-icon,
   overflow: visible;
   text-overflow: clip;
   white-space: nowrap;
+}
+
+/* LOCAL-LAUNCHER-SELECTION-METADATA-STAR-POLISH-6: selection, metadata recalc and favorite mark. */
+.pack-card[role="button"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--circuit) 72%, transparent);
+  outline-offset: 3px;
+}
+
+.pack-card--pending {
+  border-color: var(--border);
+  box-shadow: 0 8px 18px rgb(2 6 23 / 0.1);
+  filter: brightness(0.96);
+}
+
+.pack-card--pending.pack-card--active {
+  border-color: color-mix(in srgb, var(--circuit) 68%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--circuit) 20%, transparent), 0 14px 28px rgb(2 6 23 / 0.14);
+  filter: none;
+}
+
+.pack-card--icons.pack-card--pending {
+  filter: brightness(0.96);
+}
+
+.pack-card--icons.pack-card--pending .pack-card__media {
+  border-color: var(--border);
+  box-shadow: 0 10px 20px rgb(2 6 23 / 0.12);
+}
+
+.game-detail-card .ready-copy {
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.game-title-main {
+  position: relative;
+  width: 100%;
+}
+
+.game-title-main h2 {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-inline-end: var(--favorite-star-safe-space, 0px);
+}
+
+.game-title-main:has(.game-favorite-mark) h2 {
+  --favorite-star-safe-space: 33px;
+}
+
+.game-favorite-mark {
+  position: absolute;
+  top: var(--favorite-mark-top, 0);
+  left: var(--favorite-mark-left, calc(100% - 18px));
+}
+
+.game-favorite-mark[hidden] {
+  display: none;
 }

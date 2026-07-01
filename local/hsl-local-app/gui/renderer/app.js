@@ -52,6 +52,8 @@ let libraryPackSelectionSequence = 0;
 let sidebarResize = null;
 let metadataResizeObserver = null;
 let metadataLayoutFrame = 0;
+let favoriteTitleResizeObserver = null;
+let favoriteTitleFrame = 0;
 const detailAssetPreloadCache = new Map();
 const favoriteSyncByKey = new Map();
 
@@ -91,7 +93,7 @@ function restoreMainScrollState(scrollState) {
 }
 
 function metadataHasOverflow(grid) {
-  return [...grid.querySelectorAll(".game-metadata-label, .game-metadata-value")]
+  return [...grid.querySelectorAll(".game-metadata-value")]
     .some((item) => item.scrollWidth > item.clientWidth + 1);
 }
 
@@ -136,6 +138,128 @@ function syncGameMetadataLayout() {
   metadataResizeObserver = new ResizeObserver(schedule);
   grids.forEach((grid) => metadataResizeObserver.observe(grid));
   schedule();
+}
+
+function normalizeFavoriteTitleLineRects(lineRects) {
+  return lineRects
+    .filter((rect) => rect.width > 0 && rect.height > 0)
+    .sort((left, right) => left.top - right.top || left.left - right.left)
+    .reduce((lines, rect) => {
+      const current = lines[lines.length - 1];
+      if (current && Math.abs(current.top - rect.top) <= 2) {
+        current.left = Math.min(current.left, rect.left);
+        current.right = Math.max(current.right, rect.right);
+        current.top = Math.min(current.top, rect.top);
+        current.height = Math.max(current.height, rect.height);
+        current.width = current.right - current.left;
+        return lines;
+      }
+
+      lines.push({ ...rect });
+      return lines;
+    }, []);
+}
+
+function computeFavoriteStarPosition(lineRects, {
+  containerWidth,
+  gap = 9,
+  minGap = 6,
+  markHeight,
+  markWidth,
+}) {
+  const lines = normalizeFavoriteTitleLineRects(lineRects);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const firstLine = lines[0];
+  const maxLineRight = Math.max(...lines.map((rect) => rect.right));
+  const safeGap = maxLineRight + gap + markWidth <= containerWidth
+    ? gap
+    : minGap;
+
+  if (maxLineRight + safeGap + markWidth > containerWidth) {
+    return null;
+  }
+
+  const left = maxLineRight + safeGap;
+  const top = Math.max(0, firstLine.top + (firstLine.height - markHeight) * 0.28);
+
+  return {
+    left: Math.round(left),
+    top: Math.round(top),
+  };
+}
+
+function placeFavoriteTitleMark(container) {
+  const title = container.querySelector("h2");
+  const mark = container.querySelector(".game-favorite-mark");
+  const textNode = [...(title?.childNodes || [])]
+    .find((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+
+  if (!title || !mark || !textNode) {
+    return;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(textNode);
+  const containerRect = container.getBoundingClientRect();
+  mark.hidden = false;
+  const markRect = mark.getBoundingClientRect();
+  const lineRects = [...range.getClientRects()].map((rect) => ({
+    height: rect.height,
+    left: rect.left - containerRect.left,
+    right: rect.right - containerRect.left,
+    top: rect.top - containerRect.top,
+    width: rect.width,
+  }));
+  const position = computeFavoriteStarPosition(lineRects, {
+    containerWidth: containerRect.width,
+    markHeight: markRect.height,
+    markWidth: markRect.width,
+  });
+
+  if (!position) {
+    mark.hidden = true;
+    return;
+  }
+
+  mark.hidden = false;
+  mark.style.setProperty("--favorite-mark-left", `${position.left}px`);
+  mark.style.setProperty("--favorite-mark-top", `${position.top}px`);
+}
+
+function syncFavoriteTitleMarks() {
+  if (favoriteTitleResizeObserver) {
+    favoriteTitleResizeObserver.disconnect();
+  }
+
+  const containers = [...root.querySelectorAll(".game-title-main")];
+
+  if (containers.length === 0) {
+    favoriteTitleResizeObserver = null;
+    return;
+  }
+
+  const schedule = () => {
+    window.cancelAnimationFrame(favoriteTitleFrame);
+    favoriteTitleFrame = window.requestAnimationFrame(() => {
+      containers.forEach(placeFavoriteTitleMark);
+    });
+  };
+
+  favoriteTitleResizeObserver = new ResizeObserver(schedule);
+  containers.forEach((container) => {
+    favoriteTitleResizeObserver.observe(container);
+    const title = container.querySelector("h2");
+    if (title) {
+      favoriteTitleResizeObserver.observe(title);
+    }
+  });
+
+  schedule();
+  document.fonts?.ready?.then(schedule).catch(() => {});
 }
 
 function libraryPreferencesScopeKey(preferences = {}) {
@@ -373,6 +497,7 @@ function render() {
   `;
   restoreMainScrollState(scrollState);
   syncGameMetadataLayout();
+  syncFavoriteTitleMarks();
 }
 
 async function refreshState() {

@@ -558,6 +558,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.pack-card--list \.pack-card__media[\s\S]*background: var\(--surface-muted\)/);
   assert.match(styles, /\.pack-card--list \.pack-card__media img[\s\S]*object-fit: cover/);
   assert.match(styles, /\.pack-card--pending/);
+  assert.match(styles, /\.pack-card--pending[\s\S]*border-color: var\(--border\)[\s\S]*filter: brightness\(0\.96\)/);
+  assert.match(styles, /\.pack-card--pending\.pack-card--active[\s\S]*var\(--circuit\)/);
+  assert.match(styles, /\.pack-card\[role="button"\]:focus-visible[\s\S]*outline/);
   assert.match(styles, /\.library-pack-grid--icons/);
   assert.match(styles, /LOCAL-LIBRARY-ICON-VIEW-UNIFORM-SIZE-2/);
   assert.match(styles, /--library-icon-tile-min: 122px/);
@@ -772,8 +775,10 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /game-title-main/);
   assert.match(gamePanel, /game-week-subtitle/);
   assert.match(gamePanel, /game-favorite-mark/);
-  assert.match(gamePanel, /favorite \? "star-filled" : "star-empty"/);
-  assert.match(gamePanel, /role="img" aria-label="\$\{label\}"/);
+  assert.match(gamePanel, /if \(!favorite\) \{\s*return "";\s*\}/);
+  assert.match(gamePanel, /renderIcon\("star-filled"/);
+  assert.equal(/star-empty/.test(gamePanel), false);
+  assert.match(gamePanel, /role="img" aria-label="Juego favorito"/);
   assert.equal(/<button[^>]*game-favorite-mark/.test(gamePanel), false);
   assert.equal(/game-favorite-chip|>Favorito</.test(gamePanel), false);
   assert.equal(/badge badge-muted week-chip/.test(gamePanel), false);
@@ -866,8 +871,14 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-metadata-grid--fallback[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
   assert.match(styles, /\.game-metadata-grid--ellipsis \.game-metadata-label,[\s\S]*\.game-metadata-grid--ellipsis \.game-metadata-value[\s\S]*text-overflow: ellipsis/);
   assert.match(styles, /\.game-title-main[\s\S]*display: flex[\s\S]*gap: 7px/);
-  assert.match(styles, /\.game-title-main h2[\s\S]*max-width: calc\(100% - 25px\)/);
+  assert.match(styles, /\.game-title-main h2[\s\S]*width: 100%[\s\S]*max-width: 100%/);
+  assert.match(styles, /\.game-title-main h2[\s\S]*box-sizing: border-box[\s\S]*padding-inline-end: var\(--favorite-star-safe-space, 0px\)/);
+  assert.match(styles, /\.game-title-main:has\(\.game-favorite-mark\) h2[\s\S]*--favorite-star-safe-space: 33px/);
+  assert.equal(/game-title-main[\s\S]{0,180}max-width: calc\(100% -/.test(styles), false);
+  assert.equal(/:has\(\.game-favorite-mark\)[\s\S]{0,120}max-width: calc/.test(styles), false);
   assert.match(styles, /\.game-favorite-mark[\s\S]*width: 18px[\s\S]*height: 18px[\s\S]*border: 0[\s\S]*background: transparent[\s\S]*cursor: default[\s\S]*pointer-events: none/);
+  assert.match(styles, /\.game-favorite-mark[\s\S]*position: absolute[\s\S]*--favorite-mark-left/);
+  assert.match(styles, /\.game-favorite-mark\[hidden\][\s\S]*display: none/);
   assert.match(styles, /\.game-favorite-mark--active[\s\S]*background: transparent[\s\S]*var\(--circuit\)/);
   assert.match(styles, /\.game-week-subtitle[\s\S]*text-transform: uppercase/);
   assert.equal(/@container \(max-width: 720px\)[\s\S]*game-metadata/.test(styles), false);
@@ -907,17 +918,34 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.pack-card--icons \.pack-card__status-dot[\s\S]*border: 0[\s\S]*border-radius: 999px[\s\S]*box-shadow: none/);
   assert.match(styles, /\.action-button-label[\s\S]*overflow: visible/);
   assert.match(styles, /\.game-detail-card \.activity-summary-card/);
+  assert.match(styles, /\.game-detail-card \.ready-copy[\s\S]*font-size: 16px[\s\S]*line-height: 1\.6/);
   assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*aspect-ratio: 2 \/ 3/);
   assert.match(app, /Launcher actualizado/);
   assert.match(app, /LAUNCHER_VERSION = "v1\.0\.0"/);
   assert.match(app, /renderStatusFooter/);
   assert.match(app, /function metadataHasOverflow\(grid\)/);
+  assert.match(app, /querySelectorAll\("\.game-metadata-value"\)/);
   assert.match(app, /function applyGameMetadataLayout\(grid\)/);
+  assert.match(app, /grid\.classList\.remove\([\s\S]*game-metadata-grid--fallback[\s\S]*game-metadata-grid--ellipsis/);
   assert.match(app, /game-metadata-grid--fallback[\s\S]*game-metadata-grid--ellipsis/);
   assert.equal(/game-metadata-grid--no-icons/.test(app), false);
   assert.match(app, /new ResizeObserver\(schedule\)/);
   assert.match(app, /requestAnimationFrame/);
   assert.match(app, /syncGameMetadataLayout\(\)/);
+  assert.match(app, /function normalizeFavoriteTitleLineRects\(lineRects\)/);
+  assert.match(app, /Math\.abs\(current\.top - rect\.top\) <= 2/);
+  assert.match(app, /current\.right = Math\.max\(current\.right, rect\.right\)/);
+  assert.match(app, /function computeFavoriteStarPosition\(lineRects/);
+  assert.match(app, /const maxLineRight = Math\.max\(\.\.\.lines\.map\(\(rect\) => rect\.right\)\)/);
+  assert.match(app, /maxLineRight \+ gap/);
+  assert.match(app, /minGap = 6/);
+  assert.match(app, /maxLineRight \+ safeGap \+ markWidth > containerWidth[\s\S]*return null/);
+  assert.equal(/Math\.min\([\s\S]{0,120}containerWidth - markWidth/.test(app), false);
+  assert.match(app, /function placeFavoriteTitleMark\(container\)/);
+  assert.match(app, /mark\.hidden = true/);
+  assert.match(app, /mark\.hidden = false/);
+  assert.match(app, /Range|getClientRects/);
+  assert.match(app, /--favorite-mark-left/);
   assert.match(styles, /\.modal-layer/);
   assert.match(styles, /\.drawer-layer/);
   assert.match(styles, /#app[\s\S]*width: 100%[\s\S]*height: 100%/);
@@ -974,6 +1002,72 @@ test("game detail metadata renders four normalized fields", async () => {
   assert.match(html, /Taito · Midway/);
   assert.match(html, /Disparos · Arcade/);
   assert.match(html, /Sin datos/);
+  assert.equal(/game-favorite-mark/.test(html), false);
+
+  const favoriteHtml = renderGamePanel({
+    busy: false,
+    data: {
+      autoSync: { status: "idle" },
+      bridge: {},
+      game: {
+        displayName: "Indiana Jones and the Temple of Doom",
+        favorite: true,
+        genre: "Aventura",
+      },
+      membership: null,
+      readiness: { status: "ready" },
+      session: { hasSession: false },
+    },
+  });
+
+  assert.match(favoriteHtml, /game-favorite-mark game-favorite-mark--active/);
+  assert.match(favoriteHtml, /aria-label="Juego favorito"/);
+  assert.match(favoriteHtml, /star-filled/);
+  assert.equal(/star-empty|game-favorite-chip|>Favorito</.test(favoriteHtml), false);
+});
+
+test("library pending selection does not become active in any view", async () => {
+  const { renderPackCard } = await import(pathToFileURL(path.join(
+    __dirname,
+    "..",
+    "gui",
+    "renderer",
+    "components",
+    "pack-card.js",
+  )));
+  const activePack = {
+    id: "active-pack",
+    packDir: "C:/packs/active",
+    status: "ready",
+    title: "Active Pack",
+  };
+  const pendingPack = {
+    id: "pending-pack",
+    packDir: "C:/packs/pending",
+    status: "ready",
+    title: "Pending Pack",
+  };
+  const state = {
+    busy: true,
+    libraryActivationInProgress: true,
+    pendingLibraryPackId: "pending-pack",
+    data: {
+      bridge: { packRoot: "C:/packs/active" },
+      session: { hasSession: true },
+    },
+  };
+
+  for (const view of ["icons", "covers", "list"]) {
+    const activeHtml = renderPackCard(activePack, state, view);
+    const pendingHtml = renderPackCard(pendingPack, state, view);
+    const combined = `${activeHtml}${pendingHtml}`;
+
+    assert.match(activeHtml, /pack-card--active/);
+    assert.doesNotMatch(activeHtml, /pack-card--pending/);
+    assert.match(pendingHtml, /pack-card--pending/);
+    assert.doesNotMatch(pendingHtml, /pack-card--active/);
+    assert.equal((combined.match(/pack-card--active/g) || []).length, 1);
+  }
 });
 
 test("manual and ranking IPC stay in main process", async () => {
