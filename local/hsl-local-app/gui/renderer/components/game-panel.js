@@ -168,6 +168,18 @@ function renderContentAction(action, label, content, disabled) {
   `;
 }
 
+function renderDetailFavoriteMark(game) {
+  const favorite = Boolean(game?.favorite);
+  const label = favorite ? "Juego favorito" : "Juego no favorito";
+  const icon = favorite ? "star-filled" : "star-empty";
+
+  return `
+    <span class="game-favorite-mark ${favorite ? "game-favorite-mark--active" : ""}" role="img" aria-label="${label}" title="${label}">
+      ${renderIcon(icon, { className: "game-favorite-mark__icon", size: "sm" })}
+    </span>
+  `;
+}
+
 function renderPackErrors(game, readiness) {
   const errors = [
     ...(game?.errors || []),
@@ -225,12 +237,12 @@ export function renderGamePanel(state) {
           ${renderStatusBadges(readiness, membership, autoSync, bridge)}
         </div>
         <div class="pack-title-row">
-          <div class="min-w-0">
-            <div class="game-title-line">
+          <div class="game-title-block">
+            <div class="game-title-main">
               <h2 title="${escapeHtml(game?.displayName || "Space Invaders")}">${escapeHtml(game?.displayName || "Space Invaders")}</h2>
-              ${weekLabel ? `<span class="badge badge-muted week-chip">${renderIcon("calendar", { className: "status-icon icon-slot icon-slot--calendar" })}${escapeHtml(weekLabel)}</span>` : ""}
-              ${game?.favorite ? `<span class="game-favorite-chip" title="Favorito">${renderIcon("star-filled", { className: "status-icon game-favorite-icon", size: "sm" })}<span>Favorito</span></span>` : ""}
+              ${renderDetailFavoriteMark(game)}
             </div>
+            ${weekLabel ? `<p class="game-week-subtitle">${renderIcon("calendar", { className: "status-icon game-week-icon", size: "sm" })}<span>${escapeHtml(weekLabel)}</span></p>` : ""}
           </div>
         </div>
         ${description ? `<p class="ready-copy">${escapeHtml(description)}</p>` : ""}

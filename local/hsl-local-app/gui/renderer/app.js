@@ -98,7 +98,6 @@ function metadataHasOverflow(grid) {
 function applyGameMetadataLayout(grid) {
   grid.classList.remove(
     "game-metadata-grid--fallback",
-    "game-metadata-grid--no-icons",
     "game-metadata-grid--ellipsis",
   );
 
@@ -107,12 +106,6 @@ function applyGameMetadataLayout(grid) {
   }
 
   grid.classList.add("game-metadata-grid--fallback");
-
-  if (!metadataHasOverflow(grid)) {
-    return;
-  }
-
-  grid.classList.add("game-metadata-grid--no-icons");
 
   if (!metadataHasOverflow(grid)) {
     return;
@@ -249,8 +242,24 @@ function withFavoritePatch(data, packKey, patch) {
     return data;
   }
 
+  const selectedPack = data.library.packs.find((pack) => pack.favoriteKey === packKey);
+  const activePackMatches = selectedPack && data.game && (
+    data.game.favoriteKey === packKey ||
+    data.game.packId === selectedPack.packId ||
+    data.game.id === selectedPack.id ||
+    (
+      data.game.gameId &&
+      selectedPack.gameId &&
+      data.game.gameId === selectedPack.gameId &&
+      (!data.game.weekId || !selectedPack.weekId || data.game.weekId === selectedPack.weekId)
+    )
+  );
+
   return {
     ...data,
+    game: activePackMatches
+      ? { ...data.game, favorite: patch.favorite ?? data.game.favorite }
+      : data.game,
     library: {
       ...data.library,
       packs: data.library.packs.map((pack) => (

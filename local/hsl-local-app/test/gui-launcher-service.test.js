@@ -515,6 +515,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.library-control-button span[\s\S]*align-items: center/);
   assert.match(styles, /\.library-control-button,\s*\n\.view-button[\s\S]*font-size: 12\.5px/);
   assert.match(styles, /\.library-control-button[\s\S]*gap: 7px/);
+  assert.match(styles, /\.library-heading-button[\s\S]*border: 0[\s\S]*background: transparent/);
+  assert.match(styles, /\.library-heading-button:hover:not\(:disabled\)[\s\S]*var\(--circuit\)/);
+  assert.match(styles, /\.library-heading-button:focus-visible[\s\S]*outline/);
   assert.match(styles, /\.library-sort__controls[\s\S]*grid-template-columns: minmax\(0, 1fr\) 42px 42px/);
   assert.match(styles, /\.library-sort-direction-button,\s*\n\.library-favorite-filter-button[\s\S]*width: 42px/);
   assert.match(styles, /\.library-favorite-filter-button--active[\s\S]*var\(--circuit\)/);
@@ -757,8 +760,14 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /renderIcon\("play"/);
   assert.match(gamePanel, /renderIcon\("practice"/);
   assert.match(gamePanel, /<h2 title="\$\{escapeHtml\(game\?\.displayName \|\| "Space Invaders"\)\}"/);
-  assert.match(gamePanel, /game-favorite-chip/);
-  assert.match(gamePanel, /renderIcon\("star-filled"/);
+  assert.match(gamePanel, /function renderDetailFavoriteMark\(game\)/);
+  assert.match(gamePanel, /game-title-main/);
+  assert.match(gamePanel, /game-week-subtitle/);
+  assert.match(gamePanel, /game-favorite-mark/);
+  assert.match(gamePanel, /favorite \? "star-filled" : "star-empty"/);
+  assert.match(gamePanel, /role="img" aria-label="\$\{label\}"/);
+  assert.equal(/game-favorite-chip|>Favorito</.test(gamePanel), false);
+  assert.equal(/badge badge-muted week-chip/.test(gamePanel), false);
   assert.match(gamePanel, /"manual"/);
   assert.match(gamePanel, /renderStatusBadges/);
   assert.match(gamePanel, /function renderPackErrors\(game, readiness\)/);
@@ -846,15 +855,19 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-metadata-grid[\s\S]*grid-template-columns: minmax\(0, 1fr\) clamp\(220px, 32%, 340px\)/);
   assert.match(styles, /@container \(max-width: 560px\)[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
   assert.match(styles, /\.game-metadata-grid--fallback[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
-  assert.match(styles, /\.game-metadata-grid--no-icons \.game-metadata-icon\.ui-icon[\s\S]*display: none/);
   assert.match(styles, /\.game-metadata-grid--ellipsis \.game-metadata-label,[\s\S]*\.game-metadata-grid--ellipsis \.game-metadata-value[\s\S]*text-overflow: ellipsis/);
+  assert.match(styles, /\.game-title-main[\s\S]*grid-template-columns: minmax\(0, 1fr\) 34px/);
+  assert.match(styles, /\.game-favorite-mark[\s\S]*pointer-events: none/);
+  assert.match(styles, /\.game-favorite-mark--active[\s\S]*var\(--circuit\)/);
+  assert.match(styles, /\.game-week-subtitle[\s\S]*text-transform: uppercase/);
   assert.equal(/@container \(max-width: 720px\)[\s\S]*game-metadata/.test(styles), false);
   const metadataFallbackStyles = styles.slice(
     styles.indexOf("@container (max-width: 560px)"),
     styles.indexOf("@container (max-width: 360px)"),
   );
   assert.equal(/\.game-metadata-icon\.ui-icon[\s\S]*display: none/.test(metadataFallbackStyles), false);
-  assert.match(styles, /@container \(max-width: 360px\)[\s\S]*\.game-metadata-icon\.ui-icon[\s\S]*display: none/);
+  assert.equal(/game-metadata-grid--no-icons|metadata--no-icons/.test(styles + app), false);
+  assert.equal(/@container \(max-width: 360px\)[\s\S]*\.game-metadata-icon\.ui-icon[\s\S]*display: none/.test(styles), false);
   assert.match(styles, /@container \(max-width: 560px\)[\s\S]*\.game-metadata-item--year[\s\S]*border-right: 1px solid var\(--border\)[\s\S]*border-bottom: 0/);
   assert.match(styles, /\.game-metadata-item[\s\S]*border-right: 1px solid var\(--border\)/);
   assert.match(styles, /\.game-metadata-icon \.ui-icon__fallback[\s\S]*display: none !important/);
@@ -872,6 +885,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-detail-card \.compact-action[\s\S]*min-height: 64px/);
   assert.match(styles, /\.play-button \.ui-icon__fallback,[\s\S]*\.secondary-action \.ui-icon__fallback[\s\S]*display: none !important/);
   assert.match(styles, /\.favorite-slot--pending[\s\S]*opacity: 1[\s\S]*cursor: pointer/);
+  assert.equal(/\.favorite-slot--pending[\s\S]{0,80}cursor: wait/.test(styles), false);
   assert.match(styles, /\.pack-card--icons \.pack-card__status-dot[\s\S]*border: 0[\s\S]*box-shadow: none/);
   assert.match(styles, /\.app-icon-slot[\s\S]*width: 52px[\s\S]*height: 52px[\s\S]*border: 0[\s\S]*background: transparent/);
   assert.match(styles, /\.app-brand-icon\.ui-icon[\s\S]*width: 48px[\s\S]*height: 48px[\s\S]*background: transparent/);
@@ -885,7 +899,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /renderStatusFooter/);
   assert.match(app, /function metadataHasOverflow\(grid\)/);
   assert.match(app, /function applyGameMetadataLayout\(grid\)/);
-  assert.match(app, /game-metadata-grid--fallback[\s\S]*game-metadata-grid--no-icons[\s\S]*game-metadata-grid--ellipsis/);
+  assert.match(app, /game-metadata-grid--fallback[\s\S]*game-metadata-grid--ellipsis/);
+  assert.equal(/game-metadata-grid--no-icons/.test(app), false);
   assert.match(app, /new ResizeObserver\(schedule\)/);
   assert.match(app, /requestAnimationFrame/);
   assert.match(app, /syncGameMetadataLayout\(\)/);
