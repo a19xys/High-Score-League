@@ -317,30 +317,6 @@ p {
   font-size: 13px;
 }
 
-.pack-metadata-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.pack-metadata-item {
-  display: inline-flex;
-  min-width: 0;
-  max-width: 180px;
-  align-items: center;
-  gap: 6px;
-  color: color-mix(in srgb, var(--text-inverse) 78%, transparent);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.pack-metadata-item > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .ready-copy {
   max-width: 48rem;
   font-size: 16px;
@@ -2219,56 +2195,111 @@ main,
   padding-inline: 8px;
 }
 
-.pack-metadata-grid {
+.game-metadata-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
+  grid-template-columns: minmax(0, 1fr) clamp(190px, 28%, 300px);
+  grid-template-areas:
+    "developer year"
+    "genre playtime";
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-muted) 62%, transparent);
+  background: color-mix(in srgb, var(--surface-muted) 58%, transparent);
 }
 
-.pack-metadata-item {
+.game-metadata-item {
   display: grid;
   min-width: 0;
   grid-template-columns: 24px minmax(0, 1fr);
-  gap: 9px;
-  align-items: center;
+  gap: 10px;
+  align-items: start;
   border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   background: transparent;
-  padding: 10px 12px;
+  padding: 11px 14px;
 }
 
-.pack-metadata-item:last-child {
+.game-metadata-item--developer { grid-area: developer; }
+.game-metadata-item--year { grid-area: year; }
+.game-metadata-item--genre { grid-area: genre; }
+.game-metadata-item--playtime { grid-area: playtime; }
+
+.game-metadata-item--year,
+.game-metadata-item--playtime {
   border-right: 0;
 }
 
-.pack-metadata-item .icon-slot {
+.game-metadata-item--genre,
+.game-metadata-item--playtime {
+  border-bottom: 0;
+}
+
+.game-metadata-icon.ui-icon {
   width: 24px;
   height: 24px;
 }
 
-.meta-copy {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
+.game-metadata-icon .ui-icon__fallback {
+  display: none !important;
 }
 
-.meta-label {
+.game-metadata-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.game-metadata-label {
+  overflow: visible;
   color: var(--text-muted);
   font-size: 10px;
   font-weight: 900;
+  line-height: 1.15;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.meta-value {
-  overflow: hidden;
+.game-metadata-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--text);
   font-size: 13px;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+}
+
+@container (max-width: 560px) {
+  .game-metadata-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "developer developer"
+      "genre genre"
+      "year playtime";
+  }
+
+  .game-metadata-item--developer,
+  .game-metadata-item--genre {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .game-metadata-item--year {
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
+  }
+
+  .game-metadata-item--playtime {
+    border-bottom: 0;
+  }
+}
+
+@container (max-width: 360px) {
+  .game-metadata-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .game-metadata-icon.ui-icon {
+    display: none;
+  }
 }
 
 .game-detail-card .ready-copy {
@@ -2413,17 +2444,6 @@ main,
     padding: 14px;
   }
 
-  .pack-metadata-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pack-metadata-item:nth-child(2) {
-    border-right: 0;
-  }
-
-  .pack-metadata-item:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--border);
-  }
 }
 
 /* LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3-FINAL: final cascade overrides. */
@@ -2537,73 +2557,6 @@ body {
   width: 13px;
   height: 13px;
   color: currentColor;
-}
-
-.pack-metadata-grid {
-  grid-template-columns: minmax(0, 2fr) minmax(150px, 0.75fr);
-  grid-template-areas:
-    "developer year"
-    "genre playtime";
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-muted) 58%, transparent);
-}
-
-.pack-metadata-item {
-  border: 0;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-}
-
-.pack-metadata-item--developer { grid-area: developer; }
-.pack-metadata-item--year { grid-area: year; }
-.pack-metadata-item--genre { grid-area: genre; }
-.pack-metadata-item--playtime { grid-area: playtime; }
-
-.pack-metadata-item--year,
-.pack-metadata-item--playtime {
-  border-right: 0;
-}
-
-.pack-metadata-item--genre,
-.pack-metadata-item--playtime {
-  border-bottom: 0;
-}
-
-.meta-label {
-  white-space: nowrap;
-}
-
-@container (max-width: 720px) {
-  .pack-metadata-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas:
-      "developer developer"
-      "genre genre"
-      "year playtime";
-  }
-
-  .pack-metadata-item {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pack-metadata-item .icon-slot,
-  .pack-metadata-item .meta-icon.ui-icon {
-    display: none;
-  }
-
-  .pack-metadata-item--developer,
-  .pack-metadata-item--genre,
-  .pack-metadata-item--year {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .pack-metadata-item--playtime {
-    border-bottom: 0;
-  }
 }
 
 .game-detail-card .play-button,
@@ -2754,73 +2707,6 @@ body {
   width: 13px;
   height: 13px;
   color: currentColor;
-}
-
-.pack-metadata-grid {
-  grid-template-columns: minmax(0, 2fr) minmax(150px, 0.75fr);
-  grid-template-areas:
-    "developer year"
-    "genre playtime";
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-muted) 58%, transparent);
-}
-
-.pack-metadata-item {
-  border: 0;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-}
-
-.pack-metadata-item--developer { grid-area: developer; }
-.pack-metadata-item--year { grid-area: year; }
-.pack-metadata-item--genre { grid-area: genre; }
-.pack-metadata-item--playtime { grid-area: playtime; }
-
-.pack-metadata-item--year,
-.pack-metadata-item--playtime {
-  border-right: 0;
-}
-
-.pack-metadata-item--genre,
-.pack-metadata-item--playtime {
-  border-bottom: 0;
-}
-
-.meta-label {
-  white-space: nowrap;
-}
-
-@container (max-width: 720px) {
-  .pack-metadata-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas:
-      "developer developer"
-      "genre genre"
-      "year playtime";
-  }
-
-  .pack-metadata-item {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pack-metadata-item .icon-slot,
-  .pack-metadata-item .meta-icon.ui-icon {
-    display: none;
-  }
-
-  .pack-metadata-item--developer,
-  .pack-metadata-item--genre,
-  .pack-metadata-item--year {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .pack-metadata-item--playtime {
-    border-bottom: 0;
-  }
 }
 
 .game-detail-card .play-button,
@@ -3390,7 +3276,6 @@ div.account-row__button {
 
 .icon-slot.ui-icon,
 .action-icon.ui-icon,
-.meta-icon.ui-icon,
 .status-icon.ui-icon,
 .library-view-icon.ui-icon,
 .account-icon.ui-icon {
@@ -3430,11 +3315,6 @@ div.account-row__button {
 
 .play-button .action-icon.ui-icon,
 .secondary-action .action-icon.ui-icon {
-  width: 28px;
-  height: 28px;
-}
-
-.pack-metadata-item .meta-icon.ui-icon {
   width: 28px;
   height: 28px;
 }
@@ -3605,7 +3485,6 @@ button:disabled .ui-icon,
 .button-icon.ui-icon,
 .icon-slot.ui-icon,
 .action-icon.ui-icon,
-.meta-icon.ui-icon,
 .status-icon.ui-icon,
 .library-view-icon.ui-icon,
 .account-icon.ui-icon,
@@ -3678,20 +3557,6 @@ button:disabled .ui-icon,
 .game-detail-card .action-icon.ui-icon {
   width: 34px;
   height: 34px;
-}
-
-.pack-metadata-item {
-  grid-template-columns: 24px minmax(0, 1fr);
-}
-
-.pack-metadata-item .icon-slot,
-.pack-metadata-item .meta-icon.ui-icon {
-  width: 24px;
-  height: 24px;
-}
-
-.meta-value {
-  color: var(--text);
 }
 
 .activity-summary-card {
@@ -4795,39 +4660,6 @@ button:disabled .ui-icon,
   line-height: 1.55;
 }
 
-.pack-metadata-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-muted) 62%, transparent);
-}
-
-.pack-metadata-item {
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 9px;
-  border: 0;
-  border-right: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  padding: 10px 12px;
-}
-
-.pack-metadata-item:last-child {
-  border-right: 0;
-}
-
-.pack-metadata-item .icon-slot,
-.pack-metadata-item .meta-icon.ui-icon {
-  width: 24px;
-  height: 24px;
-}
-
-.meta-value {
-  line-height: 1.2;
-}
-
 .game-detail-card .action-grid {
   gap: 12px;
 }
@@ -4874,15 +4706,4 @@ button:disabled .ui-icon,
     display: block;
   }
 
-  .pack-metadata-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pack-metadata-item:nth-child(2) {
-    border-right: 0;
-  }
-
-  .pack-metadata-item:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--border);
-  }
 }

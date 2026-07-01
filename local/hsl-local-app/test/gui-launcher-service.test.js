@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const {
   adoptNewStagingEvents,
   activateLibraryPack,
@@ -729,18 +730,24 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /renderHeroLogo/);
   assert.match(gamePanel, /game-hero__logo/);
   assert.match(gamePanel, /game-detail-body/);
-  assert.match(gamePanel, /pack-metadata-grid/);
-  assert.match(gamePanel, /pack-metadata-item--\$\{escapeHtml\(icon\)\}/);
-  assert.match(gamePanel, /meta-label/);
-  assert.match(gamePanel, /meta-value/);
-  assert.match(gamePanel, /const joinValue = \(value, splitCommas = false\) =>/);
-  assert.match(gamePanel, /\.join\(" · "\)/);
+  assert.match(gamePanel, /game-metadata-grid/);
+  assert.match(gamePanel, /aria-label="Metadatos del juego"/);
+  assert.match(gamePanel, /game-metadata-item--\$\{escapeHtml\(area\)\}/);
+  assert.match(gamePanel, /game-metadata-label/);
+  assert.match(gamePanel, /game-metadata-value/);
+  assert.match(gamePanel, /normalizeMetadataValue/);
+  assert.match(gamePanel, /split\(splitCommas \?/);
+  assert.match(gamePanel, /\[·,;\]/);
+  assert.match(gamePanel, /parts\.join\(" · "\)/);
+  assert.equal(/pack-metadata-grid|pack-metadata-item|meta-label|meta-value/.test(gamePanel), false);
   assert.match(gamePanel, /ready-copy[\s\S]*renderPackMetadata\(game\)/);
   assert.equal(/const subtitle = game\?\.subtitle|class="game-week"/.test(gamePanel), false);
-  assert.match(gamePanel, /renderIcon\(icon/);
-  assert.match(gamePanel, /"developer", "Desarrollador"/);
-  assert.match(gamePanel, /"year", "Año"/);
-  assert.match(gamePanel, /"playtime", "Tiempo jugado"/);
+  assert.match(gamePanel, /renderIcon\(icon, \{ className: "game-metadata-icon" \}/);
+  assert.match(gamePanel, /"developer", "developer", "Desarrollador"/);
+  assert.match(gamePanel, /"year", "year", "Año"/);
+  assert.match(gamePanel, /"genre", "genre", "Género"/);
+  assert.match(gamePanel, /"playtime", "playtime", "Tiempo jugado"/);
+  assert.equal(/"Empresa"|"Tiempo"/.test(gamePanel), false);
   assert.match(gamePanel, /"Sin datos"/);
   assert.match(gamePanel, /renderIcon\("calendar"/);
   assert.match(gamePanel, /renderIcon\("play"/);
@@ -811,7 +818,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/ui-icon__probe|ui-icon__mask|--icon-url|-webkit-mask|mask-image|mask:/.test(styles), false);
   assert.match(styles, /\.ui-icon__fallback/);
   assert.match(styles, /\.action-icon/);
-  assert.match(styles, /\.meta-icon/);
+  assert.equal(/\.meta-icon/.test(styles), false);
   assert.match(styles, /\.status-icon/);
   assert.match(styles, /\.account-icon/);
   assert.match(styles, /LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1/);
@@ -831,12 +838,25 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-hero__logo[\s\S]*transform: translate\(-50%, -50%\)/);
   assert.match(styles, /\.game-panel__hero[\s\S]*object-fit: cover/);
   assert.match(styles, /\.game-detail-body/);
-  assert.match(styles, /\.pack-metadata-grid[\s\S]*grid-template-areas:\s*"developer year"\s*"genre playtime"/);
-  assert.match(styles, /@container \(max-width: 720px\)[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
-  assert.match(styles, /@container \(max-width: 720px\)[\s\S]*\.pack-metadata-item \.icon-slot,[\s\S]*\.pack-metadata-item \.meta-icon\.ui-icon[\s\S]*display: none/);
-  assert.match(styles, /\.pack-metadata-item[\s\S]*border-right: 1px solid var\(--border\)/);
-  assert.match(styles, /\.meta-label/);
-  assert.match(styles, /\.meta-value/);
+  assert.match(styles, /\.game-metadata-grid[\s\S]*grid-template-areas:\s*"developer year"\s*"genre playtime"/);
+  assert.match(styles, /\.game-metadata-grid[\s\S]*grid-template-columns: minmax\(0, 1fr\) clamp\(190px, 28%, 300px\)/);
+  assert.match(styles, /@container \(max-width: 560px\)[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
+  assert.equal(/@container \(max-width: 720px\)[\s\S]*game-metadata/.test(styles), false);
+  const metadataFallbackStyles = styles.slice(
+    styles.indexOf("@container (max-width: 560px)"),
+    styles.indexOf("@container (max-width: 360px)"),
+  );
+  assert.equal(/\.game-metadata-icon\.ui-icon[\s\S]*display: none/.test(metadataFallbackStyles), false);
+  assert.match(styles, /@container \(max-width: 360px\)[\s\S]*\.game-metadata-icon\.ui-icon[\s\S]*display: none/);
+  assert.match(styles, /@container \(max-width: 560px\)[\s\S]*\.game-metadata-item--year[\s\S]*border-right: 1px solid var\(--border\)[\s\S]*border-bottom: 0/);
+  assert.match(styles, /\.game-metadata-item[\s\S]*border-right: 1px solid var\(--border\)/);
+  assert.match(styles, /\.game-metadata-icon \.ui-icon__fallback[\s\S]*display: none !important/);
+  assert.match(styles, /\.game-metadata-label[\s\S]*white-space: nowrap/);
+  assert.match(styles, /\.game-metadata-value[\s\S]*overflow-wrap: anywhere/);
+  assert.equal(/game-metadata[\s\S]{0,500}text-overflow:\s*ellipsis/.test(styles), false);
+  assert.equal(/game-metadata[\s\S]{0,500}truncate/.test(styles), false);
+  assert.equal(/pack-metadata-grid|pack-metadata-item|meta-label|meta-value/.test(styles), false);
+  assert.equal(/\.game-metadata-grid[\s\S]{0,260}grid-template-columns:\s*repeat\(4/.test(styles), false);
   assert.match(styles, /\.game-detail-card \.primary-action-tile[\s\S]*min-height: 88px/);
   assert.match(styles, /\.game-detail-card \.compact-action[\s\S]*min-height: 64px/);
   assert.match(styles, /\.play-button \.ui-icon__fallback,[\s\S]*\.secondary-action \.ui-icon__fallback[\s\S]*display: none !important/);
@@ -861,6 +881,48 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.activity-stats/);
   assert.equal(/\.advanced-entry/.test(styles), false);
   assert.equal(/access_token|refresh_token|Authorization/.test(app + header + gamePanel + queuePanel), false);
+});
+
+test("game detail metadata renders four normalized fields", async () => {
+  const { renderGamePanel } = await import(pathToFileURL(path.join(
+    __dirname,
+    "..",
+    "gui",
+    "renderer",
+    "components",
+    "game-panel.js",
+  )).href);
+  const html = renderGamePanel({
+    busy: false,
+    data: {
+      autoSync: { status: "idle" },
+      bridge: {},
+      game: {
+        developer: ["Taito", "Midway", "Taito", ""],
+        displayName: "Space Invaders",
+        genre: "Disparos, Arcade; Disparos",
+        playTime: "",
+        year: null,
+      },
+      membership: null,
+      readiness: { status: "ready" },
+      session: { hasSession: false },
+    },
+  });
+
+  assert.match(html, /game-metadata-grid/);
+  assert.match(html, /game-metadata-item--developer/);
+  assert.match(html, /game-metadata-item--year/);
+  assert.match(html, /game-metadata-item--genre/);
+  assert.match(html, /game-metadata-item--playtime/);
+  assert.match(html, /Desarrollador/);
+  assert.match(html, /Año/);
+  assert.match(html, /Género/);
+  assert.match(html, /Tiempo jugado/);
+  assert.equal(/Empresa|>Tiempo</.test(html), false);
+  assert.match(html, /Taito · Midway/);
+  assert.match(html, /Disparos · Arcade/);
+  assert.match(html, /Sin datos/);
 });
 
 test("manual and ranking IPC stay in main process", async () => {

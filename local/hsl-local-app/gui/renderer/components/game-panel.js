@@ -105,31 +105,49 @@ function renderPackVisuals(game) {
 }
 
 function renderPackMetadata(game) {
-  const joinValue = (value, splitCommas = false) => {
-    if (Array.isArray(value)) {
-      return value.filter(Boolean).join(" · ");
+  const normalizeMetadataValue = (value, { splitCommas = true } = {}) => {
+    const values = Array.isArray(value) ? value : [value];
+    const seen = new Set();
+    const parts = [];
+
+    for (const item of values) {
+      const text = String(item ?? "").trim();
+
+      if (!text || /^(undefined|null)$/i.test(text)) {
+        continue;
+      }
+
+      for (const part of text.split(splitCommas ? /\s*[·,;]\s*/ : /\s*[·;]\s*/)) {
+        const normalized = part.trim();
+        const key = normalized.toLocaleLowerCase();
+
+        if (!normalized || /^(undefined|null)$/i.test(normalized) || seen.has(key)) {
+          continue;
+        }
+
+        seen.add(key);
+        parts.push(normalized);
+      }
     }
 
-    return String(value || "")
-      .split(splitCommas ? /\s*[·,;]\s*/ : /\s*[·;]\s*/)
-      .filter(Boolean)
-      .join(" · ");
+    return parts.join(" · ");
   };
+  const metadataText = (value) => normalizeMetadataValue(value, { splitCommas: false }) || "Sin datos";
   const items = [
-    ["developer", "Desarrollador", joinValue(game?.developer || game?.publisher) || "Sin datos"],
-    ["year", "Año", game?.year ? String(game.year) : "Sin datos"],
-    ["genre", "Género", joinValue(game?.genre, true) || "Sin datos"],
-    ["playtime", "Tiempo jugado", game?.playTime || "Sin datos"],
+    ["developer", "developer", "Desarrollador", metadataText(game?.developer || game?.publisher)],
+    ["year", "year", "Año", metadataText(game?.year)],
+    ["genre", "genre", "Género", normalizeMetadataValue(game?.genre) || "Sin datos"],
+    ["playtime", "playtime", "Tiempo jugado", metadataText(game?.playTime)],
   ];
 
   return `
-    <div class="pack-metadata-grid">
-      ${items.map(([icon, label, value]) => `
-        <div class="pack-metadata-item pack-metadata-item--${escapeHtml(icon)}" title="${escapeHtml(label)}: ${escapeHtml(value)}">
-          ${renderIcon(icon, { className: `meta-icon icon-slot icon-slot--${icon}` })}
-          <span class="meta-copy">
-            <span class="meta-label">${escapeHtml(label)}</span>
-            <strong class="meta-value">${escapeHtml(value)}</strong>
+    <div class="game-metadata-grid" aria-label="Metadatos del juego">
+      ${items.map(([area, icon, label, value]) => `
+        <div class="game-metadata-item game-metadata-item--${escapeHtml(area)}" title="${escapeHtml(label)}: ${escapeHtml(value)}">
+          ${renderIcon(icon, { className: "game-metadata-icon" })}
+          <span class="game-metadata-copy">
+            <span class="game-metadata-label">${escapeHtml(label)}</span>
+            <strong class="game-metadata-value">${escapeHtml(value)}</strong>
           </span>
         </div>
       `).join("")}
