@@ -143,10 +143,10 @@ function renderPackMetadata(game) {
   return `
     <div class="game-metadata-grid" aria-label="Metadatos del juego">
       ${items.map(([area, icon, label, value]) => `
-        <div class="game-metadata-item game-metadata-item--${escapeHtml(area)}" title="${escapeHtml(label)}: ${escapeHtml(value)}">
+        <div class="game-metadata-item game-metadata-item--${escapeHtml(area)}" title="${escapeHtml(label)}: ${escapeHtml(value)}" aria-label="${escapeHtml(label)}: ${escapeHtml(value)}">
           ${renderIcon(icon, { className: "game-metadata-icon" })}
           <span class="game-metadata-copy">
-            <span class="game-metadata-label">${escapeHtml(label)}</span>
+            <span class="game-metadata-label sr-only">${escapeHtml(label)}</span>
             <strong class="game-metadata-value">${escapeHtml(value)}</strong>
           </span>
         </div>
@@ -174,7 +174,7 @@ function renderDetailFavoriteMark(game) {
   const icon = favorite ? "star-filled" : "star-empty";
 
   return `
-    <span class="game-favorite-mark ${favorite ? "game-favorite-mark--active" : ""}" role="img" aria-label="${label}" title="${label}">
+    <span class="game-favorite-mark ${favorite ? "game-favorite-mark--active" : ""}" role="img" aria-label="${label}" title="${label}" aria-hidden="false">
       ${renderIcon(icon, { className: "game-favorite-mark__icon", size: "sm" })}
     </span>
   `;

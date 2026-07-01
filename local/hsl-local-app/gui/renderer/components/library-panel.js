@@ -381,12 +381,12 @@ export function renderLibraryPanel(state) {
     <section class="panel library-panel">
       <div class="panel-heading compact">
         <div class="library-title-row">
-          <button class="library-heading-button" type="button" data-action="open-pack-directory" ${openDirectoryDisabled} aria-label="Abrir carpeta de packs" title="Abrir carpeta de packs">
-            ${renderIcon("library", { className: "library-heading-icon" })}
+          <button class="library-open-control" type="button" data-action="open-pack-directory" ${openDirectoryDisabled} aria-label="Abrir carpeta de packs" title="Abrir carpeta de packs">
+            ${renderIcon("library", { className: "library-heading-icon library-open-icon" })}
+            <span class="library-open-label">Biblioteca</span>
           </button>
-          <h2>Biblioteca</h2>
-          <button class="library-heading-button ${rescanning ? "library-heading-button--spinning" : ""}" type="button" data-action="rescan-pack-directory" ${disabled} aria-label="Reescanear biblioteca" title="Reescanear biblioteca" aria-busy="${rescanning ? "true" : "false"}">
-            ${renderIcon("refresh", { className: "library-heading-icon" })}
+          <button class="library-heading-button library-refresh-button ${rescanning ? "library-heading-button--spinning" : ""}" type="button" data-action="rescan-pack-directory" ${disabled} aria-label="Reescanear biblioteca" title="Reescanear biblioteca" aria-busy="${rescanning ? "true" : "false"}">
+            ${renderIcon("refresh", { className: "library-heading-icon library-refresh-icon" })}
           </button>
           <span class="library-count-pill">${escapeHtml(renderLibraryCount(data))}</span>
         </div>

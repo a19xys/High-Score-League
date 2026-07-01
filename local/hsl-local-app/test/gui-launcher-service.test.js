@@ -372,7 +372,8 @@ test("renderer pack library renders seasons, views, filters and empty states", a
     "utf8",
   );
 
-  assert.match(libraryPanel, /<h2>Biblioteca<\/h2>/);
+  assert.match(libraryPanel, /library-open-control/);
+  assert.match(libraryPanel, /library-open-label">Biblioteca<\/span>/);
   assert.match(libraryPanel, /library-count-pill/);
   assert.match(libraryPanel, /renderLibraryCount/);
   assert.match(libraryPanel, /1 \? "pack" : "packs"/);
@@ -382,9 +383,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/const id = pack\.deprecated/.test(libraryPanel), false);
   assert.match(libraryPanel, /data-action="toggle-library-filters"/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"[\s\S]*data-action="toggle-library-filters"/);
-  assert.match(libraryPanel, /data-action="open-pack-directory"[\s\S]*<h2>Biblioteca<\/h2>[\s\S]*data-action="rescan-pack-directory"/);
+  assert.match(libraryPanel, /class="library-open-control"[\s\S]*data-action="open-pack-directory"[\s\S]*library-open-label">Biblioteca<\/span>[\s\S]*data-action="rescan-pack-directory"/);
   assert.match(libraryPanel, /renderIcon\("library"/);
   assert.match(libraryPanel, /renderIcon\("refresh"/);
+  assert.match(libraryPanel, /library-refresh-button/);
   assert.match(libraryPanel, /library-heading-button--spinning/);
   assert.equal(/<span>Reescanear<\/span>|<span>Abrir carpeta<\/span>/.test(libraryPanel), false);
   assert.match(libraryPanel, /aria-expanded="\$\{filtersOpen \? "true" : "false"\}"/);
@@ -515,7 +517,11 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.library-control-button span[\s\S]*align-items: center/);
   assert.match(styles, /\.library-control-button,\s*\n\.view-button[\s\S]*font-size: 12\.5px/);
   assert.match(styles, /\.library-control-button[\s\S]*gap: 7px/);
-  assert.match(styles, /\.library-heading-button[\s\S]*border: 0[\s\S]*background: transparent/);
+  assert.match(styles, /\.library-open-control[\s\S]*border: 0[\s\S]*background: transparent[\s\S]*cursor: pointer/);
+  assert.match(styles, /\.library-open-control:hover:not\(:disabled\)[\s\S]*background: transparent[\s\S]*color: var\(--text\)/);
+  assert.match(styles, /\.library-open-control:focus-visible[\s\S]*outline/);
+  assert.match(styles, /\.library-refresh-button[\s\S]*width: 28px[\s\S]*height: 28px/);
+  assert.match(styles, /\.library-refresh-icon\.ui-icon[\s\S]*width: 14px[\s\S]*height: 14px/);
   assert.match(styles, /\.library-heading-button:hover:not\(:disabled\)[\s\S]*var\(--circuit\)/);
   assert.match(styles, /\.library-heading-button:focus-visible[\s\S]*outline/);
   assert.match(styles, /\.library-sort__controls[\s\S]*grid-template-columns: minmax\(0, 1fr\) 42px 42px/);
@@ -741,7 +747,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /aria-label="Metadatos del juego"/);
   assert.match(gamePanel, /game-metadata-item--\$\{escapeHtml\(area\)\}/);
   assert.match(gamePanel, /game-metadata-label/);
+  assert.match(gamePanel, /game-metadata-label sr-only/);
   assert.match(gamePanel, /game-metadata-value/);
+  assert.match(gamePanel, /aria-label="\$\{escapeHtml\(label\)\}: \$\{escapeHtml\(value\)\}"/);
   assert.match(gamePanel, /normalizeMetadataValue/);
   assert.match(gamePanel, /split\(splitCommas \?/);
   assert.match(gamePanel, /\[·,;\]/);
@@ -766,6 +774,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /game-favorite-mark/);
   assert.match(gamePanel, /favorite \? "star-filled" : "star-empty"/);
   assert.match(gamePanel, /role="img" aria-label="\$\{label\}"/);
+  assert.equal(/<button[^>]*game-favorite-mark/.test(gamePanel), false);
   assert.equal(/game-favorite-chip|>Favorito</.test(gamePanel), false);
   assert.equal(/badge badge-muted week-chip/.test(gamePanel), false);
   assert.match(gamePanel, /"manual"/);
@@ -856,9 +865,10 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /@container \(max-width: 560px\)[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
   assert.match(styles, /\.game-metadata-grid--fallback[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
   assert.match(styles, /\.game-metadata-grid--ellipsis \.game-metadata-label,[\s\S]*\.game-metadata-grid--ellipsis \.game-metadata-value[\s\S]*text-overflow: ellipsis/);
-  assert.match(styles, /\.game-title-main[\s\S]*grid-template-columns: minmax\(0, 1fr\) 34px/);
-  assert.match(styles, /\.game-favorite-mark[\s\S]*pointer-events: none/);
-  assert.match(styles, /\.game-favorite-mark--active[\s\S]*var\(--circuit\)/);
+  assert.match(styles, /\.game-title-main[\s\S]*display: flex[\s\S]*gap: 7px/);
+  assert.match(styles, /\.game-title-main h2[\s\S]*max-width: calc\(100% - 25px\)/);
+  assert.match(styles, /\.game-favorite-mark[\s\S]*width: 18px[\s\S]*height: 18px[\s\S]*border: 0[\s\S]*background: transparent[\s\S]*cursor: default[\s\S]*pointer-events: none/);
+  assert.match(styles, /\.game-favorite-mark--active[\s\S]*background: transparent[\s\S]*var\(--circuit\)/);
   assert.match(styles, /\.game-week-subtitle[\s\S]*text-transform: uppercase/);
   assert.equal(/@container \(max-width: 720px\)[\s\S]*game-metadata/.test(styles), false);
   const metadataFallbackStyles = styles.slice(
@@ -871,8 +881,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /@container \(max-width: 560px\)[\s\S]*\.game-metadata-item--year[\s\S]*border-right: 1px solid var\(--border\)[\s\S]*border-bottom: 0/);
   assert.match(styles, /\.game-metadata-item[\s\S]*border-right: 1px solid var\(--border\)/);
   assert.match(styles, /\.game-metadata-icon \.ui-icon__fallback[\s\S]*display: none !important/);
-  assert.match(styles, /\.game-metadata-label[\s\S]*white-space: nowrap/);
-  assert.match(styles, /\.game-metadata-value[\s\S]*white-space: nowrap/);
+  assert.match(styles, /\.game-metadata-label[\s\S]*position: absolute !important[\s\S]*clip-path: inset\(50%\)/);
+  assert.match(styles, /\.game-metadata-value[\s\S]*font-size: 16px[\s\S]*font-weight: 900[\s\S]*white-space: nowrap/);
   const metadataBaseStyles = styles.slice(
     styles.indexOf(".game-metadata-grid {"),
     styles.indexOf(".game-metadata-grid--fallback"),
@@ -883,6 +893,10 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/\.game-metadata-grid[\s\S]{0,260}grid-template-columns:\s*repeat\(4/.test(styles), false);
   assert.match(styles, /\.game-detail-card \.primary-action-tile[\s\S]*min-height: 88px/);
   assert.match(styles, /\.game-detail-card \.compact-action[\s\S]*min-height: 64px/);
+  assert.match(styles, /\.game-detail-card \.play-button \.action-icon\.ui-icon,[\s\S]*\.game-detail-card \.primary-action-tile \.action-icon\.ui-icon[\s\S]*width: 40px[\s\S]*height: 40px/);
+  assert.match(styles, /\.game-detail-card \.compact-action \.action-icon\.ui-icon[\s\S]*width: 34px[\s\S]*height: 34px/);
+  assert.match(styles, /\.game-detail-card \.play-button \.action-button-label,[\s\S]*\.game-detail-card \.primary-action-tile \.action-button-label[\s\S]*font-size: 19px/);
+  assert.match(styles, /\.game-detail-card \.compact-action \.action-button-label[\s\S]*font-size: 16\.5px/);
   assert.match(styles, /\.play-button \.ui-icon__fallback,[\s\S]*\.secondary-action \.ui-icon__fallback[\s\S]*display: none !important/);
   assert.match(styles, /\.favorite-slot--pending[\s\S]*opacity: 1[\s\S]*cursor: pointer/);
   assert.equal(/\.favorite-slot--pending[\s\S]{0,80}cursor: wait/.test(styles), false);
@@ -951,10 +965,11 @@ test("game detail metadata renders four normalized fields", async () => {
   assert.match(html, /game-metadata-item--year/);
   assert.match(html, /game-metadata-item--genre/);
   assert.match(html, /game-metadata-item--playtime/);
-  assert.match(html, /Desarrollador/);
-  assert.match(html, /Año/);
-  assert.match(html, /Género/);
-  assert.match(html, /Tiempo jugado/);
+  assert.match(html, /aria-label="Desarrollador: Taito · Midway"/);
+  assert.match(html, /aria-label="Año: Sin datos"/);
+  assert.match(html, /aria-label="Género: Disparos · Arcade"/);
+  assert.match(html, /aria-label="Tiempo jugado: Sin datos"/);
+  assert.match(html, /game-metadata-label sr-only/);
   assert.equal(/Empresa|>Tiempo</.test(html), false);
   assert.match(html, /Taito · Midway/);
   assert.match(html, /Disparos · Arcade/);
@@ -1203,7 +1218,7 @@ test("pack directory actions are exposed without legacy location UI", async () =
   assert.match(app, /action === "show-settings"/);
   assert.match(header, /data-action="show-settings"/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"/);
-  assert.match(libraryPanel, /data-action="open-pack-directory"[\s\S]*<h2>Biblioteca<\/h2>[\s\S]*data-action="rescan-pack-directory"/);
+  assert.match(libraryPanel, /class="library-open-control"[\s\S]*data-action="open-pack-directory"[\s\S]*library-open-label">Biblioteca<\/span>[\s\S]*data-action="rescan-pack-directory"/);
   assert.equal(/<span>Reescanear<\/span>|<span>Abrir carpeta<\/span>/.test(libraryPanel), false);
   assert.match(devTools, /Biblioteca de packs/);
   assert.match(devTools, /data-action="choose-pack-directory"/);
