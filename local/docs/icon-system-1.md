@@ -4,9 +4,9 @@ Sistema local de iconos SVG para la GUI Electron del launcher.
 
 ## Objetivo
 
-La GUI usa iconos SVG locales, visibles mediante `<img>`, con fallback textual
-seguro si el archivo todavia no existe. La variante PNG con mascaras CSS queda
-descartada.
+La GUI usa iconos SVG locales con un glyph visible tintable mediante mascara
+CSS y `currentColor`. El `<img>` local se conserva solo como detector de
+carga/error para mantener el fallback textual seguro si el archivo no existe.
 
 No se toca MAME, runtime, plugin, captura, payload, endpoints, RLS,
 membership, scoped queue, auto-sync, contratos de pack, catalogo remoto,
@@ -43,9 +43,12 @@ El helper:
 - no usa URLs remotas;
 - no inserta SVG raw;
 - escapa fallback y clases;
-- renderiza el SVG local como `<img class="ui-icon__img">`;
+- renderiza el icono visible como `<span class="ui-icon__glyph">`;
+- aplica `--icon-url: url('./assets/icons/<archivo>.svg')` al wrapper;
+- usa `background-color: currentColor` y mascara CSS para tintar el glyph;
+- mantiene `<img class="ui-icon__img">` como detector invisible de carga/error;
 - oculta el fallback cuando el SVG carga;
-- oculta la imagen y muestra fallback si el SVG falla;
+- oculta el glyph/imagen y muestra fallback si el SVG falla;
 - recuerda en memoria los iconos ya cargados o fallidos para que un re-render
   normal no vuelva a pasar por un estado visual intermedio;
 - usa `aria-hidden="true"` para iconos decorativos o `aria-label` si se pasa
@@ -67,14 +70,15 @@ El helper:
 
 ## CSS
 
-El sistema SVG no usa mascaras, `--icon-url`, probe oculto ni PNG. Las clases
-base son:
+El sistema SVG no usa SVG inline, probe oculto ni PNG externos. Las clases base
+son:
 
 ```text
 ui-icon
 ui-icon--sm
 ui-icon--md
 ui-icon--lg
+ui-icon__glyph
 ui-icon__img
 ui-icon__fallback
 action-icon
@@ -200,6 +204,31 @@ oculto por defecto y solo se muestra tras un `onerror` real. Si un icono ya
 cargo una vez, los renders posteriores nacen con `ui-icon--loaded`; si fallo,
 nacen con `ui-icon--missing`. No se usa una clase `pending` visible.
 
+## Tintado
+
+Desde `LOCAL-LAUNCHER-ICON-TINT-SYSTEM-FIX-1`, el icono visible ya no es el
+`img`, porque CSS `color`/`currentColor` no puede cambiar el fill interno de un
+SVG cargado como imagen externa. El wrapper define el color efectivo y el glyph
+lo adopta con:
+
+```css
+.ui-icon__glyph {
+  background-color: currentColor;
+  -webkit-mask-image: var(--icon-url);
+  mask-image: var(--icon-url);
+}
+```
+
+El glyph ocupa `width: 100%` y `height: 100%`, por lo que mantiene la misma caja
+que antes ocupaba el `img`. Las clases de contexto (`action-icon`,
+`status-icon`, `favorite-icon`, `app-brand-icon`, `library-view-icon`, etc.)
+siguen controlando tamano, color y alineacion desde el wrapper.
+
+Los SVG pueden ser blancos o contener un PNG monocromo embebido: para la mascara
+lo importante es la silueta/alpha, no el color interno. Para nuevos iconos, la
+regla sigue siendo usar assets locales monocromos con `viewBox` y sin scripts ni
+contenido activo.
+
 ## Validacion
 
 Los tests protegen:
@@ -207,8 +236,10 @@ Los tests protegen:
 - nombres exactos de archivos SVG esperados;
 - ruta local `./assets/icons/`;
 - clase `ui-icon`;
-- render visible con `ui-icon__img`;
+- render visible con `ui-icon__glyph`;
+- tintado con `currentColor` mediante `mask-image` y `-webkit-mask-image`;
+- detector local invisible con `ui-icon__img`;
 - fallback `ui-icon__fallback`;
-- ausencia de PNG, mascaras y URLs remotas en el helper;
+- ausencia de PNG externos, SVG inline y URLs remotas en el helper;
 - iconos en header, botonera, metadata, actividad, biblioteca y cuenta;
 - ausencia de tokens en renderer.

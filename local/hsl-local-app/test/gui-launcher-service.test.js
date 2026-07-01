@@ -840,9 +840,12 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.activity-details-button/);
   assert.match(styles, /LOCAL-LAUNCHER-ICON-SYSTEM-1/);
   assert.match(styles, /\.ui-icon/);
+  assert.match(styles, /\.ui-icon__glyph/);
   assert.match(styles, /\.ui-icon__img/);
-  assert.match(styles, /object-fit: contain/);
-  assert.equal(/ui-icon__probe|ui-icon__mask|--icon-url|-webkit-mask|mask-image|mask:/.test(styles), false);
+  assert.match(styles, /\.ui-icon__glyph[\s\S]*width: 100%[\s\S]*height: 100%/);
+  assert.match(styles, /\.ui-icon__glyph[\s\S]*background-color: currentColor/);
+  assert.match(styles, /\.ui-icon__glyph[\s\S]*-webkit-mask-image: var\(--icon-url\)[\s\S]*mask-image: var\(--icon-url\)/);
+  assert.match(styles, /\.ui-icon__glyph[\s\S]*-webkit-mask-size: contain[\s\S]*mask-size: contain/);
   assert.match(styles, /\.ui-icon__fallback/);
   assert.match(styles, /\.action-icon/);
   assert.equal(/\.meta-icon/.test(styles), false);
@@ -1146,9 +1149,13 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
   ].forEach((filename) => assert.match(icon, new RegExp(filename.replace(".", "\\."))));
 
   assert.match(icon, /const ICON_ROOT = "\.\/assets\/icons\/"/);
+  assert.match(icon, /const ICON_MASK_ROOT = "\.\.\/assets\/icons\/"/);
   assert.match(icon, /export function renderIcon/);
   assert.match(icon, /export function iconPath/);
+  assert.match(icon, /function iconMaskPath\(name\)/);
   assert.match(icon, /class="ui-icon/);
+  assert.match(icon, /style="--icon-url: url\('\$\{escapeHtml\(maskSrc\)\}'\)"/);
+  assert.match(icon, /ui-icon__glyph/);
   assert.match(icon, /ui-icon__img/);
   assert.match(icon, /ui-icon__fallback/);
   assert.match(icon, /loading="lazy"/);
@@ -1162,12 +1169,16 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
   assert.equal(/ui-icon--pending/.test(icon + styles), false);
   assert.match(icon, /escapeHtml\(fallback\)/);
   assert.equal(/https?:\/\//.test(icon), false);
-  assert.equal(/innerHTML|\.png|<svg|Authorization|access_token|refresh_token|--icon-url|ui-icon__probe|ui-icon__mask/.test(icon), false);
+  assert.equal(/innerHTML|\.png|<svg|Authorization|access_token|refresh_token|ui-icon__probe|ui-icon__mask/.test(icon), false);
+  assert.match(styles, /\.ui-icon__glyph/);
+  assert.match(styles, /\.ui-icon__glyph[\s\S]*display: block[\s\S]*width: 100%[\s\S]*height: 100%/);
+  assert.match(styles, /\.ui-icon__glyph[\s\S]*background-color: currentColor/);
+  assert.match(styles, /\.ui-icon__glyph[\s\S]*-webkit-mask-image: var\(--icon-url\)[\s\S]*mask-image: var\(--icon-url\)/);
   assert.match(styles, /\.ui-icon__img/);
-  assert.match(styles, /object-fit: contain/);
-  assert.match(styles, /\.ui-icon--missing \.ui-icon__img[\s\S]*display: none/);
+  assert.match(styles, /\.ui-icon__img[\s\S]*position: absolute[\s\S]*width: 1px[\s\S]*height: 1px[\s\S]*opacity: 0/);
+  assert.match(styles, /\.ui-icon--missing \.ui-icon__glyph,\s*\n\.ui-icon--missing \.ui-icon__img[\s\S]*display: none/);
   assert.match(styles, /\.ui-icon--missing \.ui-icon__fallback[\s\S]*display: grid/);
-  assert.equal(/ui-icon__probe|ui-icon__mask|--icon-url|-webkit-mask|mask-image|mask:/.test(styles), false);
+  assert.equal(/ui-icon__probe|ui-icon__mask/.test(styles), false);
   assert.match(styles, /\.ui-icon\.icon-slot::before[\s\S]*content: none !important/);
 });
 
