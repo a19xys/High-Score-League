@@ -50,6 +50,8 @@ let libraryPreferenceUserRevision = 0;
 let hydratedLibraryPreferencesScopeKey = null;
 let libraryPackSelectionSequence = 0;
 let sidebarResize = null;
+let metadataResizeObserver = null;
+let metadataLayoutFrame = 0;
 const detailAssetPreloadCache = new Map();
 const favoriteSyncByKey = new Map();
 
@@ -86,6 +88,61 @@ function restoreMainScrollState(scrollState) {
   if (libraryScroll) {
     libraryScroll.scrollTop = scrollState.library;
   }
+}
+
+function metadataHasOverflow(grid) {
+  return [...grid.querySelectorAll(".game-metadata-label, .game-metadata-value")]
+    .some((item) => item.scrollWidth > item.clientWidth + 1);
+}
+
+function applyGameMetadataLayout(grid) {
+  grid.classList.remove(
+    "game-metadata-grid--fallback",
+    "game-metadata-grid--no-icons",
+    "game-metadata-grid--ellipsis",
+  );
+
+  if (!metadataHasOverflow(grid)) {
+    return;
+  }
+
+  grid.classList.add("game-metadata-grid--fallback");
+
+  if (!metadataHasOverflow(grid)) {
+    return;
+  }
+
+  grid.classList.add("game-metadata-grid--no-icons");
+
+  if (!metadataHasOverflow(grid)) {
+    return;
+  }
+
+  grid.classList.add("game-metadata-grid--ellipsis");
+}
+
+function syncGameMetadataLayout() {
+  if (metadataResizeObserver) {
+    metadataResizeObserver.disconnect();
+  }
+
+  const grids = [...root.querySelectorAll(".game-metadata-grid")];
+
+  if (grids.length === 0) {
+    metadataResizeObserver = null;
+    return;
+  }
+
+  const schedule = () => {
+    window.cancelAnimationFrame(metadataLayoutFrame);
+    metadataLayoutFrame = window.requestAnimationFrame(() => {
+      grids.forEach(applyGameMetadataLayout);
+    });
+  };
+
+  metadataResizeObserver = new ResizeObserver(schedule);
+  grids.forEach((grid) => metadataResizeObserver.observe(grid));
+  schedule();
 }
 
 function libraryPreferencesScopeKey(preferences = {}) {
@@ -306,6 +363,7 @@ function render() {
     ${renderOverlay(state)}
   `;
   restoreMainScrollState(scrollState);
+  syncGameMetadataLayout();
 }
 
 async function refreshState() {

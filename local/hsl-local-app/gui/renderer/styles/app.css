@@ -2197,7 +2197,7 @@ main,
 
 .game-metadata-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(190px, 28%, 300px);
+  grid-template-columns: minmax(0, 1fr) clamp(220px, 32%, 340px);
   grid-template-areas:
     "developer year"
     "genre playtime";
@@ -2261,10 +2261,48 @@ main,
 
 .game-metadata-value {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: visible;
   color: var(--text);
   font-size: 13px;
   line-height: 1.25;
+  white-space: nowrap;
+}
+
+.game-metadata-grid--fallback {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "developer developer"
+    "genre genre"
+    "year playtime";
+}
+
+.game-metadata-grid--fallback .game-metadata-item--developer,
+.game-metadata-grid--fallback .game-metadata-item--genre {
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.game-metadata-grid--fallback .game-metadata-item--year {
+  border-right: 1px solid var(--border);
+  border-bottom: 0;
+}
+
+.game-metadata-grid--fallback .game-metadata-item--playtime {
+  border-bottom: 0;
+}
+
+.game-metadata-grid--no-icons .game-metadata-item {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.game-metadata-grid--no-icons .game-metadata-icon.ui-icon {
+  display: none;
+}
+
+.game-metadata-grid--ellipsis .game-metadata-label,
+.game-metadata-grid--ellipsis .game-metadata-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @container (max-width: 560px) {
@@ -2444,6 +2482,45 @@ main,
     padding: 14px;
   }
 
+}
+
+/* LOCAL-GAME-METADATA-STATUS-TUNING-3: final brand and icon-status tuning. */
+.brand-lockup {
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+
+.app-icon-slot {
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.app-brand-icon.ui-icon {
+  width: 48px;
+  height: 48px;
+  background: transparent;
+}
+
+.pack-card--icons .pack-card__status--dot {
+  display: grid;
+  width: 11px;
+  height: 11px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.pack-card--icons .pack-card__status-dot {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
 }
 
 /* LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3-FINAL: final cascade overrides. */
@@ -4706,4 +4783,70 @@ button:disabled .ui-icon,
     display: block;
   }
 
+}
+
+/* LOCAL-GAME-METADATA-STATUS-TUNING-3: authoritative final brand and icon-status tuning. */
+.brand-lockup {
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+
+.app-icon-slot {
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.app-brand-icon.ui-icon {
+  width: 48px;
+  height: 48px;
+  background: transparent;
+}
+
+.pack-card--icons .pack-card__status--dot {
+  display: grid;
+  width: 11px;
+  height: 11px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.pack-card--icons .pack-card__status-dot {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+/* LOCAL-LIBRARY-ICON-VIEW-UNIFORM-SIZE-2: shared icon tile metric across season sections. */
+.library-pack-grid--icons {
+  --library-icon-tile-min: 122px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--library-icon-tile-min), 1fr));
+  gap: 12px 8px;
+  justify-content: stretch;
+  align-items: start;
+}
+
+.pack-card--icons {
+  width: 100%;
+  min-width: 0;
+  grid-template-rows: auto auto;
+}
+
+.pack-card--icons .pack-card__media {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+.pack-card--icons .pack-card__body,
+.pack-card--icons .pack-card__text h3 {
+  width: 100%;
+  min-width: 0;
 }

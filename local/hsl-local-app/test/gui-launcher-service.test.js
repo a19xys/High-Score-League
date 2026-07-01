@@ -550,11 +550,15 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.pack-card--list \.pack-card__media img[\s\S]*object-fit: cover/);
   assert.match(styles, /\.pack-card--pending/);
   assert.match(styles, /\.library-pack-grid--icons/);
-  assert.match(styles, /--library-icon-tile: 122px/);
+  assert.match(styles, /LOCAL-LIBRARY-ICON-VIEW-UNIFORM-SIZE-2/);
+  assert.match(styles, /--library-icon-tile-min: 122px/);
   assert.match(styles, /\.library-pack-grid--icons[\s\S]*gap: 12px 8px/);
-  assert.equal(/--library-icon-tile: 84px|--library-icon-tile: 96px|--library-icon-tile: 112px/.test(styles), false);
-  assert.match(styles, /\.library-pack-grid--icons[\s\S]*repeat\(auto-fill, var\(--library-icon-tile\)\)/);
-  assert.match(styles, /\.pack-card--icons[\s\S]*width: var\(--library-icon-tile\)/);
+  assert.equal(/--library-icon-tile-min: 84px|--library-icon-tile-min: 96px|--library-icon-tile-min: 112px/.test(styles), false);
+  assert.match(styles, /\.library-pack-grid--icons[\s\S]*repeat\(auto-fill, minmax\(var\(--library-icon-tile-min\), 1fr\)\)/);
+  assert.equal(/LOCAL-LIBRARY-ICON-VIEW-UNIFORM-SIZE-2[\s\S]*repeat\(auto-fit, minmax\(var\(--library-icon-tile-min\), 1fr\)\)/.test(styles), false);
+  assert.match(styles, /\.library-pack-grid--icons[\s\S]*justify-content: stretch/);
+  assert.match(styles, /\.pack-card--icons[\s\S]*width: 100%/);
+  assert.match(styles, /\.pack-card--icons \.pack-card__media[\s\S]*width: 100%[\s\S]*aspect-ratio: 1 \/ 1/);
   assert.match(styles, /\.week-status-badge[\s\S]*border-color: currentColor/);
   assert.match(styles, /\.week-status-badge\.week-status--open[\s\S]*color: var\(--ok\)/);
   assert.match(styles, /\.pack-card--icons \.pack-card__status \.week-status-badge[\s\S]*min-height: 20px/);
@@ -802,7 +806,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-panel-region/);
   assert.match(styles, /\.brand-lockup/);
   assert.match(styles, /\.app-icon-slot[\s\S]*border: 0[\s\S]*background: transparent/);
-  assert.match(styles, /\.app-brand-icon\.ui-icon[\s\S]*width: 42px[\s\S]*height: 42px/);
+  assert.match(styles, /\.app-brand-icon\.ui-icon[\s\S]*width: 48px[\s\S]*height: 48px/);
   assert.match(styles, /\.session-chip--button \.account-mini-avatar[\s\S]*width: 38px[\s\S]*height: 38px/);
   assert.match(styles, /\.action-grid/);
   assert.match(styles, /\.activity-summary-card/);
@@ -839,8 +843,11 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-panel__hero[\s\S]*object-fit: cover/);
   assert.match(styles, /\.game-detail-body/);
   assert.match(styles, /\.game-metadata-grid[\s\S]*grid-template-areas:\s*"developer year"\s*"genre playtime"/);
-  assert.match(styles, /\.game-metadata-grid[\s\S]*grid-template-columns: minmax\(0, 1fr\) clamp\(190px, 28%, 300px\)/);
+  assert.match(styles, /\.game-metadata-grid[\s\S]*grid-template-columns: minmax\(0, 1fr\) clamp\(220px, 32%, 340px\)/);
   assert.match(styles, /@container \(max-width: 560px\)[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
+  assert.match(styles, /\.game-metadata-grid--fallback[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
+  assert.match(styles, /\.game-metadata-grid--no-icons \.game-metadata-icon\.ui-icon[\s\S]*display: none/);
+  assert.match(styles, /\.game-metadata-grid--ellipsis \.game-metadata-label,[\s\S]*\.game-metadata-grid--ellipsis \.game-metadata-value[\s\S]*text-overflow: ellipsis/);
   assert.equal(/@container \(max-width: 720px\)[\s\S]*game-metadata/.test(styles), false);
   const metadataFallbackStyles = styles.slice(
     styles.indexOf("@container (max-width: 560px)"),
@@ -852,8 +859,12 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-metadata-item[\s\S]*border-right: 1px solid var\(--border\)/);
   assert.match(styles, /\.game-metadata-icon \.ui-icon__fallback[\s\S]*display: none !important/);
   assert.match(styles, /\.game-metadata-label[\s\S]*white-space: nowrap/);
-  assert.match(styles, /\.game-metadata-value[\s\S]*overflow-wrap: anywhere/);
-  assert.equal(/game-metadata[\s\S]{0,500}text-overflow:\s*ellipsis/.test(styles), false);
+  assert.match(styles, /\.game-metadata-value[\s\S]*white-space: nowrap/);
+  const metadataBaseStyles = styles.slice(
+    styles.indexOf(".game-metadata-grid {"),
+    styles.indexOf(".game-metadata-grid--fallback"),
+  );
+  assert.equal(/text-overflow:\s*ellipsis/.test(metadataBaseStyles), false);
   assert.equal(/game-metadata[\s\S]{0,500}truncate/.test(styles), false);
   assert.equal(/pack-metadata-grid|pack-metadata-item|meta-label|meta-value/.test(styles), false);
   assert.equal(/\.game-metadata-grid[\s\S]{0,260}grid-template-columns:\s*repeat\(4/.test(styles), false);
@@ -862,12 +873,22 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.play-button \.ui-icon__fallback,[\s\S]*\.secondary-action \.ui-icon__fallback[\s\S]*display: none !important/);
   assert.match(styles, /\.favorite-slot--pending[\s\S]*opacity: 1[\s\S]*cursor: pointer/);
   assert.match(styles, /\.pack-card--icons \.pack-card__status-dot[\s\S]*border: 0[\s\S]*box-shadow: none/);
+  assert.match(styles, /\.app-icon-slot[\s\S]*width: 52px[\s\S]*height: 52px[\s\S]*border: 0[\s\S]*background: transparent/);
+  assert.match(styles, /\.app-brand-icon\.ui-icon[\s\S]*width: 48px[\s\S]*height: 48px[\s\S]*background: transparent/);
+  assert.match(styles, /\.pack-card--icons \.pack-card__status--dot[\s\S]*background: transparent[\s\S]*box-shadow: none/);
+  assert.match(styles, /\.pack-card--icons \.pack-card__status-dot[\s\S]*border: 0[\s\S]*border-radius: 999px[\s\S]*box-shadow: none/);
   assert.match(styles, /\.action-button-label[\s\S]*overflow: visible/);
   assert.match(styles, /\.game-detail-card \.activity-summary-card/);
   assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*aspect-ratio: 2 \/ 3/);
   assert.match(app, /Launcher actualizado/);
   assert.match(app, /LAUNCHER_VERSION = "v1\.0\.0"/);
   assert.match(app, /renderStatusFooter/);
+  assert.match(app, /function metadataHasOverflow\(grid\)/);
+  assert.match(app, /function applyGameMetadataLayout\(grid\)/);
+  assert.match(app, /game-metadata-grid--fallback[\s\S]*game-metadata-grid--no-icons[\s\S]*game-metadata-grid--ellipsis/);
+  assert.match(app, /new ResizeObserver\(schedule\)/);
+  assert.match(app, /requestAnimationFrame/);
+  assert.match(app, /syncGameMetadataLayout\(\)/);
   assert.match(styles, /\.modal-layer/);
   assert.match(styles, /\.drawer-layer/);
   assert.match(styles, /#app[\s\S]*width: 100%[\s\S]*height: 100%/);
