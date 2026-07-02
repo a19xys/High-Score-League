@@ -807,6 +807,9 @@ function resultToLog(title, response) {
     "choose-pack-directory": response.summary || "Directorio de packs actualizado.",
     "choose-shared-mame-runtime": response.summary || "Runtime MAME actualizado.",
     "check-membership": response.summary || "Comprobacion de temporada actualizada.",
+    "import-pack": response.summary || (ok
+      ? "Pack importado."
+      : "No se pudo completar la importacion. No se ha instalado nada."),
     "open-pack-directory": response.summary || "Directorio de packs abierto.",
     "open-manual": response.summary || (ok ? "Manual abierto." : "Este pack todavia no incluye manual local."),
     "open-ranking": response.summary || (ok ? "Ranking abierto en la web." : "Ranking integrado pendiente."),
@@ -1248,6 +1251,14 @@ function bindActions() {
 
     if (action === "choose-pack-directory") {
       runAction(action, "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory());
+    }
+
+    if (action === "import-pack-zip") {
+      runAction(action, "Importando pack", "Importar ZIP", () => window.hslLauncher.importPackZip());
+    }
+
+    if (action === "import-pack-folder") {
+      runAction(action, "Importando pack", "Importar carpeta", () => window.hslLauncher.importPackFolder());
     }
 
     if (action === "choose-shared-mame-runtime") {

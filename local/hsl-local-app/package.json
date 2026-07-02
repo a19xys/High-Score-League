@@ -25,9 +25,11 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.0.0"
+    "@supabase/supabase-js": "^2.0.0",
+    "yauzl": "^3.4.0"
   },
   "devDependencies": {
-    "electron": "^42.4.1"
+    "electron": "^42.4.1",
+    "yazl": "^3.3.1"
   }
 }

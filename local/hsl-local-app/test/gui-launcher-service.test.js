@@ -11,6 +11,8 @@ const {
   chooseSharedMameRuntimeFromGui,
   deriveOpenedPackConfig,
   eventResultToQueueItem,
+  importPackFromFolderForGui,
+  importPackFromZipForGui,
   listPendingFileSnapshot,
   openConfiguredPackDirectory,
   openPackManual,
@@ -105,6 +107,40 @@ async function writeValidV2PackDir(packDir, overrides = {}) {
     ...overrides,
   }), "utf8");
   await fsp.writeFile(path.join(packDir, "roms", "invaders.zip"), "rom", "utf8");
+  await fsp.mkdir(path.join(packDir, "scripts"), { recursive: true });
+  await fsp.writeFile(path.join(packDir, "scripts", "invaders.lua"), "-- adapter", "utf8");
+}
+
+async function createZipFromDir(sourceDir, zipPath, prefix = "") {
+  const fs = require("node:fs");
+  const yazl = require("yazl");
+  const zip = new yazl.ZipFile();
+
+  async function addEntries(currentDir, relativeRoot = "") {
+    const entries = await fsp.readdir(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const sourcePath = path.join(currentDir, entry.name);
+      const relativePath = path.posix.join(prefix, relativeRoot, entry.name);
+
+      if (entry.isDirectory()) {
+        zip.addEmptyDirectory(relativePath);
+        await addEntries(sourcePath, path.posix.join(relativeRoot, entry.name));
+      } else {
+        zip.addFile(sourcePath, relativePath);
+      }
+    }
+  }
+
+  await addEntries(sourceDir);
+
+  await new Promise((resolve, reject) => {
+    zip.outputStream
+      .pipe(fs.createWriteStream(zipPath))
+      .on("close", resolve)
+      .on("error", reject);
+    zip.end();
+  });
 }
 
 function autoSyncContext(overrides = {}) {
@@ -371,6 +407,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
     path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"),
     "utf8",
   );
+  const app = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "app.js"),
+    "utf8",
+  );
 
   assert.match(libraryPanel, /library-open-control/);
   assert.match(libraryPanel, /library-open-label">Biblioteca<\/span>/);
@@ -382,6 +422,12 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /Sin temporada/);
   assert.equal(/const id = pack\.deprecated/.test(libraryPanel), false);
   assert.match(libraryPanel, /data-action="toggle-library-filters"/);
+  assert.match(libraryPanel, /data-action="import-pack-zip"/);
+  assert.match(libraryPanel, /data-action="import-pack-folder"/);
+  assert.match(libraryPanel, /Importar ZIP/);
+  assert.match(libraryPanel, /Importar carpeta/);
+  assert.match(libraryPanel, /data-action="import-pack-zip" \$\{disabled\}/);
+  assert.match(libraryPanel, /data-action="import-pack-folder" \$\{disabled\}/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"[\s\S]*data-action="toggle-library-filters"/);
   assert.match(libraryPanel, /class="library-open-control"[\s\S]*data-action="open-pack-directory"[\s\S]*library-open-label">Biblioteca<\/span>[\s\S]*data-action="rescan-pack-directory"/);
   assert.match(libraryPanel, /renderIcon\("library"/);
@@ -448,6 +494,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /pack\.genre/);
   assert.match(libraryPanel, /pack\.rom/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"/);
+  assert.match(app, /window\.hslLauncher\.importPackZip\(\)/);
+  assert.match(app, /window\.hslLauncher\.importPackFolder\(\)/);
+  assert.match(app, /Importando pack/);
+  assert.match(app, /"import-pack"/);
   assert.match(libraryPanel, /data-action="open-pack-directory"/);
   assert.match(libraryPanel, /data-action="rescan-pack-directory"/);
   assert.equal(/Gestionar biblioteca|<summary>/.test(libraryPanel), false);
@@ -2119,6 +2169,122 @@ test("rescanPackDirectory limpia un duplicado seleccionado que desaparece", asyn
     assert.equal(result.ok, true);
     assert.notEqual(result.state.bridge.mode, "duplicate-group");
     assert.deepEqual(result.state.game.duplicatePaths, []);
+  });
+});
+
+test("importPackFromZipForGui importa, reescanea y activa por ruta final", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const sourcePack = path.join(dir, "source-pack");
+    const zipPath = path.join(dir, "pack.zip");
+    await fsp.mkdir(libraryRoot, { recursive: true });
+    await setPackDirectory(config, libraryRoot);
+    await writeValidV2PackDir(sourcePack);
+    await fsp.writeFile(path.join(sourcePack, "metadata.json"), JSON.stringify({ title: "Imported Zip" }), "utf8");
+    await createZipFromDir(sourcePack, zipPath, "Imported Zip");
+
+    const result = await importPackFromZipForGui(zipPath, {
+      config,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "import-pack");
+    assert.equal(result.packDir, path.join(libraryRoot, "Imported Zip"));
+    assert.equal(result.state.bridge.mode, "opened-pack");
+    assert.equal(result.state.bridge.packRoot, result.packDir);
+    assert.ok(result.state.library.packs.some((pack) => pack.packDir === result.packDir));
+  });
+});
+
+test("importPackFromFolderForGui importa y no toca favoritos ni cola scoped", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      eventsBaseDirAbs: path.join(dir, "userData", "events"),
+      eventsPendingDirAbs: path.join(dir, "userData", "events", "pending"),
+      eventsSentDirAbs: path.join(dir, "userData", "events", "sent"),
+      eventsFailedDirAbs: path.join(dir, "userData", "events", "failed"),
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const sourcePack = path.join(dir, "source-folder");
+    await fsp.mkdir(libraryRoot, { recursive: true });
+    await setPackDirectory(config, libraryRoot);
+    await writeValidV2PackDir(sourcePack);
+    await fsp.writeFile(path.join(sourcePack, "metadata.json"), JSON.stringify({ title: "Imported Folder" }), "utf8");
+
+    const result = await importPackFromFolderForGui(sourcePack, {
+      config,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.state.library.favorites.count, 0);
+    assert.equal(result.state.scope, null);
+    assert.equal(result.state.queue.totals.pending, 0);
+  });
+});
+
+test("importPackFromFolderForGui informa si no hay directorio de packs", async () => {
+  await withTempDir(async (dir) => {
+    const sourcePack = path.join(dir, "source-folder");
+    await writeValidV2PackDir(sourcePack);
+
+    const result = await importPackFromFolderForGui(sourcePack, {
+      config: {
+        userDataDir: path.join(dir, "userData"),
+      },
+    });
+
+    assert.equal(result.ok, false);
+    assert.match(result.summary, /directorio de packs/);
+  });
+});
+
+test("error de importacion no cambia activeOpenedPack", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const installed = path.join(libraryRoot, "Installed");
+    const broken = path.join(dir, "broken");
+    await fsp.mkdir(libraryRoot, { recursive: true });
+    await setPackDirectory(config, libraryRoot);
+    await writeValidV2PackDir(installed);
+    await activateLibraryPack((await scanPackLibrary(config)).packs[0].id, { config });
+    await fsp.mkdir(broken, { recursive: true });
+    await fsp.writeFile(path.join(broken, "pack.json"), "{", "utf8");
+
+    const result = await importPackFromFolderForGui(broken, {
+      config,
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.state.bridge.packRoot, installed);
+  });
+});
+
+test("importar carpeta ya instalada se informa como ya en biblioteca", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const installed = path.join(libraryRoot, "Installed");
+    await fsp.mkdir(libraryRoot, { recursive: true });
+    await setPackDirectory(config, libraryRoot);
+    await writeValidV2PackDir(installed);
+
+    const result = await importPackFromFolderForGui(installed, {
+      config,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.alreadyInstalled, true);
+    assert.match(result.summary, /ya estaba en la biblioteca/);
+    assert.equal(result.state.bridge.packRoot, installed);
   });
 });
 

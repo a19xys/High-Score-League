@@ -58,6 +58,37 @@ function registerIpc() {
 
     return service.choosePackDirectoryFromGui(result.filePaths[0]);
   });
+  ipcMain.handle("launcher:import-pack-zip", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      buttonLabel: "Importar ZIP",
+      filters: [
+        { name: "Packs comprimidos", extensions: ["zip"] },
+      ],
+      message: "Elige el ZIP del pack",
+      properties: ["openFile"],
+      title: "Importar pack ZIP",
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return service.cancelImportPack();
+    }
+
+    return service.importPackFromZipForGui(result.filePaths[0]);
+  });
+  ipcMain.handle("launcher:import-pack-folder", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      buttonLabel: "Importar carpeta",
+      message: "Elige la carpeta del pack o una carpeta con un unico pack dentro",
+      properties: ["openDirectory"],
+      title: "Importar pack desde carpeta",
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return service.cancelImportPack();
+    }
+
+    return service.importPackFromFolderForGui(result.filePaths[0]);
+  });
   ipcMain.handle("launcher:open-pack-directory", () => service.openConfiguredPackDirectory({
     openPathImpl: (directoryPath) => shell.openPath(directoryPath),
   }));

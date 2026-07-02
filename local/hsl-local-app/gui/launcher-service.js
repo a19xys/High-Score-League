@@ -32,6 +32,11 @@ const { listJsonFiles, readEventFile } = require("../src/event-files");
 const { listSupportedGames } = require("../src/games");
 const { launchMame, launchMameDetailed } = require("../src/mame-launcher");
 const { evaluatePackReadiness } = require("../src/pack-readiness");
+const {
+  importPackFromFolder: importPackFolder,
+  importPackFromZip: importPackZip,
+  PackImportError,
+} = require("../src/pack-importer");
 const { readPackDirectory, setPackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
 const {
@@ -1751,6 +1756,97 @@ async function choosePackDirectoryFromGui(directoryPath, options = {}) {
   };
 }
 
+async function cancelImportPack() {
+  return {
+    action: "import-pack",
+    canceled: true,
+    lines: ["No se selecciono ningun pack para importar."],
+    ok: true,
+    summary: "No se selecciono ningun pack para importar.",
+    state: await getLauncherState(),
+  };
+}
+
+async function activateImportedPack(imported, config, options = {}) {
+  const activation = await activatePackDirectory(imported.packDir, {
+    action: "import-pack",
+    includeState: false,
+    rememberConfig: config,
+    summary: imported.alreadyInstalled ? "Pack ya en biblioteca." : "Pack importado.",
+  });
+  const state = await getLauncherState(stateOptionsForAction(options, config));
+
+  return {
+    action: "import-pack",
+    alreadyInstalled: imported.alreadyInstalled,
+    imported: imported.imported,
+    kind: imported.kind,
+    lines: [
+      imported.summary,
+      imported.alreadyInstalled ? "Biblioteca reescaneada." : `Instalado en: ${imported.packDir}`,
+      ...(activation.ok ? ["Pack activado desde biblioteca."] : ["Pack importado, pero no se pudo activar automaticamente."]),
+      ...(imported.warnings || []),
+    ],
+    ok: true,
+    pack: {
+      gameId: imported.pack.gameId,
+      packId: imported.pack.packId || null,
+      packRoot: imported.packDir,
+      rom: imported.pack.rom,
+      weekId: imported.pack.weekId,
+    },
+    packDir: imported.packDir,
+    summary: imported.summary,
+    state: options.includeState === false ? null : state,
+  };
+}
+
+function importPackErrorResponse(error, options, config) {
+  const isKnown = error instanceof PackImportError;
+  const summary = isKnown
+    ? error.message
+    : "No se pudo completar la importacion. No se ha instalado nada.";
+
+  return {
+    action: "import-pack",
+    code: isKnown ? error.code : "unexpected_import_error",
+    lines: [
+      summary,
+      "No se ha instalado nada.",
+      ...(isKnown ? error.details || [] : [normalizeMessage(error)]),
+    ],
+    ok: false,
+    summary,
+    state: options.includeState === false ? null : getLauncherState(stateOptionsForAction(options, config)),
+  };
+}
+
+async function importPackFromZipForGui(zipPath, options = {}) {
+  const config = options.config || loadRuntimeConfig();
+
+  try {
+    const imported = await importPackZip(zipPath, config, options.importOptions || {});
+    return activateImportedPack(imported, config, options);
+  } catch (error) {
+    const response = importPackErrorResponse(error, options, config);
+    response.state = await response.state;
+    return response;
+  }
+}
+
+async function importPackFromFolderForGui(folderPath, options = {}) {
+  const config = options.config || loadRuntimeConfig();
+
+  try {
+    const imported = await importPackFolder(folderPath, config, options.importOptions || {});
+    return activateImportedPack(imported, config, options);
+  } catch (error) {
+    const response = importPackErrorResponse(error, options, config);
+    response.state = await response.state;
+    return response;
+  }
+}
+
 async function chooseSharedMameRuntimeFromGui(mameExecutablePath, options = {}) {
   const config = options.config || loadRuntimeConfig();
 
@@ -2154,6 +2250,7 @@ module.exports = {
   activatePackDirectory,
   cancelChoosePackDirectory,
   cancelChooseSharedMameRuntime,
+  cancelImportPack,
   cancelOpenPack,
   chooseSharedMameRuntimeFromGui,
   choosePackDirectoryFromGui,
@@ -2162,6 +2259,8 @@ module.exports = {
   eventResultToQueueItem,
   getAuthStateForGui,
   getLauncherState,
+  importPackFromFolderForGui,
+  importPackFromZipForGui,
   loginWithPassword,
   listPendingFileSnapshot,
   logoutSession,

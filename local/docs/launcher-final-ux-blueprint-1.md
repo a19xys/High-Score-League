@@ -126,6 +126,8 @@ Elegir directorio
 Cambiar directorio
 Abrir directorio
 Reescanear
+Importar ZIP
+Importar carpeta
 ```
 
 El jugador no deberia abrir un `pack.json` concreto cada vez: elige la carpeta
@@ -162,8 +164,13 @@ compatibilidad temporal no destructiva.
 `LOCAL-PACK-DISTRIBUTION-MVP-1` consolida esta direccion para la primera
 competicion: la biblioteca muestra elegir/cambiar carpeta, reescanear y abrir
 carpeta en la primera capa, mientras la configuracion del launcher agrupa
-biblioteca de packs, runtime MAME y diagnostico avanzado. La importacion ZIP,
-catalogo remoto y actualizador quedan fuera del MVP.
+biblioteca de packs, runtime MAME y diagnostico avanzado.
+
+`LOCAL-PACK-IMPORT-MVP-1` anade importacion local desde ZIP o carpeta sin
+convertir la app en catalogo remoto: distribuye comprimido, instala
+descomprimido y juega descomprimido. La biblioteca valida, instala en el
+directorio de packs configurado, reescanea y activa por ruta final. Catalogo
+remoto, updater y sobrescritura de packs siguen fuera.
 
 `LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3` refuerza el modelo local: al reescanear,
 el launcher reconcilia el detalle activo si un duplicado se resuelve, si sigue

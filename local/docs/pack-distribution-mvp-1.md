@@ -76,18 +76,12 @@ detalle activo: si un duplicado se resuelve a una sola carpeta se abre el pack
 real, si sigue duplicado se actualizan las rutas, si desaparece se limpia el
 conflicto y si un pack roto pasa a valido se activa.
 
-## Importacion manual
+## Importacion local
 
-Para este MVP no se implementa importacion ZIP. La opcion segura para primera
-competicion es distribuir un ZIP fuera del launcher y pedir al usuario que lo
-descomprima dentro de su carpeta de packs.
+Desde `LOCAL-PACK-IMPORT-MVP-1`, el launcher puede importar packs desde ZIP o
+carpeta al directorio de packs configurado.
 
-La importacion ZIP queda como siguiente tarea porque debe cubrir traversal,
-colisiones, sobrescritura, validacion previa y errores claros.
-
-Siguiente tarea recomendada: `LOCAL-PACK-IMPORT-MVP-1`.
-
-Regla de producto para esa tarea:
+Regla de producto:
 
 ```text
 Distribuir comprimido.
@@ -95,7 +89,22 @@ Instalar descomprimido.
 Jugar descomprimido.
 ```
 
-El launcher no debe ejecutar packs directamente desde ZIP.
+El launcher no ejecuta packs directamente desde ZIP. Inspecciona, valida,
+extrae o copia a `.hsl-import-*`, valida el pack v2 instalado y finaliza con un
+rename dentro del directorio de packs.
+
+Soporta:
+
+- ZIP con una carpeta raiz que contiene `pack.json`;
+- ZIP con `pack.json` en raiz;
+- carpeta que ya es pack root;
+- carpeta contenedora con un unico pack.
+
+Rechaza multiples packs, rutas inseguras, `pack.json` demasiado profundo,
+duplicados de `packId`, colisiones de carpeta, `packVersion` distinto de 2,
+falta de ROM requerida o falta de `capture.adapter`.
+
+Mas detalle: `local/docs/pack-import-mvp-1.md`.
 
 ## Contenido de un pack
 

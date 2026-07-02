@@ -296,6 +296,10 @@ async function scanDirectory(directoryState) {
       continue;
     }
 
+    if (entry.name.startsWith(".hsl-import-")) {
+      continue;
+    }
+
     const packDir = path.join(directoryPath, entry.name);
     const packPath = path.join(packDir, "pack.json");
 
