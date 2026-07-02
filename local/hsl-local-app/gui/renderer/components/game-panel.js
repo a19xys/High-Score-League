@@ -257,7 +257,7 @@ export function renderGamePanel(state) {
           </button>
           <button class="secondary-action primary-action-tile action-tile" type="button" data-action="practice" ${practiceDisabled}>
             ${renderIcon("practice", { className: "action-icon icon-slot icon-slot--practice" })}
-            <span class="action-button-label">Practicar</span>
+            <span class="action-button-label">${COPY.actions.practice}</span>
           </button>
           ${renderContentAction("open-manual", "Manual", game?.manual, disabled)}
           ${renderContentAction("open-ranking", "Ranking", game?.ranking, disabled)}

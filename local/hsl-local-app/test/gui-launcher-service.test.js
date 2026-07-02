@@ -410,6 +410,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /renderIcon\(icon, \{ className: "library-sort-direction-icon"/);
   assert.match(libraryPanel, /data-action="toggle-library-favorite-filter"/);
   assert.match(libraryPanel, /library-favorite-filter-button/);
+  assert.match(libraryPanel, /const icon = active \? "star-filled" : "star-empty"/);
   assert.match(libraryPanel, /favoriteFilterActive/);
   assert.match(libraryPanel, /libraryFavoriteFilter === "favorites"/);
   assert.match(libraryPanel, /Boolean\(pack\.favorite\)/);
@@ -533,6 +534,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.library-favorite-filter-button[\s\S]*color: var\(--text-muted\)/);
   assert.match(styles, /\.library-favorite-filter-button--active[\s\S]*background: color-mix\(in srgb, var\(--circuit\) 18%, var\(--surface\)\)[\s\S]*color: var\(--circuit\)/);
   assert.match(styles, /\.library-favorite-filter-button--active \.library-favorite-filter-icon\.ui-icon,[\s\S]*\.library-favorite-filter-button--active \.library-favorite-filter-icon\.ui-icon \.ui-icon__glyph[\s\S]*background-color: currentColor/);
+  assert.match(styles, /\.library-favorite-filter-button \.library-favorite-filter-icon\.ui-icon \.ui-icon__glyph[\s\S]*-webkit-mask-size: contain[\s\S]*mask-size: contain/);
   assert.match(styles, /\.library-sort-direction-icon\.ui-icon,\s*\n\.library-favorite-filter-icon\.ui-icon,\s*\n\.library-control-icon\.ui-icon[\s\S]*align-self: center[\s\S]*color: currentColor/);
   assert.match(styles, /\.library-filters select option,\s*\n\.library-sort select option[\s\S]*background: var\(--surface\)/);
   assert.match(styles, /\.library-filters select option:hover,\s*\n\.library-sort select option:hover[\s\S]*var\(--circuit\)/);
@@ -865,18 +867,22 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.status-icon/);
   assert.match(styles, /\.account-icon/);
   assert.match(styles, /LOCAL-LAUNCHER-GAME-DETAIL-POLISH-1/);
+  assert.match(styles, /LOCAL-LAUNCHER-DETAIL-WIDTH-HERO-STAR-FIX-1/);
   assert.match(styles, /\.game-scroll[\s\S]*scrollbar-gutter: stable both-edges/);
-  assert.match(styles, /\.game-detail-card[\s\S]*width: min\(100%, 1280px\)/);
+  assert.match(styles, /\.game-detail-card[\s\S]*--game-detail-max-width: clamp\(1180px, calc\(100vw - var\(--library-sidebar-width, 440px\) - 72px\), 1480px\)/);
+  assert.match(styles, /\.game-detail-card[\s\S]*width: min\(100%, var\(--game-detail-max-width\)\)[\s\S]*max-width: var\(--game-detail-max-width\)/);
   assert.match(styles, /\.game-detail-card[\s\S]*justify-self: center/);
+  assert.equal(styles.lastIndexOf("width: min(100%, var(--game-detail-max-width))") > styles.lastIndexOf("width: min(100%, 1120px)"), true);
   assert.match(styles, /\.game-hero-stage[\s\S]*aspect-ratio: 1920 \/ 620/);
   assert.match(styles, /\.game-hero-stage[\s\S]*width: 100%/);
-  assert.match(styles, /\.game-hero-stage[\s\S]*max-height: 330px/);
+  assert.match(styles, /\.game-hero-stage[\s\S]*max-height: 360px/);
   assert.match(styles, /\.game-hero-stage[\s\S]*margin-inline: auto/);
   assert.equal(/\.game-hero-stage[\s\S]{0,220}max-height:\s*none/.test(styles), false);
   assert.match(styles, /\.game-hero__logo[\s\S]*position: absolute/);
   assert.match(styles, /\.game-hero__logo[\s\S]*left: 50%/);
-  assert.match(styles, /\.game-hero__logo[\s\S]*max-width: min\(58%, 380px\)/);
-  assert.match(styles, /\.game-hero__logo[\s\S]*max-height: 68%/);
+  assert.match(styles, /\.game-hero__logo[\s\S]*width: clamp\(320px, 44cqw, 680px\)/);
+  assert.match(styles, /\.game-hero__logo[\s\S]*max-width: 72%/);
+  assert.match(styles, /\.game-hero__logo[\s\S]*max-height: 70%/);
   assert.match(styles, /\.game-hero__logo[\s\S]*object-fit: contain/);
   assert.match(styles, /\.game-hero__logo[\s\S]*transform: translate\(-50%, -50%\)/);
   assert.match(styles, /\.game-panel__hero[\s\S]*object-fit: cover/);
@@ -1129,6 +1135,14 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
     path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"),
     "utf8",
   );
+  const starFilled = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "assets", "icons", "star-filled.svg"),
+    "utf8",
+  );
+  const starEmpty = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "assets", "icons", "star-empty.svg"),
+    "utf8",
+  );
 
   [
     "app.svg",
@@ -1197,6 +1211,12 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
   assert.match(icon, /escapeHtml\(fallback\)/);
   assert.equal(/https?:\/\//.test(icon), false);
   assert.equal(/innerHTML|\.png|<svg|Authorization|access_token|refresh_token|ui-icon__probe|ui-icon__mask/.test(icon), false);
+  assert.match(starFilled, /viewBox="0 0 24 24"/);
+  assert.match(starFilled, /<path fill="#fff"/);
+  assert.equal(/<image|base64|xlink:href|<rect/i.test(starFilled), false);
+  assert.match(starEmpty, /viewBox="0 0 24 24"/);
+  assert.match(starEmpty, /<path fill="none" stroke="#fff"/);
+  assert.equal(/<image|base64|xlink:href|<rect/i.test(starEmpty), false);
   assert.match(styles, /\.ui-icon__glyph/);
   assert.match(styles, /\.ui-icon__glyph[\s\S]*display: block[\s\S]*width: 100%[\s\S]*height: 100%/);
   assert.match(styles, /\.ui-icon__glyph[\s\S]*background-color: currentColor/);
