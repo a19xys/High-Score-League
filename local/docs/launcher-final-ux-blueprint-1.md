@@ -126,8 +126,6 @@ Elegir directorio
 Cambiar directorio
 Abrir directorio
 Reescanear
-Importar ZIP
-Importar carpeta
 ```
 
 El jugador no deberia abrir un `pack.json` concreto cada vez: elige la carpeta
@@ -168,9 +166,11 @@ biblioteca de packs, runtime MAME y diagnostico avanzado.
 
 `LOCAL-PACK-IMPORT-MVP-1` anade importacion local desde ZIP o carpeta sin
 convertir la app en catalogo remoto: distribuye comprimido, instala
-descomprimido y juega descomprimido. La biblioteca valida, instala en el
-directorio de packs configurado, reescanea y activa por ruta final. Catalogo
-remoto, updater y sobrescritura de packs siguen fuera.
+descomprimido y juega descomprimido. La accion visible queda como `Importar
+pack` dentro de Configuracion/Ajustes para no ensuciar la Biblioteca principal.
+El launcher valida, instala en el directorio de packs configurado, reescanea y
+activa por ruta final. Catalogo remoto, updater y sobrescritura de packs siguen
+fuera.
 
 `LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3` refuerza el modelo local: al reescanear,
 el launcher reconcilia el detalle activo si un duplicado se resuelve, si sigue

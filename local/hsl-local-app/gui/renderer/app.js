@@ -1253,12 +1253,8 @@ function bindActions() {
       runAction(action, "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory());
     }
 
-    if (action === "import-pack-zip") {
-      runAction(action, "Importando pack", "Importar ZIP", () => window.hslLauncher.importPackZip());
-    }
-
-    if (action === "import-pack-folder") {
-      runAction(action, "Importando pack", "Importar carpeta", () => window.hslLauncher.importPackFolder());
+    if (action === "import-pack") {
+      runAction(action, "Importando pack", "Importar pack", () => window.hslLauncher.importPack());
     }
 
     if (action === "choose-shared-mame-runtime") {

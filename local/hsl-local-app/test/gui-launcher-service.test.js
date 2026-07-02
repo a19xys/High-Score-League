@@ -411,6 +411,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
     path.join(__dirname, "..", "gui", "renderer", "app.js"),
     "utf8",
   );
+  const devTools = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "dev-tools.js"),
+    "utf8",
+  );
 
   assert.match(libraryPanel, /library-open-control/);
   assert.match(libraryPanel, /library-open-label">Biblioteca<\/span>/);
@@ -422,12 +426,8 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /Sin temporada/);
   assert.equal(/const id = pack\.deprecated/.test(libraryPanel), false);
   assert.match(libraryPanel, /data-action="toggle-library-filters"/);
-  assert.match(libraryPanel, /data-action="import-pack-zip"/);
-  assert.match(libraryPanel, /data-action="import-pack-folder"/);
-  assert.match(libraryPanel, /Importar ZIP/);
-  assert.match(libraryPanel, /Importar carpeta/);
-  assert.match(libraryPanel, /data-action="import-pack-zip" \$\{disabled\}/);
-  assert.match(libraryPanel, /data-action="import-pack-folder" \$\{disabled\}/);
+  assert.equal(/data-action="import-pack-zip"|data-action="import-pack-folder"/.test(libraryPanel), false);
+  assert.equal(/Importar ZIP|Importar carpeta/.test(libraryPanel), false);
   assert.match(libraryPanel, /data-action="choose-pack-directory"[\s\S]*data-action="toggle-library-filters"/);
   assert.match(libraryPanel, /class="library-open-control"[\s\S]*data-action="open-pack-directory"[\s\S]*library-open-label">Biblioteca<\/span>[\s\S]*data-action="rescan-pack-directory"/);
   assert.match(libraryPanel, /renderIcon\("library"/);
@@ -494,8 +494,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /pack\.genre/);
   assert.match(libraryPanel, /pack\.rom/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"/);
-  assert.match(app, /window\.hslLauncher\.importPackZip\(\)/);
-  assert.match(app, /window\.hslLauncher\.importPackFolder\(\)/);
+  assert.match(devTools, /data-action="import-pack"/);
+  assert.match(devTools, /Importar pack/);
+  assert.match(devTools, /renderIcon\("import"/);
+  assert.match(app, /window\.hslLauncher\.importPack\(\)/);
   assert.match(app, /Importando pack/);
   assert.match(app, /"import-pack"/);
   assert.match(libraryPanel, /data-action="open-pack-directory"/);
@@ -1351,12 +1353,20 @@ test("manual and ranking IPC stay in main process", async () => {
   assert.match(main, /shell\.openPath/);
   assert.match(main, /launcher:open-ranking/);
   assert.match(main, /shell\.openExternal/);
+  assert.match(main, /launcher:import-pack/);
+  assert.match(main, /showMessageBox/);
+  assert.match(main, /Archivo ZIP/);
+  assert.match(main, /Carpeta/);
+  assert.match(main, /showImportZipDialog/);
+  assert.match(main, /showImportFolderDialog/);
   assert.match(main, /minWidth: 1180/);
   assert.match(main, /minHeight: 620/);
   assert.match(preload, /openManual/);
   assert.match(preload, /openRanking/);
+  assert.match(preload, /importPack: invoke\("launcher:import-pack"\)/);
   assert.match(app, /window\.hslLauncher\.openManual/);
   assert.match(app, /window\.hslLauncher\.openRanking/);
+  assert.match(app, /window\.hslLauncher\.importPack\(\)/);
   assert.equal(/nodeIntegration:\s*true/.test(main), false);
 });
 
@@ -1413,6 +1423,7 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
     "warning.svg",
     "error.svg",
     "info.svg",
+    "import.svg",
     "library.svg",
     "add.svg",
     "logout.svg",
@@ -1445,12 +1456,19 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
   assert.match(icon, /escapeHtml\(fallback\)/);
   assert.equal(/https?:\/\//.test(icon), false);
   assert.equal(/innerHTML|\.png|<svg|Authorization|access_token|refresh_token|ui-icon__probe|ui-icon__mask/.test(icon), false);
-  assert.match(starFilled, /viewBox="0 0 24 24"/);
-  assert.match(starFilled, /<path fill="#fff"/);
-  assert.equal(/<image|base64|xlink:href|<rect/i.test(starFilled), false);
-  assert.match(starEmpty, /viewBox="0 0 24 24"/);
-  assert.match(starEmpty, /<path fill="none" stroke="#fff"/);
-  assert.equal(/<image|base64|xlink:href|<rect/i.test(starEmpty), false);
+
+  for (const svg of [starFilled, starEmpty]) {
+    const withoutDoctype = svg.replace(/<!DOCTYPE[^>]+>/gi, "");
+
+    assert.match(svg, /<svg[\s\S]*<\/svg>/i);
+    assert.equal(/<script/i.test(svg), false);
+    assert.equal(/\bon\w+=/i.test(svg), false);
+    assert.equal(/\b(?:href|src|style)=["'][^"']*https?:\/\//i.test(withoutDoctype), false);
+    assert.equal(/\b(?:href|src)=["']javascript:/i.test(svg), false);
+  }
+
+  assert.match(icon, /"star-empty": \{ fallback: "-", file: "star-empty\.svg" \}/);
+  assert.match(icon, /"star-filled": \{ fallback: "\*", file: "star-filled\.svg" \}/);
   assert.match(styles, /\.ui-icon__glyph/);
   assert.match(styles, /\.ui-icon__glyph[\s\S]*display: block[\s\S]*width: 100%[\s\S]*height: 100%/);
   assert.match(styles, /\.ui-icon__glyph[\s\S]*background-color: currentColor/);

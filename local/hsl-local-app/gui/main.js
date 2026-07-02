@@ -26,6 +26,39 @@ function createMainWindow() {
   });
 }
 
+async function showImportZipDialog() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    buttonLabel: "Importar ZIP",
+    filters: [
+      { name: "Packs comprimidos", extensions: ["zip"] },
+    ],
+    message: "Elige el ZIP del pack",
+    properties: ["openFile"],
+    title: "Importar pack ZIP",
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return service.cancelImportPack();
+  }
+
+  return service.importPackFromZipForGui(result.filePaths[0]);
+}
+
+async function showImportFolderDialog() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    buttonLabel: "Importar carpeta",
+    message: "Elige la carpeta del pack o una carpeta con un unico pack dentro",
+    properties: ["openDirectory"],
+    title: "Importar pack desde carpeta",
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return service.cancelImportPack();
+  }
+
+  return service.importPackFromFolderForGui(result.filePaths[0]);
+}
+
 function registerIpc() {
   ipcMain.handle("launcher:get-state", () => service.getLauncherState({ attemptAutoSync: true }));
   ipcMain.handle("launcher:get-auth-state", () => service.getAuthStateForGui());
@@ -58,37 +91,29 @@ function registerIpc() {
 
     return service.choosePackDirectoryFromGui(result.filePaths[0]);
   });
-  ipcMain.handle("launcher:import-pack-zip", async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      buttonLabel: "Importar ZIP",
-      filters: [
-        { name: "Packs comprimidos", extensions: ["zip"] },
-      ],
-      message: "Elige el ZIP del pack",
-      properties: ["openFile"],
-      title: "Importar pack ZIP",
+  ipcMain.handle("launcher:import-pack", async () => {
+    const result = await dialog.showMessageBox(mainWindow, {
+      buttons: ["Archivo ZIP", "Carpeta", "Cancelar"],
+      cancelId: 2,
+      defaultId: 0,
+      message: "Que quieres importar?",
+      noLink: true,
+      title: "Importar pack",
+      type: "question",
     });
 
-    if (result.canceled || result.filePaths.length === 0) {
-      return service.cancelImportPack();
+    if (result.response === 0) {
+      return showImportZipDialog();
     }
 
-    return service.importPackFromZipForGui(result.filePaths[0]);
-  });
-  ipcMain.handle("launcher:import-pack-folder", async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      buttonLabel: "Importar carpeta",
-      message: "Elige la carpeta del pack o una carpeta con un unico pack dentro",
-      properties: ["openDirectory"],
-      title: "Importar pack desde carpeta",
-    });
-
-    if (result.canceled || result.filePaths.length === 0) {
-      return service.cancelImportPack();
+    if (result.response === 1) {
+      return showImportFolderDialog();
     }
 
-    return service.importPackFromFolderForGui(result.filePaths[0]);
+    return service.cancelImportPack();
   });
+  ipcMain.handle("launcher:import-pack-zip", () => showImportZipDialog());
+  ipcMain.handle("launcher:import-pack-folder", () => showImportFolderDialog());
   ipcMain.handle("launcher:open-pack-directory", () => service.openConfiguredPackDirectory({
     openPathImpl: (directoryPath) => shell.openPath(directoryPath),
   }));

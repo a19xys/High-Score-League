@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   diagnose: invoke("launcher:diagnose"),
   getAuthState: invoke("launcher:get-auth-state"),
   getState: invoke("launcher:get-state"),
+  importPack: invoke("launcher:import-pack"),
   importPackFolder: invoke("launcher:import-pack-folder"),
   importPackZip: invoke("launcher:import-pack-zip"),
   login: (email, password) => ipcRenderer.invoke("launcher:login", { email, password }),

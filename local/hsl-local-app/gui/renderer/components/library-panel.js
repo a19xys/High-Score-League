@@ -342,16 +342,6 @@ function renderLibraryControls(state, packs) {
   return `
     <div class="library-toolbar">
       <div class="library-control-row library-control-row--primary">
-        <button class="library-control-button" type="button" data-action="import-pack-zip" ${disabled} aria-label="Importar ZIP" title="Importar ZIP">
-          ${renderIcon("add", { className: "library-control-icon" })}
-          <span>Importar ZIP</span>
-        </button>
-        <button class="library-control-button" type="button" data-action="import-pack-folder" ${disabled} aria-label="Importar carpeta" title="Importar carpeta">
-          ${renderIcon("folder", { className: "library-control-icon" })}
-          <span>Importar carpeta</span>
-        </button>
-      </div>
-      <div class="library-control-row library-control-row--secondary">
         <button class="library-control-button" type="button" data-action="choose-pack-directory" ${disabled} aria-label="${locationLabel}" title="${locationLabel}">
           ${renderIcon("folder", { className: "library-control-icon" })}
           <span>${locationLabel}</span>

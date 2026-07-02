@@ -1760,9 +1760,9 @@ async function cancelImportPack() {
   return {
     action: "import-pack",
     canceled: true,
-    lines: ["No se selecciono ningun pack para importar."],
+    lines: ["No se seleccionó ningún pack."],
     ok: true,
-    summary: "No se selecciono ningun pack para importar.",
+    summary: "No se seleccionó ningún pack.",
     state: await getLauncherState(),
   };
 }

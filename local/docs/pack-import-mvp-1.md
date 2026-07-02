@@ -172,22 +172,23 @@ Ejemplos:
 
 ## UI e IPC
 
-La biblioteca muestra dos acciones:
+El drawer de Configuracion muestra una accion visible:
 
 ```text
-Importar ZIP
-Importar carpeta
+Importar pack
 ```
 
-Durante la operacion se usa `busyLabel: "Importando pack"`. La API expuesta al
-renderer solo permite acciones concretas:
+Durante la operacion se usa `busyLabel: "Importando pack"`. El boton unico
+invoca:
 
 ```text
-launcher:import-pack-zip
-launcher:import-pack-folder
+launcher:import-pack
 ```
 
-No se expone filesystem generico al renderer.
+El proceso principal pregunta si se quiere importar archivo ZIP o carpeta y
+abre el dialogo correspondiente. Los handlers internos
+`launcher:import-pack-zip` y `launcher:import-pack-folder` se mantienen como
+acciones concretas, sin exponer filesystem generico al renderer.
 
 ## Queda fuera
 

@@ -18,6 +18,7 @@ export const ICONS = Object.freeze({
   folder: { fallback: "D", file: "folder.svg" },
   genre: { fallback: "G", file: "genre.svg" },
   info: { fallback: "i", file: "info.svg" },
+  import: { fallback: "I", file: "import.svg" },
   library: { fallback: "L", file: "library.svg" },
   logout: { fallback: ">", file: "logout.svg" },
   manual: { fallback: "M", file: "manual.svg" },

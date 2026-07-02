@@ -1,4 +1,5 @@
 import { escapeHtml } from "./html.js";
+import { renderIcon } from "./icon.js";
 
 function valueOrDash(value) {
   if (value === undefined || value === null || value === "") {
@@ -83,6 +84,11 @@ export function renderDevTools(state) {
         </div>
       </div>
       <div class="dev-actions">
+        <button class="tool-button" type="button" data-action="import-pack" ${disabled}>
+          ${renderIcon("import", { className: "tool-button-icon", fallback: "I" })}
+          Importar pack
+          <small>ZIP o carpeta</small>
+        </button>
         <button class="tool-button" type="button" data-action="choose-pack-directory" ${disabled}>
           ${escapeHtml(packDirectoryLabel)}
           <small>Biblioteca de packs</small>
