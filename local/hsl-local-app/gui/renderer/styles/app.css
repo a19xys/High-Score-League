@@ -5342,7 +5342,7 @@ html:not([data-theme="dark"]) .favorite-slot:hover:not(:disabled) {
 
 .game-hero-stage {
   width: 100%;
-  max-height: 360px;
+  max-height: 320px;
 }
 
 /* LOCAL-LAUNCHER-HERO-SCROLL-HEADER-BOUNDS-1: height-driven hero logo and shared content bounds. */

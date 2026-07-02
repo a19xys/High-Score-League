@@ -54,6 +54,39 @@ function compareText(a, b) {
   });
 }
 
+function normalizedYear(pack) {
+  const year = Number(pack?.year);
+
+  return Number.isInteger(year) && year > 0 ? String(year) : null;
+}
+
+function yearNumber(pack) {
+  const year = normalizedYear(pack);
+
+  return year ? Number(year) : null;
+}
+
+function firstNonEmpty(value) {
+  if (Array.isArray(value)) {
+    return value.map(firstNonEmpty).find(Boolean) || null;
+  }
+
+  if (typeof value !== "string" && typeof value !== "number") {
+    return null;
+  }
+
+  const first = String(value)
+    .split(/[·,;]/u)
+    .map((item) => item.trim().replace(/\s+/g, " "))
+    .find(Boolean);
+
+  return first || null;
+}
+
+function primaryDeveloper(pack) {
+  return firstNonEmpty(pack?.developer) || firstNonEmpty(pack?.publisher);
+}
+
 function weekSortValue(pack) {
   return [
     pack.seasonName || pack.seasonId || "",
@@ -76,13 +109,13 @@ function compareWeeks(a, b) {
 
 function comparePacks(a, b, sortBy) {
   if (sortBy === "developer") {
-    const developer = compareText(a.developer || a.publisher || a.title, b.developer || b.publisher || b.title);
+    const developer = compareText(primaryDeveloper(a) || a.title, primaryDeveloper(b) || b.title);
     return developer || compareText(a.title, b.title);
   }
 
   if (sortBy === "year") {
-    const leftYear = Number(a.year);
-    const rightYear = Number(b.year);
+    const leftYear = yearNumber(a);
+    const rightYear = yearNumber(b);
     const left = Number.isFinite(leftYear) ? leftYear : Number.MAX_SAFE_INTEGER;
     const right = Number.isFinite(rightYear) ? rightYear : Number.MAX_SAFE_INTEGER;
     return left === right ? compareText(a.title, b.title) : left - right;
@@ -102,8 +135,8 @@ function sortPacks(packs, state) {
 
   if (sortBy === "year") {
     return [...packs].sort((a, b) => {
-      const leftYear = Number(a.year);
-      const rightYear = Number(b.year);
+      const leftYear = yearNumber(a);
+      const rightYear = yearNumber(b);
       const leftHasYear = Number.isFinite(leftYear);
       const rightHasYear = Number.isFinite(rightYear);
 
@@ -116,6 +149,24 @@ function sortPacks(packs, state) {
       }
 
       return compareText(a.title, b.title) * factor;
+    });
+  }
+
+  if (sortBy === "developer") {
+    return [...packs].sort((a, b) => {
+      const leftDeveloper = primaryDeveloper(a);
+      const rightDeveloper = primaryDeveloper(b);
+
+      if (leftDeveloper && rightDeveloper) {
+        const developer = compareText(leftDeveloper, rightDeveloper);
+        if (developer) return developer * factor;
+      }
+
+      if (Boolean(leftDeveloper) !== Boolean(rightDeveloper)) {
+        return leftDeveloper ? -1 : 1;
+      }
+
+      return compareText(a.title, b.title);
     });
   }
 
@@ -138,14 +189,40 @@ function filterPacks(packs, state) {
   });
 }
 
-function groupPacks(packs) {
+function groupMetaForPack(pack, sortBy) {
+  if (sortBy === "year") {
+    const year = normalizedYear(pack);
+
+    return {
+      id: year ? `year:${year}` : "year:missing",
+      title: year || "Sin año",
+    };
+  }
+
+  if (sortBy === "developer") {
+    const developer = primaryDeveloper(pack);
+
+    return {
+      id: developer ? `developer:${normalizeSearch(developer)}` : "developer:missing",
+      title: developer || "Sin desarrollador",
+    };
+  }
+
+  return {
+    id: pack.seasonId ? `season:${pack.seasonId}` : "unseasoned",
+    title: pack.seasonName || pack.seasonId || "Sin temporada",
+  };
+}
+
+function shouldGroupPacks(sortBy) {
+  return sortBy === "weeks" || sortBy === "year" || sortBy === "developer";
+}
+
+function groupPacks(packs, sortBy = "weeks") {
   const groups = new Map();
 
   for (const pack of packs) {
-    const id = pack.seasonId
-        ? `season:${pack.seasonId}`
-        : "unseasoned";
-    const title = pack.seasonName || pack.seasonId || "Sin temporada";
+    const { id, title } = groupMetaForPack(pack, sortBy);
 
     if (!groups.has(id)) {
       groups.set(id, {
@@ -338,7 +415,7 @@ function renderPacks(state) {
     });
   }
 
-  if (sortBy !== "weeks") {
+  if (!shouldGroupPacks(sortBy)) {
     return `
       <div class="library-pack-grid library-pack-grid--${escapeHtml(state.libraryView)}">
         ${sorted.map((pack) => renderPackCard(pack, state, state.libraryView)).join("")}
@@ -346,7 +423,7 @@ function renderPacks(state) {
     `;
   }
 
-  return groupPacks(sorted).map((group) => `
+  return groupPacks(sorted, sortBy).map((group) => `
     <section class="season-group">
       <div class="season-group__heading">
         <h3>${escapeHtml(group.title)}</h3>
@@ -403,10 +480,15 @@ export const libraryPanelTestApi = {
   comparePacks,
   favoriteFilterActive,
   filterPacks,
+  groupMetaForPack,
   groupPacks,
+  normalizedYear,
   normalizeSearch,
   normalizeSortBy,
   normalizeSortDirection,
+  primaryDeveloper,
   searchText,
+  shouldGroupPacks,
   sortPacks,
+  yearNumber,
 };

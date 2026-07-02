@@ -454,8 +454,11 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/Juegos instalados|Temporadas y packs disponibles|juegos instalados/.test(libraryPanel), false);
   assert.match(libraryPanel, /renderPackCard\(pack, state, state\.libraryView\)/);
   assert.match(libraryPanel, /const sorted = sortPacks\(filtered, state\)/);
-  assert.match(libraryPanel, /if \(sortBy !== "weeks"\)/);
-  assert.match(libraryPanel, /groupPacks\(sorted\)/);
+  assert.match(libraryPanel, /function normalizedYear\(pack\)/);
+  assert.match(libraryPanel, /function primaryDeveloper\(pack\)/);
+  assert.match(libraryPanel, /function shouldGroupPacks\(sortBy\)/);
+  assert.match(libraryPanel, /if \(!shouldGroupPacks\(sortBy\)\)/);
+  assert.match(libraryPanel, /groupPacks\(sorted, sortBy\)/);
   assert.match(libraryPanel, /sortBy === "developer"/);
   assert.match(libraryPanel, /sortBy === "year"/);
   assert.equal(/Anadir ubicacion|Ubicaciones/.test(libraryPanel), false);
@@ -613,6 +616,178 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/escapeHtml\(pack\.packDir|escapeHtml\(pack\.packPath/.test(packCard), false);
   assert.equal(/checkSeasonMembership|membership/.test(libraryPanel + packCard), false);
   assert.equal(/access_token|refresh_token|Authorization/.test(libraryPanel + packCard), false);
+});
+
+test("renderer pack library groups years and developers without changing alphabetical view", async () => {
+  const { libraryPanelTestApi, renderLibraryPanel } = await import(pathToFileURL(path.join(
+    __dirname,
+    "..",
+    "gui",
+    "renderer",
+    "components",
+    "library-panel.js",
+  )));
+  const packs = [
+    {
+      id: "space",
+      favorite: true,
+      favoriteKey: "space",
+      packId: "space-pack",
+      title: "Space Invaders",
+      developer: "Taito \u00b7 Midway",
+      publisher: "Taito",
+      year: "1978",
+      seasonId: "test",
+      seasonName: "Temporada test",
+      status: "ready",
+      weekId: "week-1",
+      weekNumber: 1,
+    },
+    {
+      id: "donkey",
+      favorite: false,
+      favoriteKey: "donkey",
+      packId: "donkey-pack",
+      title: "Donkey Kong",
+      developer: ["Nintendo", "Ikegami"],
+      year: 1981,
+      seasonId: "test",
+      seasonName: "Temporada test",
+      status: "ready",
+      weekId: "week-2",
+      weekNumber: 2,
+    },
+    {
+      id: "pacman",
+      favorite: false,
+      favoriteKey: "pacman",
+      packId: "pacman-pack",
+      title: "Pac-Man",
+      developer: "Namco, Atari",
+      year: "1980",
+      seasonId: "classic",
+      seasonName: "Classic",
+      status: "ready",
+      weekId: "week-1",
+      weekNumber: 1,
+    },
+    {
+      id: "phoenix",
+      favorite: false,
+      favoriteKey: "phoenix",
+      packId: "phoenix-pack",
+      title: "Phoenix",
+      developer: ["Taito", "Centuri"],
+      year: "1980",
+      status: "ready",
+      weekId: "week-3",
+      weekNumber: 3,
+    },
+    {
+      id: "mystery",
+      favorite: true,
+      favoriteKey: "mystery",
+      packId: "mystery-pack",
+      title: "Mystery Pack",
+      developer: "",
+      publisher: "",
+      year: "",
+      status: "ready",
+      weekId: "week-4",
+      weekNumber: 4,
+    },
+  ];
+  const stateFor = (overrides = {}) => ({
+    busy: false,
+    data: {
+      bridge: {},
+      library: {
+        directory: {
+          path: "C:/packs",
+        },
+        packs,
+        totals: {
+          packs: packs.length,
+        },
+      },
+      session: {
+        hasSession: true,
+      },
+    },
+    libraryFavoriteFilter: "all",
+    libraryFiltersOpen: false,
+    libraryQuery: "",
+    librarySeason: "all",
+    librarySortBy: "weeks",
+    librarySortDirection: "asc",
+    libraryStatus: "all",
+    libraryView: "covers",
+    pendingLibraryPackId: null,
+    ...overrides,
+  });
+  const compactGroups = (groups) => groups.map((group) => [group.title, group.packs.map((pack) => pack.id)]);
+
+  assert.deepEqual(compactGroups(libraryPanelTestApi.groupPacks(
+    libraryPanelTestApi.sortPacks(packs, stateFor({ librarySortBy: "weeks" })),
+    "weeks",
+  )), [
+    ["Sin temporada", ["phoenix", "mystery"]],
+    ["Classic", ["pacman"]],
+    ["Temporada test", ["space", "donkey"]],
+  ]);
+
+  assert.deepEqual(compactGroups(libraryPanelTestApi.groupPacks(
+    libraryPanelTestApi.sortPacks(packs, stateFor({ librarySortBy: "year" })),
+    "year",
+  )), [
+    ["1978", ["space"]],
+    ["1980", ["pacman", "phoenix"]],
+    ["1981", ["donkey"]],
+    ["Sin a\u00f1o", ["mystery"]],
+  ]);
+
+  const developerGroups = libraryPanelTestApi.groupPacks(
+    libraryPanelTestApi.sortPacks(packs, stateFor({ librarySortBy: "developer" })),
+    "developer",
+  );
+
+  assert.deepEqual(compactGroups(developerGroups), [
+    ["Namco", ["pacman"]],
+    ["Nintendo", ["donkey"]],
+    ["Taito", ["phoenix", "space"]],
+    ["Sin desarrollador", ["mystery"]],
+  ]);
+  assert.equal(libraryPanelTestApi.primaryDeveloper(packs[0]), "Taito");
+  assert.equal(libraryPanelTestApi.primaryDeveloper(packs[1]), "Nintendo");
+  assert.equal(libraryPanelTestApi.primaryDeveloper(packs[2]), "Namco");
+  assert.equal(libraryPanelTestApi.primaryDeveloper(packs[4]), null);
+  assert.deepEqual(developerGroups.find((group) => group.title === "Taito").packs.map((pack) => pack.id), ["phoenix", "space"]);
+
+  assert.equal(libraryPanelTestApi.shouldGroupPacks("title"), false);
+  assert.equal(/season-group__heading/.test(renderLibraryPanel(stateFor({ librarySortBy: "title" }))), false);
+
+  const favoriteYear = renderLibraryPanel(stateFor({
+    libraryFavoriteFilter: "favorites",
+    librarySortBy: "year",
+  }));
+  assert.match(favoriteYear, /<h3>1978<\/h3>[\s\S]*<span>1 pack<\/span>/);
+  assert.match(favoriteYear, /<h3>Sin a\u00f1o<\/h3>[\s\S]*<span>1 pack<\/span>/);
+  assert.equal(/<h3>1980<\/h3>|<h3>1981<\/h3>/.test(favoriteYear), false);
+
+  const searchedDeveloper = renderLibraryPanel(stateFor({
+    libraryQuery: "space",
+    librarySortBy: "developer",
+  }));
+  assert.match(searchedDeveloper, /<h3>Taito<\/h3>[\s\S]*<span>1 pack<\/span>/);
+  assert.equal(/<h3>Namco<\/h3>|<h3>Nintendo<\/h3>|<h3>Sin desarrollador<\/h3>/.test(searchedDeveloper), false);
+
+  for (const view of ["covers", "list", "icons"]) {
+    const yearHtml = renderLibraryPanel(stateFor({ librarySortBy: "year", libraryView: view }));
+    const developerHtml = renderLibraryPanel(stateFor({ librarySortBy: "developer", libraryView: view }));
+
+    assert.match(yearHtml, new RegExp(`season-group[\\s\\S]*library-pack-grid--${view}`));
+    assert.match(developerHtml, new RegExp(`season-group[\\s\\S]*library-pack-grid--${view}`));
+  }
 });
 
 test("renderer product hierarchy includes connection, player actions, activity and advanced options", async () => {
@@ -882,11 +1057,12 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(styles.lastIndexOf("width: min(100%, var(--game-detail-max-width))") > styles.lastIndexOf("width: min(100%, 1120px)"), true);
   assert.match(styles, /\.game-hero-stage[\s\S]*aspect-ratio: 1920 \/ 620/);
   assert.match(styles, /\.game-hero-stage[\s\S]*width: 100%/);
-  assert.match(styles, /\.game-hero-stage[\s\S]*max-height: 360px/);
+  assert.match(styles, /\.game-hero-stage[\s\S]*max-height: 320px/);
   assert.match(styles, /\.game-hero-stage[\s\S]*margin-inline: auto/);
   assert.equal(/\.game-hero-stage[\s\S]{0,220}max-height:\s*none/.test(styles), false);
   assert.match(styles, /\.game-hero__logo[\s\S]*position: absolute/);
   assert.match(styles, /\.game-hero__logo[\s\S]*left: 50%/);
+  assert.equal(/\.game-hero-stage[\s\S]*max-height: 360px/.test(styles), false);
   assert.match(styles, /\.game-hero__logo[\s\S]*width: auto[\s\S]*max-width: 76%[\s\S]*height: 58%/);
   assert.match(styles, /\.game-hero__logo[\s\S]*max-height: 70%/);
   assert.match(styles, /\.game-hero__logo[\s\S]*object-fit: contain/);
