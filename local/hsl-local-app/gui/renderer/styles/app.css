@@ -5143,3 +5143,169 @@ button:disabled .ui-icon,
 .game-favorite-mark[hidden] {
   display: none;
 }
+
+/* LOCAL-LAUNCHER-ICON-COLOR-POLISH-2: scoped color exceptions over the currentColor icon system. */
+.app-brand-icon.ui-icon {
+  color: inherit;
+}
+
+.app-brand-icon.ui-icon .ui-icon__glyph {
+  display: none;
+}
+
+.app-brand-icon.ui-icon .ui-icon__img {
+  position: static;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 1;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.app-brand-icon.ui-icon.ui-icon--missing .ui-icon__img {
+  display: none;
+}
+
+.game-detail-card .play-button .action-icon.ui-icon {
+  color: var(--text-inverse);
+}
+
+.view-button .library-view-icon.ui-icon {
+  color: currentColor;
+}
+
+.view-button:not(.view-button--active) {
+  color: var(--text-muted);
+}
+
+.view-button--active {
+  color: var(--circuit);
+}
+
+.game-metadata-icon.ui-icon,
+.game-week-icon.ui-icon {
+  color: color-mix(in srgb, var(--text-muted) 82%, var(--text));
+}
+
+.theme-icon.ui-icon--moon {
+  color: var(--text-inverse);
+}
+
+.theme-icon.ui-icon--sun {
+  color: var(--surface-strong);
+}
+
+.pack-card--covers .pack-card__subtitle-icon.ui-icon,
+.pack-card--list .pack-card__subtitle-icon.ui-icon {
+  width: 12px;
+  height: 12px;
+  align-self: center;
+  transform: none;
+}
+
+.library-favorite-filter-button .library-favorite-filter-icon.ui-icon,
+.library-favorite-filter-button--active .library-favorite-filter-icon.ui-icon {
+  color: currentColor;
+}
+
+html:not([data-theme="dark"]) .favorite-slot {
+  border-color: color-mix(in srgb, var(--border) 88%, var(--surface));
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  color: color-mix(in srgb, var(--text-muted) 76%, var(--surface-strong));
+  box-shadow: 0 6px 14px rgb(15 23 42 / 0.12);
+}
+
+html:not([data-theme="dark"]) .favorite-slot--active,
+html:not([data-theme="dark"]) .favorite-slot:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--circuit) 42%, var(--border));
+  background: color-mix(in srgb, var(--circuit) 10%, var(--surface));
+  color: var(--circuit);
+}
+
+.launcher-footer {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.launcher-footer__status {
+  color: var(--text);
+}
+
+.launcher-footer__version {
+  color: var(--text-muted);
+}
+
+/* LOCAL-LAUNCHER-FAVORITE-ACTIONS-HOTFIX-1: favorite states and effective action scale. */
+.library-favorite-filter-button {
+  color: var(--text-muted);
+}
+
+.library-favorite-filter-button .library-favorite-filter-icon.ui-icon {
+  color: currentColor;
+}
+
+.library-favorite-filter-button--active {
+  border-color: color-mix(in srgb, var(--circuit) 68%, var(--border));
+  background: color-mix(in srgb, var(--circuit) 18%, var(--surface));
+  color: var(--circuit);
+}
+
+.library-favorite-filter-button--active .library-favorite-filter-icon.ui-icon,
+.library-favorite-filter-button--active .library-favorite-filter-icon.ui-icon .ui-icon__glyph {
+  color: currentColor;
+  background-color: currentColor;
+}
+
+.favorite-slot--pending {
+  opacity: 1;
+  filter: none;
+  cursor: pointer;
+}
+
+.favorite-slot--active.favorite-slot--pending,
+.favorite-slot--active.favorite-slot--pending:hover:not(:disabled) {
+  color: var(--circuit);
+  opacity: 1;
+}
+
+.game-detail-card .play-button,
+.game-detail-card .primary-action-tile {
+  min-height: 92px;
+  grid-template-columns: 46px minmax(0, max-content);
+  align-items: center;
+  gap: 14px;
+  padding: 15px 18px;
+}
+
+.game-detail-card .compact-action {
+  min-height: 70px;
+  grid-template-columns: 38px minmax(0, max-content);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.game-detail-card .play-button .action-icon.ui-icon,
+.game-detail-card .primary-action-tile .action-icon.ui-icon {
+  width: 46px;
+  height: 46px;
+}
+
+.game-detail-card .compact-action .action-icon.ui-icon {
+  width: 38px;
+  height: 38px;
+}
+
+.game-detail-card .play-button .action-button-label,
+.game-detail-card .primary-action-tile .action-button-label {
+  font-size: 24px;
+  font-weight: 950;
+  line-height: 1.08;
+}
+
+.game-detail-card .compact-action .action-button-label {
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.1;
+}

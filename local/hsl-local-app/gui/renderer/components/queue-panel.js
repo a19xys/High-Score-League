@@ -176,7 +176,6 @@ export function renderActivitySummaryCard(state) {
       <section class="activity-summary-card activity-summary-card--locked">
         <div class="activity-summary-card__icon" aria-hidden="true">${renderIcon("user", { className: "status-icon icon-slot icon-slot--user" })}</div>
         <div class="activity-summary-card__copy min-w-0">
-          <span class="activity-summary-card__label">Actividad local</span>
           <strong>Inicia sesión</strong>
           <p>Inicia sesión para ver tu actividad local.</p>
         </div>
@@ -190,7 +189,6 @@ export function renderActivitySummaryCard(state) {
     <section class="activity-summary-card activity-summary-card--${summary.tone}">
       <div class="activity-summary-card__icon" aria-hidden="true">${renderIcon(summary.icon, { className: `status-icon icon-slot icon-slot--${summary.icon}` })}</div>
       <div class="activity-summary-card__copy min-w-0">
-        <span class="activity-summary-card__label">Actividad local</span>
         <strong>${escapeHtml(summary.status)}</strong>
         <p>${escapeHtml(summary.message)}</p>
       </div>

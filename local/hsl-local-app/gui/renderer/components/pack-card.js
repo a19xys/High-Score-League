@@ -109,14 +109,13 @@ function renderPackVisual(pack, view) {
 
 function renderFavorite(pack, disabled, hasSession) {
   const favorite = Boolean(pack.favorite);
-  const pending = Boolean(pack.favoritePending);
   const blocked = !hasSession || pack.favoriteDisabled || pack.duplicatePackId;
   const label = blocked
     ? "Inicia sesión para marcar favoritos"
-    : pending ? "Guardando favorito" : favorite ? "Quitar de favoritos" : "Marcar como favorito";
+    : favorite ? "Quitar de favoritos" : "Marcar como favorito";
 
   return `
-    <button class="favorite-slot ${favorite ? "favorite-slot--active" : ""} ${pending ? "favorite-slot--pending" : ""} ${blocked ? "favorite-slot--locked" : ""}" type="button" data-action="toggle-library-favorite" data-pack-key="${escapeHtml(pack.favoriteKey || pack.id)}" title="${label}" aria-label="${label}" aria-pressed="${favorite ? "true" : "false"}" ${disabled || blocked ? "disabled" : ""}>
+    <button class="favorite-slot ${favorite ? "favorite-slot--active" : ""} ${blocked ? "favorite-slot--locked" : ""}" type="button" data-action="toggle-library-favorite" data-pack-key="${escapeHtml(pack.favoriteKey || pack.id)}" title="${label}" aria-label="${label}" aria-pressed="${favorite ? "true" : "false"}" ${disabled || blocked ? "disabled" : ""}>
       ${renderIcon(favorite ? "star-filled" : "star-empty", { className: "favorite-icon", size: "sm" })}
     </button>
   `;
