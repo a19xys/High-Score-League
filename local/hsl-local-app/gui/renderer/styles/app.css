@@ -5345,10 +5345,30 @@ html:not([data-theme="dark"]) .favorite-slot:hover:not(:disabled) {
   max-height: 360px;
 }
 
+/* LOCAL-LAUNCHER-HERO-SCROLL-HEADER-BOUNDS-1: height-driven hero logo and shared content bounds. */
+:root {
+  --launcher-content-max-width: 1760px;
+}
+
+.app-main,
+.launcher-header {
+  width: min(100%, var(--launcher-content-max-width));
+  max-width: var(--launcher-content-max-width);
+  margin-inline: auto;
+}
+
+.launcher-header {
+  min-width: 0;
+}
+
+.header-actions {
+  max-width: min(62%, 760px);
+}
+
 .game-hero__logo {
-  width: clamp(320px, 44cqw, 680px);
-  max-width: 72%;
+  width: auto;
+  max-width: 76%;
+  height: 58%;
   max-height: 70%;
-  height: auto;
   object-fit: contain;
 }

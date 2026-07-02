@@ -54,6 +54,7 @@ let metadataResizeObserver = null;
 let metadataLayoutFrame = 0;
 let favoriteTitleResizeObserver = null;
 let favoriteTitleFrame = 0;
+let currentDetailScrollKey = null;
 const detailAssetPreloadCache = new Map();
 const favoriteSyncByKey = new Map();
 
@@ -79,17 +80,61 @@ function readMainScrollState() {
   };
 }
 
-function restoreMainScrollState(scrollState) {
+function restoreMainScrollState(scrollState, { resetGame = false } = {}) {
   const gameScroll = root.querySelector(".game-scroll");
   const libraryScroll = root.querySelector(".library-section--packs");
 
   if (gameScroll) {
-    gameScroll.scrollTop = scrollState.game;
+    gameScroll.scrollTop = resetGame ? 0 : scrollState.game;
   }
 
   if (libraryScroll) {
     libraryScroll.scrollTop = scrollState.library;
   }
+}
+
+function detailScrollKeyFromState(state) {
+  const data = state.data || {};
+  const bridge = data.bridge || {};
+  const game = data.game || {};
+  const duplicatePaths = Array.isArray(game.duplicatePaths) ? game.duplicatePaths.join("|") : "";
+
+  if (bridge.mode === "duplicate-group" || game.duplicateGroup) {
+    return [
+      "duplicate",
+      game.duplicatePackId,
+      game.packId,
+      game.id,
+      game.weekId,
+      duplicatePaths,
+      bridge.activePackName,
+    ].filter(Boolean).join(":");
+  }
+
+  if (bridge.mode === "pack-issue") {
+    return [
+      "issue",
+      bridge.packRoot,
+      bridge.packPath,
+      game.packRoot,
+      game.packPath,
+      game.packId,
+      game.id,
+      game.weekId,
+    ].filter(Boolean).join(":");
+  }
+
+  return [
+    "pack",
+    bridge.packRoot,
+    bridge.packPath,
+    game.packRoot,
+    game.packPath,
+    game.packId,
+    game.id,
+    game.rom,
+    game.weekId,
+  ].filter(Boolean).join(":") || null;
 }
 
 function metadataHasOverflow(grid) {
@@ -474,6 +519,8 @@ function openAccountFormState(email = "") {
 function render() {
   const state = store.getState();
   const scrollState = readMainScrollState();
+  const nextDetailScrollKey = detailScrollKeyFromState(state);
+  const resetGameScroll = Boolean(currentDetailScrollKey && nextDetailScrollKey && currentDetailScrollKey !== nextDetailScrollKey);
   applyTheme(state.theme);
   const sidebarWidth = clampSidebarWidth(state.librarySidebarWidth);
 
@@ -495,7 +542,8 @@ function render() {
     ${renderStatusFooter()}
     ${renderOverlay(state)}
   `;
-  restoreMainScrollState(scrollState);
+  restoreMainScrollState(scrollState, { resetGame: resetGameScroll });
+  currentDetailScrollKey = nextDetailScrollKey;
   syncGameMetadataLayout();
   syncFavoriteTitleMarks();
 }
