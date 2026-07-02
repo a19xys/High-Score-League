@@ -1,5 +1,6 @@
 import { createStore, appendLog } from "./state.js";
 import { COPY } from "./components/copy.js";
+import { renderBusyOverlay } from "./components/busy-overlay.js";
 import { renderDevTools } from "./components/dev-tools.js";
 import { renderGamePanel } from "./components/game-panel.js";
 import { renderHeader } from "./components/header.js";
@@ -541,6 +542,7 @@ function render() {
     </main>
     ${renderStatusFooter()}
     ${renderOverlay(state)}
+    ${renderBusyOverlay(state)}
   `;
   restoreMainScrollState(scrollState, { resetGame: resetGameScroll });
   currentDetailScrollKey = nextDetailScrollKey;

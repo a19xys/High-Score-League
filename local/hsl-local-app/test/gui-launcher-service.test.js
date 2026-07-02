@@ -843,8 +843,9 @@ test("renderer pack library groups years and developers without changing alphabe
 });
 
 test("renderer product hierarchy includes connection, player actions, activity and advanced options", async () => {
-  const [app, header, copy, gamePanel, queuePanel, devTools, styles] = await Promise.all([
+  const [app, busyOverlay, header, copy, gamePanel, queuePanel, devTools, styles] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "busy-overlay.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "header.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "copy.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js"), "utf8"),
@@ -854,6 +855,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   ]);
 
   assert.match(app, /app-main/);
+  assert.match(app, /import \{ renderBusyOverlay \} from "\.\/components\/busy-overlay\.js"/);
+  assert.match(app, /renderOverlay\(state\)[\s\S]*renderBusyOverlay\(state\)/);
   assert.match(app, /--library-sidebar-width/);
   assert.match(app, /library-resizer/);
   assert.match(app, /data-sidebar-resizer/);
@@ -908,6 +911,11 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /sequence: existingSync\.sequence \+ 1/);
   assert.match(app, /if \(existingSync\.inFlight\) \{\s*return;\s*\}/);
   assert.match(app, /favoritePending: true/);
+  const favoriteToggleSource = app.slice(
+    app.indexOf("async function toggleLibraryFavorite"),
+    app.indexOf("async function syncLibraryFavorite"),
+  );
+  assert.equal(/busy:\s*true|busyLabel/.test(favoriteToggleSource), false);
   assert.match(app, /response\.ok === false/);
   assert.match(app, /latestSync && latestSync\.sequence !== requestSequence/);
   assert.match(app, /delete latestPending\[packKey\]/);
@@ -931,6 +939,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /library-panel-region/);
   assert.match(app, /game-panel-region/);
   assert.match(app, /modal-layer/);
+  assert.match(app, /renderBusyOverlay\(state\)/);
   assert.match(app, /drawer-layer/);
   assert.match(app, /data-overlay-backdrop/);
   assert.match(app, /drawer-body/);
@@ -1218,6 +1227,24 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /Range|getClientRects/);
   assert.match(app, /--favorite-mark-left/);
   assert.match(styles, /\.modal-layer/);
+  assert.match(styles, /\.busy-overlay[\s\S]*position: fixed[\s\S]*inset: 0[\s\S]*z-index: 80/);
+  assert.match(styles, /\.busy-overlay[\s\S]*pointer-events: auto/);
+  assert.match(styles, /backdrop-filter: blur\(8px\)/);
+  assert.match(styles, /\.busy-overlay__panel/);
+  assert.match(styles, /\.busy-overlay__media/);
+  assert.match(styles, /\.busy-overlay__spinner[\s\S]*animation: busy-overlay-spin/);
+  assert.match(styles, /@keyframes busy-overlay-spin/);
+  assert.match(busyOverlay, /export function renderBusyOverlay/);
+  assert.match(busyOverlay, /export function busyMessageFromLabel/);
+  assert.match(busyOverlay, /state\?\.busy/);
+  assert.match(busyOverlay, /state\.busyLabel/);
+  assert.match(busyOverlay, /role="status"/);
+  assert.match(busyOverlay, /aria-live="polite"/);
+  assert.match(busyOverlay, /aria-busy="true"/);
+  assert.match(busyOverlay, /src="\.\/assets\/loading\.gif"/);
+  assert.match(busyOverlay, /alt="Cargando"/);
+  assert.match(busyOverlay, /busy-overlay__spinner/);
+  assert.equal(/renderIcon/.test(busyOverlay), false);
   assert.match(styles, /\.drawer-layer/);
   assert.match(styles, /#app[\s\S]*width: 100%[\s\S]*height: 100%/);
   assert.match(styles, /\.launcher-header[\s\S]*min-width: 0/);
@@ -1231,6 +1258,42 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.activity-stats/);
   assert.equal(/\.advanced-entry/.test(styles), false);
   assert.equal(/access_token|refresh_token|Authorization/.test(app + header + gamePanel + queuePanel), false);
+});
+
+test("busy overlay renders blocking action messages without touching favorite microactions", async () => {
+  const { busyMessageFromLabel, renderBusyOverlay } = await import(pathToFileURL(path.join(
+    __dirname,
+    "..",
+    "gui",
+    "renderer",
+    "components",
+    "busy-overlay.js",
+  )).href);
+
+  assert.equal(renderBusyOverlay({ busy: false, busyLabel: "Importando pack" }), "");
+  assert.equal(busyMessageFromLabel(null), "Cargando. Espera...");
+  assert.equal(busyMessageFromLabel("Activando pack"), "Activando pack. Espera...");
+  assert.equal(busyMessageFromLabel("Importando pack"), "Importando pack. Espera...");
+  assert.equal(busyMessageFromLabel("Eligiendo directorio"), "Escoge una nueva ubicación para tus packs...");
+  assert.equal(busyMessageFromLabel("Eligiendo MAME"), "Escoge el ejecutable de MAME...");
+  assert.equal(busyMessageFromLabel("Reescaneando"), "Reescaneando biblioteca...");
+  assert.equal(busyMessageFromLabel("Conectando"), "Conectando con High Score League...");
+  assert.equal(busyMessageFromLabel("Subiendo puntuaciones"), "Subiendo puntuaciones...");
+
+  const importHtml = renderBusyOverlay({ busy: true, busyLabel: "Importando pack" });
+  const fallbackHtml = renderBusyOverlay({ busy: true, busyLabel: null });
+
+  assert.match(importHtml, /class="busy-overlay"/);
+  assert.match(importHtml, /role="status"/);
+  assert.match(importHtml, /aria-live="polite"/);
+  assert.match(importHtml, /aria-busy="true"/);
+  assert.match(importHtml, /aria-label="Importando pack\. Espera\.\.\."/);
+  assert.match(importHtml, /src="\.\/assets\/loading\.gif"/);
+  assert.match(importHtml, /alt="Cargando"/);
+  assert.match(importHtml, /busy-overlay__spinner/);
+  assert.match(importHtml, /Importando pack\. Espera\.\.\./);
+  assert.match(importHtml, /El launcher está terminando esta acción\./);
+  assert.match(fallbackHtml, /Cargando\. Espera\.\.\./);
 });
 
 test("game detail metadata renders four normalized fields", async () => {
