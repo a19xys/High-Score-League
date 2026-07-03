@@ -176,7 +176,6 @@ function renderAccountMenu(state) {
 export function renderHeader(state) {
   const themeLabel = state.theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
   const themeIcon = state.theme === "dark" ? "moon" : "sun";
-  const busyText = state.busy ? `<span class="busy-chip">${escapeHtml(state.busyLabel || "Ejecutando")}</span>` : "";
   const session = state.data?.session;
   const activeAccount = getActiveAccount(state.data?.accounts, session);
   const sessionChipLabel = session?.hasSession ? accountAriaLabel(activeAccount) : SESSION_CHIP_EMPTY_LABEL;
@@ -200,7 +199,6 @@ export function renderHeader(state) {
         </div>
       </div>
       <div class="header-actions">
-        ${busyText}
         <span class="connection-chip ${connection[1]}"><span class="connection-dot" aria-hidden="true"></span>${connection[0]}</span>
         <button class="theme-button theme-button--icon" type="button" data-action="toggle-theme" title="${themeLabel}" aria-label="${themeLabel}">
           ${renderIcon(themeIcon, { className: "button-icon theme-icon", size: "sm" })}

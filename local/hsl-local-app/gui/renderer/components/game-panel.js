@@ -218,6 +218,16 @@ function renderPackErrors(game, readiness) {
 
 export function renderGamePanel(state) {
   const data = state.data;
+
+  if (!data) {
+    return `
+      <section class="game-panel game-detail-card game-detail-card--empty" aria-busy="${state.busy ? "true" : "false"}">
+        <div class="game-hero-stage game-hero-stage--empty" aria-hidden="true"></div>
+        <div class="game-detail-body game-detail-body--empty"></div>
+      </section>
+    `;
+  }
+
   const game = data?.game;
   const bridge = data?.bridge;
   const membership = data?.membership;

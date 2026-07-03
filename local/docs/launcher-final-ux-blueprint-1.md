@@ -755,3 +755,21 @@ metadata horizontal ligera 4->2, subtitulo redundante fuera, semana alineada al
 titulo y botones centrados. `Jugar` y `Practicar` quedan como acciones mas
 altas; `Manual` y `Ranking` quedan secundarios. No se toca MAME, runtime,
 plugin, payloads, endpoints, membership, colas ni importacion.
+
+## Avance LOCAL-LAUNCHER-OVERLAY-DIALOG-FLOWS-2
+
+La overlay global deja de ser un mensaje plano y pasa a contenido contextual
+con titulo, hint y variante. Cubre arranque, acciones bloqueantes, espera de
+usuario y fases de MAME. El arranque inicial empieza en `Iniciando...` y no
+muestra datos falsos del pack antes de que `getState()` termine.
+
+La cabecera deja de mostrar el `busy-chip`; la overlay global es la unica
+superficie para operaciones bloqueantes. El panel de carga escala por
+breakpoints para ventana normal y fullscreen sin romper ventanas pequenas.
+
+El launcher incorpora dialogos internos reutilizables sobre la misma pared
+borrosa. La importacion de packs usa el dialogo interno `¿Qué quieres
+importar?` para elegir `Archivo ZIP`, `Carpeta` o `Cancelar`. El selector
+nativo de Electron se conserva solo para escoger la ruta real del ZIP o carpeta
+cross-platform. Futuros flujos como instalar juegos faltantes deben reutilizar
+este sistema en vez de `alert`, `confirm` o `dialog.showMessageBox`.

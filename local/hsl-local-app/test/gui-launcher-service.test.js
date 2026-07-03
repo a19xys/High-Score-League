@@ -24,6 +24,7 @@ const {
   rescanPackDirectory,
   resetAutoSyncStateForTests,
   runAutoSyncIfEligible,
+  runDiagnose,
   setLibraryPreferencesFromGui,
   summarizeDiagnoseReport,
   toggleLibraryFavoriteFromGui,
@@ -109,6 +110,73 @@ async function writeValidV2PackDir(packDir, overrides = {}) {
   await fsp.writeFile(path.join(packDir, "roms", "invaders.zip"), "rom", "utf8");
   await fsp.mkdir(path.join(packDir, "scripts"), { recursive: true });
   await fsp.writeFile(path.join(packDir, "scripts", "invaders.lua"), "-- adapter", "utf8");
+}
+
+async function createDiagnoseGuiConfig(root) {
+  const userDataDir = path.join(root, "userData");
+  const eventsBaseDirAbs = path.join(userDataDir, "events");
+  const eventsPendingDirAbs = path.join(eventsBaseDirAbs, "pending");
+  const eventsSentDirAbs = path.join(eventsBaseDirAbs, "sent");
+  const eventsFailedDirAbs = path.join(eventsBaseDirAbs, "failed");
+  const mameRoot = path.join(root, "mame");
+  const executablePath = path.join(mameRoot, "mame.exe");
+  const pluginDir = path.join(mameRoot, "plugins", "hsl-score");
+  const packRoot = path.join(root, "active-pack");
+  const pack = {
+    ...validPack(),
+    packRoot,
+    packPath: path.join(packRoot, "pack.json"),
+  };
+
+  await fsp.mkdir(eventsPendingDirAbs, { recursive: true });
+  await fsp.mkdir(eventsSentDirAbs, { recursive: true });
+  await fsp.mkdir(eventsFailedDirAbs, { recursive: true });
+  await fsp.mkdir(pluginDir, { recursive: true });
+  await fsp.mkdir(packRoot, { recursive: true });
+  await fsp.writeFile(executablePath, "", "utf8");
+  await fsp.writeFile(pack.packPath, JSON.stringify(validPack()), "utf8");
+  await fsp.writeFile(
+    path.join(userDataDir, "session.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      user: { id: "user-1234567890", email: "player@example.com" },
+      session: {
+        access_token: "secret-access-token",
+        refresh_token: "secret-refresh-token",
+      },
+    }),
+    "utf8"
+  );
+
+  return {
+    appDir: root,
+    clientVersion: "0.1.0-test",
+    configExists: false,
+    configPath: path.join(root, "config.json"),
+    configSource: "pack abierto",
+    defaultWeekId: pack.weekId,
+    eventsBaseDirAbs,
+    eventsFailedDirAbs,
+    eventsPendingDirAbs,
+    eventsSentDirAbs,
+    eventsSource: "userData",
+    mame: {
+      executablePath,
+      pluginName: "hsl-score",
+      workingDir: mameRoot,
+    },
+    pack,
+    packErrors: [],
+    packLoaded: true,
+    packPath: pack.packPath,
+    packRoot,
+    sessionFile: "userData/session.json",
+    sessionFileAbs: path.join(userDataDir, "session.json"),
+    supabaseAnonKey: "anon-key",
+    supabaseUrl: "https://example.supabase.co",
+    userDataDir,
+    webBaseUrl: "https://high-score-league.example",
+  };
 }
 
 async function createZipFromDir(sourceDir, zipPath, prefix = "") {
@@ -206,6 +274,72 @@ test("summarizeDiagnoseReport keeps counts without exposing raw tokens", () => {
   assert.equal(summary.recommendationCount, 1);
   assert.deepEqual(summary.sections[0].counts, { OK: 1, WARN: 1 });
   assert.equal(JSON.stringify(summary).includes("access_token"), false);
+});
+
+test("runDiagnose writes a persistent report under userData diagnostics", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createDiagnoseGuiConfig(dir);
+    delete config.supabaseAnonKey;
+    delete config.supabaseUrl;
+    const libraryRoot = path.join(dir, "library");
+    await writeValidPack(libraryRoot);
+    await setPackDirectory(config, libraryRoot, {
+      updatedAt: "2026-07-03T21:14:22.000Z",
+    });
+
+    const result = await runDiagnose({
+      config,
+      diagnosticLogOptions: {
+        now: "2026-07-03T21:14:22.123Z",
+      },
+    });
+
+    assert.equal(result.action, "diagnose");
+    assert.equal(result.diagnosticLogWarning, null);
+    assert.ok(result.diagnosticLog.filePath.startsWith(path.join(config.userDataDir, "diagnostics")));
+    assert.equal(result.diagnosticLog.filePath.startsWith(path.join(__dirname, "..")), false);
+    assert.match(result.diagnosticLog.filename, /^diagnose-2026-07-03T211422123Z\.json$/);
+    assert.ok(result.lines.some((line) => /Informe guardado en diagnostics/.test(line)));
+
+    const raw = await fsp.readFile(result.diagnosticLog.filePath, "utf8");
+    const saved = JSON.parse(raw);
+
+    assert.equal(saved.launcherVersion, "0.1.0-test");
+    assert.equal(saved.paths.userDataDir, config.userDataDir);
+    assert.equal(saved.paths.diagnosticsDir, path.join(config.userDataDir, "diagnostics"));
+    assert.equal(saved.pack.packId, "space-invaders-week-1");
+    assert.equal(saved.pack.gameId, "space-invaders");
+    assert.equal(saved.pack.rom, "invaders");
+    assert.equal(saved.library.totals.packs, 1);
+    assert.equal(saved.queue.totals.pending, 0);
+    assert.equal(saved.session.hasSession, false);
+    assert.equal(saved.diagnose.counts.errors, result.report.errorCount);
+    assert.ok(Array.isArray(saved.diagnose.errors));
+    assert.ok(Array.isArray(saved.diagnose.warnings));
+    assert.ok(Array.isArray(saved.diagnose.recommendations));
+    assert.equal(/access_token|refresh_token|Authorization|secret-access-token|secret-refresh-token/.test(raw), false);
+  });
+});
+
+test("runDiagnose reports diagnostic log write failures without failing diagnose", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createDiagnoseGuiConfig(dir);
+    const result = await runDiagnose({
+      config,
+      diagnosticLogOptions: {
+        writeFileImpl: async () => {
+          throw new Error("disk full");
+        },
+      },
+      includeState: false,
+    });
+
+    assert.equal(result.action, "diagnose");
+    assert.equal(result.diagnosticLog, null);
+    assert.match(result.diagnosticLogWarning, /disk full/);
+    assert.ok(result.lines.some((line) => /No se pudo guardar el informe de diagnostico/.test(line)));
+    assert.ok(result.report);
+  });
 });
 
 test("launcher service exposes manual membership recheck action", () => {
@@ -496,9 +630,17 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /data-action="choose-pack-directory"/);
   assert.match(devTools, /data-action="import-pack"/);
   assert.match(devTools, /Importar pack/);
-  assert.match(devTools, /renderIcon\("import"/);
-  assert.match(app, /window\.hslLauncher\.importPack\(\)/);
-  assert.match(app, /Importando pack/);
+  assert.doesNotMatch(devTools, /renderIcon\("import"/);
+  assert.match(app, /activeDialog: \{ type: "import-pack" \}/);
+  assert.match(app, /window\.hslLauncher\.importPackZip\(\)/);
+  assert.match(app, /window\.hslLauncher\.importPackFolder\(\)/);
+  assert.match(app, /window\.hslLauncher\.onBusyPhase/);
+  assert.match(app, /Eligiendo ZIP/);
+  assert.match(app, /Eligiendo carpeta/);
+  assert.match(app, /runningLabel: "Competición en curso"/);
+  assert.match(app, /closingLabel: "Cerrando competición"/);
+  assert.match(app, /runningLabel: "Práctica en curso"/);
+  assert.match(app, /closingLabel: "Cerrando práctica"/);
   assert.match(app, /"import-pack"/);
   assert.match(libraryPanel, /data-action="open-pack-directory"/);
   assert.match(libraryPanel, /data-action="rescan-pack-directory"/);
@@ -843,8 +985,9 @@ test("renderer pack library groups years and developers without changing alphabe
 });
 
 test("renderer product hierarchy includes connection, player actions, activity and advanced options", async () => {
-  const [app, busyOverlay, header, copy, gamePanel, queuePanel, devTools, styles] = await Promise.all([
+  const [app, appDialog, busyOverlay, header, copy, gamePanel, queuePanel, devTools, styles] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "app-dialog.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "busy-overlay.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "header.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "copy.js"), "utf8"),
@@ -855,8 +998,12 @@ test("renderer product hierarchy includes connection, player actions, activity a
   ]);
 
   assert.match(app, /app-main/);
+  assert.match(app, /import \{ renderAppDialog \} from "\.\/components\/app-dialog\.js"/);
   assert.match(app, /import \{ renderBusyOverlay \} from "\.\/components\/busy-overlay\.js"/);
-  assert.match(app, /renderOverlay\(state\)[\s\S]*renderBusyOverlay\(state\)/);
+  assert.match(app, /renderOverlay\(state\)[\s\S]*renderAppDialog\(state\)[\s\S]*renderBusyOverlay\(state\)/);
+  assert.match(app, /busy: true/);
+  assert.match(app, /busyLabel: "Iniciando"/);
+  assert.match(app, /busy: false,[\s\S]*busyLabel: null,[\s\S]*data,/);
   assert.match(app, /--library-sidebar-width/);
   assert.match(app, /library-resizer/);
   assert.match(app, /data-sidebar-resizer/);
@@ -1231,10 +1378,13 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.busy-overlay[\s\S]*pointer-events: auto/);
   assert.match(styles, /backdrop-filter: blur\(8px\)/);
   assert.match(styles, /\.busy-overlay__panel/);
+  assert.match(styles, /width: clamp\(340px, 34vw, 560px\)/);
+  assert.match(styles, /@media \(min-width: 1500px\)/);
   assert.match(styles, /\.busy-overlay__media/);
   assert.match(styles, /\.busy-overlay__spinner[\s\S]*animation: busy-overlay-spin/);
   assert.match(styles, /@keyframes busy-overlay-spin/);
   assert.match(busyOverlay, /export function renderBusyOverlay/);
+  assert.match(busyOverlay, /export function busyContentFromLabel/);
   assert.match(busyOverlay, /export function busyMessageFromLabel/);
   assert.match(busyOverlay, /state\?\.busy/);
   assert.match(busyOverlay, /state\.busyLabel/);
@@ -1245,10 +1395,27 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(busyOverlay, /alt="Cargando"/);
   assert.match(busyOverlay, /busy-overlay__spinner/);
   assert.equal(/renderIcon/.test(busyOverlay), false);
+  assert.match(appDialog, /export function renderAppDialog/);
+  assert.match(appDialog, /role="dialog"/);
+  assert.match(appDialog, /aria-modal="true"/);
+  assert.match(appDialog, /¿Qué quieres importar\?/);
+  assert.match(appDialog, /action: "import-pack-zip"/);
+  assert.match(appDialog, /action: "import-pack-folder"/);
+  assert.match(appDialog, /action: "close-dialog"/);
+  assert.match(appDialog, /icon: "zip"/);
+  assert.match(appDialog, /icon: "folder"/);
+  assert.match(styles, /\.app-dialog-layer/);
+  assert.match(styles, /\.app-dialog__button--primary/);
   assert.match(styles, /\.drawer-layer/);
   assert.match(styles, /#app[\s\S]*width: 100%[\s\S]*height: 100%/);
   assert.match(styles, /\.launcher-header[\s\S]*min-width: 0/);
   assert.match(styles, /\.header-actions[\s\S]*max-width: min\(62%, 760px\)/);
+  assert.doesNotMatch(header, /busy-chip/);
+  assert.doesNotMatch(styles, /busy-chip/);
+  assert.match(header, /connection-chip/);
+  assert.match(header, /session-chip/);
+  assert.match(header, /toggle-theme/);
+  assert.match(header, /show-settings/);
   assert.match(styles, /\.drawer-layer[\s\S]*grid-template-rows: auto 1fr/);
   assert.match(styles, /\.drawer-layer[\s\S]*overflow: hidden/);
   assert.match(styles, /\.drawer-body[\s\S]*overflow-y: auto/);
@@ -1261,7 +1428,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
 });
 
 test("busy overlay renders blocking action messages without touching favorite microactions", async () => {
-  const { busyMessageFromLabel, renderBusyOverlay } = await import(pathToFileURL(path.join(
+  const { busyContentFromLabel, busyMessageFromLabel, renderBusyOverlay } = await import(pathToFileURL(path.join(
     __dirname,
     "..",
     "gui",
@@ -1271,29 +1438,92 @@ test("busy overlay renders blocking action messages without touching favorite mi
   )).href);
 
   assert.equal(renderBusyOverlay({ busy: false, busyLabel: "Importando pack" }), "");
-  assert.equal(busyMessageFromLabel(null), "Cargando. Espera...");
-  assert.equal(busyMessageFromLabel("Activando pack"), "Activando pack. Espera...");
-  assert.equal(busyMessageFromLabel("Importando pack"), "Importando pack. Espera...");
-  assert.equal(busyMessageFromLabel("Eligiendo directorio"), "Escoge una nueva ubicación para tus packs...");
-  assert.equal(busyMessageFromLabel("Eligiendo MAME"), "Escoge el ejecutable de MAME...");
-  assert.equal(busyMessageFromLabel("Reescaneando"), "Reescaneando biblioteca...");
-  assert.equal(busyMessageFromLabel("Conectando"), "Conectando con High Score League...");
-  assert.equal(busyMessageFromLabel("Subiendo puntuaciones"), "Subiendo puntuaciones...");
+  assert.equal(busyMessageFromLabel(null), "Cargando...");
+
+  const cases = [
+    ["Iniciando", null, null, "startup"],
+    ["Activando pack", null, null, "working"],
+    ["Importando pack", null, null, "working"],
+    ["Eligiendo directorio", null, null, "waiting-user"],
+    ["Eligiendo MAME", null, null, "waiting-user"],
+    ["Reescaneando", null, null, "working"],
+    ["Abriendo competición", null, null, "mame"],
+    ["Competición en curso", null, null, "mame"],
+    ["Cerrando competición", null, null, "mame"],
+    ["Abriendo práctica", null, null, "mame"],
+    ["Práctica en curso", null, null, "mame"],
+    ["Cerrando práctica", null, null, "mame"],
+    ["Subiendo puntuaciones", null, null, "working"],
+  ];
+
+  cases.push(["Eligiendo ZIP", null, null, "waiting-user"]);
+  cases.push(["Eligiendo carpeta", null, null, "waiting-user"]);
+
+  for (const [label, , , variant] of cases) {
+    const content = busyContentFromLabel(label);
+    assert.equal(content.variant, variant);
+    assert.equal(typeof content.title, "string");
+    assert.equal(typeof content.hint, "string");
+    assert.ok(content.title.trim().length > 0);
+    assert.ok(content.hint.trim().length > 0);
+    assert.equal(busyMessageFromLabel(label), content.title);
+  }
 
   const importHtml = renderBusyOverlay({ busy: true, busyLabel: "Importando pack" });
   const fallbackHtml = renderBusyOverlay({ busy: true, busyLabel: null });
+  const importContent = busyContentFromLabel("Importando pack");
 
-  assert.match(importHtml, /class="busy-overlay"/);
+  assert.match(importHtml, /class="busy-overlay/);
+  assert.match(importHtml, /busy-overlay--working/);
   assert.match(importHtml, /role="status"/);
   assert.match(importHtml, /aria-live="polite"/);
   assert.match(importHtml, /aria-busy="true"/);
-  assert.match(importHtml, /aria-label="Importando pack\. Espera\.\.\."/);
+  assert.equal(importHtml.includes(`aria-label="${importContent.title} ${importContent.hint}"`), true);
   assert.match(importHtml, /src="\.\/assets\/loading\.gif"/);
   assert.match(importHtml, /alt="Cargando"/);
   assert.match(importHtml, /busy-overlay__spinner/);
-  assert.match(importHtml, /Importando pack\. Espera\.\.\./);
-  assert.match(importHtml, /El launcher está terminando esta acción\./);
-  assert.match(fallbackHtml, /Cargando\. Espera\.\.\./);
+  assert.equal(importHtml.includes(importContent.title), true);
+  assert.equal(importHtml.includes(importContent.hint), true);
+  assert.doesNotMatch(importHtml, /El launcher está terminando esta acción\./);
+  assert.match(fallbackHtml, /Cargando\.\.\./);
+  assert.match(fallbackHtml, /Espera un momento\.\.\./);
+});
+
+test("internal import dialog renders choices and accessible controls", async () => {
+  const { renderAppDialog } = await import(pathToFileURL(path.join(
+    __dirname,
+    "..",
+    "gui",
+    "renderer",
+    "components",
+    "app-dialog.js",
+  )).href);
+  const html = renderAppDialog({ activeDialog: { type: "import-pack" } });
+  const styles = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"),
+    "utf8",
+  );
+
+  assert.match(renderAppDialog({ activeDialog: null }), /^$/);
+  assert.match(html, /class="app-dialog-layer"/);
+  assert.match(html, /role="dialog"/);
+  assert.match(html, /aria-modal="true"/);
+  assert.match(html, /aria-labelledby="app-dialog-import-pack-title"/);
+  assert.match(html, /aria-describedby="app-dialog-import-pack-description"/);
+  assert.match(html, /¿Qué quieres importar\?/);
+  assert.match(html, /Archivo ZIP/);
+  assert.match(html, /Carpeta/);
+  assert.match(html, /Cancelar/);
+  assert.match(html, /data-action="import-pack-zip"/);
+  assert.match(html, /data-action="import-pack-folder"/);
+  assert.match(html, /data-action="close-dialog"/);
+  assert.match(html, /app-dialog__button--primary" type="button" data-action="import-pack-zip"/);
+  assert.match(html, /app-dialog__button--primary" type="button" data-action="import-pack-folder"/);
+  assert.doesNotMatch(html, /app-dialog__button--primary" type="button" data-action="close-dialog"/);
+  assert.match(styles, /\.app-dialog__button--primary[\s\S]*background: var\(--circuit\)[\s\S]*color: var\(--text-inverse\)/);
+  assert.match(styles, /\.app-dialog__button--primary \.app-dialog__button-icon[\s\S]*color: var\(--text-inverse\)/);
+  assert.match(html, /ui-icon--zip/);
+  assert.match(html, /ui-icon--folder/);
 });
 
 test("game detail metadata renders four normalized fields", async () => {
@@ -1361,6 +1591,27 @@ test("game detail metadata renders four normalized fields", async () => {
   assert.equal(/star-empty|game-favorite-chip|>Favorito</.test(favoriteHtml), false);
 });
 
+test("initial renderer state keeps game detail neutral until data is loaded", async () => {
+  const { renderGamePanel } = await import(pathToFileURL(path.join(
+    __dirname,
+    "..",
+    "gui",
+    "renderer",
+    "components",
+    "game-panel.js",
+  )).href);
+  const html = renderGamePanel({ busy: true, busyLabel: "Iniciando", data: null });
+
+  assert.match(html, /game-detail-card--empty/);
+  assert.match(html, /aria-busy="true"/);
+  assert.doesNotMatch(html, /Space Invaders/);
+  assert.doesNotMatch(html, /Listo con avisos/i);
+  assert.doesNotMatch(html, /Auto-sync activo/i);
+  assert.doesNotMatch(html, /Sin datos/);
+  assert.doesNotMatch(html, /data-action="play"/);
+  assert.doesNotMatch(html, /data-action="practice"/);
+});
+
 test("library pending selection does not become active in any view", async () => {
   const { renderPackCard } = await import(pathToFileURL(path.join(
     __dirname,
@@ -1416,20 +1667,29 @@ test("manual and ranking IPC stay in main process", async () => {
   assert.match(main, /shell\.openPath/);
   assert.match(main, /launcher:open-ranking/);
   assert.match(main, /shell\.openExternal/);
-  assert.match(main, /launcher:import-pack/);
-  assert.match(main, /showMessageBox/);
-  assert.match(main, /Archivo ZIP/);
-  assert.match(main, /Carpeta/);
+  assert.doesNotMatch(main, /launcher:import-pack"/);
+  assert.doesNotMatch(main, /showMessageBox/);
   assert.match(main, /showImportZipDialog/);
   assert.match(main, /showImportFolderDialog/);
+  assert.match(main, /sendBusyPhase\(event, "Importando pack"\)/);
+  assert.match(main, /launcher:busy-phase/);
+  assert.match(main, /launcher:import-pack-zip/);
+  assert.match(main, /launcher:import-pack-folder/);
+  assert.match(main, /dialog\.showOpenDialog/);
   assert.match(main, /minWidth: 1180/);
   assert.match(main, /minHeight: 620/);
   assert.match(preload, /openManual/);
   assert.match(preload, /openRanking/);
-  assert.match(preload, /importPack: invoke\("launcher:import-pack"\)/);
+  assert.doesNotMatch(preload, /importPack: invoke\("launcher:import-pack"\)/);
+  assert.match(preload, /importPackZip: invoke\("launcher:import-pack-zip"\)/);
+  assert.match(preload, /importPackFolder: invoke\("launcher:import-pack-folder"\)/);
+  assert.match(preload, /onBusyPhase/);
+  assert.match(preload, /ipcRenderer\.on\(channel, handler\)/);
   assert.match(app, /window\.hslLauncher\.openManual/);
   assert.match(app, /window\.hslLauncher\.openRanking/);
-  assert.match(app, /window\.hslLauncher\.importPack\(\)/);
+  assert.doesNotMatch(app, /window\.hslLauncher\.importPack\(\)/);
+  assert.match(app, /window\.hslLauncher\.importPackZip\(\)/);
+  assert.match(app, /window\.hslLauncher\.importPackFolder\(\)/);
   assert.equal(/nodeIntegration:\s*true/.test(main), false);
 });
 
@@ -1495,6 +1755,7 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
     "password.svg",
     "close.svg",
     "connection.svg",
+    "zip.svg",
   ].forEach((filename) => assert.match(icon, new RegExp(filename.replace(".", "\\."))));
 
   assert.match(icon, /const ICON_ROOT = "\.\/assets\/icons\/"/);

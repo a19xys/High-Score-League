@@ -1,5 +1,6 @@
 import { createStore, appendLog } from "./state.js";
 import { COPY } from "./components/copy.js";
+import { renderAppDialog } from "./components/app-dialog.js";
 import { renderBusyOverlay } from "./components/busy-overlay.js";
 import { renderDevTools } from "./components/dev-tools.js";
 import { renderGamePanel } from "./components/game-panel.js";
@@ -18,12 +19,13 @@ const LAUNCHER_VERSION = "v1.0.0";
 const DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 600;
 const store = createStore({
   accountMenuOpen: false,
+  activeDialog: null,
   activeOverlay: null,
   authError: null,
   authEmail: "",
   authFormOpen: false,
-  busy: false,
-  busyLabel: null,
+  busy: true,
+  busyLabel: "Iniciando",
   connectionStatus: navigator.onLine === false ? "offline" : "connected",
   data: null,
   libraryFavoriteFilter: "all",
@@ -56,8 +58,14 @@ let metadataLayoutFrame = 0;
 let favoriteTitleResizeObserver = null;
 let favoriteTitleFrame = 0;
 let currentDetailScrollKey = null;
+let currentDialogType = null;
+let busyRunSequence = 0;
 const detailAssetPreloadCache = new Map();
 const favoriteSyncByKey = new Map();
+
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
 function clampSidebarWidth(value) {
   const numeric = Number(value);
@@ -542,12 +550,28 @@ function render() {
     </main>
     ${renderStatusFooter()}
     ${renderOverlay(state)}
+    ${renderAppDialog(state)}
     ${renderBusyOverlay(state)}
   `;
   restoreMainScrollState(scrollState, { resetGame: resetGameScroll });
   currentDetailScrollKey = nextDetailScrollKey;
   syncGameMetadataLayout();
   syncFavoriteTitleMarks();
+  syncDialogFocus(state);
+}
+
+function syncDialogFocus(state) {
+  const dialogType = state.activeDialog?.type || null;
+
+  if (!dialogType || dialogType === currentDialogType) {
+    currentDialogType = dialogType;
+    return;
+  }
+
+  currentDialogType = dialogType;
+  window.requestAnimationFrame(() => {
+    root.querySelector("[data-dialog-initial-focus]")?.focus();
+  });
 }
 
 async function refreshState() {
@@ -565,6 +589,8 @@ async function refreshState() {
     }));
 
   store.setState({
+    busy: false,
+    busyLabel: null,
     data,
     libraryFavoriteFilter: data.session?.hasSession ? current.libraryFavoriteFilter : "all",
     ...libraryPreferencesStatePatch(data, current, allowLibraryPreferenceHydration),
@@ -854,13 +880,32 @@ function resultToLog(title, response) {
   };
 }
 
-async function runAction(action, busyLabel, title, fn) {
+async function runAction(action, busyLabel, title, fn, options = {}) {
   if (store.getState().busy) return;
 
+  const runId = ++busyRunSequence;
+  let phaseTimer = null;
   store.setState({ ...closeAccountMenuState(), busy: true, busyLabel });
+
+  if (options.runningLabel) {
+    phaseTimer = window.setTimeout(() => {
+      const current = store.getState();
+
+      if (runId === busyRunSequence && current.busy) {
+        store.setState({ busyLabel: options.runningLabel });
+      }
+    }, options.runningDelayMs || 1200);
+  }
 
   try {
     const response = await fn();
+    window.clearTimeout(phaseTimer);
+
+    if (options.closingLabel) {
+      store.setState({ busyLabel: options.closingLabel });
+      await delay(options.closingDelayMs || 450);
+    }
+
     const statePatch = {
       busy: false,
       busyLabel: null,
@@ -873,6 +918,7 @@ async function runAction(action, busyLabel, title, fn) {
 
     store.setState(statePatch);
   } catch (error) {
+    window.clearTimeout(phaseTimer);
     store.setState({
       busy: false,
       busyLabel: null,
@@ -1140,6 +1186,11 @@ function bindActions() {
     const pointerStartedInsideAccountMenu = accountMenuPointerStartedInside;
     accountMenuPointerStartedInside = false;
 
+    if (target?.matches("[data-dialog-backdrop]")) {
+      store.setState({ activeDialog: null });
+      return;
+    }
+
     if (target?.matches("[data-overlay-backdrop]")) {
       store.setState({ activeOverlay: null });
       return;
@@ -1199,6 +1250,10 @@ function bindActions() {
       store.setState({ activeOverlay: null });
     }
 
+    if (action === "close-dialog") {
+      store.setState({ activeDialog: null });
+    }
+
     if (action === "set-library-view") {
       const libraryView = button.dataset.view || "covers";
       markLibraryPreferenceUserChange();
@@ -1256,7 +1311,17 @@ function bindActions() {
     }
 
     if (action === "import-pack") {
-      runAction(action, "Importando pack", "Importar pack", () => window.hslLauncher.importPack());
+      store.setState({ activeDialog: { type: "import-pack" } });
+    }
+
+    if (action === "import-pack-zip") {
+      store.setState({ activeDialog: null });
+      runAction("import-pack", "Eligiendo ZIP", "Importar pack", () => window.hslLauncher.importPackZip());
+    }
+
+    if (action === "import-pack-folder") {
+      store.setState({ activeDialog: null });
+      runAction("import-pack", "Eligiendo carpeta", "Importar pack", () => window.hslLauncher.importPackFolder());
     }
 
     if (action === "choose-shared-mame-runtime") {
@@ -1301,11 +1366,17 @@ function bindActions() {
     }
 
     if (action === "play") {
-      runAction(action, "Abriendo competición", COPY.actions.play, () => window.hslLauncher.playCompetition());
+      runAction(action, "Abriendo competición", COPY.actions.play, () => window.hslLauncher.playCompetition(), {
+        closingLabel: "Cerrando competición",
+        runningLabel: "Competición en curso",
+      });
     }
 
     if (action === "practice") {
-      runAction(action, "Abriendo práctica", COPY.actions.practice, () => window.hslLauncher.practice());
+      runAction(action, "Abriendo práctica", COPY.actions.practice, () => window.hslLauncher.practice(), {
+        closingLabel: "Cerrando práctica",
+        runningLabel: "Práctica en curso",
+      });
     }
 
     if (action === "submit") {
@@ -1346,8 +1417,8 @@ window.addEventListener("keydown", (event) => {
 
   const state = store.getState();
 
-  if (state.activeOverlay || state.accountMenuOpen) {
-    store.setState({ ...closeAccountMenuState(), activeOverlay: null });
+  if (state.activeDialog || state.activeOverlay || state.accountMenuOpen) {
+    store.setState({ ...closeAccountMenuState(), activeDialog: null, activeOverlay: null });
   }
 });
 window.addEventListener("offline", () => store.setState({ connectionStatus: "offline" }));
@@ -1355,8 +1426,17 @@ window.addEventListener("online", () => {
   store.setState({ connectionStatus: "reconnecting" });
   window.setTimeout(() => store.setState({ connectionStatus: "connected" }), 800);
 });
+window.hslLauncher.onBusyPhase?.((phase) => {
+  const label = String(phase?.label || "").trim();
+
+  if (label && store.getState().busy) {
+    store.setState({ busyLabel: label });
+  }
+});
 refreshState().catch((error) => {
   store.setState({
+    busy: false,
+    busyLabel: null,
     logs: appendLog(store.getState().logs, {
       details: [error.message || String(error)],
       ok: false,

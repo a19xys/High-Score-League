@@ -1,6 +1,15 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const invoke = (channel) => () => ipcRenderer.invoke(channel);
+const onEvent = (channel, callback) => {
+  if (typeof callback !== "function") {
+    return () => {};
+  }
+
+  const handler = (_event, payload) => callback(payload);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+};
 
 contextBridge.exposeInMainWorld("hslLauncher", {
   choosePackDirectory: invoke("launcher:choose-pack-directory"),
@@ -9,7 +18,6 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   diagnose: invoke("launcher:diagnose"),
   getAuthState: invoke("launcher:get-auth-state"),
   getState: invoke("launcher:get-state"),
-  importPack: invoke("launcher:import-pack"),
   importPackFolder: invoke("launcher:import-pack-folder"),
   importPackZip: invoke("launcher:import-pack-zip"),
   login: (email, password) => ipcRenderer.invoke("launcher:login", { email, password }),
@@ -19,6 +27,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   openPack: invoke("launcher:open-pack"),
   openMembershipUrl: invoke("launcher:open-membership-url"),
   openManual: invoke("launcher:open-manual"),
+  onBusyPhase: (callback) => onEvent("launcher:busy-phase", callback),
   playCompetition: invoke("launcher:play-competition"),
   practice: invoke("launcher:practice"),
   openRanking: invoke("launcher:open-ranking"),

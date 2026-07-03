@@ -26,7 +26,11 @@ function createMainWindow() {
   });
 }
 
-async function showImportZipDialog() {
+function sendBusyPhase(event, label) {
+  event?.sender?.send("launcher:busy-phase", { label });
+}
+
+async function showImportZipDialog(event) {
   const result = await dialog.showOpenDialog(mainWindow, {
     buttonLabel: "Importar ZIP",
     filters: [
@@ -41,10 +45,11 @@ async function showImportZipDialog() {
     return service.cancelImportPack();
   }
 
+  sendBusyPhase(event, "Importando pack");
   return service.importPackFromZipForGui(result.filePaths[0]);
 }
 
-async function showImportFolderDialog() {
+async function showImportFolderDialog(event) {
   const result = await dialog.showOpenDialog(mainWindow, {
     buttonLabel: "Importar carpeta",
     message: "Elige la carpeta del pack o una carpeta con un unico pack dentro",
@@ -56,6 +61,7 @@ async function showImportFolderDialog() {
     return service.cancelImportPack();
   }
 
+  sendBusyPhase(event, "Importando pack");
   return service.importPackFromFolderForGui(result.filePaths[0]);
 }
 
@@ -91,29 +97,8 @@ function registerIpc() {
 
     return service.choosePackDirectoryFromGui(result.filePaths[0]);
   });
-  ipcMain.handle("launcher:import-pack", async () => {
-    const result = await dialog.showMessageBox(mainWindow, {
-      buttons: ["Archivo ZIP", "Carpeta", "Cancelar"],
-      cancelId: 2,
-      defaultId: 0,
-      message: "Que quieres importar?",
-      noLink: true,
-      title: "Importar pack",
-      type: "question",
-    });
-
-    if (result.response === 0) {
-      return showImportZipDialog();
-    }
-
-    if (result.response === 1) {
-      return showImportFolderDialog();
-    }
-
-    return service.cancelImportPack();
-  });
-  ipcMain.handle("launcher:import-pack-zip", () => showImportZipDialog());
-  ipcMain.handle("launcher:import-pack-folder", () => showImportFolderDialog());
+  ipcMain.handle("launcher:import-pack-zip", (event) => showImportZipDialog(event));
+  ipcMain.handle("launcher:import-pack-folder", (event) => showImportFolderDialog(event));
   ipcMain.handle("launcher:open-pack-directory", () => service.openConfiguredPackDirectory({
     openPathImpl: (directoryPath) => shell.openPath(directoryPath),
   }));

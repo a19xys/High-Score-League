@@ -45,6 +45,7 @@ export const ICONS = Object.freeze({
   "view-list": { fallback: "=", file: "view-list.svg" },
   warning: { fallback: "!", file: "warning.svg" },
   year: { fallback: "Y", file: "year.svg" },
+  zip: { fallback: "ZIP", file: "zip.svg" },
 });
 
 const ICON_ROOT = "./assets/icons/";

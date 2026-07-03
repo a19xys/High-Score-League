@@ -28,6 +28,7 @@ const {
   signInWithPassword,
 } = require("../src/auth");
 const { buildDiagnoseReport } = require("../src/diagnose");
+const { writeDiagnosticReport } = require("../src/diagnostic-logs");
 const { listJsonFiles, readEventFile } = require("../src/event-files");
 const { listSupportedGames } = require("../src/games");
 const { launchMame, launchMameDetailed } = require("../src/mame-launcher");
@@ -1149,22 +1150,46 @@ function readinessBlockedResponse(action, readiness, capability) {
   };
 }
 
-async function runDiagnose() {
-  await ensureRememberedPackLoaded();
-  const config = getEffectiveConfig();
+async function runDiagnose(options = {}) {
+  if (!options.config) {
+    await ensureRememberedPackLoaded();
+  }
+
+  const config = options.config || getEffectiveConfig();
   const report = await buildDiagnoseReport(config);
+  const summary = summarizeDiagnoseReport(report);
+  const state = options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config));
   const source = config.configSource === "pack abierto" ? "pack abierto" : "configuración local";
+
+  let diagnosticLog = null;
+  let diagnosticLogWarning = null;
+
+  try {
+    diagnosticLog = await writeDiagnosticReport(config, report, {
+      source,
+      state,
+      summary,
+    }, options.diagnosticLogOptions || {});
+  } catch (error) {
+    diagnosticLogWarning = normalizeMessage(error);
+  }
 
   return {
     action: "diagnose",
     lines: [
+      ...(diagnosticLog
+        ? [`Informe guardado en diagnostics: ${diagnosticLog.filePath}`]
+        : ["No se pudo guardar el informe de diagnostico."]),
+      ...(diagnosticLogWarning ? [`Detalle: ${diagnosticLogWarning}`] : []),
       `Origen: ${source}.`,
       `Diagnóstico: ${report.errors.length} errores, ${report.warnings.length} advertencias.`,
       ...[...new Set(report.recommendations)].map((item) => `Recomendación: ${item}`),
     ],
+    diagnosticLog,
+    diagnosticLogWarning,
     ok: report.errors.length === 0,
-    report: summarizeDiagnoseReport(report),
-    state: await getLauncherState(),
+    report: summary,
+    state,
   };
 }
 

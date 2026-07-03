@@ -178,17 +178,30 @@ El drawer de Configuracion muestra una accion visible:
 Importar pack
 ```
 
-Durante la operacion se usa `busyLabel: "Importando pack"`. El boton unico
-invoca:
+La accion abre un dialogo interno del launcher, no un popup nativo de
+confirmacion:
 
 ```text
-launcher:import-pack
+¿Qué quieres importar?
+[Archivo ZIP] [Carpeta] [Cancelar]
 ```
 
-El proceso principal pregunta si se quiere importar archivo ZIP o carpeta y
-abre el dialogo correspondiente. Los handlers internos
-`launcher:import-pack-zip` y `launcher:import-pack-folder` se mantienen como
-acciones concretas, sin exponer filesystem generico al renderer.
+El renderer solo decide el tipo de importacion mediante ese dialogo interno.
+Despues invoca una accion concreta:
+
+```text
+Archivo ZIP -> launcher:import-pack-zip
+Carpeta     -> launcher:import-pack-folder
+```
+
+El selector nativo de Electron se mantiene para escoger la ruta real del ZIP o
+de la carpeta, porque es cross-platform y evita exponer un explorador de
+archivos propio al renderer. El renderer no recibe permisos de filesystem
+generico ni rutas arbitrarias fuera de esos handlers concretos.
+
+Durante la espera del selector se usan `busyLabel: "Eligiendo ZIP"` o
+`busyLabel: "Eligiendo carpeta"`. La importacion sigue entrando por los
+servicios GUI seguros y devuelve el estado actualizado cuando termina.
 
 ## Queda fuera
 

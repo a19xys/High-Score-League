@@ -85,7 +85,6 @@ export function renderDevTools(state) {
       </div>
       <div class="dev-actions">
         <button class="tool-button" type="button" data-action="import-pack" ${disabled}>
-          ${renderIcon("import", { className: "tool-button-icon", fallback: "I" })}
           Importar pack
           <small>ZIP o carpeta</small>
         </button>
