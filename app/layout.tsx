@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { Manrope } from "next/font/google";
 import { SiteNav } from "@/components/site-nav";
 import "./globals.css";
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "High Score League",
@@ -101,7 +109,7 @@ export default async function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>
+      <body className={manrope.variable}>
         <SiteNav />
         <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
       </body>

@@ -1,3 +1,43 @@
+@font-face {
+  font-family: "Manrope";
+  src: url("../assets/fonts/manrope/Manrope-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Manrope";
+  src: url("../assets/fonts/manrope/Manrope-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Manrope";
+  src: url("../assets/fonts/manrope/Manrope-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Manrope";
+  src: url("../assets/fonts/manrope/Manrope-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Manrope";
+  src: url("../assets/fonts/manrope/Manrope-ExtraBold.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -9,7 +49,8 @@ body {
     linear-gradient(135deg, color-mix(in srgb, var(--background) 92%, var(--surface-strong)), var(--background) 58%),
     var(--background);
   color: var(--text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
+  font-weight: 400;
   letter-spacing: 0;
 }
 
@@ -997,7 +1038,7 @@ button:disabled {
   max-height: 210px;
   margin: 10px 0 0;
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -1563,7 +1604,7 @@ button:disabled {
   overflow: hidden;
   margin: 0;
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1601,7 +1642,7 @@ button:disabled {
   width: fit-content;
   border-radius: 999px;
   padding: 2px 7px;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
@@ -5514,8 +5555,33 @@ html:not([data-theme="dark"]) .favorite-slot:hover:not(:disabled) {
 
 .game-detail-card .compact-action .action-button-label {
   font-size: 20px;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1.1;
+}
+
+/* HSL-MANROPE-TYPOGRAPHY-1: calmer interface weights for Manrope. */
+.eyebrow,
+.badge,
+.check-level,
+.library-control-button,
+.view-button,
+.theme-button,
+.icon-button,
+.app-dialog__button {
+  font-weight: 700;
+}
+
+.library-open-label,
+.game-title-main h2,
+.busy-overlay__message,
+.game-detail-card .play-button .action-button-label,
+.game-detail-card .primary-action-tile .action-button-label {
+  font-weight: 800;
+}
+
+.game-metadata-value,
+.game-detail-card .compact-action .action-button-label {
+  font-weight: 700;
 }
 
 /* LOCAL-LAUNCHER-DETAIL-WIDTH-HERO-STAR-FIX-1: detail width, hero logo and favorite filter star. */

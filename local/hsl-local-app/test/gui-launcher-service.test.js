@@ -1307,7 +1307,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-metadata-item[\s\S]*border-right: 1px solid var\(--border\)/);
   assert.match(styles, /\.game-metadata-icon \.ui-icon__fallback[\s\S]*display: none !important/);
   assert.match(styles, /\.game-metadata-label[\s\S]*position: absolute !important[\s\S]*clip-path: inset\(50%\)/);
-  assert.match(styles, /\.game-metadata-value[\s\S]*font-size: 16px[\s\S]*font-weight: 900[\s\S]*white-space: nowrap/);
+  assert.match(styles, /\.game-metadata-value[\s\S]*font-size: 16px[\s\S]*white-space: nowrap/);
   const metadataBaseStyles = styles.slice(
     styles.indexOf(".game-metadata-grid {"),
     styles.indexOf(".game-metadata-grid--fallback"),
@@ -1324,6 +1324,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-detail-card \.compact-action \.action-icon\.ui-icon[\s\S]*width: 38px[\s\S]*height: 38px/);
   assert.match(styles, /\.game-detail-card \.play-button \.action-button-label,[\s\S]*\.game-detail-card \.primary-action-tile \.action-button-label[\s\S]*font-size: 24px/);
   assert.match(styles, /\.game-detail-card \.compact-action \.action-button-label[\s\S]*font-size: 20px/);
+  assert.match(styles, /HSL-MANROPE-TYPOGRAPHY-1/);
+  assert.match(styles, /\.game-metadata-value,[\s\S]*\.game-detail-card \.compact-action \.action-button-label[\s\S]*font-weight: 700/);
+  assert.match(styles, /\.library-open-label,[\s\S]*\.game-title-main h2,[\s\S]*\.busy-overlay__message,[\s\S]*font-weight: 800/);
   assert.equal(styles.lastIndexOf("font-size: 24px") > styles.lastIndexOf("font-size: 19px"), true);
   assert.equal(styles.lastIndexOf("font-size: 20px") > styles.lastIndexOf("font-size: 16.5px"), true);
   assert.equal(styles.lastIndexOf("width: 46px") > styles.lastIndexOf("width: 40px"), true);
