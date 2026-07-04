@@ -10,6 +10,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        title: ["var(--font-title)", "var(--font-sans)", "system-ui", "sans-serif"],
       },
       colors: {
         ink: "#111827",

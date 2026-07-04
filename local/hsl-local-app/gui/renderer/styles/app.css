@@ -38,6 +38,38 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Sora";
+  src: url("../assets/fonts/sora/Sora-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sora";
+  src: url("../assets/fonts/sora/Sora-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sora";
+  src: url("../assets/fonts/sora/Sora-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sora";
+  src: url("../assets/fonts/sora/Sora-ExtraBold.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -125,6 +157,7 @@ main,
 
 h1,
 h2,
+h3,
 p {
   margin: 0;
 }
@@ -5584,6 +5617,20 @@ html:not([data-theme="dark"]) .favorite-slot:hover:not(:disabled) {
   font-weight: 700;
 }
 
+h1,
+h2,
+h3,
+.panel-heading h2,
+.summary-account h2,
+.pack-card__text h3,
+.game-title-main h2,
+.app-dialog__header h2,
+.busy-overlay__message,
+.library-open-label,
+.account-menu__active strong {
+  font-family: var(--font-title);
+}
+
 /* LOCAL-LAUNCHER-DETAIL-WIDTH-HERO-STAR-FIX-1: detail width, hero logo and favorite filter star. */
 .library-favorite-filter-button .library-favorite-filter-icon.ui-icon {
   background: transparent;
@@ -5645,4 +5692,122 @@ html:not([data-theme="dark"]) .favorite-slot:hover:not(:disabled) {
   height: 58%;
   max-height: 70%;
   object-fit: contain;
+}
+
+/* WEB-LOCAL-LIGHT-THEME-SORA-PASS-1: refined light surfaces, controls and icon stages. */
+html:not([data-theme="dark"]) body {
+  background:
+    radial-gradient(circle at 16% 12%, color-mix(in srgb, var(--circuit) 10%, transparent), transparent 28rem),
+    linear-gradient(135deg, color-mix(in srgb, var(--background) 94%, white), var(--background) 62%);
+}
+
+html:not([data-theme="dark"]) .launcher-header,
+html:not([data-theme="dark"]) .panel,
+html:not([data-theme="dark"]) .advanced-shell,
+html:not([data-theme="dark"]) .pack-card,
+html:not([data-theme="dark"]) .game-detail-card,
+html:not([data-theme="dark"]) .account-menu,
+html:not([data-theme="dark"]) .app-dialog,
+html:not([data-theme="dark"]) .busy-overlay__panel {
+  border-color: var(--border-soft);
+  background: color-mix(in srgb, var(--surface-elevated) 94%, var(--surface-subtle));
+  box-shadow: var(--shadow-panel);
+}
+
+html:not([data-theme="dark"]) .game-metadata-grid,
+html:not([data-theme="dark"]) .activity-summary-card,
+html:not([data-theme="dark"]) .account-row__surface,
+html:not([data-theme="dark"]) .known-accounts li,
+html:not([data-theme="dark"]) .auth-form,
+html:not([data-theme="dark"]) .account-note {
+  border-color: var(--border-soft);
+  background: var(--surface-subtle);
+}
+
+html:not([data-theme="dark"]) .library-control-button,
+html:not([data-theme="dark"]) .view-button,
+html:not([data-theme="dark"]) .secondary-action,
+html:not([data-theme="dark"]) .tool-button,
+html:not([data-theme="dark"]) .theme-button,
+html:not([data-theme="dark"]) .icon-button,
+html:not([data-theme="dark"]) .app-dialog__button {
+  border-color: color-mix(in srgb, var(--border) 84%, var(--circuit));
+  background: color-mix(in srgb, var(--surface) 82%, var(--circuit-soft));
+  color: var(--text);
+}
+
+html:not([data-theme="dark"]) .library-control-button:hover:not(:disabled),
+html:not([data-theme="dark"]) .view-button:hover:not(:disabled),
+html:not([data-theme="dark"]) .secondary-action:hover:not(:disabled),
+html:not([data-theme="dark"]) .tool-button:hover:not(:disabled),
+html:not([data-theme="dark"]) .theme-button:hover,
+html:not([data-theme="dark"]) .icon-button:hover,
+html:not([data-theme="dark"]) .app-dialog__button:hover {
+  border-color: color-mix(in srgb, var(--circuit) 48%, var(--border));
+  background: var(--hover);
+  color: var(--circuit-strong);
+}
+
+html:not([data-theme="dark"]) .view-button--active,
+html:not([data-theme="dark"]) .library-filter-toggle--open,
+html:not([data-theme="dark"]) .library-control-button.library-filter-toggle--open {
+  border-color: color-mix(in srgb, var(--circuit) 58%, var(--border));
+  background: var(--circuit-soft);
+  color: var(--circuit-strong);
+}
+
+html:not([data-theme="dark"]) .pack-card__media {
+  border-color: color-mix(in srgb, var(--icon-stage-strong) 72%, white);
+  background:
+    radial-gradient(circle at 50% 34%, rgb(255 255 255 / 0.54), transparent 54%),
+    linear-gradient(135deg, var(--icon-stage), var(--icon-stage-strong));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.62),
+    0 10px 24px rgb(31 58 90 / 0.12);
+}
+
+html:not([data-theme="dark"]) .pack-card--icons .pack-card__media {
+  background:
+    radial-gradient(circle at 50% 35%, rgb(255 255 255 / 0.5), transparent 58%),
+    linear-gradient(135deg, #dbe8f5, #c8d8e9);
+}
+
+html:not([data-theme="dark"]) .pack-card__media img {
+  filter: drop-shadow(0 5px 8px rgb(15 39 66 / 0.28));
+}
+
+html:not([data-theme="dark"]) .game-metadata-icon.ui-icon,
+html:not([data-theme="dark"]) .game-week-icon.ui-icon,
+html:not([data-theme="dark"]) .pack-card__subtitle-icon.ui-icon {
+  color: color-mix(in srgb, var(--circuit-strong) 72%, var(--text-muted));
+}
+
+html:not([data-theme="dark"]) .badge-accent {
+  border-color: color-mix(in srgb, var(--circuit) 48%, var(--border));
+  background: var(--circuit-soft);
+  color: var(--circuit-strong);
+}
+
+html:not([data-theme="dark"]) .badge-muted {
+  border-color: var(--border-soft);
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+html:not([data-theme="dark"]) .badge-ok {
+  border-color: color-mix(in srgb, var(--ok) 34%, var(--border));
+  background: color-mix(in srgb, var(--ok-bg) 72%, white);
+  color: var(--ok);
+}
+
+html:not([data-theme="dark"]) .badge-warn {
+  border-color: color-mix(in srgb, var(--warn) 38%, var(--border));
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+html:not([data-theme="dark"]) .badge-error {
+  border-color: color-mix(in srgb, var(--error) 34%, var(--border));
+  background: var(--error-bg);
+  color: var(--error);
 }

@@ -1,25 +1,35 @@
 :root {
   color-scheme: light;
   --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-title: "Sora", var(--font-sans);
   --font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-  --background: #f8fafc;
-  --surface: #ffffff;
-  --surface-muted: #f1f5f9;
-  --surface-strong: #111827;
-  --border: #e2e8f0;
-  --text: #111827;
-  --text-muted: #64748b;
+  --background: #eef4fb;
+  --surface: #fbfdff;
+  --surface-muted: #e7eef7;
+  --surface-strong: #0f2742;
+  --surface-elevated: #ffffff;
+  --surface-subtle: #f3f7fc;
+  --border: #c8d5e4;
+  --border-soft: #dce6f1;
+  --text: #10243f;
+  --text-muted: #55708c;
+  --text-soft: #7a8fa6;
   --text-inverse: #ffffff;
-  --hover: #f1f5f9;
-  --circuit: #0891b2;
-  --circuit-strong: #0e7490;
-  --ok: #16a34a;
+  --hover: #e4edf7;
+  --circuit: #0f78a8;
+  --circuit-strong: #0b5f87;
+  --circuit-soft: #d9eef8;
+  --icon-stage: #d7e5f2;
+  --icon-stage-strong: #c3d4e7;
+  --ok: #15803d;
   --ok-bg: #dcfce7;
-  --warn: #d97706;
-  --warn-bg: #fef3c7;
-  --error: #dc2626;
+  --warn: #b45309;
+  --warn-bg: #fff3c4;
+  --error: #b91c1c;
   --error-bg: #fee2e2;
-  --shadow-panel: 0 18px 45px rgb(15 23 42 / 0.12);
+  --info: #1d4ed8;
+  --info-bg: #dbeafe;
+  --shadow-panel: 0 20px 50px rgb(31 58 90 / 0.14);
 }
 
 [data-theme="dark"] {
@@ -28,18 +38,27 @@
   --surface: #172033;
   --surface-muted: #1e293b;
   --surface-strong: #020617;
+  --surface-elevated: #172033;
+  --surface-subtle: #1e293b;
   --border: #334155;
+  --border-soft: #26364a;
   --text: #e5e7eb;
   --text-muted: #94a3b8;
+  --text-soft: #718096;
   --text-inverse: #ffffff;
   --hover: #263244;
   --circuit: #22d3ee;
   --circuit-strong: #06b6d4;
+  --circuit-soft: #0e3c4c;
+  --icon-stage: #172033;
+  --icon-stage-strong: #020617;
   --ok: #4ade80;
   --ok-bg: #052e1a;
   --warn: #fbbf24;
   --warn-bg: #3b2605;
   --error: #f87171;
   --error-bg: #450a0a;
+  --info: #60a5fa;
+  --info-bg: #10233f;
   --shadow-panel: 0 24px 60px rgb(2 6 23 / 0.34);
 }

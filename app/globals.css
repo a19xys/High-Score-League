@@ -4,27 +4,30 @@
 
 :root {
   color-scheme: light dark;
-  --background: #f8fafc;
-  --surface: #ffffff;
-  --surface-muted: #f1f5f9;
-  --surface-strong: #111827;
-  --border: #e2e8f0;
-  --text: #111827;
-  --text-muted: #64748b;
+  --background: #eef4fb;
+  --surface: #fbfdff;
+  --surface-muted: #e7eef7;
+  --surface-strong: #10243f;
+  --surface-elevated: #ffffff;
+  --surface-hover: #e4edf7;
+  --border: #c8d5e4;
+  --border-soft: #dce6f1;
+  --text: #10243f;
+  --text-muted: #55708c;
   --text-inverse: #ffffff;
-  --table-head: #f8fafc;
-  --hover: #f1f5f9;
-  --gold-row: #fff7d6;
-  --gold-row-hover: #fde68a;
-  --silver-row: #eef2f7;
-  --silver-row-hover: #dbe3ee;
-  --bronze-row: #ffead5;
-  --bronze-row-hover: #fed7aa;
-  --benchmark-row: #f8fafc;
-  --benchmark-row-hover: #e2e8f0;
-  --warning-surface: #fef3c7;
-  --warning-border: #f59e0b;
-  --warning-text: #78350f;
+  --table-head: #f3f7fc;
+  --hover: #e4edf7;
+  --gold-row: #fff4c7;
+  --gold-row-hover: #f8dc7a;
+  --silver-row: #e8eef6;
+  --silver-row-hover: #d4dfec;
+  --bronze-row: #ffe4cc;
+  --bronze-row-hover: #f7c795;
+  --benchmark-row: #f3f7fc;
+  --benchmark-row-hover: #dce6f1;
+  --warning-surface: #fff3c4;
+  --warning-border: #d97706;
+  --warning-text: #7c3d02;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -34,7 +37,10 @@
     --surface: #172033;
     --surface-muted: #1e293b;
     --surface-strong: #020617;
+    --surface-elevated: #172033;
+    --surface-hover: #263244;
     --border: #334155;
+    --border-soft: #26364a;
     --text: #e5e7eb;
     --text-muted: #94a3b8;
     --text-inverse: #ffffff;
@@ -64,7 +70,10 @@ html[data-theme="dark"] {
   --surface: #172033;
   --surface-muted: #1e293b;
   --surface-strong: #020617;
+  --surface-elevated: #172033;
+  --surface-hover: #263244;
   --border: #334155;
+  --border-soft: #26364a;
   --text: #e5e7eb;
   --text-muted: #94a3b8;
   --text-inverse: #ffffff;
@@ -93,6 +102,14 @@ body {
   color: var(--text);
   font-family: var(--font-sans), system-ui, sans-serif;
   font-weight: 400;
+}
+
+h1,
+h2,
+h3,
+.theme-title {
+  font-family: var(--font-title), var(--font-sans), system-ui, sans-serif;
+  letter-spacing: -0.01em;
 }
 
 @supports selector(body:has(.public-landing-shell)) {
