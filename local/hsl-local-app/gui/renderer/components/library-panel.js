@@ -283,8 +283,14 @@ function renderFavoriteFilterButton(state) {
   `;
 }
 
+function libraryUnavailable(state) {
+  const directory = state.data?.library?.directory;
+
+  return Boolean(directory?.configured && !directory.available);
+}
+
 function renderFilterCard(state, packs) {
-  if (!state.libraryFiltersOpen) {
+  if (!state.libraryFiltersOpen || libraryUnavailable(state)) {
     return "";
   }
 
@@ -334,8 +340,10 @@ function renderFilterCard(state, packs) {
 }
 
 function renderLibraryControls(state, packs) {
-  const filtersOpen = Boolean(state.libraryFiltersOpen);
+  const filtersDisabled = libraryUnavailable(state);
+  const filtersOpen = !filtersDisabled && Boolean(state.libraryFiltersOpen);
   const disabled = state.busy ? "disabled" : "";
+  const filterDisabled = filtersDisabled ? "disabled" : "";
   const hasDirectory = Boolean(state.data?.library?.directory?.path);
   const locationLabel = hasDirectory ? "Cambiar ubicación" : "Añadir ubicación";
 
@@ -346,7 +354,7 @@ function renderLibraryControls(state, packs) {
           ${renderIcon("folder", { className: "library-control-icon" })}
           <span>${locationLabel}</span>
         </button>
-        <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-label="Filtros" title="Filtros" aria-expanded="${filtersOpen ? "true" : "false"}" aria-controls="library-filter-card">
+        <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-label="Filtros" title="${filtersDisabled ? "Filtros no disponibles" : "Filtros"}" aria-expanded="${filtersOpen ? "true" : "false"}" aria-disabled="${filtersDisabled ? "true" : "false"}" aria-controls="library-filter-card" ${filterDisabled}>
           ${renderIcon("filter", { className: "library-control-icon" })}
           <span>Filtros</span>
         </button>
@@ -385,13 +393,25 @@ function renderPacks(state) {
     });
   }
 
+  if (directory.configured && !directory.available) {
+    const inaccessible = directory.reason === "inaccessible";
+
+    return renderLibraryEmptyState({
+      body: inaccessible
+        ? "Comprueba que la unidad esté conectada o cambia la ubicación de la biblioteca."
+        : "Recupera la carpeta o cambia la ubicación de la biblioteca.",
+      state,
+      title: inaccessible
+        ? "No puedo acceder al directorio de packs."
+        : "No se encuentra el directorio de packs.",
+    });
+  }
+
   if (packs.length === 0) {
     return renderLibraryEmptyState({
       body: "Cada pack debe estar en una subcarpeta directa con pack.json.",
       state,
-      title: directory.status === "missing"
-        ? "No puedo escanear el directorio de packs."
-        : "No se han encontrado packs en este directorio.",
+      title: "No se han encontrado packs en este directorio.",
     });
   }
 

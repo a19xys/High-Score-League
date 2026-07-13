@@ -4,7 +4,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { setPackDirectory, writePackDirectory } = require("../src/pack-directory");
-const { scanPackLibrary } = require("../src/pack-library");
+const { scanDirectory, scanPackLibrary } = require("../src/pack-library");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-pack-library-test-"));
@@ -340,6 +340,64 @@ test("directorio inexistente genera warning", async () => {
     const library = await scanPackLibrary(config(dir));
 
     assert.equal(library.directory.status, "missing");
-    assert.match(library.directory.warnings[0], /No encuentro el directorio/);
+    assert.equal(library.directory.configured, true);
+    assert.equal(library.directory.exists, false);
+    assert.equal(library.directory.available, false);
+    assert.equal(library.directory.reason, "missing");
+    assert.equal(library.packs.length, 0);
+    assert.match(library.directory.warnings[0], /No se encuentra el directorio/);
+    assert.doesNotMatch(library.directory.warnings[0], /ENOENT|pack\.json|subcarpeta directa/);
+  });
+});
+
+test("directorio existente vacio sigue disponible y no se confunde con missing", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = path.join(dir, "empty-library");
+    await fsp.mkdir(libraryRoot, { recursive: true });
+    await setPackDirectory(config(dir), libraryRoot);
+
+    const library = await scanPackLibrary(config(dir));
+
+    assert.equal(library.directory.status, "ok");
+    assert.equal(library.directory.available, true);
+    assert.equal(library.directory.reason, null);
+    assert.equal(library.packs.length, 0);
+  });
+});
+
+test("directorio inaccesible devuelve estado especifico y copy de jugador", async () => {
+  const error = Object.assign(new Error("permission denied"), { code: "EACCES" });
+  const result = await scanDirectory({
+    available: true,
+    directoryPath: path.resolve("packs"),
+    error: null,
+    exists: true,
+    looksLikePackRoot: false,
+    reason: null,
+    warnings: [],
+  }, {
+    readdirImpl: async () => {
+      throw error;
+    },
+  });
+
+  assert.equal(result.directory.status, "inaccessible");
+  assert.equal(result.directory.exists, true);
+  assert.equal(result.directory.available, false);
+  assert.equal(result.directory.reason, "inaccessible");
+  assert.match(result.directory.warnings[0], /No puedo acceder al directorio/);
+  assert.doesNotMatch(result.directory.warnings[0], /EACCES|permission denied/);
+});
+
+test("escaneo ignora directorios temporales de importacion", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = path.join(dir, "library");
+    await writeJson(path.join(libraryRoot, ".hsl-import-pending", "pack.json"), validV2Pack());
+    await setPackDirectory(config(dir), libraryRoot);
+
+    const library = await scanPackLibrary(config(dir));
+
+    assert.equal(library.directory.available, true);
+    assert.equal(library.packs.length, 0);
   });
 });

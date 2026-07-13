@@ -1282,6 +1282,16 @@ button:disabled {
   justify-content: center;
 }
 
+.library-empty-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.library-empty-state__actions .tool-button {
+  flex: 1 1 150px;
+}
+
 .pack-directory {
   display: grid;
   gap: 12px;
@@ -2072,6 +2082,7 @@ main,
   font-weight: 800;
   letter-spacing: 0;
   cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
 }
 
 .app-dialog__button:focus-visible {
@@ -2085,12 +2096,24 @@ main,
   color: var(--text-inverse);
 }
 
+.app-dialog__button--primary:hover:not(:disabled) {
+  border-color: var(--circuit-strong);
+  background: var(--circuit-strong);
+  color: var(--text-inverse);
+}
+
 .app-dialog__button--primary .app-dialog__button-icon {
   color: var(--text-inverse);
 }
 
 .app-dialog__button--secondary {
-  background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
+  border-color: color-mix(in srgb, var(--border) 88%, var(--text-muted));
+  background: color-mix(in srgb, var(--surface-strong) 82%, var(--surface));
+  color: var(--text);
+}
+
+.app-dialog__actions--import-pack .app-dialog__button--secondary {
+  grid-column: 1 / -1;
 }
 
 .app-dialog__button--ghost {
@@ -2114,6 +2137,10 @@ main,
 
   .app-dialog__actions {
     grid-template-columns: 1fr;
+  }
+
+  .app-dialog__actions--import-pack .app-dialog__button--secondary {
+    grid-column: auto;
   }
 
   .app-dialog__button--ghost {
@@ -2430,6 +2457,49 @@ main,
 .game-hero-stage--with-logo .game-panel__placeholder span,
 .game-hero-stage--with-logo .game-panel__placeholder strong {
   opacity: 0;
+}
+
+.launcher-fallback__body {
+  align-content: center;
+  min-height: 180px;
+  gap: 16px;
+  padding-block: clamp(28px, 4vw, 56px);
+}
+
+.launcher-fallback__copy {
+  display: grid;
+  gap: 10px;
+  width: min(100%, 640px);
+  margin-inline: auto;
+  text-align: center;
+}
+
+.launcher-fallback__copy h2,
+.launcher-fallback__copy p {
+  margin: 0;
+}
+
+.game-hero-stage--brand {
+  background:
+    radial-gradient(circle at 50% 44%, color-mix(in srgb, var(--circuit) 22%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-strong) 90%, var(--circuit)), var(--surface-strong));
+}
+
+.game-panel__placeholder--brand {
+  position: absolute;
+  inset: 0;
+}
+
+.game-panel__hero--brand {
+  position: relative;
+  z-index: 1;
+  object-fit: cover;
+  filter: saturate(0.96) brightness(0.9);
+  transform: none;
+}
+
+.game-panel__hero--brand[hidden] {
+  display: none;
 }
 
 .game-detail-body {
@@ -5730,7 +5800,7 @@ html:not([data-theme="dark"]) .secondary-action,
 html:not([data-theme="dark"]) .tool-button,
 html:not([data-theme="dark"]) .theme-button,
 html:not([data-theme="dark"]) .icon-button,
-html:not([data-theme="dark"]) .app-dialog__button {
+html:not([data-theme="dark"]) .app-dialog__button:not(.app-dialog__button--primary) {
   border-color: color-mix(in srgb, var(--border) 84%, var(--circuit));
   background: color-mix(in srgb, var(--surface) 82%, var(--circuit-soft));
   color: var(--text);
@@ -5742,10 +5812,26 @@ html:not([data-theme="dark"]) .secondary-action:hover:not(:disabled),
 html:not([data-theme="dark"]) .tool-button:hover:not(:disabled),
 html:not([data-theme="dark"]) .theme-button:hover,
 html:not([data-theme="dark"]) .icon-button:hover,
-html:not([data-theme="dark"]) .app-dialog__button:hover {
+html:not([data-theme="dark"]) .app-dialog__button:not(.app-dialog__button--primary):hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--circuit) 48%, var(--border));
   background: var(--hover);
   color: var(--circuit-strong);
+}
+
+html:not([data-theme="dark"]) .app-dialog__button.app-dialog__button--primary {
+  border-color: color-mix(in srgb, var(--circuit) 75%, var(--border));
+  background: var(--circuit);
+  color: var(--text-inverse);
+}
+
+html:not([data-theme="dark"]) .app-dialog__button.app-dialog__button--primary:hover:not(:disabled) {
+  border-color: var(--circuit-strong);
+  background: var(--circuit-strong);
+  color: var(--text-inverse);
+}
+
+html:not([data-theme="dark"]) .app-dialog__button.app-dialog__button--primary .app-dialog__button-icon {
+  color: var(--text-inverse);
 }
 
 html:not([data-theme="dark"]) .view-button--active,

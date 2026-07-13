@@ -221,69 +221,64 @@ function groupDuplicatePackIds(packs) {
   return grouped;
 }
 
-async function pathExistsAsDirectory(targetPath) {
-  try {
-    const stat = await fsp.stat(targetPath);
-    return stat.isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-async function scanDirectory(directoryState) {
+async function scanDirectory(directoryState, options = {}) {
   const directoryPath = directoryState.directoryPath;
   const directory = {
+    available: Boolean(directoryState.available),
+    configured: Boolean(directoryPath),
     error: directoryState.error,
     exists: directoryState.exists,
     id: "pack-directory",
     looksLikePackRoot: directoryState.looksLikePackRoot,
     packCount: 0,
     path: directoryPath,
+    reason: directoryState.reason || null,
     status: !directoryPath
       ? "unconfigured"
-      : !directoryState.exists
-        ? "missing"
+      : !directoryState.available
+        ? directoryState.reason || "inaccessible"
         : directoryState.looksLikePackRoot
           ? "pack-root"
           : "ok",
     warnings: directoryState.warnings || [],
   };
 
-  if (!directoryPath || !directoryState.exists || directoryState.looksLikePackRoot) {
+  if (!directoryPath || !directoryState.available || directoryState.looksLikePackRoot) {
     return {
       directory,
       packs: [],
     };
   }
 
-  const exists = await pathExistsAsDirectory(directoryPath);
   const status = {
     ...directory,
+    available: true,
     error: null,
-    exists,
+    exists: true,
     packCount: 0,
-    status: exists ? "ok" : "missing",
-    warnings: exists ? directory.warnings : ["No encuentro el directorio de packs. Puedes cambiarlo o volver a crearlo."],
+    reason: null,
+    status: "ok",
+    warnings: directory.warnings,
   };
-
-  if (!exists) {
-    return {
-      directory: status,
-      packs: [],
-    };
-  }
 
   let entries;
 
   try {
-    entries = await fsp.readdir(directoryPath, { withFileTypes: true });
+    entries = await (options.readdirImpl || fsp.readdir)(directoryPath, { withFileTypes: true });
   } catch (error) {
+    const reason = ["ENOENT", "ENOTDIR"].includes(error?.code) ? "missing" : "inaccessible";
+    const warning = reason === "missing"
+      ? "No se encuentra el directorio de packs. Recupera la carpeta o cambia la ubicación de la biblioteca."
+      : "No puedo acceder al directorio de packs. Comprueba que la unidad esté conectada o cambia la ubicación de la biblioteca.";
+
     return {
       directory: {
         ...status,
+        available: false,
         error: error.message,
-        status: "warning",
-        warnings: [`No se pudo escanear el directorio de packs: ${error.message}`],
+        reason,
+        status: reason,
+        warnings: [warning],
       },
       packs: [],
     };
@@ -373,10 +368,11 @@ async function scanPackLibrary(config) {
     source: state.source,
     totals: {
       directoryConfigured: directory.path ? 1 : 0,
-      directoryMissing: directory.status === "missing" ? 1 : 0,
+      directoryMissing: directory.reason === "missing" ? 1 : 0,
+      directoryUnavailable: directory.configured && !directory.available ? 1 : 0,
       legacyLocations: state.legacyLocationsDetected || 0,
       locations: directory.path ? 1 : 0,
-      missingLocations: directory.status === "missing" ? 1 : 0,
+      missingLocations: directory.reason === "missing" ? 1 : 0,
       packs: packs.length,
       packsWithErrors: packs.filter((pack) => pack.status === "error").length,
     },

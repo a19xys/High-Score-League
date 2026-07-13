@@ -23,7 +23,7 @@ function renderImportPackDialog() {
   const buttons = [
     { action: "import-pack-zip", autofocus: true, icon: "zip", label: "Archivo ZIP", variant: "primary" },
     { action: "import-pack-folder", icon: "folder", label: "Carpeta", variant: "primary" },
-    { action: "close-dialog", label: "Cancelar", variant: "ghost" },
+    { action: "close-dialog", label: "Cancelar", variant: "secondary" },
   ];
 
   return `
@@ -34,7 +34,31 @@ function renderImportPackDialog() {
           <h2 id="${titleId}">¿Qué quieres importar?</h2>
           <p id="${descriptionId}">Elige el tipo de pack. Después, podrás escoger su ruta desde el explorador de archivos.</p>
         </div>
-        <div class="app-dialog__actions">
+        <div class="app-dialog__actions app-dialog__actions--import-pack">
+          ${buttons.map(renderDialogButton).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderUnavailablePackDirectoryDialog() {
+  const titleId = "app-dialog-pack-directory-title";
+  const descriptionId = "app-dialog-pack-directory-description";
+  const buttons = [
+    { action: "choose-unavailable-pack-directory", autofocus: true, icon: "folder", label: "Escoger carpeta", variant: "primary" },
+    { action: "close-dialog", label: "Cancelar", variant: "secondary" },
+  ];
+
+  return `
+    <div class="app-dialog-layer" data-dialog-backdrop>
+      <section class="app-dialog app-dialog--pack-directory" role="dialog" aria-modal="true" aria-labelledby="${titleId}" aria-describedby="${descriptionId}" data-dialog>
+        <div class="app-dialog__header">
+          <p class="eyebrow">Biblioteca no disponible</p>
+          <h2 id="${titleId}">No se encuentra la carpeta de packs</h2>
+          <p id="${descriptionId}">El launcher no puede acceder a la biblioteca configurada. Conecta de nuevo la unidad o escoge otra carpeta.</p>
+        </div>
+        <div class="app-dialog__actions app-dialog__actions--pack-directory">
           ${buttons.map(renderDialogButton).join("")}
         </div>
       </section>
@@ -43,6 +67,10 @@ function renderImportPackDialog() {
 }
 
 export function renderAppDialog(state) {
+  if (state?.activeDialog?.type === "pack-directory-unavailable") {
+    return renderUnavailablePackDirectoryDialog();
+  }
+
   if (state?.activeDialog?.type === "import-pack") {
     return renderImportPackDialog();
   }

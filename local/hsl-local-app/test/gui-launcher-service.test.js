@@ -9,8 +9,10 @@ const {
   activateLibraryPack,
   classifyFailureReason,
   chooseSharedMameRuntimeFromGui,
+  choosePackDirectoryFromGui,
   deriveOpenedPackConfig,
   eventResultToQueueItem,
+  getLauncherState,
   importPackFromFolderForGui,
   importPackFromZipForGui,
   listPendingFileSnapshot,
@@ -29,7 +31,7 @@ const {
   summarizeDiagnoseReport,
   toggleLibraryFavoriteFromGui,
 } = require("../gui/launcher-service");
-const { setPackDirectory } = require("../src/pack-directory");
+const { setPackDirectory, writePackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
 const { writeLastOpenedPack } = require("../src/recent-packs");
 
@@ -612,7 +614,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/<select data-library-sort-direction/.test(libraryPanel), false);
   assert.match(libraryPanel, /normalizeSortBy\(state\.librarySortBy\)/);
   assert.match(libraryPanel, /normalizeSortDirection\(state\.librarySortDirection\)/);
-  assert.match(libraryPanel, /if \(!state\.libraryFiltersOpen\)/);
+  assert.match(libraryPanel, /if \(!state\.libraryFiltersOpen \|\| libraryUnavailable\(state\)\)/);
   assert.equal(/data-library-status|<span>Estado<\/span>/.test(libraryPanel), false);
   assert.match(libraryPanel, /renderViewButton\(state, "covers", "Portadas", "covers"\)/);
   assert.match(libraryPanel, /renderViewButton\(state, "list", "Lista", "list"\)/);
@@ -1522,11 +1524,142 @@ test("internal import dialog renders choices and accessible controls", async () 
   assert.match(html, /data-action="close-dialog"/);
   assert.match(html, /app-dialog__button--primary" type="button" data-action="import-pack-zip"/);
   assert.match(html, /app-dialog__button--primary" type="button" data-action="import-pack-folder"/);
+  assert.match(html, /app-dialog__button--secondary" type="button" data-action="close-dialog"/);
   assert.doesNotMatch(html, /app-dialog__button--primary" type="button" data-action="close-dialog"/);
+  assert.match(html, /app-dialog__actions--import-pack/);
   assert.match(styles, /\.app-dialog__button--primary[\s\S]*background: var\(--circuit\)[\s\S]*color: var\(--text-inverse\)/);
   assert.match(styles, /\.app-dialog__button--primary \.app-dialog__button-icon[\s\S]*color: var\(--text-inverse\)/);
+  assert.match(styles, /html:not\(\[data-theme="dark"\]\) \.app-dialog__button\.app-dialog__button--primary[\s\S]*background: var\(--circuit\)[\s\S]*color: var\(--text-inverse\)/);
+  assert.match(styles, /\.app-dialog__actions--import-pack \.app-dialog__button--secondary[\s\S]*grid-column: 1 \/ -1/);
+  assert.doesNotMatch(styles, /html:not\(\[data-theme="dark"\]\) \.app-dialog__button \{/);
   assert.match(html, /ui-icon--zip/);
   assert.match(html, /ui-icon--folder/);
+});
+
+test("missing pack directory dialog renders recovery actions", async () => {
+  const { renderAppDialog } = await import(pathToFileURL(path.join(
+    __dirname,
+    "..",
+    "gui",
+    "renderer",
+    "components",
+    "app-dialog.js",
+  )).href);
+  const styles = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"),
+    "utf8",
+  );
+  const html = renderAppDialog({ activeDialog: { type: "pack-directory-unavailable" } });
+
+  assert.match(html, /No se encuentra la carpeta de packs/);
+  assert.match(html, /Conecta de nuevo la unidad o escoge otra carpeta/);
+  assert.match(html, /app-dialog__actions--pack-directory/);
+  assert.match(html, /app-dialog__button--primary" type="button" data-action="choose-unavailable-pack-directory"/);
+  assert.match(html, /Escoger carpeta/);
+  assert.match(html, /app-dialog__button--secondary" type="button" data-action="close-dialog"/);
+  assert.match(html, /Cancelar/);
+  assert.match(styles, /\.app-dialog__actions[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 520px\)[\s\S]*\.app-dialog__actions[\s\S]*grid-template-columns: 1fr/);
+  assert.match(styles, /\.app-dialog__button--primary:hover:not\(:disabled\)/);
+});
+
+test("renderer muestra fallback HSL limpio cuando falta la biblioteca", async () => {
+  const [{ renderGamePanel }, { renderLibraryPanel }] = await Promise.all([
+    import(pathToFileURL(path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js")).href),
+    import(pathToFileURL(path.join(__dirname, "..", "gui", "renderer", "components", "library-panel.js")).href),
+  ]);
+  const state = {
+    busy: false,
+    data: {
+      game: null,
+      library: {
+        directory: {
+          available: false,
+          configured: true,
+          path: "X:\\packs",
+          reason: "missing",
+          status: "missing",
+        },
+        packs: [],
+        totals: { packs: 0 },
+      },
+    },
+    libraryFavoriteFilter: "all",
+    libraryFiltersOpen: true,
+    libraryQuery: "",
+    librarySeason: "all",
+    librarySortBy: "weeks",
+    librarySortDirection: "asc",
+    libraryStatus: "all",
+    libraryView: "covers",
+  };
+  const gameHtml = renderGamePanel(state);
+  const libraryHtml = renderLibraryPanel(state);
+
+  assert.match(gameHtml, /Biblioteca no disponible/);
+  assert.match(gameHtml, /No se encuentra tu biblioteca de packs/);
+  assert.match(gameHtml, /src="\.\/assets\/hero_hsl\.png"/);
+  assert.match(gameHtml, /data-hsl-fallback-hero/);
+  assert.doesNotMatch(gameHtml, /High Score League Launcher|Escoger carpeta|Reintentar|data-action=|Space Invaders|data-action="play"|data-action="practice"|data-action="open-manual"|data-action="open-ranking"|badge-row|game-metadata-grid|pack-error-panel|activity-summary-card/);
+  assert.match(libraryHtml, /No se encuentra el directorio de packs/);
+  assert.match(libraryHtml, /Recupera la carpeta o cambia la ubicación de la biblioteca/);
+  assert.match(libraryHtml, /Cambiar ubicación/);
+  assert.match(libraryHtml, /Reescanear/);
+  assert.equal((libraryHtml.match(/data-action="choose-pack-directory"/g) || []).length, 1);
+  assert.equal((libraryHtml.match(/data-action="rescan-pack-directory"/g) || []).length, 1);
+  assert.match(libraryHtml, /data-action="toggle-library-filters"[^>]*aria-expanded="false"[^>]*aria-disabled="true"[^>]*disabled/);
+  assert.doesNotMatch(libraryHtml, /id="library-filter-card"/);
+  assert.doesNotMatch(libraryHtml, /Cada pack debe estar en una subcarpeta directa con pack\.json|ENOENT|EACCES/);
+
+  const inaccessibleHtml = renderLibraryPanel({
+    ...state,
+    data: {
+      ...state.data,
+      library: {
+        ...state.data.library,
+        directory: { ...state.data.library.directory, reason: "inaccessible", status: "inaccessible" },
+      },
+    },
+  });
+  assert.match(inaccessibleHtml, /No puedo acceder al directorio de packs/);
+  assert.match(inaccessibleHtml, /aria-expanded="false"[^>]*aria-disabled="true"[^>]*disabled/);
+  assert.doesNotMatch(inaccessibleHtml, /id="library-filter-card"/);
+
+  const recoveredHtml = renderLibraryPanel({
+    ...state,
+    libraryFiltersOpen: false,
+    data: {
+      ...state.data,
+      library: {
+        ...state.data.library,
+        directory: {
+          ...state.data.library.directory,
+          available: true,
+          reason: null,
+          status: "available",
+        },
+      },
+    },
+  });
+  assert.match(recoveredHtml, /data-action="toggle-library-filters"[^>]*aria-expanded="false"[^>]*aria-disabled="false"/);
+});
+
+test("renderer controla el dialogo missing una vez y permite reintento explicito", async () => {
+  const app = await fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8");
+
+  assert.match(app, /const unavailableDirectoryPrompts = new Set\(\)/);
+  assert.match(app, /function unavailableDirectoryDialogPatch\(data\)/);
+  assert.match(app, /unavailableDirectoryPrompts\.has\(key\)/);
+  assert.match(app, /unavailableDirectoryPrompts\.add\(key\)/);
+  assert.match(app, /function resetUnavailableDirectoryPrompt\(data\)/);
+  assert.match(app, /function libraryUnavailableStatePatch\(data\)/);
+  assert.match(app, /libraryUnavailableStatePatch\(data\)/);
+  assert.match(app, /Object\.assign\(statePatch, libraryUnavailableStatePatch\(response\.state\)\)/);
+  assert.match(app, /action === "toggle-library-filters"[\s\S]*button\.disabled[\s\S]*!directory\.available[\s\S]*return/);
+  assert.match(app, /closest\("\[data-hsl-fallback-hero\]"\)[\s\S]*hero\.hidden = true/);
+  assert.match(app, /action === "choose-unavailable-pack-directory"[\s\S]*window\.hslLauncher\.choosePackDirectory\(\)/);
+  assert.match(app, /action === "rescan-pack-directory"[\s\S]*resetUnavailableDirectoryPrompt[\s\S]*window\.hslLauncher\.rescanPackDirectory\(\)/);
+  assert.match(app, /action === "close-dialog"[\s\S]*activeDialog: null/);
 });
 
 test("game detail metadata renders four normalized fields", async () => {
@@ -2408,6 +2541,81 @@ test("rescanPackDirectory returns fresh state action", async () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.action, "rescan-pack-directory");
+});
+
+test("getLauncherState neutraliza el pack activo si falta el directorio configurado", async () => {
+  await withTempDir(async (dir) => {
+    const missingRoot = path.join(dir, "missing-library");
+    const stalePackRoot = path.join(missingRoot, "Space Invaders");
+    const config = {
+      pack: validPack(),
+      packLoaded: true,
+      packPath: path.join(stalePackRoot, "pack.json"),
+      packRoot: stalePackRoot,
+      userDataDir: path.join(dir, "userData"),
+    };
+    await writePackDirectory(config, missingRoot);
+
+    const state = await getLauncherState({ config });
+
+    assert.equal(state.library.directory.configured, true);
+    assert.equal(state.library.directory.available, false);
+    assert.equal(state.library.directory.reason, "missing");
+    assert.equal(state.game, null);
+    assert.equal(state.bridge.mode, "library-unavailable");
+    assert.equal(state.bridge.activePackName, null);
+    assert.equal(state.bridge.packRoot, null);
+    assert.equal(state.bridge.packLoaded, false);
+    assert.equal(state.readiness.canPractice, false);
+    assert.equal(state.readiness.canPlayCompetition, false);
+  });
+});
+
+test("choosePackDirectory funciona despues de un estado missing", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    const missingRoot = path.join(dir, "missing-library");
+    const replacementRoot = path.join(dir, "replacement-library");
+    await writePackDirectory(config, missingRoot);
+    await fsp.mkdir(replacementRoot, { recursive: true });
+
+    const result = await choosePackDirectoryFromGui(replacementRoot, { config });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.state.library.directory.path, path.resolve(replacementRoot));
+    assert.equal(result.state.library.directory.available, true);
+    assert.equal(result.state.library.directory.reason, null);
+  });
+});
+
+test("rescan mantiene mensaje de jugador cuando el directorio sigue missing", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    await writePackDirectory(config, path.join(dir, "missing-library"));
+
+    const result = await rescanPackDirectory({ config });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.summary, "No se encuentra el directorio de packs.");
+    assert.doesNotMatch(result.summary, /ENOENT|pack\.json|subcarpeta directa/);
+    assert.equal(result.state.library.directory.reason, "missing");
+  });
+});
+
+test("diagnostico recomienda recuperar o cambiar una biblioteca missing", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    await writePackDirectory(config, path.join(dir, "missing-library"));
+
+    const result = await runDiagnose({
+      config,
+      diagnosticLogOptions: { now: "2026-07-13T10:00:00.000Z" },
+    });
+
+    assert.ok(result.report.recommendations.some((item) => /Recupera la unidad.*ubicación de la biblioteca/.test(item)));
+    assert.equal(result.diagnosticLog.payload.library.directory.available, false);
+    assert.equal(result.diagnosticLog.payload.library.directory.reason, "missing");
+  });
 });
 
 test("activateLibraryPack selecciona grupo duplicado sin abrir el pack equivocado", async () => {

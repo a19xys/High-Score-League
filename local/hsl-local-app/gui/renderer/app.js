@@ -62,9 +62,56 @@ let currentDialogType = null;
 let busyRunSequence = 0;
 const detailAssetPreloadCache = new Map();
 const favoriteSyncByKey = new Map();
+const unavailableDirectoryPrompts = new Set();
 
 function delay(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function unavailableDirectoryKey(data) {
+  const directory = data?.library?.directory;
+
+  if (!directory?.configured || directory.available) {
+    return null;
+  }
+
+  return `${directory.reason || "inaccessible"}:${directory.path || "unknown"}`;
+}
+
+function unavailableDirectoryDialogPatch(data) {
+  const key = unavailableDirectoryKey(data);
+
+  if (!key) {
+    return {};
+  }
+
+  if (unavailableDirectoryPrompts.has(key)) {
+    return {};
+  }
+
+  unavailableDirectoryPrompts.add(key);
+  return {
+    activeDialog: {
+      directoryKey: key,
+      type: "pack-directory-unavailable",
+    },
+  };
+}
+
+function libraryUnavailableStatePatch(data) {
+  const directory = data?.library?.directory;
+
+  return directory?.configured && !directory.available
+    ? { libraryFiltersOpen: false }
+    : {};
+}
+
+function resetUnavailableDirectoryPrompt(data) {
+  const key = unavailableDirectoryKey(data);
+
+  if (key) {
+    unavailableDirectoryPrompts.delete(key);
+  }
 }
 
 function clampSidebarWidth(value) {
@@ -589,6 +636,8 @@ async function refreshState() {
     }));
 
   store.setState({
+    ...unavailableDirectoryDialogPatch(data),
+    ...libraryUnavailableStatePatch(data),
     busy: false,
     busyLabel: null,
     data,
@@ -914,6 +963,11 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
 
     if (response.state) {
       statePatch.data = response.state;
+      Object.assign(statePatch, libraryUnavailableStatePatch(response.state));
+
+      if (options.promptForUnavailableDirectory) {
+        Object.assign(statePatch, unavailableDirectoryDialogPatch(response.state));
+      }
     }
 
     store.setState(statePatch);
@@ -1087,6 +1141,14 @@ async function activateLibraryPackWithPreload(packId) {
 }
 
 function bindActions() {
+  root.addEventListener("error", (event) => {
+    const hero = event.target instanceof Element ? event.target.closest("[data-hsl-fallback-hero]") : null;
+
+    if (hero) {
+      hero.hidden = true;
+    }
+  }, true);
+
   root.addEventListener("input", (event) => {
     const input = event.target instanceof Element ? event.target.closest("[data-library-search]") : null;
     if (!input) return;
@@ -1262,6 +1324,12 @@ function bindActions() {
     }
 
     if (action === "toggle-library-filters") {
+      const directory = store.getState().data?.library?.directory;
+
+      if (button.disabled || (directory?.configured && !directory.available)) {
+        return;
+      }
+
       store.setState({ libraryFiltersOpen: !store.getState().libraryFiltersOpen });
     }
 
@@ -1310,6 +1378,11 @@ function bindActions() {
       runAction(action, "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory());
     }
 
+    if (action === "choose-unavailable-pack-directory") {
+      store.setState({ activeDialog: null });
+      runAction("choose-pack-directory", "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory());
+    }
+
     if (action === "import-pack") {
       store.setState({ activeDialog: { type: "import-pack" } });
     }
@@ -1337,7 +1410,10 @@ function bindActions() {
     }
 
     if (action === "rescan-pack-directory") {
-      runAction(action, "Reescaneando", "Reescanear", () => window.hslLauncher.rescanPackDirectory());
+      resetUnavailableDirectoryPrompt(store.getState().data);
+      runAction(action, "Reescaneando", "Reescanear", () => window.hslLauncher.rescanPackDirectory(), {
+        promptForUnavailableDirectory: true,
+      });
     }
 
     if (action === "use-library-pack") {

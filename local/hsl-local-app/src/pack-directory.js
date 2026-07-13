@@ -30,6 +30,8 @@ function getDirectoryKey(directoryPath, platform = process.platform) {
 
 function emptyPackDirectoryState(overrides = {}) {
   return {
+    available: false,
+    configured: false,
     directoryPath: null,
     error: null,
     exists: false,
@@ -38,6 +40,7 @@ function emptyPackDirectoryState(overrides = {}) {
     legacyMigration: "none",
     looksLikePackRoot: false,
     packDirectoryFile: overrides.packDirectoryFile || null,
+    reason: null,
     schemaVersion: 1,
     selectedAt: null,
     source: "empty",
@@ -51,6 +54,7 @@ async function pathInfo(targetPath) {
   if (!targetPath) {
     return {
       exists: false,
+      errorCode: null,
       isDirectory: false,
       isFile: false,
     };
@@ -61,12 +65,14 @@ async function pathInfo(targetPath) {
 
     return {
       exists: true,
+      errorCode: null,
       isDirectory: stat.isDirectory(),
       isFile: stat.isFile(),
     };
-  } catch {
+  } catch (error) {
     return {
       exists: false,
+      errorCode: error?.code || "UNKNOWN",
       isDirectory: false,
       isFile: false,
     };
@@ -93,18 +99,24 @@ async function annotateDirectoryState(state) {
     ? await directoryLooksLikePackRoot(state.directoryPath)
     : false;
 
-  if (!info.exists) {
-    warnings.push("No encuentro el directorio de packs. Puedes cambiarlo o volver a crearlo.");
-  } else if (!info.isDirectory) {
-    warnings.push("La ruta configurada para packs existe, pero no es una carpeta.");
+  const missing = !info.exists && ["ENOENT", "ENOTDIR"].includes(info.errorCode);
+  const inaccessible = (!info.exists && !missing) || (info.exists && !info.isDirectory);
+
+  if (missing) {
+    warnings.push("No se encuentra el directorio de packs. Recupera la carpeta o cambia la ubicación de la biblioteca.");
+  } else if (inaccessible) {
+    warnings.push("No puedo acceder al directorio de packs. Comprueba que la unidad esté conectada o cambia la ubicación de la biblioteca.");
   } else if (looksLikePackRoot) {
     warnings.push("Parece que has elegido una carpeta de pack. Elige la carpeta que contiene todos tus packs.");
   }
 
   return emptyPackDirectoryState({
     ...state,
-    exists: info.exists && info.isDirectory,
+    available: info.exists && info.isDirectory,
+    configured: true,
+    exists: info.exists,
     looksLikePackRoot,
+    reason: missing ? "missing" : inaccessible ? "inaccessible" : null,
     warnings,
   });
 }

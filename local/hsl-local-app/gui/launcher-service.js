@@ -697,27 +697,53 @@ async function stateFromContext(context) {
     })),
     preferences: libraryPreferences,
   };
+  const libraryUnavailable = Boolean(
+    libraryState.directory?.configured && !libraryState.directory?.available
+  );
   const activeLibraryPack = libraryState.packs.find((pack) => (
     (config.packRoot && pack.packDir === config.packRoot) ||
     (config.pack?.packId && pack.packId === config.pack.packId && !pack.duplicatePackId)
   ));
-  const game = {
-    ...getGameState(config),
-    favorite: Boolean(activeLibraryPack?.favorite),
-  };
-  const readiness = evaluatePackReadiness({
-    autoSync,
-    config,
-    membership,
-    queue,
-    scope: scoped.scope,
-    session,
-  });
+  const game = libraryUnavailable
+    ? null
+    : {
+        ...getGameState(config),
+        favorite: Boolean(activeLibraryPack?.favorite),
+      };
+  const readiness = libraryUnavailable
+    ? {
+        blockers: ["Recupera la carpeta de packs o cambia la ubicación de la biblioteca."],
+        canPlayCompetition: false,
+        canPractice: false,
+        checks: [],
+        message: "La biblioteca de packs no está disponible.",
+        status: "blocked",
+      }
+    : evaluatePackReadiness({
+        autoSync,
+        config,
+        membership,
+        queue,
+        scope: scoped.scope,
+        session,
+      });
+  const bridge = libraryUnavailable
+    ? {
+        ...getBridgeState(config),
+        activePackName: null,
+        mode: "library-unavailable",
+        packLoaded: false,
+        packOpened: false,
+        packPath: null,
+        packRoot: null,
+        workingDir: null,
+      }
+    : getBridgeState(config);
 
   return {
     accounts: toSafeAccountsState(accountsStore, session, { savedSessionUserIds }),
     autoSync,
-    bridge: getBridgeState(config),
+    bridge,
     configPath: config.configPath,
     game,
     library: libraryState,
@@ -1157,8 +1183,14 @@ async function runDiagnose(options = {}) {
 
   const config = options.config || getEffectiveConfig();
   const report = await buildDiagnoseReport(config);
-  const summary = summarizeDiagnoseReport(report);
   const state = options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config));
+  const directory = state?.library?.directory;
+
+  if (directory?.configured && !directory.available) {
+    report.recommendations.push("Recupera la unidad o cambia la ubicación de la biblioteca de packs.");
+  }
+
+  const summary = summarizeDiagnoseReport(report);
   const source = config.configSource === "pack abierto" ? "pack abierto" : "configuración local";
 
   let diagnosticLog = null;
@@ -1777,7 +1809,7 @@ async function choosePackDirectoryFromGui(directoryPath, options = {}) {
     ok: result.ok,
     result,
     summary: result.summary,
-    state: options.includeState === false ? null : await getLauncherState(),
+    state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
   };
 }
 
@@ -2025,6 +2057,10 @@ function matchesLibrarySelection(pack, selected) {
 }
 
 async function reconcileActiveLibrarySelection(config, library) {
+  if (library.directory?.configured && !library.directory?.available) {
+    return;
+  }
+
   if (activeDuplicateGroup) {
     const packId = activeDuplicateGroup.packId;
     const matches = library.packs.filter((pack) => pack.packId && pack.packId === packId);
@@ -2109,11 +2145,18 @@ async function rescanPackDirectory(options = {}) {
   const library = await scanPackLibrary(config);
   await reconcileActiveLibrarySelection(config, library);
 
+  const unavailable = library.directory?.configured && !library.directory?.available;
+  const summary = unavailable
+    ? library.directory.reason === "missing"
+      ? "No se encuentra el directorio de packs."
+      : "No puedo acceder al directorio de packs."
+    : "Biblioteca reescaneada.";
+
   return {
     action: "rescan-pack-directory",
-    lines: ["Biblioteca reescaneada."],
+    lines: [summary],
     ok: true,
-    summary: "Biblioteca reescaneada.",
+    summary,
     state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
   };
 }

@@ -216,6 +216,46 @@ function renderPackErrors(game, readiness) {
   `;
 }
 
+const HSL_FALLBACK_HERO_URL = "./assets/hero_hsl.png";
+
+function renderHslFallbackHero() {
+  return `
+    <div class="game-hero-stage game-hero-stage--fallback game-hero-stage--brand" aria-hidden="true">
+      <div class="game-hero-media">
+        <div class="game-panel__placeholder game-panel__placeholder--brand"><span>High Score League</span><strong>HSL</strong></div>
+        <img class="game-panel__hero game-panel__hero--brand" src="${HSL_FALLBACK_HERO_URL}" alt="" data-hsl-fallback-hero>
+      </div>
+    </div>
+  `;
+}
+
+function renderBrandedEmptyPanel({ ariaLabel, body, title }) {
+  return `
+    <section class="game-panel game-detail-card launcher-fallback" aria-label="${escapeHtml(ariaLabel)}">
+      ${renderHslFallbackHero()}
+      <div class="game-detail-body launcher-fallback__body">
+        <div class="launcher-fallback__copy">
+          <h2>${escapeHtml(title)}</h2>
+          <p class="ready-copy">${escapeHtml(body)}</p>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderUnavailableLibraryPanel(directory) {
+  const inaccessible = directory?.reason === "inaccessible";
+  const body = inaccessible
+    ? "No se puede acceder a tu biblioteca de packs. Conecta de nuevo la unidad o cambia la ubicación desde Biblioteca."
+    : "No se encuentra tu biblioteca de packs. Conecta de nuevo la unidad o cambia la ubicación desde Biblioteca.";
+
+  return renderBrandedEmptyPanel({
+    ariaLabel: "Biblioteca de packs no disponible",
+    body,
+    title: "Biblioteca no disponible",
+  });
+}
+
 export function renderGamePanel(state) {
   const data = state.data;
 
@@ -228,7 +268,30 @@ export function renderGamePanel(state) {
     `;
   }
 
+  const directory = data.library?.directory;
+
+  if (directory?.configured && !directory.available) {
+    return renderUnavailableLibraryPanel(directory);
+  }
+
   const game = data?.game;
+
+  if (!game && !directory?.configured) {
+    return renderBrandedEmptyPanel({
+      ariaLabel: "Biblioteca de packs sin configurar",
+      body: "Añade una ubicación desde Biblioteca para encontrar tus packs.",
+      title: "Configura tu biblioteca",
+    });
+  }
+
+  if (!game && directory?.available && (data.library?.packs?.length || 0) === 0) {
+    return renderBrandedEmptyPanel({
+      ariaLabel: "Biblioteca de packs vacía",
+      body: "Añade packs a la ubicación configurada y vuelve a escanear la biblioteca.",
+      title: "Tu biblioteca está vacía",
+    });
+  }
+
   const bridge = data?.bridge;
   const membership = data?.membership;
   const autoSync = data?.autoSync;

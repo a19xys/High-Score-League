@@ -33,6 +33,9 @@ test("pack-directory.json ausente devuelve estado sin directorio", async () => {
     const state = await readPackDirectory(config(dir));
 
     assert.equal(state.directoryPath, null);
+    assert.equal(state.configured, false);
+    assert.equal(state.available, false);
+    assert.equal(state.reason, null);
     assert.equal(state.error, null);
     assert.equal(state.packDirectoryFile, path.join(dir, "userData", "libraries", "pack-directory.json"));
   });
@@ -119,8 +122,11 @@ test("detecta directorio inexistente", async () => {
     const state = await readPackDirectory(config(dir));
 
     assert.equal(state.directoryPath, path.resolve(missing));
+    assert.equal(state.configured, true);
     assert.equal(state.exists, false);
-    assert.match(state.warnings[0], /No encuentro el directorio/);
+    assert.equal(state.available, false);
+    assert.equal(state.reason, "missing");
+    assert.match(state.warnings[0], /No se encuentra el directorio/);
   });
 });
 
