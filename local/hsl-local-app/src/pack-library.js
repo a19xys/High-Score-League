@@ -171,30 +171,21 @@ function groupDuplicatePackIds(packs) {
     return packs;
   }
 
-  const grouped = [];
-  const emitted = new Set();
   const message = "Hay otro pack con el mismo packId. Cambia el packId o elimina el duplicado.";
 
-  for (const pack of packs) {
+  return packs.map((pack) => {
     const key = pack.packId ? String(pack.packId).trim().toLowerCase() : "";
 
     if (!duplicateKeys.has(key)) {
-      grouped.push(pack);
-      continue;
+      return pack;
     }
 
-    if (emitted.has(key)) {
-      continue;
-    }
-
-    emitted.add(key);
     const duplicates = byPackId.get(key);
-    const representative = duplicates[0];
     const paths = duplicates.map((item) => item.packDir).filter(Boolean);
 
-    grouped.push({
-      ...representative,
-      duplicateGroup: true,
+    return {
+      ...pack,
+      duplicateGroup: false,
       duplicatePackId: true,
       duplicatePackIdCount: duplicates.length,
       duplicatePacks: duplicates.map((item) => ({
@@ -206,19 +197,13 @@ function groupDuplicatePackIds(packs) {
         title: item.title,
       })),
       duplicatePaths: paths,
-      errors: [...new Set([message, ...duplicates.flatMap((item) => item.errors || [])])],
+      errors: [...new Set([message, ...(pack.errors || [])])],
       favoriteDisabled: true,
       favoriteKey: null,
-      id: hashId(`duplicate-pack-id|${key}|${paths.join("|")}`, "pack_group"),
-      instanceKey: hashId(`duplicate-pack-id|${key}|${paths.join("|")}`, "instance_group"),
-      packDir: null,
       status: "error",
-      subtitle: `Pack duplicado (${duplicates.length} carpetas)`,
       warnings: [],
-    });
-  }
-
-  return grouped;
+    };
+  });
 }
 
 async function scanDirectory(directoryState, options = {}) {
@@ -319,6 +304,7 @@ async function scanDirectory(directoryState, options = {}) {
         gameId: null,
         icon: null,
         id: hashId(`${directory.id}|${packDir}`, "pack"),
+        instanceKey: hashId(path.resolve(packDir).toLowerCase(), "instance"),
         favoriteKey: packDir,
         locationId: directory.id,
         logo: null,
@@ -356,6 +342,15 @@ async function scanPackLibrary(config) {
     state.error,
     ...(directory?.warnings || []),
   ].filter(Boolean);
+  const status = !directory.configured
+    ? "unconfigured"
+    : !directory.available
+      ? directory.reason || "error"
+      : directory.looksLikePackRoot
+        ? "error"
+        : packs.length === 0
+          ? "available-empty"
+          : "available-populated";
 
   return {
     error: state.error,
@@ -366,6 +361,7 @@ async function scanPackLibrary(config) {
     packDirectoryPath: state.directoryPath,
     packs,
     source: state.source,
+    status,
     totals: {
       directoryConfigured: directory.path ? 1 : 0,
       directoryMissing: directory.reason === "missing" ? 1 : 0,

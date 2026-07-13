@@ -67,7 +67,9 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
         library: {
           directory: { exists: true, path: path.join(dir, "library"), status: "ok" },
           packDirectoryPath: path.join(dir, "library"),
+          packs: [{ instanceKey: "instance-pack-a" }, { instanceKey: "instance-pack-b" }],
           source: "pack-directory",
+          status: "available-populated",
           totals: { packs: 2, packsWithErrors: 1 },
           warnings: ["duplicate pack"],
         },
@@ -78,6 +80,11 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
           totals: { failed: 1, pending: 2, sent: 3 },
         },
         runtime: config.sharedMameRuntime,
+        selection: {
+          activeInstanceKey: "instance-pack-b",
+          rememberedInstanceKey: "instance-pack-b",
+          source: "remembered",
+        },
         session: {
           access_token: "secret-access-token",
           hasSession: true,
@@ -102,6 +109,11 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.format, undefined);
     assert.equal(saved.library.totals.packs, 2);
     assert.equal(saved.library.totals.packsWithErrors, 1);
+    assert.equal(saved.library.status, "available-populated");
+    assert.equal(saved.library.packCount, 2);
+    assert.equal(saved.library.selection.activeInstanceKey, "instance-pack-b");
+    assert.equal(saved.library.selection.rememberedInstanceKey, "instance-pack-b");
+    assert.equal(saved.library.selection.source, "remembered");
     assert.equal(saved.mame.sharedRuntime.available, true);
     assert.equal(saved.pack.packRoot, config.packRoot);
     assert.equal(saved.queue.totals.failed, 1);

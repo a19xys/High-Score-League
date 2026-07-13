@@ -114,6 +114,33 @@ function resetUnavailableDirectoryPrompt(data) {
   }
 }
 
+function neutralizeActivePackData(data) {
+  if (!data) {
+    return data;
+  }
+
+  return {
+    ...data,
+    activePack: null,
+    bridge: {
+      ...(data.bridge || {}),
+      activeInstanceKey: null,
+      activePackName: null,
+      mode: "no-selection",
+      packLoaded: false,
+      packPath: null,
+      packRoot: null,
+    },
+    game: null,
+    selection: {
+      ...(data.selection || {}),
+      activeInstanceKey: null,
+      activePackDir: null,
+      source: "none",
+    },
+  };
+}
+
 function clampSidebarWidth(value) {
   const numeric = Number(value);
 
@@ -151,6 +178,7 @@ function restoreMainScrollState(scrollState, { resetGame = false } = {}) {
 
 function detailScrollKeyFromState(state) {
   const data = state.data || {};
+  const activeInstanceKey = data.selection?.activeInstanceKey || null;
   const bridge = data.bridge || {};
   const game = data.game || {};
   const duplicatePaths = Array.isArray(game.duplicatePaths) ? game.duplicatePaths.join("|") : "";
@@ -180,8 +208,9 @@ function detailScrollKeyFromState(state) {
     ].filter(Boolean).join(":");
   }
 
-  return [
+  return activeInstanceKey ? [
     "pack",
+    activeInstanceKey,
     bridge.packRoot,
     bridge.packPath,
     game.packRoot,
@@ -190,7 +219,7 @@ function detailScrollKeyFromState(state) {
     game.id,
     game.rom,
     game.weekId,
-  ].filter(Boolean).join(":") || null;
+  ].filter(Boolean).join(":") : null;
 }
 
 function metadataHasOverflow(grid) {
@@ -469,15 +498,7 @@ function withFavoritePatch(data, packKey, patch) {
 
   const selectedPack = data.library.packs.find((pack) => pack.favoriteKey === packKey);
   const activePackMatches = selectedPack && data.game && (
-    data.game.favoriteKey === packKey ||
-    data.game.packId === selectedPack.packId ||
-    data.game.id === selectedPack.id ||
-    (
-      data.game.gameId &&
-      selectedPack.gameId &&
-      data.game.gameId === selectedPack.gameId &&
-      (!data.game.weekId || !selectedPack.weekId || data.game.weekId === selectedPack.weekId)
-    )
+    data.game.instanceKey === selectedPack.instanceKey
   );
 
   return {
@@ -934,7 +955,14 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
 
   const runId = ++busyRunSequence;
   let phaseTimer = null;
-  store.setState({ ...closeAccountMenuState(), busy: true, busyLabel });
+  store.setState({
+    ...closeAccountMenuState(),
+    busy: true,
+    busyLabel,
+    ...(options.neutralizeActivePack
+      ? { data: neutralizeActivePackData(store.getState().data) }
+      : {}),
+  });
 
   if (options.runningLabel) {
     phaseTimer = window.setTimeout(() => {
@@ -1375,12 +1403,16 @@ function bindActions() {
     }
 
     if (action === "choose-pack-directory") {
-      runAction(action, "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory());
+      runAction(action, "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
+        neutralizeActivePack: true,
+      });
     }
 
     if (action === "choose-unavailable-pack-directory") {
       store.setState({ activeDialog: null });
-      runAction("choose-pack-directory", "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory());
+      runAction("choose-pack-directory", "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
+        neutralizeActivePack: true,
+      });
     }
 
     if (action === "import-pack") {
@@ -1412,6 +1444,7 @@ function bindActions() {
     if (action === "rescan-pack-directory") {
       resetUnavailableDirectoryPrompt(store.getState().data);
       runAction(action, "Reescaneando", "Reescanear", () => window.hslLauncher.rescanPackDirectory(), {
+        neutralizeActivePack: true,
         promptForUnavailableDirectory: true,
       });
     }

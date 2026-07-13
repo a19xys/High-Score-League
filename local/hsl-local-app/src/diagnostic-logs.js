@@ -77,12 +77,29 @@ function countReportLevels(report) {
 }
 
 function summarizePack(config = {}, state = null) {
+  if (state && Object.prototype.hasOwnProperty.call(state, "activePack") && !state.activePack) {
+    return {
+      activePackName: null,
+      gameId: null,
+      instanceKey: null,
+      packDir: null,
+      packId: null,
+      packLoaded: false,
+      packPath: null,
+      packRoot: null,
+      rom: null,
+      seasonId: null,
+      weekId: null,
+    };
+  }
+
   const game = state?.game || {};
   const pack = config.pack || {};
 
   return {
     activePackName: state?.bridge?.activePackName || pack.packId || pack.gameId || null,
     gameId: pack.gameId || game.gameId || null,
+    instanceKey: state?.activePack?.instanceKey || game.instanceKey || null,
     packDir: state?.bridge?.packRoot || config.packRoot || pack.packRoot || null,
     packId: pack.packId || null,
     packLoaded: Boolean(config.packLoaded || pack.packId || pack.gameId),
@@ -118,8 +135,18 @@ function summarizeLibrary(state = null) {
 
   return {
     directory: state.library.directory || null,
+    packCount: state.library.packs?.length || 0,
     packDirectoryPath: state.library.packDirectoryPath || null,
+    rootPath: state.library.directory?.path || null,
+    selection: state.selection
+      ? {
+          activeInstanceKey: state.selection.activeInstanceKey || null,
+          rememberedInstanceKey: state.selection.rememberedInstanceKey || null,
+          source: state.selection.source || "none",
+        }
+      : null,
     source: state.library.source || null,
+    status: state.library.status || null,
     totals: state.library.totals || null,
     warnings: state.library.warnings || [],
   };

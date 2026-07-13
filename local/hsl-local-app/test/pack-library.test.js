@@ -179,7 +179,7 @@ test("escaneo marca packVersion 2 sin ROM concreta como requiere atencion", asyn
   });
 });
 
-test("escaneo agrupa packId duplicados como una sola entrada de conflicto", async () => {
+test("escaneo conserva instancias distintas aunque compartan packId", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");
     const first = path.join(libraryRoot, "First");
@@ -192,15 +192,18 @@ test("escaneo agrupa packId duplicados como una sola entrada de conflicto", asyn
 
     const library = await scanPackLibrary(config(dir));
 
-    assert.equal(library.packs.length, 1);
-    assert.equal(library.packs[0].status, "error");
-    assert.equal(library.packs[0].duplicateGroup, true);
-    assert.equal(library.packs[0].duplicatePackId, true);
-    assert.equal(library.packs[0].duplicatePackIdCount, 2);
-    assert.deepEqual(library.packs[0].duplicatePaths.sort(), [first, second].sort());
-    assert.equal(library.packs[0].duplicatePacks.length, 2);
-    assert.match(library.packs[0].id, /^pack_group_/);
-    assert.ok(library.packs[0].errors.some((item) => /mismo packId/.test(item)));
+    assert.equal(library.packs.length, 2);
+    assert.equal(new Set(library.packs.map((pack) => pack.instanceKey)).size, 2);
+    assert.deepEqual(library.packs.map((pack) => pack.packDir).sort(), [first, second].sort());
+
+    for (const pack of library.packs) {
+      assert.equal(pack.status, "error");
+      assert.equal(pack.duplicateGroup, false);
+      assert.equal(pack.duplicatePackId, true);
+      assert.equal(pack.duplicatePackIdCount, 2);
+      assert.deepEqual(pack.duplicatePaths.sort(), [first, second].sort());
+      assert.ok(pack.errors.some((item) => /mismo packId/.test(item)));
+    }
   });
 });
 

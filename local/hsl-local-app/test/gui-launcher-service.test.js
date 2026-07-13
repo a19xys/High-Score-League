@@ -7,6 +7,7 @@ const { pathToFileURL } = require("node:url");
 const {
   adoptNewStagingEvents,
   activateLibraryPack,
+  cancelChoosePackDirectory,
   classifyFailureReason,
   chooseSharedMameRuntimeFromGui,
   choosePackDirectoryFromGui,
@@ -33,6 +34,7 @@ const {
 } = require("../gui/launcher-service");
 const { setPackDirectory, writePackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
+const { readLibrarySelection, writeLibrarySelection } = require("../src/library-selection");
 const { writeLastOpenedPack } = require("../src/recent-packs");
 
 async function withTempDir(fn) {
@@ -539,6 +541,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
     path.join(__dirname, "..", "gui", "renderer", "components", "pack-card.js"),
     "utf8",
   );
+  const libraryOrder = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "shared", "library-order.mjs"),
+    "utf8",
+  );
   const styles = await fsp.readFile(
     path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"),
     "utf8",
@@ -558,7 +564,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /renderLibraryCount/);
   assert.match(libraryPanel, /1 \? "pack" : "packs"/);
   assert.match(libraryPanel, /Todavía no has elegido un directorio de packs/);
-  assert.match(libraryPanel, /No se han encontrado packs en este directorio/);
+  assert.match(libraryPanel, /Tu biblioteca está vacía/);
   assert.match(libraryPanel, /Sin temporada/);
   assert.equal(/const id = pack\.deprecated/.test(libraryPanel), false);
   assert.match(libraryPanel, /data-action="toggle-library-filters"/);
@@ -650,13 +656,14 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/Juegos instalados|Temporadas y packs disponibles|juegos instalados/.test(libraryPanel), false);
   assert.match(libraryPanel, /renderPackCard\(pack, state, state\.libraryView\)/);
   assert.match(libraryPanel, /const sorted = sortPacks\(filtered, state\)/);
-  assert.match(libraryPanel, /function normalizedYear\(pack\)/);
-  assert.match(libraryPanel, /function primaryDeveloper\(pack\)/);
+  assert.match(libraryPanel, /from "\.\.\/\.\.\/shared\/library-order\.mjs"/);
+  assert.match(libraryOrder, /export function normalizedYear\(pack\)/);
+  assert.match(libraryOrder, /export function primaryDeveloper\(pack\)/);
   assert.match(libraryPanel, /function shouldGroupPacks\(sortBy\)/);
   assert.match(libraryPanel, /if \(!shouldGroupPacks\(sortBy\)\)/);
   assert.match(libraryPanel, /groupPacks\(sorted, sortBy\)/);
-  assert.match(libraryPanel, /sortBy === "developer"/);
-  assert.match(libraryPanel, /sortBy === "year"/);
+  assert.match(libraryOrder, /sortBy === "developer"/);
+  assert.match(libraryOrder, /sortBy === "year"/);
   assert.equal(/Anadir ubicacion|Ubicaciones/.test(libraryPanel), false);
   assert.equal(/Añadir pack|Anadir pack/.test(libraryPanel), false);
   assert.match(emptyState, /library-empty-state/);
@@ -684,7 +691,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /pack\.duplicatePackId/);
   assert.equal(/const disabled = [^;]*pack\.status === "error"/.test(packCard), false);
   assert.match(packCard, /pack\.status === "missing"/);
-  assert.match(packCard, /if \(activeRoot\) \{\s*return false;\s*\}/);
+  assert.match(packCard, /pack\.instanceKey === data\.selection\.activeInstanceKey/);
   assert.match(packCard, /Boolean\(state\.data\?\.session\?\.hasSession\)/);
   assert.match(packCard, /pendingLibraryPackId/);
   assert.match(packCard, /libraryActivationInProgress/);
@@ -1174,7 +1181,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /renderIcon\("calendar"/);
   assert.match(gamePanel, /renderIcon\("play"/);
   assert.match(gamePanel, /renderIcon\("practice"/);
-  assert.match(gamePanel, /<h2 title="\$\{escapeHtml\(game\?\.displayName \|\| "Space Invaders"\)\}"/);
+  assert.match(gamePanel, /<h2 title="\$\{escapeHtml\(game\.displayName\)\}"/);
   assert.match(gamePanel, /function renderDetailFavoriteMark\(game\)/);
   assert.match(gamePanel, /game-title-main/);
   assert.match(gamePanel, /game-week-subtitle/);
@@ -1551,11 +1558,11 @@ test("missing pack directory dialog renders recovery actions", async () => {
   );
   const html = renderAppDialog({ activeDialog: { type: "pack-directory-unavailable" } });
 
-  assert.match(html, /No se encuentra la carpeta de packs/);
-  assert.match(html, /Conecta de nuevo la unidad o escoge otra carpeta/);
+  assert.match(html, /No se encuentran los packs/);
+  assert.match(html, /Selecciónala de nuevo o elige otra carpeta/);
   assert.match(html, /app-dialog__actions--pack-directory/);
   assert.match(html, /app-dialog__button--primary" type="button" data-action="choose-unavailable-pack-directory"/);
-  assert.match(html, /Escoger carpeta/);
+  assert.match(html, /Elegir carpeta/);
   assert.match(html, /app-dialog__button--secondary" type="button" data-action="close-dialog"/);
   assert.match(html, /Cancelar/);
   assert.match(styles, /\.app-dialog__actions[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
@@ -1600,7 +1607,7 @@ test("renderer muestra fallback HSL limpio cuando falta la biblioteca", async ()
   assert.match(gameHtml, /No se encuentra tu biblioteca de packs/);
   assert.match(gameHtml, /src="\.\/assets\/hero_hsl\.png"/);
   assert.match(gameHtml, /data-hsl-fallback-hero/);
-  assert.doesNotMatch(gameHtml, /High Score League Launcher|Escoger carpeta|Reintentar|data-action=|Space Invaders|data-action="play"|data-action="practice"|data-action="open-manual"|data-action="open-ranking"|badge-row|game-metadata-grid|pack-error-panel|activity-summary-card/);
+  assert.doesNotMatch(gameHtml, /High Score League Launcher|Elegir carpeta|Reintentar|data-action=|Space Invaders|data-action="play"|data-action="practice"|data-action="open-manual"|data-action="open-ranking"|badge-row|game-metadata-grid|pack-error-panel|activity-summary-card/);
   assert.match(libraryHtml, /No se encuentra el directorio de packs/);
   assert.match(libraryHtml, /Recupera la carpeta o cambia la ubicación de la biblioteca/);
   assert.match(libraryHtml, /Cambiar ubicación/);
@@ -1642,6 +1649,124 @@ test("renderer muestra fallback HSL limpio cuando falta la biblioteca", async ()
     },
   });
   assert.match(recoveredHtml, /data-action="toggle-library-filters"[^>]*aria-expanded="false"[^>]*aria-disabled="false"/);
+});
+
+test("renderer separa biblioteca vacía, sin configurar y sin selección real", async () => {
+  const [{ renderGamePanel }, { renderLibraryPanel }, { renderPackCard }] = await Promise.all([
+    import(pathToFileURL(path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js")).href),
+    import(pathToFileURL(path.join(__dirname, "..", "gui", "renderer", "components", "library-panel.js")).href),
+    import(pathToFileURL(path.join(__dirname, "..", "gui", "renderer", "components", "pack-card.js")).href),
+  ]);
+  const baseState = {
+    busy: false,
+    data: {
+      game: null,
+      library: {
+        directory: { available: true, configured: true, path: "X:\\packs", reason: null },
+        packs: [],
+        status: "available-empty",
+      },
+      selection: { activeInstanceKey: null, source: "none" },
+    },
+  };
+  const emptyHtml = renderGamePanel({
+    ...baseState,
+    data: {
+      ...baseState.data,
+      game: {
+        assets: { hero: "file:///old-root/pac-man-hero.png" },
+        displayName: "Pac-Man",
+        instanceKey: "instance_stale",
+      },
+    },
+  });
+  const unconfiguredHtml = renderGamePanel({
+    ...baseState,
+    data: {
+      ...baseState.data,
+      library: {
+        ...baseState.data.library,
+        directory: { available: false, configured: false, path: null, reason: null },
+        status: "unconfigured",
+      },
+    },
+  });
+  const populatedNoSelectionHtml = renderGamePanel({
+    ...baseState,
+    data: {
+      ...baseState.data,
+      library: {
+        ...baseState.data.library,
+        packs: [{ instanceKey: "instance_real" }],
+        status: "available-populated",
+      },
+    },
+  });
+
+  for (const html of [emptyHtml, unconfiguredHtml, populatedNoSelectionHtml]) {
+    assert.match(html, /src="\.\/assets\/hero_hsl\.png"/);
+    assert.doesNotMatch(html, /Space Invaders|Sin datos|badge-row|game-metadata-grid|data-action="play"|data-action="practice"|data-action="open-manual"|data-action="open-ranking"/);
+  }
+  assert.match(emptyHtml, /Tu biblioteca está vacía/);
+  assert.doesNotMatch(emptyHtml, /Pac-Man|pac-man-hero|instance_stale/);
+  assert.match(unconfiguredHtml, /Configura tu biblioteca/);
+  assert.match(populatedNoSelectionHtml, /Elige un juego de tu biblioteca/);
+
+  const selected = { instanceKey: "instance_selected", packDir: "X:\\packs\\Selected", status: "ok", title: "Selected" };
+  const other = { instanceKey: "instance_other", packDir: "X:\\packs\\Other", status: "ok", title: "Other" };
+
+  for (const view of ["covers", "list", "icons"]) {
+    const cardState = {
+      busy: false,
+      data: {
+        selection: { activeInstanceKey: selected.instanceKey },
+        session: { hasSession: false },
+      },
+      libraryActivationInProgress: false,
+      pendingLibraryPackId: null,
+    };
+    assert.match(renderPackCard(selected, cardState, view), /pack-card--active/);
+    assert.doesNotMatch(renderPackCard(other, cardState, view), /pack-card--active/);
+  }
+
+  const populatedState = {
+    ...baseState,
+    data: {
+      ...baseState.data,
+      library: {
+        ...baseState.data.library,
+        packs: [selected, other],
+        status: "available-populated",
+      },
+      selection: { activeInstanceKey: selected.instanceKey, source: "first-available" },
+      session: { hasSession: false },
+    },
+    libraryActivationInProgress: false,
+    libraryFavoriteFilter: "all",
+    libraryFiltersOpen: false,
+    libraryQuery: "",
+    librarySeason: "all",
+    librarySortBy: "title",
+    librarySortDirection: "asc",
+    libraryStatus: "all",
+    libraryView: "covers",
+    pendingLibraryPackId: null,
+  };
+  const populatedHtml = renderLibraryPanel(populatedState);
+  assert.equal((populatedHtml.match(/pack-card--active/g) || []).length, 1);
+  assert.match(populatedHtml, /data-instance-key="instance_selected"/);
+});
+
+test("producción no contiene fallback de juego Space Invaders", async () => {
+  const [service, gamePanel, packCard] = await Promise.all([
+    fsp.readFile(path.join(__dirname, "..", "gui", "launcher-service.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "game-panel.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "pack-card.js"), "utf8"),
+  ]);
+
+  assert.doesNotMatch(service, /Space Invaders|displayName:[^\n]*invaders|activeName && pack\.packId/);
+  assert.doesNotMatch(gamePanel, /Space Invaders|displayName \|\||Sin datos[^\n]*<h2/);
+  assert.doesNotMatch(packCard, /activePackName|activeName|pack\.packId ===/);
 });
 
 test("renderer controla el dialogo missing una vez y permite reintento explicito", async () => {
@@ -1759,12 +1884,14 @@ test("library pending selection does not become active in any view", async () =>
   )));
   const activePack = {
     id: "active-pack",
+    instanceKey: "instance-active",
     packDir: "C:/packs/active",
     status: "ready",
     title: "Active Pack",
   };
   const pendingPack = {
     id: "pending-pack",
+    instanceKey: "instance-pending",
     packDir: "C:/packs/pending",
     status: "ready",
     title: "Pending Pack",
@@ -1774,7 +1901,7 @@ test("library pending selection does not become active in any view", async () =>
     libraryActivationInProgress: true,
     pendingLibraryPackId: "pending-pack",
     data: {
-      bridge: { packRoot: "C:/packs/active" },
+      selection: { activeInstanceKey: "instance-active" },
       session: { hasSession: true },
     },
   };
@@ -2618,7 +2745,221 @@ test("diagnostico recomienda recuperar o cambiar una biblioteca missing", async 
   });
 });
 
-test("activateLibraryPack selecciona grupo duplicado sin abrir el pack equivocado", async () => {
+test("biblioteca sin configurar y biblioteca vacía nunca materializan un pack", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    let state = await getLauncherState({ config });
+
+    assert.equal(state.library.status, "unconfigured");
+    assert.equal(state.activePack, null);
+    assert.equal(state.game, null);
+    assert.equal(state.selection.activeInstanceKey, null);
+
+    const emptyRoot = path.join(dir, "empty-library");
+    await fsp.mkdir(emptyRoot, { recursive: true });
+    await setPackDirectory(config, emptyRoot);
+    state = await getLauncherState({ config });
+
+    assert.equal(state.library.status, "available-empty");
+    assert.equal(state.activePack, null);
+    assert.equal(state.game, null);
+    assert.equal(state.selection.activeInstanceKey, null);
+  });
+});
+
+test("biblioteca inaccesible y biblioteca con un único pack respetan el contrato activo real o null", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    const inaccessibleRoot = path.join(dir, "not-a-directory");
+    await fsp.writeFile(inaccessibleRoot, "file", "utf8");
+    await writePackDirectory(config, inaccessibleRoot);
+
+    let state = await getLauncherState({ config });
+    assert.equal(state.library.status, "inaccessible");
+    assert.equal(state.activePack, null);
+    assert.equal(state.selection.activeInstanceKey, null);
+
+    const populatedRoot = path.join(dir, "populated");
+    await writeValidV2PackDir(path.join(populatedRoot, "Only"), { packId: "only-pack" });
+    await setPackDirectory(config, populatedRoot);
+    state = await getLauncherState({ config });
+
+    assert.equal(state.library.packs.length, 1);
+    assert.equal(state.activePack.instanceKey, state.library.packs[0].instanceKey);
+    assert.equal(state.selection.activeInstanceKey, state.library.packs[0].instanceKey);
+  });
+});
+
+test("selector conserva A al cancelar o elegir missing y limpia el activo al cambiar a una carpeta vacía", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    const rootA = path.join(dir, "library-a");
+    const emptyRoot = path.join(dir, "library-empty");
+    const missingRoot = path.join(dir, "library-missing");
+    await writeValidV2PackDir(path.join(rootA, "Alpha"), { packId: "alpha" });
+    await fsp.mkdir(emptyRoot, { recursive: true });
+    await setPackDirectory(config, rootA);
+    const stateA = await getLauncherState({ config });
+
+    const canceled = await cancelChoosePackDirectory({ config });
+    assert.equal(canceled.canceled, true);
+    assert.equal(canceled.state.library.directory.path, path.resolve(rootA));
+    assert.equal(canceled.state.activePack.instanceKey, stateA.activePack.instanceKey);
+
+    const rejected = await choosePackDirectoryFromGui(missingRoot, { config });
+    assert.equal(rejected.ok, false);
+    assert.equal(rejected.state.library.directory.path, path.resolve(rootA));
+    assert.equal(rejected.state.activePack.instanceKey, stateA.activePack.instanceKey);
+
+    const changed = await choosePackDirectoryFromGui(emptyRoot, { config });
+    assert.equal(changed.ok, true);
+    assert.equal(changed.state.library.status, "available-empty");
+    assert.equal(changed.state.activePack, null);
+    assert.equal(changed.state.game, null);
+    assert.equal(changed.state.selection.activeInstanceKey, null);
+  });
+});
+
+test("biblioteca poblada sin recuerdo selecciona el primer pack del orden compartido", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    const libraryRoot = path.join(dir, "library");
+    await writeValidV2PackDir(path.join(libraryRoot, "Zulu"), { packId: "zulu" });
+    await writeValidV2PackDir(path.join(libraryRoot, "Alpha"), { packId: "alpha" });
+    await setPackDirectory(config, libraryRoot);
+
+    const state = await getLauncherState({ config });
+    const { sortPacks } = await import(pathToFileURL(path.join(
+      __dirname,
+      "..",
+      "gui",
+      "shared",
+      "library-order.mjs",
+    )).href);
+    const expectedFirst = sortPacks(state.library.packs, state.library.preferences)[0];
+
+    assert.equal(state.library.status, "available-populated");
+    assert.equal(state.activePack.instanceKey, expectedFirst.instanceKey);
+    assert.equal(state.selection.activeInstanceKey, state.activePack.instanceKey);
+    assert.equal(state.selection.source, "first-available");
+    assert.equal(state.game.instanceKey, state.activePack.instanceKey);
+    assert.equal(state.game.packRoot, state.activePack.packDir);
+  });
+});
+
+test("selección recordada se restaura por raíz y una inválida cae al primer pack", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    const libraryRoot = path.join(dir, "library");
+    const alphaDir = path.join(libraryRoot, "Alpha");
+    const betaDir = path.join(libraryRoot, "Beta");
+    await writeValidV2PackDir(alphaDir, { packId: "alpha" });
+    await writeValidV2PackDir(betaDir, { packId: "beta" });
+    await setPackDirectory(config, libraryRoot);
+    let library = await scanPackLibrary(config);
+    const beta = library.packs.find((pack) => pack.packDir === betaDir);
+    await writeLibrarySelection(config, libraryRoot, beta);
+
+    let state = await getLauncherState({ config });
+    assert.equal(state.activePack.instanceKey, beta.instanceKey);
+    assert.equal(state.selection.source, "remembered");
+
+    await fsp.rm(betaDir, { recursive: true, force: true });
+    state = await getLauncherState({ config });
+    library = await scanPackLibrary(config);
+
+    assert.equal(state.activePack.instanceKey, library.packs[0].instanceKey);
+    assert.equal(state.selection.source, "first-available");
+    assert.notEqual(state.activePack.instanceKey, beta.instanceKey);
+  });
+});
+
+test("cambiar de raíz no hereda la selección activa de la biblioteca anterior", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    const rootA = path.join(dir, "library-a");
+    const rootB = path.join(dir, "library-b");
+    await writeValidV2PackDir(path.join(rootA, "Alpha"), { packId: "a-alpha" });
+    await writeValidV2PackDir(path.join(rootA, "Zulu"), { packId: "a-zulu" });
+    await writeValidV2PackDir(path.join(rootB, "Beta"), { packId: "b-beta" });
+    await setPackDirectory(config, rootA);
+    const libraryA = await scanPackLibrary(config);
+    const zulu = libraryA.packs.find((pack) => pack.packDir === path.join(rootA, "Zulu"));
+    await activateLibraryPack(zulu.id, { config });
+
+    const changed = await choosePackDirectoryFromGui(rootB, { config });
+    const stateB = changed.state;
+
+    assert.equal(stateB.activePack.packDir, path.join(rootB, "Beta"));
+    assert.equal(stateB.selection.source, "first-available");
+    assert.notEqual(stateB.selection.activeInstanceKey, zulu.instanceKey);
+    const [rememberedA, rememberedB] = await Promise.all([
+      readLibrarySelection(config, rootA),
+      readLibrarySelection(config, rootB),
+    ]);
+    assert.equal(rememberedA.selection.instanceKey, zulu.instanceKey);
+    assert.equal(rememberedB.selection.instanceKey, stateB.activePack.instanceKey);
+
+    await setPackDirectory(config, rootA);
+    const restoredA = await getLauncherState({ config });
+    assert.equal(restoredA.activePack.instanceKey, zulu.instanceKey);
+    assert.equal(restoredA.selection.source, "remembered");
+  });
+});
+
+test("biblioteca missing recupera su instancia recordada o queda vacía sin fallback", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    const libraryRoot = path.join(dir, "library");
+    const alphaDir = path.join(libraryRoot, "Alpha");
+    const betaDir = path.join(libraryRoot, "Beta");
+    await writeValidV2PackDir(alphaDir, { packId: "alpha" });
+    await writeValidV2PackDir(betaDir, { packId: "beta" });
+    await setPackDirectory(config, libraryRoot);
+    const library = await scanPackLibrary(config);
+    const beta = library.packs.find((pack) => pack.packDir === betaDir);
+    await activateLibraryPack(beta.id, { config });
+
+    await fsp.rm(libraryRoot, { recursive: true, force: true });
+    let state = await getLauncherState({ config });
+    assert.equal(state.library.status, "missing");
+    assert.equal(state.activePack, null);
+    assert.equal(state.game, null);
+
+    await writeValidV2PackDir(alphaDir, { packId: "alpha" });
+    await writeValidV2PackDir(betaDir, { packId: "beta" });
+    state = await getLauncherState({ config });
+    assert.equal(state.activePack.instanceKey, beta.instanceKey);
+    assert.equal(state.selection.source, "remembered");
+
+    await fsp.rm(libraryRoot, { recursive: true, force: true });
+    await fsp.mkdir(libraryRoot, { recursive: true });
+    state = await getLauncherState({ config });
+    assert.equal(state.library.status, "available-empty");
+    assert.equal(state.activePack, null);
+    assert.equal(state.game, null);
+  });
+});
+
+test("pack roto real conserva instanceKey y puede ser la selección activa", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    const packDir = path.join(dir, "library", "Broken");
+    await fsp.mkdir(packDir, { recursive: true });
+    await fsp.writeFile(path.join(packDir, "pack.json"), "{", "utf8");
+    await setPackDirectory(config, path.dirname(packDir));
+
+    const state = await getLauncherState({ config });
+
+    assert.equal(state.activePack.packDir, packDir);
+    assert.match(state.activePack.instanceKey, /^instance_/);
+    assert.equal(state.selection.activeInstanceKey, state.activePack.instanceKey);
+    assert.equal(state.bridge.mode, "pack-issue");
+    assert.equal(state.readiness.canPractice, false);
+  });
+});
+
+test("activateLibraryPack selecciona una instancia duplicada exacta sin mezclar rutas", async () => {
   await withTempDir(async (dir) => {
     const config = {
       userDataDir: path.join(dir, "userData"),
@@ -2637,12 +2978,13 @@ test("activateLibraryPack selecciona grupo duplicado sin abrir el pack equivocad
       config,
     });
 
-    assert.equal(library.packs.length, 1);
-    assert.equal(library.packs[0].duplicateGroup, true);
+    assert.equal(library.packs.length, 2);
+    assert.equal(library.packs[0].duplicatePackId, true);
     assert.equal(result.ok, true);
-    assert.match(result.summary, /duplicado/i);
-    assert.deepEqual(result.pack.duplicatePaths.sort(), [first, second].sort());
-    assert.equal(result.state.bridge.mode, "duplicate-group");
+    assert.equal(result.pack.instanceKey, library.packs[0].instanceKey);
+    assert.equal(result.state.selection.activeInstanceKey, library.packs[0].instanceKey);
+    assert.equal(result.state.activePack.packDir, library.packs[0].packDir);
+    assert.equal(result.state.bridge.mode, "pack-issue");
     assert.equal(result.state.readiness.canPractice, false);
     assert.equal(result.state.readiness.canPlayCompetition, false);
     assert.deepEqual(result.state.game.duplicatePaths.sort(), [first, second].sort());
@@ -2674,7 +3016,7 @@ test("rescanPackDirectory reconcilia un duplicado resuelto con el pack real", as
   });
 });
 
-test("rescanPackDirectory mantiene actualizado un duplicado que sigue existiendo", async () => {
+test("rescanPackDirectory mantiene la misma instancia si el conflicto duplicado sigue existiendo", async () => {
   await withTempDir(async (dir) => {
     const config = {
       userDataDir: path.join(dir, "userData"),
@@ -2689,13 +3031,15 @@ test("rescanPackDirectory mantiene actualizado un duplicado que sigue existiendo
     await setPackDirectory(config, libraryRoot);
     const library = await scanPackLibrary(config);
 
+    const selectedInstanceKey = library.packs[0].instanceKey;
     await activateLibraryPack(library.packs[0].id, { config });
     await fsp.rm(second, { recursive: true, force: true });
     await writeValidV2PackDir(third);
     const result = await rescanPackDirectory({ config });
 
     assert.equal(result.ok, true);
-    assert.equal(result.state.bridge.mode, "duplicate-group");
+    assert.equal(result.state.bridge.mode, "pack-issue");
+    assert.equal(result.state.selection.activeInstanceKey, selectedInstanceKey);
     assert.deepEqual(result.state.game.duplicatePaths.sort(), [first, third].sort());
   });
 });
@@ -2720,8 +3064,9 @@ test("rescanPackDirectory limpia un duplicado seleccionado que desaparece", asyn
     const result = await rescanPackDirectory({ config });
 
     assert.equal(result.ok, true);
-    assert.notEqual(result.state.bridge.mode, "duplicate-group");
-    assert.deepEqual(result.state.game.duplicatePaths, []);
+    assert.equal(result.state.activePack, null);
+    assert.equal(result.state.game, null);
+    assert.equal(result.state.selection.activeInstanceKey, null);
   });
 });
 

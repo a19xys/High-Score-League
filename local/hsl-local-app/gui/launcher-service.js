@@ -30,7 +30,6 @@ const {
 const { buildDiagnoseReport } = require("../src/diagnose");
 const { writeDiagnosticReport } = require("../src/diagnostic-logs");
 const { listJsonFiles, readEventFile } = require("../src/event-files");
-const { listSupportedGames } = require("../src/games");
 const { launchMame, launchMameDetailed } = require("../src/mame-launcher");
 const { evaluatePackReadiness } = require("../src/pack-readiness");
 const {
@@ -38,8 +37,9 @@ const {
   importPackFromZip: importPackZip,
   PackImportError,
 } = require("../src/pack-importer");
-const { readPackDirectory, setPackDirectory } = require("../src/pack-directory");
+const { getDirectoryKey, readPackDirectory, setPackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
+const { readLibrarySelection, writeLibrarySelection } = require("../src/library-selection");
 const {
   readLibraryFavorites,
   readLibraryPreferences,
@@ -66,13 +66,13 @@ const {
 } = require("../src/season-membership");
 
 let activeOpenedPack = null;
-let activeDuplicateGroup = null;
 let activeLibraryIssue = null;
-let recentPackLoadAttempted = false;
+let activeLibrarySelection = null;
 let recentPackNotices = [];
 let autoSyncInProgress = false;
 let manualSyncInProgress = false;
 let autoSyncState = emptyAutoSyncState();
+const libraryOrderModule = import("./shared/library-order.mjs");
 
 function loadRuntimeConfig() {
   return loadConfig();
@@ -141,58 +141,13 @@ function deriveOpenedPackConfig(baseConfig, pack) {
   };
 }
 
-function deriveDuplicateGroupConfig(baseConfig, group) {
-  const pack = {
-    contractStatus: group.contractStatus || null,
-    deprecated: Boolean(group.deprecated),
-    duplicateGroup: true,
-    duplicatePackId: true,
-    duplicatePackIdCount: group.duplicatePackIdCount || group.duplicatePaths?.length || 0,
-    duplicatePaths: group.duplicatePaths || [],
-    errors: group.errors || [],
-    gameId: group.gameId || null,
-    metadata: {
-      assets: {
-        cover: group.cover || null,
-        hero: group.hero || null,
-        icon: group.icon || null,
-        logo: group.logo || null,
-      },
-      developer: group.developer || null,
-      genre: group.genre || [],
-      publisher: group.publisher || null,
-      shortDescription: "El launcher no puede decidir que carpeta usar para este pack.",
-      subtitle: group.subtitle || null,
-      title: group.title || "Pack duplicado",
-      year: group.year || null,
-    },
-    packId: group.packId || null,
-    packRoot: null,
-    rom: group.rom || null,
-    seasonId: group.seasonId || null,
-    seasonName: group.seasonName || null,
-    seasonSlug: group.seasonSlug || null,
-    weekId: group.weekId || null,
-    weekNumber: group.weekNumber || null,
-  };
-
-  return {
-    ...baseConfig,
-    configSource: "pack duplicado",
-    defaultWeekId: group.weekId || null,
-    pack,
-    packErrors: group.errors || [],
-    packLoaded: true,
-    packPath: null,
-    packRoot: null,
-    webBaseUrl: baseConfig.webBaseUrl,
-  };
-}
-
 function deriveLibraryIssueConfig(baseConfig, item) {
   const pack = {
     contractStatus: item.contractStatus || null,
     deprecated: Boolean(item.deprecated),
+    duplicateGroup: false,
+    duplicatePackId: Boolean(item.duplicatePackId),
+    duplicatePaths: item.duplicatePaths || [],
     errors: item.errors || [],
     gameId: item.gameId || null,
     metadata: {
@@ -207,7 +162,7 @@ function deriveLibraryIssueConfig(baseConfig, item) {
       publisher: item.publisher || null,
       shortDescription: "Este pack necesita atencion antes de poder jugarse.",
       subtitle: item.subtitle || null,
-      title: item.title || "Pack con errores",
+      title: item.title,
       year: item.year || null,
     },
     packId: item.packId || null,
@@ -236,10 +191,6 @@ function deriveLibraryIssueConfig(baseConfig, item) {
 function getEffectiveConfig(baseConfigOverride = null) {
   const baseConfig = baseConfigOverride || loadRuntimeConfig();
 
-  if (activeDuplicateGroup) {
-    return deriveDuplicateGroupConfig(baseConfig, activeDuplicateGroup);
-  }
-
   if (activeLibraryIssue) {
     return deriveLibraryIssueConfig(baseConfig, activeLibraryIssue);
   }
@@ -249,6 +200,185 @@ function getEffectiveConfig(baseConfigOverride = null) {
   }
 
   return deriveOpenedPackConfig(baseConfig, activeOpenedPack.pack);
+}
+
+function deriveNoActivePackConfig(baseConfig) {
+  return {
+    ...baseConfig,
+    defaultWeekId: null,
+    pack: null,
+    packErrors: [],
+    packLoaded: false,
+    packPath: null,
+    packRoot: null,
+    requiresSharedMameRuntime: false,
+  };
+}
+
+function clearActiveLibrarySelection() {
+  activeOpenedPack = null;
+  activeLibraryIssue = null;
+  activeLibrarySelection = null;
+}
+
+function normalizedPath(value) {
+  return getDirectoryKey(value);
+}
+
+function findRememberedLibraryPack(packs, libraryRoot, remembered) {
+  if (!remembered) {
+    return null;
+  }
+
+  const byInstance = remembered.instanceKey
+    ? packs.find((pack) => pack.instanceKey === remembered.instanceKey)
+    : null;
+
+  if (byInstance) {
+    return byInstance;
+  }
+
+  if (!remembered.relativePackPath) {
+    return null;
+  }
+
+  const rememberedPath = normalizedPath(path.resolve(libraryRoot, remembered.relativePackPath));
+  return packs.find((pack) => normalizedPath(pack.packDir) === rememberedPath) || null;
+}
+
+async function readRememberedLibraryPack(config, library) {
+  const libraryRoot = library.directory?.path || null;
+  const stored = await readLibrarySelection(config, libraryRoot);
+  const storedPack = findRememberedLibraryPack(library.packs, libraryRoot, stored.selection);
+
+  if (stored.selection) {
+    return {
+      candidate: storedPack,
+      error: stored.error,
+      rememberedInstanceKey: stored.selection.instanceKey,
+    };
+  }
+
+  const legacy = await readRecentPackState(config);
+  const legacyPack = legacy.lastOpenedPackDir
+    ? library.packs.find((pack) => normalizedPath(pack.packDir) === normalizedPath(legacy.lastOpenedPackDir))
+    : null;
+
+  if (legacyPack) {
+    await writeLibrarySelection(config, libraryRoot, legacyPack).catch(() => null);
+  }
+
+  return {
+    candidate: legacyPack,
+    error: stored.error || legacy.error,
+    rememberedInstanceKey: legacyPack?.instanceKey || null,
+  };
+}
+
+function materializeLibrarySelection(pack, libraryRoot, source) {
+  clearActiveLibrarySelection();
+
+  if (!pack?.instanceKey || !pack?.packDir) {
+    return false;
+  }
+
+  if (pack.status === "error" || pack.duplicatePackId) {
+    activeLibraryIssue = {
+      ...pack,
+      selectedAt: new Date().toISOString(),
+    };
+  } else {
+    const result = readPackForGui(pack.packDir);
+
+    if (!result.ok) {
+      activeLibraryIssue = {
+        ...pack,
+        errors: [...new Set([...(pack.errors || []), ...(result.errors || [])])],
+        selectedAt: new Date().toISOString(),
+        status: "error",
+      };
+    } else {
+      activeOpenedPack = {
+        openedAt: new Date().toISOString(),
+        pack: result.pack,
+        remembered: source === "remembered",
+      };
+    }
+  }
+
+  activeLibrarySelection = {
+    instanceKey: pack.instanceKey,
+    libraryRootKey: getDirectoryKey(libraryRoot),
+    packDir: pack.packDir,
+    source,
+  };
+  return true;
+}
+
+async function reconcileLibrarySelection(config, library, preferences = {}) {
+  const libraryRoot = library.directory?.path || null;
+  const rootKey = getDirectoryKey(libraryRoot);
+  const remembered = libraryRoot
+    ? await readRememberedLibraryPack(config, library)
+    : { candidate: null, error: null, rememberedInstanceKey: null };
+  const selectable = library.status === "available-populated" && library.packs.length > 0;
+
+  if (!selectable) {
+    clearActiveLibrarySelection();
+    return {
+      activeInstanceKey: null,
+      activePackDir: null,
+      rememberedInstanceKey: remembered.rememberedInstanceKey,
+      rootKey,
+      source: "none",
+      warning: remembered.error || null,
+    };
+  }
+
+  const { sortPacks } = await libraryOrderModule;
+  const ordered = sortPacks(library.packs, preferences);
+  const active = activeLibrarySelection?.libraryRootKey === rootKey
+    ? ordered.find((pack) => pack.instanceKey === activeLibrarySelection.instanceKey) || null
+    : null;
+  const candidate = active || remembered.candidate || ordered[0] || null;
+  const source = active
+    ? activeLibrarySelection.source
+    : remembered.candidate
+      ? "remembered"
+      : candidate
+        ? "first-available"
+        : "none";
+
+  if (!materializeLibrarySelection(candidate, libraryRoot, source)) {
+    return {
+      activeInstanceKey: null,
+      activePackDir: null,
+      rememberedInstanceKey: remembered.rememberedInstanceKey,
+      rootKey,
+      source: "none",
+      warning: "No se pudo materializar una instancia real de la biblioteca.",
+    };
+  }
+
+  let warning = remembered.error || null;
+
+  if (!active && candidate) {
+    try {
+      await writeLibrarySelection(config, libraryRoot, candidate);
+      await writeLastOpenedPack(config, candidate.packDir);
+    } catch (error) {
+      warning = `No se pudo recordar la selección de biblioteca: ${normalizeMessage(error)}`;
+    }
+  }
+
+  return {
+    activeInstanceKey: candidate.instanceKey,
+    activePackDir: candidate.packDir,
+    rememberedInstanceKey: candidate.instanceKey,
+    rootKey,
+    source,
+    warning,
+  };
 }
 
 function normalizeMessage(error) {
@@ -415,24 +545,13 @@ async function resolveRememberedPack(config) {
 }
 
 async function ensureRememberedPackLoaded() {
-  if (activeOpenedPack || activeDuplicateGroup || activeLibraryIssue || recentPackLoadAttempted) {
-    return;
-  }
-
-  recentPackLoadAttempted = true;
-  const remembered = await resolveRememberedPack(loadRuntimeConfig());
-
-  if (remembered.notice) {
-    recentPackNotices = [remembered.notice];
-  }
-
-  if (remembered.ok) {
-    activeOpenedPack = {
-      openedAt: new Date().toISOString(),
-      pack: remembered.pack,
-      remembered: true,
-    };
-  }
+  const config = loadRuntimeConfig();
+  const session = await getAuthState(config);
+  const [library, preferences] = await Promise.all([
+    scanPackLibrary(config),
+    readLibraryPreferences(config, session),
+  ]);
+  await reconcileLibrarySelection(config, library, preferences);
 }
 
 async function captureConsoleAsync(fn) {
@@ -603,6 +722,14 @@ function getEmptyQueueState(config, reason) {
 }
 
 async function getScopedGuiConfig(baseConfig, session) {
+  if (!baseConfig.packLoaded || !baseConfig.pack?.rom) {
+    return {
+      config: baseConfig,
+      reason: "Selecciona un pack real de la biblioteca para usar su cola local.",
+      scope: null,
+    };
+  }
+
   if (!session?.hasSession) {
     return {
       config: baseConfig,
@@ -629,12 +756,16 @@ async function getScopedGuiConfig(baseConfig, session) {
 }
 
 async function getLauncherContext(options = {}) {
-  if (!options.config) {
-    await ensureRememberedPackLoaded();
-  }
-
-  const baseConfig = getEffectiveConfig(options.config || null);
-  const session = await getAuthState(baseConfig);
+  const runtimeConfig = options.config || loadRuntimeConfig();
+  const session = await getAuthState(runtimeConfig);
+  const [library, libraryPreferences] = await Promise.all([
+    scanPackLibrary(runtimeConfig),
+    readLibraryPreferences(runtimeConfig, session),
+  ]);
+  const selection = await reconcileLibrarySelection(runtimeConfig, library, libraryPreferences);
+  const baseConfig = selection.activeInstanceKey
+    ? getEffectiveConfig(runtimeConfig)
+    : deriveNoActivePackConfig(runtimeConfig);
   const accountsStore = session.hasSession
     ? await rememberSessionAccount(baseConfig, session)
     : await readKnownAccounts(baseConfig);
@@ -648,15 +779,29 @@ async function getLauncherContext(options = {}) {
     accountsStore,
     baseConfig,
     config: scoped.config,
+    library,
+    libraryPreferences,
     membership,
     queue,
     scoped,
+    selection,
     session,
   };
 }
 
 async function stateFromContext(context) {
-  const { accountsStore, baseConfig, config, membership, queue, scoped, session } = context;
+  const {
+    accountsStore,
+    baseConfig,
+    config,
+    library,
+    libraryPreferences,
+    membership,
+    queue,
+    scoped,
+    selection,
+    session,
+  } = context;
   const autoSync = getAutoSyncDisplayState({
     autoSyncInProgress,
     membership,
@@ -665,10 +810,7 @@ async function stateFromContext(context) {
     session,
   }, autoSyncState);
   const savedSessionUserIds = await listSavedSessionUserIds(baseConfig, accountsStore.accounts);
-  const [library, libraryPreferences, libraryFavorites] = await Promise.all([
-    scanPackLibrary(baseConfig),
-    readLibraryPreferences(baseConfig, session),
-    session.hasSession
+  const libraryFavorites = await (session.hasSession
       ? readLibraryFavorites(baseConfig, session)
       : Promise.resolve({
         favorites: {},
@@ -678,8 +820,7 @@ async function stateFromContext(context) {
         scope: "disabled",
         updatedAt: null,
         warnings: [],
-      }),
-  ]);
+      }));
   const favoriteMap = libraryFavorites.favorites || {};
   const libraryState = {
     ...library,
@@ -697,26 +838,22 @@ async function stateFromContext(context) {
     })),
     preferences: libraryPreferences,
   };
-  const libraryUnavailable = Boolean(
-    libraryState.directory?.configured && !libraryState.directory?.available
-  );
-  const activeLibraryPack = libraryState.packs.find((pack) => (
-    (config.packRoot && pack.packDir === config.packRoot) ||
-    (config.pack?.packId && pack.packId === config.pack.packId && !pack.duplicatePackId)
-  ));
-  const game = libraryUnavailable
-    ? null
-    : {
-        ...getGameState(config),
-        favorite: Boolean(activeLibraryPack?.favorite),
-      };
-  const readiness = libraryUnavailable
+  const activeLibraryPack = selection.activeInstanceKey
+    ? libraryState.packs.find((pack) => pack.instanceKey === selection.activeInstanceKey) || null
+    : null;
+  const game = activeLibraryPack
     ? {
-        blockers: ["Recupera la carpeta de packs o cambia la ubicación de la biblioteca."],
+        ...getGameState(config, activeLibraryPack),
+        favorite: Boolean(activeLibraryPack.favorite),
+      }
+    : null;
+  const readiness = !activeLibraryPack
+    ? {
+        blockers: ["Selecciona un pack real de la biblioteca para continuar."],
         canPlayCompetition: false,
         canPractice: false,
         checks: [],
-        message: "La biblioteca de packs no está disponible.",
+        message: "No hay ningún pack activo en la biblioteca actual.",
         status: "blocked",
       }
     : evaluatePackReadiness({
@@ -727,21 +864,13 @@ async function stateFromContext(context) {
         scope: scoped.scope,
         session,
       });
-  const bridge = libraryUnavailable
-    ? {
-        ...getBridgeState(config),
-        activePackName: null,
-        mode: "library-unavailable",
-        packLoaded: false,
-        packOpened: false,
-        packPath: null,
-        packRoot: null,
-        workingDir: null,
-      }
-    : getBridgeState(config);
+  const bridge = activeLibraryPack
+    ? getBridgeState(config, activeLibraryPack)
+    : getEmptyBridgeState(libraryState);
 
   return {
     accounts: toSafeAccountsState(accountsStore, session, { savedSessionUserIds }),
+    activePack: activeLibraryPack,
     autoSync,
     bridge,
     configPath: config.configPath,
@@ -760,6 +889,12 @@ async function stateFromContext(context) {
           stagingPendingDir: config.stagingEventsPendingDirAbs || null,
         }
       : null,
+    selection: {
+      ...selection,
+      activeInstanceKey: activeLibraryPack?.instanceKey || null,
+      activePackDir: activeLibraryPack?.packDir || null,
+      source: activeLibraryPack ? selection.source : "none",
+    },
     session,
     timestamp: new Date().toISOString(),
   };
@@ -934,9 +1069,12 @@ async function getSessionState(config) {
   }
 }
 
-function getGameState(config) {
-  const supportedGame = listSupportedGames()[0] || null;
-  const rom = config.pack?.rom || supportedGame?.launcher?.rom || supportedGame?.primaryRom || "invaders";
+function getGameState(config, activePack) {
+  if (!activePack || !config.pack) {
+    return null;
+  }
+
+  const rom = config.pack.rom || activePack.rom || null;
   const metadata = config.pack?.metadata || null;
   const manual = resolvePackManual(config.pack);
   const ranking = resolvePackRanking({
@@ -952,16 +1090,22 @@ function getGameState(config) {
   return {
     assets: metadata?.assets || {},
     developer: metadata?.developer || null,
-    displayName: metadata?.title || supportedGame?.title || config.pack?.gameId || "Space Invaders",
+    displayName: metadata?.title || activePack.title,
     duplicateGroup: config.pack?.duplicateGroup || null,
     duplicatePaths: config.pack?.duplicatePaths || [],
     errors: [...new Set(errors)],
     genre: metadata?.genre || [],
-    gameId: config.pack?.gameId || supportedGame?.gameId || "space-invaders",
+    favoriteKey: activePack.favoriteKey || null,
+    gameId: config.pack?.gameId || activePack.gameId || null,
+    id: activePack.id,
+    instanceKey: activePack.instanceKey,
     manual: toRendererContentState(manual),
     metadataLoaded: Boolean(config.pack?.metadataLoaded),
     metadataWarnings: config.pack?.metadataWarnings || [],
     publisher: metadata?.publisher || null,
+    packId: config.pack?.packId || activePack.packId || null,
+    packPath: activePack.packPath || null,
+    packRoot: activePack.packDir,
     ranking: toRendererContentState(ranking),
     rom,
     seasonId: config.pack?.seasonId || null,
@@ -1065,7 +1209,7 @@ async function openPackRanking(options = {}) {
   };
 }
 
-function getBridgeState(config) {
+function getBridgeState(config, activePack = null) {
   const hasExternalMame = Boolean(config.mame?.executablePath && config.mame?.workingDir);
   const packOpened = config.configSource === "pack abierto";
   const duplicateGroup = config.configSource === "pack duplicado";
@@ -1084,6 +1228,7 @@ function getBridgeState(config) {
 
   return {
     activePackName: config.pack?.packId || config.pack?.gameId || null,
+    activeInstanceKey: activePack?.instanceKey || null,
     configSource: config.configSource,
     contractStatus: config.pack?.contractStatus || null,
     deprecated: Boolean(config.pack?.deprecated),
@@ -1104,6 +1249,35 @@ function getBridgeState(config) {
     sharedMameRuntimeConfigured: Boolean(config.sharedMameRuntime?.configured),
     webBaseUrl: config.webBaseUrl || null,
     workingDir: config.mame?.workingDir || null,
+  };
+}
+
+function getEmptyBridgeState(library) {
+  return {
+    activeInstanceKey: null,
+    activePackName: null,
+    configSource: null,
+    contractStatus: null,
+    deprecated: false,
+    devBridge: false,
+    duplicateGroup: false,
+    mode: library.status === "missing" || library.status === "inaccessible"
+      ? "library-unavailable"
+      : "no-selection",
+    packIssue: false,
+    packLoaded: false,
+    packMetadataLoaded: false,
+    packMetadataWarnings: [],
+    packOpened: false,
+    packPath: null,
+    packRemembered: false,
+    packRoot: null,
+    pluginName: null,
+    scopedQueue: false,
+    sharedMameRuntimeAvailable: false,
+    sharedMameRuntimeConfigured: false,
+    webBaseUrl: null,
+    workingDir: null,
   };
 }
 
@@ -1190,6 +1364,15 @@ async function runDiagnose(options = {}) {
     report.recommendations.push("Recupera la unidad o cambia la ubicación de la biblioteca de packs.");
   }
 
+  const activeInstanceKey = state?.selection?.activeInstanceKey || null;
+  const activeBelongsToLibrary = !activeInstanceKey || state.library.packs.some(
+    (pack) => pack.instanceKey === activeInstanceKey
+  );
+
+  if (!activeBelongsToLibrary) {
+    report.recommendations.push("Active pack does not belong to current library.");
+  }
+
   const summary = summarizeDiagnoseReport(report);
   const source = config.configSource === "pack abierto" ? "pack abierto" : "configuración local";
 
@@ -1226,11 +1409,8 @@ async function runDiagnose(options = {}) {
 }
 
 async function playCompetition() {
-  await ensureRememberedPackLoaded();
-  const baseConfig = getEffectiveConfig();
-
-  const session = await getAuthState(baseConfig);
-  const membership = await checkSeasonMembership(baseConfig, session);
+  const context = await getLauncherContext();
+  const { baseConfig, membership, session } = context;
 
   if (!session.hasSession) {
     return {
@@ -1252,7 +1432,7 @@ async function playCompetition() {
     };
   }
 
-  const scoped = await getScopedGuiConfig(baseConfig, session);
+  const scoped = context.scoped;
 
   if (!scoped.scope) {
     return {
@@ -1308,8 +1488,8 @@ async function playCompetition() {
   const startedAtMs = Date.now();
   const captured = await captureConsoleAsync(() => (
     isPackV2
-      ? launchMameDetailed(launchConfig, baseConfig.pack?.rom || "invaders", "competition")
-      : launchMame(launchConfig, baseConfig.pack?.rom || "invaders", "competition")
+      ? launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition")
+      : launchMame(launchConfig, baseConfig.pack.rom, "competition")
   ));
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.result?.exitCode ?? captured.exitCode;
   const mameOutputLines = summarizeMameOutput(captured.result);
@@ -1378,7 +1558,7 @@ async function playPractice() {
     };
   }
 
-  const captured = await captureConsoleAsync(() => launchMame(context.config, context.config.pack?.rom || "invaders", "practice"));
+  const captured = await captureConsoleAsync(() => launchMame(context.config, context.config.pack.rom, "practice"));
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
 
   return {
@@ -1746,7 +1926,6 @@ async function activatePackDirectory(packDir, options = {}) {
     pack: result.pack,
     remembered: false,
   };
-  activeDuplicateGroup = null;
   activeLibraryIssue = null;
   recentPackNotices = [];
   let recentWriteWarning = null;
@@ -1784,20 +1963,26 @@ async function openPackDirectory(packDir) {
   return activatePackDirectory(packDir);
 }
 
-async function cancelChoosePackDirectory() {
+async function cancelChoosePackDirectory(options = {}) {
+  const config = options.config || loadRuntimeConfig();
+
   return {
     action: "choose-pack-directory",
     canceled: true,
     lines: ["No se selecciono ningun directorio de packs."],
     ok: true,
     summary: "No se selecciono ningun directorio de packs.",
-    state: await getLauncherState(),
+    state: await getLauncherState(stateOptionsForAction(options, config)),
   };
 }
 
 async function choosePackDirectoryFromGui(directoryPath, options = {}) {
   const config = options.config || loadRuntimeConfig();
   const result = await setPackDirectory(config, directoryPath, options);
+
+  if (result.ok) {
+    clearActiveLibrarySelection();
+  }
 
   return {
     action: "choose-pack-directory",
@@ -1825,12 +2010,11 @@ async function cancelImportPack() {
 }
 
 async function activateImportedPack(imported, config, options = {}) {
-  const activation = await activatePackDirectory(imported.packDir, {
-    action: "import-pack",
-    includeState: false,
-    rememberConfig: config,
-    summary: imported.alreadyInstalled ? "Pack ya en biblioteca." : "Pack importado.",
-  });
+  const library = await scanPackLibrary(config);
+  const importedPack = library.packs.find((pack) => normalizedPath(pack.packDir) === normalizedPath(imported.packDir));
+  const activation = importedPack
+    ? await activateLibraryPack(importedPack.id, { config, includeState: false })
+    : { ok: false };
   const state = await getLauncherState(stateOptionsForAction(options, config));
 
   return {
@@ -2043,107 +2227,9 @@ async function openConfiguredPackDirectory(options = {}) {
   };
 }
 
-function matchesLibrarySelection(pack, selected) {
-  if (!pack || !selected) {
-    return false;
-  }
-
-  return Boolean(
-    (selected.id && pack.id === selected.id) ||
-    (selected.instanceKey && pack.instanceKey === selected.instanceKey) ||
-    (selected.packDir && pack.packDir === selected.packDir) ||
-    (selected.packId && pack.packId === selected.packId)
-  );
-}
-
-async function reconcileActiveLibrarySelection(config, library) {
-  if (library.directory?.configured && !library.directory?.available) {
-    return;
-  }
-
-  if (activeDuplicateGroup) {
-    const packId = activeDuplicateGroup.packId;
-    const matches = library.packs.filter((pack) => pack.packId && pack.packId === packId);
-
-    if (matches.length === 0) {
-      activeDuplicateGroup = null;
-      return;
-    }
-
-    const duplicate = matches.find((pack) => pack.duplicateGroup);
-
-    if (duplicate) {
-      activeDuplicateGroup = {
-        ...duplicate,
-        selectedAt: activeDuplicateGroup.selectedAt,
-      };
-      return;
-    }
-
-    if (matches.length === 1 && matches[0].packDir) {
-      activeDuplicateGroup = null;
-      activeLibraryIssue = null;
-      const response = await activatePackDirectory(matches[0].packDir, {
-        action: "rescan-pack-directory",
-        includeState: false,
-        rememberConfig: config,
-        summary: "Pack reconciliado tras reescaneo.",
-      });
-
-      if (!response.ok && matches[0].status === "error") {
-        activeOpenedPack = null;
-        activeLibraryIssue = {
-          ...matches[0],
-          selectedAt: new Date().toISOString(),
-        };
-      }
-    }
-
-    return;
-  }
-
-  if (activeLibraryIssue) {
-    const match = library.packs.find((pack) => matchesLibrarySelection(pack, activeLibraryIssue));
-
-    if (!match) {
-      activeLibraryIssue = null;
-      return;
-    }
-
-    if (match.duplicateGroup) {
-      activeOpenedPack = null;
-      activeDuplicateGroup = {
-        ...match,
-        selectedAt: activeLibraryIssue.selectedAt,
-      };
-      activeLibraryIssue = null;
-      return;
-    }
-
-    if (match.status === "error") {
-      activeLibraryIssue = {
-        ...match,
-        selectedAt: activeLibraryIssue.selectedAt,
-      };
-      return;
-    }
-
-    if (match.packDir) {
-      activeLibraryIssue = null;
-      await activatePackDirectory(match.packDir, {
-        action: "rescan-pack-directory",
-        includeState: false,
-        rememberConfig: config,
-        summary: "Pack reconciliado tras reescaneo.",
-      });
-    }
-  }
-}
-
 async function rescanPackDirectory(options = {}) {
   const config = options.config || loadRuntimeConfig();
   const library = await scanPackLibrary(config);
-  await reconcileActiveLibrarySelection(config, library);
 
   const unavailable = library.directory?.configured && !library.directory?.available;
   const summary = unavailable
@@ -2251,64 +2337,34 @@ async function activateLibraryPack(packId, options = {}) {
     };
   }
 
-  if (pack.duplicateGroup) {
-    activeOpenedPack = null;
-    activeDuplicateGroup = {
-      ...pack,
-      selectedAt: new Date().toISOString(),
-    };
-    activeLibraryIssue = null;
-    recentPackNotices = [];
+  materializeLibrarySelection(pack, library.directory.path, "user");
+  recentPackNotices = [];
+  let rememberWarning = null;
 
-    return {
-      action: "use-library-pack",
-      lines: [
-        "Pack duplicado seleccionado para revision.",
-        "El launcher no abrira MAME hasta que elimines las copias o cambies el packId.",
-      ],
-      ok: true,
-      pack: {
-        duplicateGroup: true,
-        duplicatePaths: pack.duplicatePaths || [],
-        packId: pack.packId || null,
-      },
-      summary: "Pack duplicado seleccionado.",
-      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
-    };
+  try {
+    await writeLibrarySelection(config, library.directory.path, pack);
+    await writeLastOpenedPack(config, pack.packDir);
+  } catch (error) {
+    rememberWarning = `No se pudo recordar la selección: ${normalizeMessage(error)}`;
   }
 
-  const response = await activatePackDirectory(pack.packDir, {
-    action: "use-library-pack",
-    includeState: options.includeState,
-    rememberConfig: config,
-    summary: "Pack activado desde biblioteca.",
-  });
-
-  if (!response.ok && pack.status === "error") {
-    activeOpenedPack = null;
-    activeDuplicateGroup = null;
-    activeLibraryIssue = {
-      ...pack,
-      selectedAt: new Date().toISOString(),
-    };
-
-    return {
-      action: "use-library-pack",
-      lines: [
-        "Pack seleccionado para revision.",
-        ...(pack.errors || []),
-      ],
-      ok: true,
-      summary: "Pack con errores seleccionado.",
-      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
-    };
-  }
+  const hasIssues = pack.status === "error" || pack.duplicatePackId;
 
   return {
-    ...response,
-    lines: response.ok
-      ? ["Pack activado desde biblioteca.", ...response.lines.slice(1)]
-      : response.lines,
+    action: "use-library-pack",
+    lines: [
+      hasIssues ? "Pack seleccionado para revisión." : "Pack activado desde biblioteca.",
+      ...(pack.errors || []),
+      ...(rememberWarning ? [rememberWarning] : []),
+    ],
+    ok: true,
+    pack: {
+      instanceKey: pack.instanceKey,
+      packId: pack.packId || null,
+      packRoot: pack.packDir,
+    },
+    summary: hasIssues ? "Pack con errores seleccionado." : "Pack activado desde biblioteca.",
+    state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
   };
 }
 

@@ -2,6 +2,15 @@ import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
 import { renderLibraryEmptyState } from "./library-empty-state.js";
 import { renderPackCard } from "./pack-card.js";
+import {
+  comparePacks,
+  normalizedYear,
+  normalizeSortBy,
+  normalizeSortDirection,
+  primaryDeveloper,
+  sortPacks,
+  yearNumber,
+} from "../../shared/library-order.mjs";
 
 function normalizeSearch(value) {
   return String(value || "")
@@ -37,140 +46,6 @@ function matchesStatus(pack, filter) {
 
 function favoriteFilterActive(state) {
   return state.libraryFavoriteFilter === "favorites" && Boolean(state.data?.session?.hasSession);
-}
-
-function normalizeSortBy(value) {
-  return ["weeks", "title", "developer", "year"].includes(value) ? value : "weeks";
-}
-
-function normalizeSortDirection(value) {
-  return value === "desc" ? "desc" : "asc";
-}
-
-function compareText(a, b) {
-  return String(a || "").localeCompare(String(b || ""), "es", {
-    numeric: true,
-    sensitivity: "base",
-  });
-}
-
-function normalizedYear(pack) {
-  const year = Number(pack?.year);
-
-  return Number.isInteger(year) && year > 0 ? String(year) : null;
-}
-
-function yearNumber(pack) {
-  const year = normalizedYear(pack);
-
-  return year ? Number(year) : null;
-}
-
-function firstNonEmpty(value) {
-  if (Array.isArray(value)) {
-    return value.map(firstNonEmpty).find(Boolean) || null;
-  }
-
-  if (typeof value !== "string" && typeof value !== "number") {
-    return null;
-  }
-
-  const first = String(value)
-    .split(/[·,;]/u)
-    .map((item) => item.trim().replace(/\s+/g, " "))
-    .find(Boolean);
-
-  return first || null;
-}
-
-function primaryDeveloper(pack) {
-  return firstNonEmpty(pack?.developer) || firstNonEmpty(pack?.publisher);
-}
-
-function weekSortValue(pack) {
-  return [
-    pack.seasonName || pack.seasonId || "",
-    Number.isFinite(Number(pack.weekNumber)) ? Number(pack.weekNumber) : Number.MAX_SAFE_INTEGER,
-    pack.weekId || "",
-    pack.title || "",
-  ];
-}
-
-function compareWeeks(a, b) {
-  const left = weekSortValue(a);
-  const right = weekSortValue(b);
-  const season = compareText(left[0], right[0]);
-  if (season) return season;
-  if (left[1] !== right[1]) return left[1] - right[1];
-  const week = compareText(left[2], right[2]);
-  if (week) return week;
-  return compareText(left[3], right[3]);
-}
-
-function comparePacks(a, b, sortBy) {
-  if (sortBy === "developer") {
-    const developer = compareText(primaryDeveloper(a) || a.title, primaryDeveloper(b) || b.title);
-    return developer || compareText(a.title, b.title);
-  }
-
-  if (sortBy === "year") {
-    const leftYear = yearNumber(a);
-    const rightYear = yearNumber(b);
-    const left = Number.isFinite(leftYear) ? leftYear : Number.MAX_SAFE_INTEGER;
-    const right = Number.isFinite(rightYear) ? rightYear : Number.MAX_SAFE_INTEGER;
-    return left === right ? compareText(a.title, b.title) : left - right;
-  }
-
-  if (sortBy === "weeks") {
-    return compareWeeks(a, b);
-  }
-
-  return compareText(a.title, b.title);
-}
-
-function sortPacks(packs, state) {
-  const sortBy = normalizeSortBy(state.librarySortBy);
-  const direction = normalizeSortDirection(state.librarySortDirection);
-  const factor = direction === "desc" ? -1 : 1;
-
-  if (sortBy === "year") {
-    return [...packs].sort((a, b) => {
-      const leftYear = yearNumber(a);
-      const rightYear = yearNumber(b);
-      const leftHasYear = Number.isFinite(leftYear);
-      const rightHasYear = Number.isFinite(rightYear);
-
-      if (leftHasYear && rightHasYear && leftYear !== rightYear) {
-        return (leftYear - rightYear) * factor;
-      }
-
-      if (leftHasYear !== rightHasYear) {
-        return leftHasYear ? -1 : 1;
-      }
-
-      return compareText(a.title, b.title) * factor;
-    });
-  }
-
-  if (sortBy === "developer") {
-    return [...packs].sort((a, b) => {
-      const leftDeveloper = primaryDeveloper(a);
-      const rightDeveloper = primaryDeveloper(b);
-
-      if (leftDeveloper && rightDeveloper) {
-        const developer = compareText(leftDeveloper, rightDeveloper);
-        if (developer) return developer * factor;
-      }
-
-      if (Boolean(leftDeveloper) !== Boolean(rightDeveloper)) {
-        return leftDeveloper ? -1 : 1;
-      }
-
-      return compareText(a.title, b.title);
-    });
-  }
-
-  return [...packs].sort((a, b) => comparePacks(a, b, sortBy) * factor);
 }
 
 function filterPacks(packs, state) {
@@ -409,9 +284,9 @@ function renderPacks(state) {
 
   if (packs.length === 0) {
     return renderLibraryEmptyState({
-      body: "Cada pack debe estar en una subcarpeta directa con pack.json.",
+      body: "Importa un pack o cambia la ubicación de la biblioteca.",
       state,
-      title: "No se han encontrado packs en este directorio.",
+      title: "Tu biblioteca está vacía.",
     });
   }
 

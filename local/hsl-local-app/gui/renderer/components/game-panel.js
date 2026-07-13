@@ -269,26 +269,50 @@ export function renderGamePanel(state) {
   }
 
   const directory = data.library?.directory;
+  const libraryStatus = data.library?.status || null;
 
-  if (directory?.configured && !directory.available) {
+  if (["missing", "inaccessible"].includes(libraryStatus) || (directory?.configured && !directory.available)) {
     return renderUnavailableLibraryPanel(directory);
   }
 
   const game = data?.game;
 
-  if (!game && !directory?.configured) {
+  if (libraryStatus === "unconfigured" || (!game && !directory?.configured)) {
     return renderBrandedEmptyPanel({
       ariaLabel: "Biblioteca de packs sin configurar",
-      body: "Añade una ubicación desde Biblioteca para encontrar tus packs.",
+      body: "Escoge una carpeta para empezar a añadir y jugar tus packs.",
       title: "Configura tu biblioteca",
     });
   }
 
-  if (!game && directory?.available && (data.library?.packs?.length || 0) === 0) {
+  if (libraryStatus === "available-empty" || (!game && directory?.available && (data.library?.packs?.length || 0) === 0)) {
     return renderBrandedEmptyPanel({
       ariaLabel: "Biblioteca de packs vacía",
-      body: "Añade packs a la ubicación configurada y vuelve a escanear la biblioteca.",
+      body: "No hay packs en esta ubicación. Importa un pack o cambia la ubicación de la biblioteca.",
       title: "Tu biblioteca está vacía",
+    });
+  }
+
+  if (libraryStatus === "available-populated") {
+    const activeInstanceKey = data.selection?.activeInstanceKey || null;
+    const activePackExists = activeInstanceKey && data.library.packs.some(
+      (pack) => pack.instanceKey === activeInstanceKey
+    );
+
+    if (!game || !activePackExists || game.instanceKey !== activeInstanceKey) {
+      return renderBrandedEmptyPanel({
+        ariaLabel: "Biblioteca sin pack seleccionado",
+        body: "Selecciona un pack para ver sus detalles.",
+        title: "Elige un juego de tu biblioteca",
+      });
+    }
+  }
+
+  if (!game) {
+    return renderBrandedEmptyPanel({
+      ariaLabel: "Biblioteca sin pack seleccionado",
+      body: "Selecciona un pack para ver sus detalles.",
+      title: "Elige un juego de tu biblioteca",
     });
   }
 
@@ -314,7 +338,7 @@ export function renderGamePanel(state) {
         <div class="pack-title-row">
           <div class="game-title-block">
             <div class="game-title-main">
-              <h2 title="${escapeHtml(game?.displayName || "Space Invaders")}">${escapeHtml(game?.displayName || "Space Invaders")}</h2>
+              <h2 title="${escapeHtml(game.displayName)}">${escapeHtml(game.displayName)}</h2>
               ${renderDetailFavoriteMark(game)}
             </div>
             ${weekLabel ? `<p class="game-week-subtitle">${renderIcon("calendar", { className: "status-icon game-week-icon", size: "sm" })}<span>${escapeHtml(weekLabel)}</span></p>` : ""}

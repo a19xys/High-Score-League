@@ -46,7 +46,7 @@ function renderUnavailablePackDirectoryDialog() {
   const titleId = "app-dialog-pack-directory-title";
   const descriptionId = "app-dialog-pack-directory-description";
   const buttons = [
-    { action: "choose-unavailable-pack-directory", autofocus: true, icon: "folder", label: "Escoger carpeta", variant: "primary" },
+    { action: "choose-unavailable-pack-directory", autofocus: true, icon: "folder", label: "Elegir carpeta", variant: "primary" },
     { action: "close-dialog", label: "Cancelar", variant: "secondary" },
   ];
 
@@ -55,8 +55,8 @@ function renderUnavailablePackDirectoryDialog() {
       <section class="app-dialog app-dialog--pack-directory" role="dialog" aria-modal="true" aria-labelledby="${titleId}" aria-describedby="${descriptionId}" data-dialog>
         <div class="app-dialog__header">
           <p class="eyebrow">Biblioteca no disponible</p>
-          <h2 id="${titleId}">No se encuentra la carpeta de packs</h2>
-          <p id="${descriptionId}">El launcher no puede acceder a la biblioteca configurada. Conecta de nuevo la unidad o escoge otra carpeta.</p>
+          <h2 id="${titleId}">No se encuentran los packs</h2>
+          <p id="${descriptionId}">El launcher no puede acceder a la biblioteca. Selecciónala de nuevo o elige otra carpeta.</p>
         </div>
         <div class="app-dialog__actions app-dialog__actions--pack-directory">
           ${buttons.map(renderDialogButton).join("")}

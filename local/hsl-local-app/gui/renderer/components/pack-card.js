@@ -1,12 +1,6 @@
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
 
-function normalizePath(value) {
-  return typeof value === "string"
-    ? value.replaceAll("\\", "/").replace(/\/+$/, "").toLowerCase()
-    : null;
-}
-
 function getInitials(title) {
   const words = String(title || "HSL")
     .split(/[^a-z0-9]+/i)
@@ -18,26 +12,11 @@ function getInitials(title) {
 }
 
 function isActivePack(pack, data = {}) {
-  const bridge = data.bridge || {};
-  const packDir = normalizePath(pack?.packDir);
-  const activeRoot = normalizePath(bridge.packRoot);
-
-  if (packDir && activeRoot && packDir === activeRoot) {
-    return true;
-  }
-
-  if (activeRoot) {
-    return false;
-  }
-
-  const activeName = bridge.activePackName;
-  const activeWeek = data.game?.weekId;
-
-  if (activeName && pack.packId && activeName === pack.packId) {
-    return true;
-  }
-
-  return Boolean(activeName && activeWeek && activeName === pack.gameId && activeWeek === pack.weekId);
+  return Boolean(
+    pack?.instanceKey &&
+    data.selection?.activeInstanceKey &&
+    pack.instanceKey === data.selection.activeInstanceKey
+  );
 }
 
 function statusMeta(pack) {
@@ -166,7 +145,7 @@ export function renderPackCard(pack, state, view = "covers") {
   const subtitle = subtitleForPack(pack);
 
   return `
-    <article class="${cardClass}" title="${escapeHtml(`${pack.title || "Pack local"} · ${subtitle}`)}" ${selectableAttributes}>
+    <article class="${cardClass}" data-instance-key="${escapeHtml(pack.instanceKey || "")}" title="${escapeHtml(`${pack.title || "Pack local"} · ${subtitle}`)}" ${selectableAttributes}>
       ${renderFavorite(pack, state.busy, Boolean(state.data?.session?.hasSession))}
       ${renderBadges(pack, view)}
       ${renderPackVisual(pack, view)}
