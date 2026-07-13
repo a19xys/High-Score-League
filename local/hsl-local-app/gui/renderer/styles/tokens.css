@@ -29,7 +29,19 @@
   --error-bg: #fee2e2;
   --info: #1d4ed8;
   --info-bg: #dbeafe;
+  --card-surface: #fbfdff;
+  --card-border: #d4e0ec;
+  --selection-ring: #1688b7;
+  --selection-glow: 0 0 0 3px rgb(15 120 168 / 0.16);
+  --shadow-none: none;
+  --shadow-card: 0 5px 16px rgb(31 58 90 / 0.09);
+  --shadow-card-hover: 0 8px 22px rgb(31 58 90 / 0.13);
   --shadow-panel: 0 20px 50px rgb(31 58 90 / 0.14);
+  --shadow-dialog: 0 22px 64px rgb(31 58 90 / 0.2);
+  --dialog-secondary-bg: #e6eef8;
+  --dialog-secondary-border: #b6c8dc;
+  --dialog-secondary-text: #17314e;
+  --dialog-secondary-hover: #d9e6f3;
 }
 
 [data-theme="dark"] {
@@ -60,5 +72,17 @@
   --error-bg: #450a0a;
   --info: #60a5fa;
   --info-bg: #10233f;
+  --card-surface: #172033;
+  --card-border: #334155;
+  --selection-ring: #22d3ee;
+  --selection-glow: 0 0 0 3px rgb(34 211 238 / 0.18);
+  --shadow-none: none;
+  --shadow-card: 0 5px 16px rgb(2 6 23 / 0.2);
+  --shadow-card-hover: 0 8px 22px rgb(2 6 23 / 0.28);
   --shadow-panel: 0 24px 60px rgb(2 6 23 / 0.34);
+  --shadow-dialog: 0 24px 68px rgb(2 6 23 / 0.42);
+  --dialog-secondary-bg: #24344a;
+  --dialog-secondary-border: #49617c;
+  --dialog-secondary-text: #e6edf6;
+  --dialog-secondary-hover: #30445f;
 }

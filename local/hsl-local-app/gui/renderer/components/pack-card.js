@@ -145,7 +145,7 @@ export function renderPackCard(pack, state, view = "covers") {
   const subtitle = subtitleForPack(pack);
 
   return `
-    <article class="${cardClass}" data-instance-key="${escapeHtml(pack.instanceKey || "")}" title="${escapeHtml(`${pack.title || "Pack local"} · ${subtitle}`)}" ${selectableAttributes}>
+    <article class="${cardClass}" data-instance-key="${escapeHtml(pack.instanceKey || "")}" data-selected="${active ? "true" : "false"}" aria-current="${active ? "true" : "false"}" title="${escapeHtml(`${pack.title || "Pack local"} · ${subtitle}`)}" ${selectableAttributes}>
       ${renderFavorite(pack, state.busy, Boolean(state.data?.session?.hasSession))}
       ${renderBadges(pack, view)}
       ${renderPackVisual(pack, view)}

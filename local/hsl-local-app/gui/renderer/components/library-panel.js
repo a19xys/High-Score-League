@@ -113,12 +113,12 @@ function groupPacks(packs, sortBy = "weeks") {
   return [...groups.values()];
 }
 
-function renderViewButton(state, view, label, icon) {
+function renderViewButton(state, view, label, icon, disabled = false) {
   const active = state.libraryView === view;
   const iconName = `view-${icon}`;
 
   return `
-    <button class="view-button ${active ? "view-button--active" : ""}" type="button" data-action="set-library-view" data-view="${view}" aria-label="${label}" title="${label}" aria-pressed="${active}">
+    <button class="view-button ${active ? "view-button--active" : ""}" type="button" data-action="set-library-view" data-view="${view}" aria-label="${label}" title="${disabled ? "Vista no disponible sin packs" : label}" aria-pressed="${active}" aria-disabled="${disabled ? "true" : "false"}" ${disabled ? "disabled" : ""}>
       <span class="library-view-button__icon">${renderIcon(iconName, { className: `library-view-icon icon-slot icon-slot--${icon}` })}</span>
       <span class="library-view-button__label">${label}</span>
     </button>
@@ -164,8 +164,12 @@ function libraryUnavailable(state) {
   return Boolean(directory?.configured && !directory.available);
 }
 
+function libraryControlsDisabled(state, packs = []) {
+  return state.busy || libraryUnavailable(state) || packs.length === 0;
+}
+
 function renderFilterCard(state, packs) {
-  if (!state.libraryFiltersOpen || libraryUnavailable(state)) {
+  if (!state.libraryFiltersOpen || libraryControlsDisabled(state, packs)) {
     return "";
   }
 
@@ -215,10 +219,11 @@ function renderFilterCard(state, packs) {
 }
 
 function renderLibraryControls(state, packs) {
-  const filtersDisabled = libraryUnavailable(state);
+  const controlsDisabled = libraryControlsDisabled(state, packs);
+  const filtersDisabled = libraryUnavailable(state) || packs.length === 0;
   const filtersOpen = !filtersDisabled && Boolean(state.libraryFiltersOpen);
   const disabled = state.busy ? "disabled" : "";
-  const filterDisabled = filtersDisabled ? "disabled" : "";
+  const filterDisabled = controlsDisabled ? "disabled" : "";
   const hasDirectory = Boolean(state.data?.library?.directory?.path);
   const locationLabel = hasDirectory ? "Cambiar ubicación" : "Añadir ubicación";
 
@@ -229,16 +234,16 @@ function renderLibraryControls(state, packs) {
           ${renderIcon("folder", { className: "library-control-icon" })}
           <span>${locationLabel}</span>
         </button>
-        <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-label="Filtros" title="${filtersDisabled ? "Filtros no disponibles" : "Filtros"}" aria-expanded="${filtersOpen ? "true" : "false"}" aria-disabled="${filtersDisabled ? "true" : "false"}" aria-controls="library-filter-card" ${filterDisabled}>
+        <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-label="Filtros" title="${controlsDisabled ? "Filtros no disponibles" : "Filtros"}" aria-expanded="${filtersOpen ? "true" : "false"}" aria-disabled="${controlsDisabled ? "true" : "false"}" aria-controls="library-filter-card" ${filterDisabled}>
           ${renderIcon("filter", { className: "library-control-icon" })}
           <span>Filtros</span>
         </button>
       </div>
       ${renderFilterCard(state, packs)}
       <div class="library-views" aria-label="Vista de biblioteca">
-        ${renderViewButton(state, "covers", "Portadas", "covers")}
-        ${renderViewButton(state, "list", "Lista", "list")}
-        ${renderViewButton(state, "icons", "Iconos", "icons")}
+        ${renderViewButton(state, "covers", "Portadas", "covers", controlsDisabled)}
+        ${renderViewButton(state, "list", "Lista", "list", controlsDisabled)}
+        ${renderViewButton(state, "icons", "Iconos", "icons", controlsDisabled)}
       </div>
     </div>
   `;

@@ -2035,7 +2035,7 @@ main,
   border: 1px solid color-mix(in srgb, var(--border) 78%, var(--circuit));
   border-radius: clamp(8px, 1vw, 14px);
   background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: 0 22px 72px rgb(2 6 23 / 0.32);
+  box-shadow: var(--shadow-dialog);
   padding: clamp(24px, 2.4vw, 40px);
 }
 
@@ -2072,11 +2072,11 @@ main,
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--dialog-secondary-border);
   border-radius: 8px;
   padding: 0 14px;
-  background: color-mix(in srgb, var(--surface-strong) 70%, transparent);
-  color: var(--text);
+  background: var(--dialog-secondary-bg);
+  color: var(--dialog-secondary-text);
   font: inherit;
   font-size: 14px;
   font-weight: 800;
@@ -2107,9 +2107,15 @@ main,
 }
 
 .app-dialog__button--secondary {
-  border-color: color-mix(in srgb, var(--border) 88%, var(--text-muted));
-  background: color-mix(in srgb, var(--surface-strong) 82%, var(--surface));
-  color: var(--text);
+  border-color: var(--dialog-secondary-border);
+  background: var(--dialog-secondary-bg);
+  color: var(--dialog-secondary-text);
+}
+
+.app-dialog__button--secondary:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--circuit) 38%, var(--dialog-secondary-border));
+  background: var(--dialog-secondary-hover);
+  color: var(--dialog-secondary-text);
 }
 
 .app-dialog__actions--import-pack .app-dialog__button--secondary {
@@ -2124,6 +2130,7 @@ main,
 
 .app-dialog__button-icon {
   margin-right: 8px;
+  color: currentColor;
 }
 
 @media (max-width: 520px) {
@@ -5774,7 +5781,6 @@ html:not([data-theme="dark"]) body {
 html:not([data-theme="dark"]) .launcher-header,
 html:not([data-theme="dark"]) .panel,
 html:not([data-theme="dark"]) .advanced-shell,
-html:not([data-theme="dark"]) .pack-card,
 html:not([data-theme="dark"]) .game-detail-card,
 html:not([data-theme="dark"]) .account-menu,
 html:not([data-theme="dark"]) .app-dialog,
@@ -5799,8 +5805,7 @@ html:not([data-theme="dark"]) .view-button,
 html:not([data-theme="dark"]) .secondary-action,
 html:not([data-theme="dark"]) .tool-button,
 html:not([data-theme="dark"]) .theme-button,
-html:not([data-theme="dark"]) .icon-button,
-html:not([data-theme="dark"]) .app-dialog__button:not(.app-dialog__button--primary) {
+html:not([data-theme="dark"]) .icon-button {
   border-color: color-mix(in srgb, var(--border) 84%, var(--circuit));
   background: color-mix(in srgb, var(--surface) 82%, var(--circuit-soft));
   color: var(--text);
@@ -5811,8 +5816,7 @@ html:not([data-theme="dark"]) .view-button:hover:not(:disabled),
 html:not([data-theme="dark"]) .secondary-action:hover:not(:disabled),
 html:not([data-theme="dark"]) .tool-button:hover:not(:disabled),
 html:not([data-theme="dark"]) .theme-button:hover,
-html:not([data-theme="dark"]) .icon-button:hover,
-html:not([data-theme="dark"]) .app-dialog__button:not(.app-dialog__button--primary):hover:not(:disabled) {
+html:not([data-theme="dark"]) .icon-button:hover {
   border-color: color-mix(in srgb, var(--circuit) 48%, var(--border));
   background: var(--hover);
   color: var(--circuit-strong);
@@ -5847,9 +5851,7 @@ html:not([data-theme="dark"]) .pack-card__media {
   background:
     radial-gradient(circle at 50% 34%, rgb(255 255 255 / 0.54), transparent 54%),
     linear-gradient(135deg, var(--icon-stage), var(--icon-stage-strong));
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.62),
-    0 10px 24px rgb(31 58 90 / 0.12);
+  box-shadow: none;
 }
 
 html:not([data-theme="dark"]) .pack-card--icons .pack-card__media {
@@ -5859,7 +5861,7 @@ html:not([data-theme="dark"]) .pack-card--icons .pack-card__media {
 }
 
 html:not([data-theme="dark"]) .pack-card__media img {
-  filter: drop-shadow(0 5px 8px rgb(15 39 66 / 0.28));
+  filter: none;
 }
 
 html:not([data-theme="dark"]) .game-metadata-icon.ui-icon,
@@ -5896,4 +5898,176 @@ html:not([data-theme="dark"]) .badge-error {
   border-color: color-mix(in srgb, var(--error) 34%, var(--border));
   background: var(--error-bg);
   color: var(--error);
+}
+
+/* LOCAL-LAUNCHER-UX-VISUAL-POLISH-4: shared card shell, selection and icon stages. */
+.library-control-button:disabled,
+.view-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.library-section--packs {
+  box-sizing: border-box;
+  padding: 8px 12px 16px 8px;
+  scroll-padding: 8px 12px 16px 8px;
+}
+
+.pack-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  background: var(--card-surface);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.pack-card::after {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border: 2px solid transparent;
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+}
+
+.pack-card[role="button"]:hover {
+  border-color: color-mix(in srgb, var(--circuit) 28%, var(--card-border));
+  box-shadow: var(--shadow-card-hover);
+}
+
+.pack-card[data-selected="true"],
+.pack-card--active {
+  border-color: var(--card-border);
+  box-shadow: var(--shadow-card);
+}
+
+.pack-card[data-selected="true"]::after,
+.pack-card--active::after {
+  border-color: var(--selection-ring);
+  box-shadow: inset var(--selection-glow);
+}
+
+.pack-card[role="button"]:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--selection-ring) 76%, transparent);
+  outline-offset: 3px;
+}
+
+.pack-card--pending,
+.pack-card--pending.pack-card--active {
+  border-color: var(--card-border);
+  box-shadow: var(--shadow-card);
+}
+
+.pack-card--covers {
+  padding: 7px 7px 0;
+}
+
+.pack-card--covers .pack-card__media {
+  width: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.pack-card--covers .pack-card__media img {
+  object-fit: cover;
+  filter: none;
+}
+
+.pack-card--covers .pack-card__body {
+  padding: 9px 3px 10px;
+}
+
+.pack-card--covers .favorite-slot {
+  top: 13px;
+  left: 13px;
+}
+
+.pack-card--covers .pack-card__status {
+  top: 13px;
+  right: 13px;
+}
+
+.pack-card--list .pack-card__media,
+.pack-card--icons .pack-card__media {
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  background: var(--icon-stage);
+  box-shadow: none;
+}
+
+.pack-card--list .pack-card__media img,
+.pack-card--icons .pack-card__media img {
+  box-sizing: border-box;
+  object-fit: contain;
+  filter: none;
+  transform: none;
+}
+
+.pack-card--list .pack-card__media img {
+  padding: 5px;
+}
+
+.pack-card--icons {
+  width: 100%;
+  min-width: 0;
+  grid-template-rows: auto auto;
+  gap: 9px;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  background: var(--card-surface);
+  box-shadow: var(--shadow-card);
+  padding: 8px 8px 11px;
+}
+
+.pack-card--icons .pack-card__media {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border-radius: 7px;
+  padding: 10px;
+}
+
+.pack-card--icons.pack-card--active .pack-card__media,
+.pack-card--icons.pack-card--pending .pack-card__media {
+  border-color: var(--card-border);
+  box-shadow: none;
+}
+
+.pack-card--icons .favorite-slot {
+  top: 13px;
+  left: 13px;
+}
+
+.pack-card--icons .pack-card__status--dot {
+  top: 15px;
+  right: 15px;
+}
+
+.pack-card--icons .pack-card__body {
+  width: 100%;
+  min-width: 0;
+  padding: 0 3px 2px;
+}
+
+.pack-card--icons .pack-card__text h3 {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 2px;
+  line-height: 1.22;
+}
+
+html:not([data-theme="dark"]) .pack-card {
+  border-color: var(--card-border);
+  background: var(--card-surface);
+  box-shadow: var(--shadow-card);
+}
+
+html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
+  box-shadow: var(--shadow-card-hover);
 }

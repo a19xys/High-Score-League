@@ -9,6 +9,7 @@ import { renderIcon } from "./components/icon.js";
 import { renderLibraryPanel } from "./components/library-panel.js";
 import { renderLogPanel } from "./components/log-panel.js";
 import { renderActivityDrawer } from "./components/queue-panel.js";
+import { waitForMinimumVisibleDuration } from "./operation-feedback.js";
 
 const root = document.getElementById("app");
 const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
@@ -100,8 +101,9 @@ function unavailableDirectoryDialogPatch(data) {
 
 function libraryUnavailableStatePatch(data) {
   const directory = data?.library?.directory;
+  const hasNoPacks = (data?.library?.packs?.length || 0) === 0;
 
-  return directory?.configured && !directory.available
+  return hasNoPacks || (directory?.configured && !directory.available)
     ? { libraryFiltersOpen: false }
     : {};
 }
@@ -954,6 +956,7 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
   if (store.getState().busy) return;
 
   const runId = ++busyRunSequence;
+  const busyStartedAt = Date.now();
   let phaseTimer = null;
   store.setState({
     ...closeAccountMenuState(),
@@ -983,6 +986,13 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
       await delay(options.closingDelayMs || 450);
     }
 
+    await waitForMinimumVisibleDuration({
+      minVisibleMs: options.minVisibleMs,
+      startedAt: busyStartedAt,
+    });
+
+    if (runId !== busyRunSequence) return;
+
     const statePatch = {
       busy: false,
       busyLabel: null,
@@ -1001,6 +1011,13 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
     store.setState(statePatch);
   } catch (error) {
     window.clearTimeout(phaseTimer);
+    await waitForMinimumVisibleDuration({
+      minVisibleMs: options.minVisibleMs,
+      startedAt: busyStartedAt,
+    });
+
+    if (runId !== busyRunSequence) return;
+
     store.setState({
       busy: false,
       busyLabel: null,
@@ -1444,6 +1461,7 @@ function bindActions() {
     if (action === "rescan-pack-directory") {
       resetUnavailableDirectoryPrompt(store.getState().data);
       runAction(action, "Reescaneando", "Reescanear", () => window.hslLauncher.rescanPackDirectory(), {
+        minVisibleMs: 600,
         neutralizeActivePack: true,
         promptForUnavailableDirectory: true,
       });

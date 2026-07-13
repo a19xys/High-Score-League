@@ -620,11 +620,11 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/<select data-library-sort-direction/.test(libraryPanel), false);
   assert.match(libraryPanel, /normalizeSortBy\(state\.librarySortBy\)/);
   assert.match(libraryPanel, /normalizeSortDirection\(state\.librarySortDirection\)/);
-  assert.match(libraryPanel, /if \(!state\.libraryFiltersOpen \|\| libraryUnavailable\(state\)\)/);
+  assert.match(libraryPanel, /if \(!state\.libraryFiltersOpen \|\| libraryControlsDisabled\(state, packs\)\)/);
   assert.equal(/data-library-status|<span>Estado<\/span>/.test(libraryPanel), false);
-  assert.match(libraryPanel, /renderViewButton\(state, "covers", "Portadas", "covers"\)/);
-  assert.match(libraryPanel, /renderViewButton\(state, "list", "Lista", "list"\)/);
-  assert.match(libraryPanel, /renderViewButton\(state, "icons", "Iconos", "icons"\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "covers", "Portadas", "covers", controlsDisabled\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "list", "Lista", "list", controlsDisabled\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "icons", "Iconos", "icons", controlsDisabled\)/);
   assert.match(libraryPanel, /aria-label="\$\{label\}"/);
   assert.match(libraryPanel, /title="\$\{label\}"/);
   assert.match(libraryPanel, /library-view-button__icon/);
@@ -1648,7 +1648,7 @@ test("renderer muestra fallback HSL limpio cuando falta la biblioteca", async ()
       },
     },
   });
-  assert.match(recoveredHtml, /data-action="toggle-library-filters"[^>]*aria-expanded="false"[^>]*aria-disabled="false"/);
+  assert.match(recoveredHtml, /data-action="toggle-library-filters"[^>]*aria-expanded="false"[^>]*aria-disabled="true"[^>]*disabled/);
 });
 
 test("renderer separa biblioteca vacía, sin configurar y sin selección real", async () => {
