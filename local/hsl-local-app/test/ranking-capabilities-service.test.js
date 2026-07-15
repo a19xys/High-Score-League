@@ -143,9 +143,48 @@ test("reuses fresh cache and refreshes after TTL", async () => {
   await h.service.refresh();
   assert.equal(h.calls.length, 1);
   h.advance(300_001);
-  assert.equal(h.service.getCapability("week-1").status, "unknown");
+  assert.equal(h.service.getCapability("week-1").status, "available");
+  assert.equal(h.service.getCapability("week-1").freshness, "soft-stale");
   await h.service.refresh();
   assert.equal(h.calls.length, 2);
+});
+
+test("available stays enabled while a compatible background refresh is in flight", async () => {
+  let resolveRefresh;
+  let call = 0;
+  const h = harness({
+    fetchImpl: async (_url, init) => {
+      call += 1;
+      const body = JSON.parse(init.body);
+      if (call > 1) {
+        return new Promise((resolve) => { resolveRefresh = () => resolve(jsonResponse({
+          version: 1,
+          results: body.requests.map((request) => ({ requestKey: request.requestKey, status: "available", reason: "public-week", url: `https://hsl.example/weeks/${request.weekId}` })),
+        })); });
+      }
+      return jsonResponse({ version: 1, results: body.requests.map((request) => ({ requestKey: request.requestKey, status: "available", reason: "public-week", url: `https://hsl.example/weeks/${request.weekId}` })) });
+    },
+  });
+  h.service.updateContext({ activeInstanceKey: "pack-a", webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
+  await h.service.refresh();
+  h.advance(300_001);
+  const pending = h.service.refresh("ttl-expired");
+  assert.equal(h.service.getCapability("week-1").status, "available");
+  assert.equal(h.service.getCapability("week-1").freshness, "revalidating");
+  resolveRefresh();
+  await pending;
+});
+
+test("equivalent context is stable and real pack change invalidates capability", async () => {
+  const h = harness();
+  h.service.updateContext({ activeInstanceKey: "pack-a", webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-2" }, { weekId: "week-1" }] });
+  await h.service.refresh();
+  const before = h.service.getState();
+  h.service.updateContext({ activeInstanceKey: "pack-a", webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }, { weekId: "week-2" }] });
+  assert.equal(h.service.getState().contextGeneration, before.contextGeneration);
+  h.service.updateContext({ activeInstanceKey: "pack-b", webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }, { weekId: "week-2" }] });
+  assert.notEqual(h.service.getCapability("week-1").status, "available");
+  assert.ok(h.service.getDiagnostics("week-1").transitions.length > 0);
 });
 
 test("temporary failures are unknown and conclusive server results are unavailable", async () => {

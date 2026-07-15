@@ -1,6 +1,7 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { derivePlayerKey } = require("./scoped-queue");
+const { readStoredSession, writeStoredSession } = require("./secure-session-storage");
 
 function getKnownAccountsPath(config = {}) {
   if (!config.userDataDir) {
@@ -211,13 +212,21 @@ async function rememberSessionAccount(config = {}, session = {}, options = {}) {
 
 async function saveRememberedSession(config = {}, storedSession = {}) {
   const filePath = getRememberedSessionPath(config, storedSession);
-
-  await fsp.mkdir(path.dirname(filePath), { recursive: true });
-  await fsp.writeFile(filePath, JSON.stringify(storedSession, null, 2), "utf8");
+  const playerKey = derivePlayerKey({
+    email: storedSession.user?.email,
+    hasSession: true,
+    userId: storedSession.user?.id,
+  });
+  const written = await writeStoredSession(filePath, storedSession, {
+    expectedUserId: storedSession.user?.id,
+    playerKey,
+  });
 
   return {
     filePath,
     ok: true,
+    revision: written.envelope.revision,
+    storage: written.storage,
   };
 }
 
@@ -225,11 +234,14 @@ async function readRememberedSession(config = {}, account = {}) {
   const filePath = getRememberedSessionPath(config, account);
 
   try {
-    const raw = await fsp.readFile(filePath, "utf8");
+    const stored = await readStoredSession(filePath);
     return {
       filePath,
-      ok: true,
-      session: JSON.parse(raw),
+      ok: Boolean(stored.storedSession),
+      revision: stored.revision,
+      session: stored.storedSession,
+      status: stored.status,
+      storage: stored.storage,
     };
   } catch (error) {
     return {
@@ -281,6 +293,21 @@ async function listSavedSessionUserIds(config = {}, accounts = []) {
   return saved;
 }
 
+async function migrateRememberedSessions(config = {}, accounts = []) {
+  const results = [];
+
+  for (const account of accounts) {
+    const result = await readRememberedSession(config, account);
+    results.push({
+      migrated: result.ok && result.status === "valid",
+      status: result.status,
+      userId: account.userId,
+    });
+  }
+
+  return results;
+}
+
 async function clearActiveAccount(config = {}, options = {}) {
   const current = await readKnownAccounts(config);
   return writeKnownAccounts(config, {
@@ -320,16 +347,28 @@ function toSafeAccountsState(store = emptyStore(), session = {}, options = {}) {
   const activeUserId = session?.hasSession ? session.userId || null : null;
   const activeEmail = session?.hasSession ? session.email || null : null;
   const savedSessionUserIds = options.savedSessionUserIds || new Set();
-  const accounts = store.accounts.map((account) => ({
-    avatarUrl: account.avatarUrl,
-    displayName: account.displayName,
-    email: account.email,
-    hasSavedSession: savedSessionUserIds.has(account.userId),
-    initials: account.initials,
-    isActive: Boolean(activeUserId && account.userId === activeUserId),
-    lastUsedAt: account.lastUsedAt,
-    userId: account.userId,
-  }));
+  const sessionStatuses = options.sessionStatuses || new Map();
+  const accounts = store.accounts.map((account) => {
+    const sessionState = sessionStatuses.get(account.userId) || null;
+    const requiresLogin = Number(sessionState?.pendingCount) > 0
+      && ["corrupt", "revoked", "unavailable"].includes(sessionState?.status);
+
+    return {
+      avatarUrl: account.avatarUrl,
+      displayName: account.displayName,
+      email: account.email,
+      hasSavedSession: savedSessionUserIds.has(account.userId),
+      initials: account.initials,
+      isActive: Boolean(activeUserId && account.userId === activeUserId),
+      lastUsedAt: account.lastUsedAt,
+      requiresLogin,
+      requiresLoginMessage: requiresLogin
+        ? "Esta cuenta tiene puntuaciones pendientes. Inicia sesion para enviarlas."
+        : null,
+      sessionStatus: sessionState?.status || null,
+      userId: account.userId,
+    };
+  });
 
   return {
     activeEmail,
@@ -349,6 +388,7 @@ module.exports = {
   getKnownAccountsPath,
   getRememberedSessionPath,
   listSavedSessionUserIds,
+  migrateRememberedSessions,
   readKnownAccounts,
   readRememberedSession,
   rememberAccount,

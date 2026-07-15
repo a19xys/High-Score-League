@@ -74,6 +74,12 @@ export function renderDevTools(state) {
     : data?.bridge?.devBridge
       ? "modo desarrollo puente"
       : data?.bridge?.mode || "desconocido";
+  const forceAccountSync = data?.bridge?.devBridge
+    ? `<button class="tool-button" type="button" data-action="force-account-sync" ${disabled}>
+        Forzar sincronizacion de cuentas elegibles
+        <small>Solo desarrollo</small>
+      </button>`
+    : "";
 
   return `
     <section class="panel dev-tools">
@@ -123,6 +129,7 @@ export function renderDevTools(state) {
           Sincronizar plugin
           <small>Legacy / deprecated</small>
         </button>
+        ${forceAccountSync}
         <button class="tool-button" type="button" data-action="logout" ${disabled}>
           Cerrar sesión local
         </button>

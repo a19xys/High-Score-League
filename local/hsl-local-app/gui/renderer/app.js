@@ -785,7 +785,16 @@ function applyConnectivityState(connectivityState) {
 
 function applyRankingCapabilitiesState(capabilitiesState) {
   if (!capabilitiesState || typeof capabilitiesState !== "object") return;
+  const currentSequence = Number(store.getState().rankingCapabilities?.stateSequence) || 0;
+  const nextSequence = Number(capabilitiesState.stateSequence) || 0;
+  if (nextSequence < currentSequence) return;
+  const receivedAt = new Date().toISOString();
   store.setState({ rankingCapabilities: capabilitiesState });
+  window.hslLauncher.reportRankingApplied?.({
+    appliedAt: new Date().toISOString(),
+    receivedAt,
+    stateSequence: nextSequence,
+  });
 }
 
 function applyBackgroundLauncherState(payload) {
@@ -1636,8 +1645,8 @@ function bindActions() {
       });
     }
 
-    if (action === "submit") {
-      runAction(action, "Subiendo puntuaciones", COPY.actions.submit, () => window.hslLauncher.submitAll());
+    if (action === "force-account-sync") {
+      runAction(action, "Sincronizando cuentas", "Forzar sincronizacion", () => window.hslLauncher.forceAccountSync());
     }
 
     if (action === "restore-failed") {

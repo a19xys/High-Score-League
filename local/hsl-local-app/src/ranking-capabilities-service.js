@@ -15,6 +15,8 @@ const DEFAULT_RANKING_CAPABILITIES_OPTIONS = Object.freeze({
   availableTtlMs: 5 * 60 * 1000,
   batchLimit: 100,
   requestTimeoutMs: 4 * 1000,
+  softStaleGraceMs: 60 * 1000,
+  transitionLimit: 75,
   unavailableTtlMs: 2 * 60 * 1000,
   unknownTtlMs: 20 * 1000,
 });
@@ -58,6 +60,7 @@ function createRankingCapabilitiesService(options = {}) {
   let context = {
     fingerprint: "",
     generation: 0,
+    activeInstanceKey: null,
     webBaseUrl: null,
     weekIds: [],
   };
@@ -66,6 +69,10 @@ function createRankingCapabilitiesService(options = {}) {
   let pendingIds = new Set();
   let refreshTimer = null;
   let disposed = false;
+  let requestGeneration = 0;
+  let stateSequence = 0;
+  let previousEntries = {};
+  const transitions = [];
   let lastRequest = {
     build: "unknown",
     checkedAt: null,
@@ -86,7 +93,7 @@ function createRankingCapabilitiesService(options = {}) {
   }
 
   function cacheKey(weekId) {
-    return `${context.webBaseUrl || "missing"}|${deploymentKey(connectivityState().deployment)}|${weekId}`;
+    return `${context.webBaseUrl || "missing"}|${deploymentKey(connectivityState().deployment)}|${context.activeInstanceKey || "none"}|${weekId}`;
   }
 
   function entryFor(weekId) {
@@ -106,7 +113,22 @@ function createRankingCapabilitiesService(options = {}) {
     const connected = canQuery();
 
     if (cached && cached.expiresAtMs > nowImpl()) {
-      return { ...cached, expiresAtMs: undefined };
+      return {
+        ...cached,
+        expiresAtMs: undefined,
+        freshness: pendingIds.has(weekId) ? "revalidating" : "fresh",
+        revalidating: pendingIds.has(weekId),
+      };
+    }
+
+    if (cached?.status === "available" && connected && cached.hardExpiresAtMs > nowImpl()) {
+      return {
+        ...cached,
+        expiresAtMs: undefined,
+        hardExpiresAtMs: undefined,
+        freshness: pendingIds.has(weekId) ? "revalidating" : "soft-stale",
+        revalidating: pendingIds.has(weekId),
+      };
     }
 
     return {
@@ -119,6 +141,8 @@ function createRankingCapabilitiesService(options = {}) {
       contractVersion: RANKING_CONTRACT_VERSION,
       deployment: { ...(connectivityState().deployment || {}) },
       deploymentGeneration: connectivityState().deploymentGeneration || 0,
+      freshness: cached ? "hard-expired" : "missing",
+      revalidating: pendingIds.has(weekId),
     };
   }
 
@@ -137,15 +161,45 @@ function createRankingCapabilitiesService(options = {}) {
     return {
       contractVersion: RANKING_CONTRACT_VERSION,
       generation: context.generation,
+      contextGeneration: context.generation,
       inFlight: Boolean(inFlight),
+      requestGeneration,
+      stateSequence,
       webBaseUrl: context.webBaseUrl,
       entries: Object.fromEntries(context.weekIds.map((weekId) => [weekId, entryFor(weekId)])),
       cache: cacheSummary(),
     };
   }
 
-  function emit() {
+  function emit(trigger = "state-change") {
+    stateSequence += 1;
     const value = snapshot();
+    for (const [weekId, next] of Object.entries(value.entries)) {
+      const previous = previousEntries[weekId];
+      if (!previous || previous.status !== next.status || previous.reason !== next.reason || previous.freshness !== next.freshness) {
+        transitions.push({
+          activePackInstanceKey: context.activeInstanceKey,
+          activeWeekId: weekId,
+          cache: next.freshness || "unknown",
+          checkedAt: next.checkedAt || null,
+          contextGeneration: context.generation,
+          deploymentGeneration: connectivityState().deploymentGeneration || 0,
+          expiresAt: next.expiresAt || null,
+          inFlight: Boolean(inFlight),
+          nextReason: next.reason || null,
+          nextStatus: next.status,
+          previousReason: previous?.reason || null,
+          previousStatus: previous?.status || null,
+          reachabilityGeneration: connectivityState().reachabilityGeneration || 0,
+          requestGeneration,
+          sequence: stateSequence,
+          timestamp: new Date(nowImpl()).toISOString(),
+          trigger,
+        });
+      }
+    }
+    if (transitions.length > config.transitionLimit) transitions.splice(0, transitions.length - config.transitionLimit);
+    previousEntries = value.entries;
     for (const listener of listeners) listener(value);
   }
 
@@ -160,7 +214,10 @@ function createRankingCapabilitiesService(options = {}) {
     clearRefreshTimer();
     if (disposed || !canQuery()) return;
     const expirations = context.weekIds
-      .map((weekId) => cache.get(cacheKey(weekId))?.expiresAtMs)
+      .map((weekId) => {
+        const cached = cache.get(cacheKey(weekId));
+        return cached?.nextRefreshAtMs || cached?.expiresAtMs;
+      })
       .filter(Number.isFinite);
 
     if (expirations.length === 0) return;
@@ -186,6 +243,8 @@ function createRankingCapabilitiesService(options = {}) {
       checkedAt: new Date(checkedAtMs).toISOString(),
       expiresAt: new Date(checkedAtMs + ttl).toISOString(),
       expiresAtMs: checkedAtMs + ttl,
+      hardExpiresAtMs: checkedAtMs + ttl + config.softStaleGraceMs,
+      nextRefreshAtMs: null,
       contractVersion: RANKING_CONTRACT_VERSION,
     });
   }
@@ -194,7 +253,7 @@ function createRankingCapabilitiesService(options = {}) {
     return weekIds.filter((weekId) => {
       if (force) return true;
       const cached = cache.get(cacheKey(weekId));
-      return !cached || cached.expiresAtMs <= nowImpl();
+      return !cached || (cached.expiresAtMs <= nowImpl() && (!cached.nextRefreshAtMs || cached.nextRefreshAtMs <= nowImpl()));
     });
   }
 
@@ -258,7 +317,7 @@ function createRankingCapabilitiesService(options = {}) {
 
   function refresh(reason = "manual", refreshOptions = {}) {
     if (disposed || !canQuery()) {
-      emit();
+      emit(reason);
       return Promise.resolve(snapshot());
     }
 
@@ -275,7 +334,8 @@ function createRankingCapabilitiesService(options = {}) {
       return Promise.resolve(snapshot());
     }
 
-    const requestGeneration = context.generation;
+    const requestContextGeneration = context.generation;
+    const currentRequestGeneration = ++requestGeneration;
     const requestBaseUrl = context.webBaseUrl;
     const requestReachabilityGeneration = connectivityState().reachabilityGeneration;
     const requestDeploymentGeneration = connectivityState().deploymentGeneration || 0;
@@ -283,7 +343,7 @@ function createRankingCapabilitiesService(options = {}) {
     const controller = new AbortController();
     activeController = controller;
     pendingIds = new Set(weekIds);
-    emit();
+    emit(`${reason}:start`);
     const timeout = setTimeoutImpl(() => controller.abort(), config.requestTimeoutMs);
 
     inFlight = (async () => {
@@ -353,7 +413,7 @@ function createRankingCapabilitiesService(options = {}) {
           allResults.push(...validated.results);
         }
 
-        if (disposed || requestGeneration !== context.generation || requestBaseUrl !== context.webBaseUrl ||
+        if (disposed || requestContextGeneration !== context.generation || currentRequestGeneration !== requestGeneration || requestBaseUrl !== context.webBaseUrl ||
             requestReachabilityGeneration !== connectivityState().reachabilityGeneration ||
             requestDeploymentGeneration !== (connectivityState().deploymentGeneration || 0) || !canQuery()) {
           return snapshot();
@@ -367,9 +427,19 @@ function createRankingCapabilitiesService(options = {}) {
         const connectivityUnchanged = requestReachabilityGeneration === connectivityState().reachabilityGeneration &&
           requestDeploymentGeneration === (connectivityState().deploymentGeneration || 0);
 
-        if (!disposed && requestGeneration === context.generation && requestBaseUrl === context.webBaseUrl && connectivityUnchanged) {
+        if (!disposed && requestContextGeneration === context.generation && currentRequestGeneration === requestGeneration && requestBaseUrl === context.webBaseUrl && connectivityUnchanged) {
           for (const weekId of weekIds) {
-            writeEntry(weekId, "unknown", error?.reason || "temporary-failure");
+            const key = cacheKey(weekId);
+            const cached = cache.get(key);
+            if (cached?.status === "available" && cached.hardExpiresAtMs > nowImpl()) {
+              cache.set(key, {
+                ...cached,
+                lastError: error?.reason || "temporary-failure",
+                nextRefreshAtMs: nowImpl() + config.unknownTtlMs,
+              });
+            } else {
+              writeEntry(weekId, "unknown", error?.reason || "temporary-failure");
+            }
           }
 
           const reason = String(error?.reason || "temporary-failure");
@@ -400,11 +470,11 @@ function createRankingCapabilitiesService(options = {}) {
         }
       } finally {
         clearTimeoutImpl(timeout);
-        if (requestGeneration === context.generation) {
+        if (requestContextGeneration === context.generation && currentRequestGeneration === requestGeneration) {
           inFlight = null;
           activeController = null;
           pendingIds = new Set();
-          emit();
+          emit(`${reason}:complete`);
           scheduleRefresh();
         }
       }
@@ -418,12 +488,14 @@ function createRankingCapabilitiesService(options = {}) {
   function updateContext(input = {}) {
     const webBaseUrl = normalizeWebBaseUrl(input.webBaseUrl);
     const weekIds = [...new Set((input.packs || []).map((pack) => pack?.weekId).filter(validWeekId))].sort();
-    const fingerprint = `${webBaseUrl || "missing"}|${weekIds.join("|")}`;
+    const activeInstanceKey = String(input.activeInstanceKey || "");
+    const fingerprint = `${webBaseUrl || "missing"}|${activeInstanceKey}|${weekIds.join("|")}`;
 
     if (fingerprint === context.fingerprint) return snapshot();
     context = {
       fingerprint,
       generation: context.generation + 1,
+      activeInstanceKey,
       webBaseUrl,
       weekIds,
     };
@@ -432,16 +504,22 @@ function createRankingCapabilitiesService(options = {}) {
     inFlight = null;
     pendingIds = new Set();
     clearRefreshTimer();
-    emit();
+    requestGeneration += 1;
+    emit("context-change");
     return snapshot();
   }
 
   async function ensureCapability(weekId) {
     if (!validWeekId(weekId)) return entryFor(null);
     const current = entryFor(weekId);
-    if (current.status === "available" || current.status === "unavailable") return current;
+    if ((current.status === "available" && current.freshness === "fresh") || current.status === "unavailable") return current;
+    const checkedAt = current.checkedAt;
     await refresh("ranking-click", { force: true, weekIds: [weekId] });
-    return entryFor(weekId);
+    const refreshed = entryFor(weekId);
+    if (refreshed.status === "available" && refreshed.checkedAt === checkedAt && refreshed.freshness !== "fresh") {
+      return { ...refreshed, status: "unknown", reason: "revalidation-failed", url: null };
+    }
+    return refreshed;
   }
 
   function stop() {
@@ -466,12 +544,15 @@ function createRankingCapabilitiesService(options = {}) {
         configurationAvailable: Boolean(rankingCapabilitiesEndpoint(context.webBaseUrl)),
         lastRequest: { ...lastRequest },
         context: {
+          activeInstanceKey: context.activeInstanceKey,
           contractVersion: RANKING_CONTRACT_VERSION,
           generation: context.generation,
           inFlight: Boolean(inFlight),
           weekCount: context.weekIds.length,
           webBaseUrl: context.webBaseUrl,
         },
+        stateSequence,
+        transitions: transitions.map((item) => ({ ...item })),
       };
     },
     getState: snapshot,

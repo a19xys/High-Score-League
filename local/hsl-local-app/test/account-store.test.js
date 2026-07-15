@@ -9,6 +9,7 @@ const {
   getKnownAccountsPath,
   getRememberedSessionPath,
   listSavedSessionUserIds,
+  migrateRememberedSessions,
   readKnownAccounts,
   readRememberedSession,
   rememberAccount,
@@ -18,6 +19,7 @@ const {
   saveRememberedSession,
   toSafeAccountsState,
 } = require("../src/account-store");
+const { configureSessionProtection } = require("../src/secure-session-storage");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-account-store-test-"));
@@ -192,6 +194,65 @@ test("estado renderer expone hasSavedSession sin tokens", async () => {
     assert.equal(JSON.stringify(state).includes("secret-access"), false);
     assert.equal(JSON.stringify(state).includes("secret-refresh"), false);
   });
+});
+
+test("startup migration protects every remembered account before remote refresh", async () => {
+  await withTempDir(async (dir) => {
+    const cfg = config(dir);
+    const first = storedSession();
+    const second = {
+      ...storedSession(),
+      session: { ...storedSession().session, access_token: "second-access", refresh_token: "second-refresh" },
+      user: { email: "second@example.com", id: "user-2" },
+    };
+    await rememberAccount(cfg, { email: first.user.email, userId: first.user.id });
+    await rememberAccount(cfg, { email: second.user.email, userId: second.user.id });
+    await fsp.mkdir(path.dirname(getRememberedSessionPath(cfg, first)), { recursive: true });
+    await fsp.writeFile(getRememberedSessionPath(cfg, first), JSON.stringify(first), "utf8");
+    await fsp.writeFile(getRememberedSessionPath(cfg, second), JSON.stringify(second), "utf8");
+    configureSessionProtection({
+      decryptString: (value) => Buffer.from(value, "base64").toString("utf8"),
+      encryptString: (value) => Buffer.from(value, "utf8").toString("base64"),
+      provider: "test-secure",
+    });
+
+    try {
+      const accounts = (await readKnownAccounts(cfg)).accounts;
+      const results = await migrateRememberedSessions(cfg, accounts);
+      const raws = await Promise.all([first, second].map(async (session) => (
+        JSON.parse(await fsp.readFile(getRememberedSessionPath(cfg, session), "utf8"))
+      )));
+
+      assert.equal(results.every((result) => result.migrated), true);
+      assert.equal(raws.every((raw) => raw.schemaVersion === 2 && raw.provider === "test-secure"), true);
+      assert.equal(raws.some((raw) => raw.session?.access_token || raw.session?.refresh_token), false);
+    } finally {
+      configureSessionProtection(null);
+    }
+  });
+});
+
+test("estado renderer solo pide login para fallos concluyentes con pendientes", () => {
+  const store = {
+    accounts: [{ email: "player@example.com", userId: "user-1" }],
+    lastActiveUserId: null,
+    warnings: [],
+  };
+  const temporary = toSafeAccountsState(store, {}, {
+    sessionStatuses: new Map([["user-1", { pendingCount: 1, status: "deferred-offline" }]]),
+  });
+  const revokedWithoutPending = toSafeAccountsState(store, {}, {
+    sessionStatuses: new Map([["user-1", { pendingCount: 0, status: "revoked" }]]),
+  });
+  const revoked = toSafeAccountsState(store, {}, {
+    sessionStatuses: new Map([["user-1", { pendingCount: 1, status: "revoked" }]]),
+  });
+
+  assert.equal(temporary.knownAccounts[0].requiresLogin, false);
+  assert.equal(revokedWithoutPending.knownAccounts[0].requiresLogin, false);
+  assert.equal(revoked.knownAccounts[0].requiresLogin, true);
+  assert.match(revoked.knownAccounts[0].requiresLoginMessage, /puntuaciones pendientes/);
+  assert.equal(JSON.stringify(revoked).includes("token"), false);
 });
 
 test("eliminar sesion recordada no toca known account", async () => {

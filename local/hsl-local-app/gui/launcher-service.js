@@ -2,9 +2,9 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const {
   clearActiveAccount,
-  deleteRememberedSession,
   getRememberedSessionPath,
   listSavedSessionUserIds,
+  migrateRememberedSessions,
   readKnownAccounts,
   readRememberedSession,
   rememberSessionAccount,
@@ -58,6 +58,7 @@ const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-pack
 const { writeSharedMameRuntime } = require("../src/shared-mame-runtime");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
 const { submitAll } = require("../src/submission-service");
+const { createAccountSessionCoordinator } = require("../src/account-session-coordinator");
 const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
 const {
   applyScopedQueue,
@@ -97,6 +98,15 @@ let pendingAutoSubmitState = {
 };
 let remoteDiagnosticsProvider = null;
 const libraryOrderModule = import("./shared/library-order.mjs");
+const accountSessionCoordinator = createAccountSessionCoordinator({
+  hashUserId: (userId) => `user_${hashPart(userId, 12)}`,
+  isExpiringSoon: isSessionExpiringSoon,
+  readSession: readRememberedSession,
+  refreshSession: ({ config, filePath, storedSession }) => refreshStoredSession({
+    ...config,
+    sessionFileAbs: filePath,
+  }, storedSession),
+});
 
 function loadRuntimeConfig() {
   return loadConfig();
@@ -133,6 +143,74 @@ async function getPendingAutoSubmitContext(options = {}) {
     playerKey: index.playerKey,
     session,
     userId: options.userId || null,
+    webBaseUrl: config.webBaseUrl || null,
+  };
+}
+
+async function getPendingAutoSubmitContexts(options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  const accountsStore = await readKnownAccounts(config);
+  const activeUserId = options.activeUserId || accountsStore.lastActiveUserId || null;
+  const ordered = [...accountsStore.accounts].sort((left, right) => {
+    if (left.userId === activeUserId) return -1;
+    if (right.userId === activeUserId) return 1;
+    return String(left.userId).localeCompare(String(right.userId));
+  });
+  const accountContexts = [];
+  const accounts = [];
+  for (const account of ordered) {
+    const resolved = await accountSessionCoordinator.resolve(account, config, {
+      active: account.userId === activeUserId,
+      connected: options.connection?.reachability === "connected",
+      force: options.forceSessionRefresh === true,
+    });
+    const item = {
+      active: account.userId === activeUserId,
+      sessionRevision: resolved.sessionRevision || 0,
+      status: resolved.status,
+      userHash: `user_${hashPart(account.userId, 12)}`,
+    };
+    const accountSession = {
+      email: resolved.storedSession?.user?.email || account.email || null,
+      hasSession: true,
+      userId: account.userId,
+    };
+    const index = await buildPlayerPendingIndex(config, accountSession);
+    item.pendingCount = index.totals.pending;
+    accountSessionCoordinator.setPendingCount(account.userId, index.totals.pending);
+    accounts.push(item);
+    if (resolved.status !== "valid" || !resolved.storedSession) continue;
+    accountContexts.push({
+      account,
+      active: item.active,
+      config,
+      index,
+      playerKey: index.playerKey,
+      session: accountSession,
+      sessionRevision: item.sessionRevision,
+      userId: account.userId,
+      webBaseUrl: config.webBaseUrl || null,
+    });
+  }
+  const totals = accountContexts.reduce((sum, context) => ({
+    invalidPending: sum.invalidPending + context.index.totals.invalidPending,
+    pending: sum.pending + context.index.totals.pending,
+    validPending: sum.validPending + context.index.totals.validPending,
+  }), { invalidPending: 0, pending: 0, validPending: 0 });
+  const revision = hashPart(JSON.stringify(accountContexts.map((context) => [
+    context.userId,
+    context.index.revision,
+    context.sessionRevision,
+  ])), 32);
+  return {
+    accountContexts,
+    accounts,
+    connection: options.connection || null,
+    index: { revision, totals },
+    playerKey: "remembered-accounts",
+    session: { hasSession: true, userId: "remembered-accounts" },
+    sessionRevision: hashPart(JSON.stringify(accounts.map((account) => [account.userHash, account.sessionRevision, account.status])), 16),
+    userId: "remembered-accounts",
     webBaseUrl: config.webBaseUrl || null,
   };
 }
@@ -874,6 +952,10 @@ async function stateFromContext(context) {
     session,
   }, autoSyncState);
   const savedSessionUserIds = await listSavedSessionUserIds(baseConfig, accountsStore.accounts);
+  const sessionStatuses = new Map(accountsStore.accounts.map((account) => [
+    account.userId,
+    accountSessionCoordinator.getState(account.userId),
+  ]));
   const libraryFavorites = await (session.hasSession
       ? readLibraryFavorites(baseConfig, session)
       : Promise.resolve({
@@ -933,7 +1015,7 @@ async function stateFromContext(context) {
     : getEmptyBridgeState(libraryState);
 
   return {
-    accounts: toSafeAccountsState(accountsStore, session, { savedSessionUserIds }),
+    accounts: toSafeAccountsState(accountsStore, session, { savedSessionUserIds, sessionStatuses }),
     activePack: activeLibraryPack,
     autoSync,
     bridge,
@@ -1155,6 +1237,55 @@ async function runPendingAutoSubmit(options = {}) {
     transportFailure,
     status: transportFailure || authFailure ? "deferred" : "completed",
   };
+}
+
+async function runPendingAutoSubmitForAccounts(options = {}) {
+  const contexts = options.accountContexts || [];
+  const aggregate = {
+    attempted: false,
+    failed: 0,
+    preserved: 0,
+    processedAccounts: 0,
+    sent: 0,
+    status: "completed",
+    transportFailure: false,
+  };
+  for (const context of contexts) {
+    if (options.shouldContinue?.() === false) {
+      aggregate.status = "deferred";
+      break;
+    }
+    if (context.index.totals.pending <= 0) continue;
+    const result = await (options.runAccountImpl || runPendingAutoSubmit)({
+      config: context.config,
+      connectedGeneration: options.connectedGeneration,
+      index: context.index,
+      session: context.session,
+      shouldContinue: options.shouldContinue,
+      trigger: options.trigger,
+    });
+    aggregate.attempted = aggregate.attempted || result.attempted;
+    aggregate.failed += Number(result.failed) || 0;
+    aggregate.preserved += Number(result.preserved) || 0;
+    aggregate.sent += Number(result.sent) || 0;
+    aggregate.processedAccounts += 1;
+    if (result.transportFailure) {
+      aggregate.transportFailure = true;
+      aggregate.status = "deferred";
+      break;
+    }
+  }
+  return aggregate;
+}
+
+function getAccountSessionDiagnostics() {
+  return accountSessionCoordinator.getDiagnostics();
+}
+
+async function migrateRememberedSessionsForGui() {
+  const config = loadRuntimeConfig();
+  const accountsStore = await readKnownAccounts(config);
+  return migrateRememberedSessions(config, accountsStore.accounts);
 }
 
 function resetAutoSyncStateForTests() {
@@ -1931,7 +2062,7 @@ async function restoreFailedSubmission(filename) {
       action: "restore-failed",
       lines: [
         "Puntuacion restaurada a pendientes.",
-        "Ahora puedes volver a pulsar Subir pendientes cuando hayas corregido el problema.",
+        "Se enviara automaticamente cuando la cuenta y la conexion vuelvan a estar disponibles.",
       ],
       ok: true,
       restored: result,
@@ -2037,9 +2168,12 @@ async function switchKnownAccountFromGui(userId) {
     };
   }
 
-  const remembered = await readRememberedSession(config, account);
+  const resolved = await accountSessionCoordinator.resolve(account, config, {
+    active: true,
+    connected: true,
+  });
 
-  if (!remembered.ok || !remembered.session) {
+  if (["unavailable", "corrupt", "revoked"].includes(resolved.status) || !resolved.storedSession) {
     return {
       action: "switch-account-login-required",
       email: account.email,
@@ -2051,16 +2185,9 @@ async function switchKnownAccountFromGui(userId) {
     };
   }
 
-  let storedSession = remembered.session;
+  const storedSession = resolved.storedSession;
 
   try {
-    if (isSessionExpiringSoon(storedSession)) {
-      storedSession = await refreshStoredSession({
-        ...config,
-        sessionFileAbs: remembered.filePath,
-      }, storedSession);
-    }
-
     await saveSession(config, storedSession.session, storedSession.user);
     await rememberSessionAccount(config, {
       email: storedSession.user?.email || account.email,
@@ -2079,18 +2206,16 @@ async function switchKnownAccountFromGui(userId) {
       state: await getLauncherState(),
     };
   } catch (error) {
-    await deleteRememberedSession(config, account).catch(() => null);
-
     return {
       action: "switch-account-login-required",
       email: account.email,
       lines: [
-        "La sesion guardada ha caducado. Inicia sesion de nuevo.",
+        "No se pudo activar esta cuenta. Su sesion y sus puntuaciones se conservan.",
         normalizeMessage(error),
       ],
       ok: false,
       requiresLogin: true,
-      summary: "La sesion guardada ha caducado.",
+      summary: "No se pudo activar esta cuenta.",
       state: await getLauncherState(),
     };
   }
@@ -2633,6 +2758,8 @@ module.exports = {
   getAuthStateForGui,
   getPendingAutoSubmitDiagnostics,
   getPendingAutoSubmitContext,
+  getPendingAutoSubmitContexts,
+  getAccountSessionDiagnostics,
   getRemoteBootstrapState,
   getLauncherState,
   importPackFromFolderForGui,
@@ -2641,6 +2768,7 @@ module.exports = {
   loginWithPassword,
   listPendingFileSnapshot,
   logoutSession,
+  migrateRememberedSessionsForGui,
   openPackDirectory,
   openPackManual,
   openPackRanking,
@@ -2658,6 +2786,7 @@ module.exports = {
   setRemoteDiagnosticsProvider,
   runAutoSyncIfEligible,
   runPendingAutoSubmit,
+  runPendingAutoSubmitForAccounts,
   runDiagnose,
   setLibraryPreferencesFromGui,
   submitAllPending,

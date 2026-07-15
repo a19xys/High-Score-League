@@ -70,7 +70,8 @@ test("signInWithPassword saves a valid Supabase session", async () => {
     assert.equal(result.session.email, "player@example.com");
     assert.equal(JSON.stringify(result).includes("access-token-secret"), false);
     assert.equal(JSON.stringify(result).includes("correct-password"), false);
-    assert.match(raw, /access-token-secret/);
+    assert.doesNotMatch(raw, /access-token-secret|refresh-token-secret/);
+    assert.match(raw, /"schemaVersion": 2/);
   });
 });
 

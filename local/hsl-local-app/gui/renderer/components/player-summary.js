@@ -64,13 +64,13 @@ function renderKnownAccounts(state, accounts) {
             <div class="account-mini-avatar">${escapeHtml(account.initials || "JL")}</div>
             <div class="min-w-0">
               <span>${escapeHtml(account.displayName || account.email || "Cuenta")}</span>
-              <small>${account.isActive ? "Cuenta activa" : account.hasSavedSession ? "Cambio rápido disponible" : "Requiere iniciar sesión"}</small>
+              <small>${account.requiresLogin ? escapeHtml(account.requiresLoginMessage) : account.isActive ? "Cuenta activa" : account.hasSavedSession ? "Cambio rápido disponible" : "Requiere iniciar sesión"}</small>
             </div>
             ${account.isActive
               ? `<span class="badge badge-ok">Activa</span>`
               : `
                 <button class="mini-action" type="button" data-action="switch-account" data-user-id="${escapeHtml(account.userId)}" data-email="${escapeHtml(account.email || "")}" ${disabled}>
-                  ${account.hasSavedSession ? "Cambiar" : "Entrar"}
+                  ${account.hasSavedSession && !account.requiresLogin ? "Cambiar" : "Entrar"}
                 </button>
                 <button class="mini-action muted" type="button" data-action="remove-known-account" data-user-id="${escapeHtml(account.userId)}" ${disabled}>
                   Quitar

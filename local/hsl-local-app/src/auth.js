@@ -4,6 +4,7 @@ const readline = require("node:readline/promises");
 const { stdin: input, stdout: output } = require("node:process");
 const { pathExists } = require("./file-utils");
 const { printHeader } = require("./output");
+const { readStoredSession, writeStoredSession } = require("./secure-session-storage");
 
 function loadSupabaseSdk() {
   try {
@@ -59,17 +60,8 @@ async function promptForValue(label, fallbackValue) {
 }
 
 async function readSession(config) {
-  if (!(await pathExists(config.sessionFileAbs))) {
-    return null;
-  }
-
-  const raw = await fsp.readFile(config.sessionFileAbs, "utf8");
-
-  try {
-    return JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`El archivo de sesión no es JSON válido: ${error.message}`);
-  }
+  const result = await readStoredSession(config.sessionFileAbs);
+  return result.storedSession;
 }
 
 async function saveSession(config, session, user) {
@@ -94,8 +86,7 @@ async function saveSession(config, session, user) {
     },
   };
 
-  await fsp.mkdir(path.dirname(config.sessionFileAbs), { recursive: true });
-  await fsp.writeFile(config.sessionFileAbs, JSON.stringify(data, null, 2), "utf8");
+  await writeStoredSession(config.sessionFileAbs, data, { expectedUserId: user?.id || null });
 }
 
 async function deleteSession(config) {
@@ -127,25 +118,57 @@ function maskToken(token) {
   return `${token.slice(0, 10)}...${token.slice(-6)}`;
 }
 
-async function refreshStoredSession(config, storedSession) {
+function classifySessionRefreshError(error) {
+  if (error?.code === "SESSION_IDENTITY_MISMATCH") return { status: "revoked", reason: "identity-mismatch", transient: false };
+  if (error?.code === "SESSION_STORAGE_CORRUPT") return { status: "corrupt", reason: "corrupt-storage", transient: false };
+  const status = Number(error?.status || error?.cause?.status) || null;
+  const code = String(error?.code || error?.cause?.code || "").toLowerCase();
+  const message = String(error?.message || "").toLowerCase();
+  const conclusive = [400, 401, 403].includes(status) &&
+    /refresh|invalid.grant|session.*(missing|not found|revoked)|token.*(invalid|revoked|already used)/.test(`${code} ${message}`);
+  if (conclusive) return { status: "revoked", reason: "refresh-token-rejected", transient: false };
+  return { status: "temporary-failure", reason: status && status >= 500 ? "provider-unavailable" : "transport", transient: true };
+}
+
+async function refreshStoredSession(config, storedSession, options = {}) {
   const refreshToken = storedSession?.session?.refresh_token;
 
   if (!refreshToken) {
-    throw new Error("No hay refresh_token guardado. Haz login de nuevo.");
+    throw Object.assign(new Error("No hay refresh_token guardado."), { code: "MISSING_REFRESH_TOKEN", sessionStatus: "revoked", transient: false });
   }
 
-  const supabase = createSupabaseClient(config);
+  const supabase = options.supabaseClient || createSupabaseClient(config);
 
   const { data, error } = await supabase.auth.refreshSession({
     refresh_token: refreshToken,
   });
 
   if (error) {
-    throw new Error(`No pude refrescar sesión: ${error.message}`);
+    const classification = classifySessionRefreshError(error);
+    throw Object.assign(new Error("No se pudo renovar la sesión."), {
+      cause: error,
+      code: classification.reason,
+      sessionStatus: classification.status,
+      transient: classification.transient,
+    });
   }
 
   if (!data.session) {
-    throw new Error("Supabase no devolvió una nueva sesión");
+    throw Object.assign(new Error("El proveedor no devolvió una nueva sesión."), {
+      code: "missing-refresh-response",
+      sessionStatus: "temporary-failure",
+      transient: true,
+    });
+  }
+
+  const expectedUserId = storedSession?.user?.id || null;
+  const returnedUserId = data.user?.id || expectedUserId;
+  if (!expectedUserId || returnedUserId !== expectedUserId) {
+    throw Object.assign(new Error("La identidad renovada no coincide con la cuenta."), {
+      code: "SESSION_IDENTITY_MISMATCH",
+      sessionStatus: "revoked",
+      transient: false,
+    });
   }
 
   await saveSession(config, data.session, data.user || storedSession.user);
@@ -193,45 +216,8 @@ function toSafeSessionState(storedSession, overrides = {}) {
   };
 }
 
-async function getAuthStateLegacy(config) {
-  try {
-    assertAuthConfig(config);
-  } catch {
-    return {
-      email: null,
-      hasSession: false,
-      message: "La autenticación local no está configurada.",
-      sessionFile: config.sessionFileAbs,
-      status: "not_configured",
-      userId: null,
-    };
-  }
-
-  try {
-    const storedSession = await getValidStoredSession(config);
-
-    return toSafeSessionState(storedSession, {
-      message: "Sesión local activa.",
-      sessionFile: config.sessionFileAbs,
-      status: "ok",
-    });
-  } catch (error) {
-    const missing = /No hay sesión guardada/i.test(error.message);
-
-    return {
-      email: null,
-      hasSession: false,
-      message: missing
-        ? "No hay sesión guardada."
-        : "La sesión ha caducado. Inicia sesión de nuevo.",
-      sessionFile: config.sessionFileAbs,
-      status: missing ? "missing" : "expired",
-      userId: null,
-    };
-  }
-}
-
 async function getAuthState(config, options = {}) {
+  let storedSession = null;
   try {
     assertAuthConfig(config);
   } catch {
@@ -246,7 +232,7 @@ async function getAuthState(config, options = {}) {
   }
 
   try {
-    let storedSession = await readSession(config);
+    storedSession = await readSession(config);
 
     if (!storedSession) {
       return {
@@ -268,13 +254,21 @@ async function getAuthState(config, options = {}) {
       sessionFile: config.sessionFileAbs,
       status: "ok",
     });
-  } catch {
+  } catch (error) {
+    const status = error?.sessionStatus || (error?.code === "SESSION_STORAGE_CORRUPT" ? "corrupt" : "temporary-failure");
+    if (storedSession && (error?.transient === true || status === "temporary-failure")) {
+      return toSafeSessionState(storedSession, {
+        message: "La sesión se renovará cuando vuelva a estar disponible la conexión.",
+        sessionFile: config.sessionFileAbs,
+        status: "deferred-offline",
+      });
+    }
     return {
       email: null,
       hasSession: false,
-      message: "La sesión ha caducado. Inicia sesión de nuevo.",
+      message: status === "revoked" ? "Esta sesión requiere iniciar sesión de nuevo." : "No se pudo leer la sesión local.",
       sessionFile: config.sessionFileAbs,
-      status: "expired",
+      status,
       userId: null,
     };
   }
@@ -466,6 +460,7 @@ module.exports = {
   authStatus,
   authToken,
   createSupabaseClient,
+  classifySessionRefreshError,
   deleteSession,
   getAuthState,
   getValidStoredSession,

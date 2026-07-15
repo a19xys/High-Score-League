@@ -6261,6 +6261,17 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   white-space: nowrap;
 }
 
+.account-row__session-warning {
+  display: block;
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--warning);
+  font-size: 10px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 520px) {
   .app-dialog__actions--library-root [data-action="close-dialog"] {
     grid-column: auto;

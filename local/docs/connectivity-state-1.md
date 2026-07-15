@@ -9,14 +9,22 @@ El header oculta `unknown` y solo muestra estados estables. Un probe manual
 mantiene la etiqueta y deshabilita temporalmente refresh. El selector acepta
 `null`, `undefined`, objeto vacio y estados parciales.
 
-Politica desde BACKGROUND-MONITOR-4:
+Politica desde RECOVERY-5:
 
 - topologia local cada 1000 ms, sin trafico de red;
 - heartbeat conectado cada 20 s, enfocada, desenfocada o minimizada;
 - health timeout 3000 ms;
 - confirmacion de heartbeat inmediata con timeout 1000 ms;
-- backoff offline 5, 10, 20, 30 y 60 s, con jitter +/-15%;
+- durante el primer minuto offline, recovery canary cada 3 s;
+- entre 1 y 5 minutos offline, recovery canary cada 5 s;
+- despues de 5 minutos, intervalos 10, 20, 30 y 60 s;
+- el canary usa timeout de 1000 ms y no muestra overlay;
 - suspend detiene topologia, heartbeat y probes; resume solicita health.
+
+Un scheduler unico gobierna heartbeat, canary, eventos de topologia, online,
+resume y refresh manual. Solo existe un timer futuro y un health en vuelo. Las
+senales simultaneas se deduplican y las generaciones stale no pueden confirmar
+estado. Foco, blur y minimizado no alteran esta politica.
 
 Blur y focus solo aportan contexto de ventana. Un cambio de fingerprint aborta
 la respuesta de topologia anterior y solicita health; nunca asigna connected.

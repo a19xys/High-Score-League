@@ -62,10 +62,14 @@ function renderAccountAvatar(account, className = "") {
 
 function renderAccountText(account) {
   const email = account?.email || accountTitle(account);
+  const sessionWarning = account?.requiresLogin
+    ? `<small class="account-row__session-warning" title="${escapeHtml(account.requiresLoginMessage)}">Requiere iniciar sesion</small>`
+    : "";
 
   return `
     <span class="account-row__text min-w-0">
       <strong class="account-row__email">${escapeHtml(email)}</strong>
+      ${sessionWarning}
     </span>
   `;
 }

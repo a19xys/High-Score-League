@@ -1,11 +1,19 @@
 const path = require("node:path");
-const { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, safeStorage, shell } = require("electron");
 const service = require("./launcher-service");
 const { createConnectivityService, isStableConnected } = require("../src/connectivity-service");
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
 const { classifyMembershipConnectivitySignal } = require("../src/remote-connectivity-signals");
 const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
+const { configureSessionProtection, getSessionStorageDiagnostics } = require("../src/secure-session-storage");
+
+if (process.env.HSL_ELECTRON_VERBOSE_LOGGING === "1") {
+  app.commandLine.appendSwitch("enable-logging");
+  app.commandLine.appendSwitch("log-level", "0");
+} else {
+  app.commandLine.appendSwitch("log-level", "2");
+}
 
 let mainWindow = null;
 let connectivity = null;
@@ -18,6 +26,8 @@ let previousReachability = "unknown";
 let activeUserId = null;
 let pendingAutoSubmitCoordinator = null;
 let connectivityRendererTiming = { appliedAt: null, emittedAt: null, receivedAt: null };
+let rankingRendererTiming = { appliedAt: null, receivedAt: null, stateSequence: 0 };
+let sessionMaintenanceTimer = null;
 const CONNECTIVITY_REFRESH_REASONS = new Set([
   "manual",
   "connection-change",
@@ -59,6 +69,7 @@ function syncRemoteContext(state) {
   activeRankingWeekId = state.game?.weekId || null;
   connectivity.setWebBaseUrl(webBaseUrl).catch(() => {});
   rankingCapabilities.updateContext({
+    activeInstanceKey: state.selection?.activeInstanceKey || null,
     packs: state.library?.packs || [],
     webBaseUrl,
   });
@@ -115,26 +126,22 @@ function initializeRemoteServices() {
     },
   });
   pendingAutoSubmitCoordinator = createPendingAutoSubmitCoordinator({
-    inspect: () => service.getPendingAutoSubmitContext({
+    inspect: () => service.getPendingAutoSubmitContexts({
+      activeUserId,
       connection: connectivity.getState(),
-      userId: activeUserId,
     }),
     async onResult(result, context) {
       if (result?.transportFailure) connectivity.signalOffline("auto-submit-transport", "transport");
-      if (activeUserId !== context.userId) return;
       const state = await service.getLauncherState({ deferRemoteMembership: true });
       sendRendererEvent("launcher:state", { autoSubmit: result, state });
     },
-    run: (context) => service.runPendingAutoSubmit({
-      config: context.config,
+    run: (context) => service.runPendingAutoSubmitForAccounts({
+      accountContexts: context.accountContexts,
       connectedGeneration: context.connection.reachabilityGeneration,
-      index: context.index,
-      session: context.session,
       shouldContinue: () => {
         const latest = connectivity.getState();
         return latest.reachability === "connected" &&
-          latest.reachabilityGeneration === context.connection.reachabilityGeneration &&
-          activeUserId === context.userId;
+          latest.reachabilityGeneration === context.connection.reachabilityGeneration;
       },
       trigger: context.trigger,
     }),
@@ -144,6 +151,8 @@ function initializeRemoteServices() {
       ...service.getPendingAutoSubmitDiagnostics(),
       coordinator: pendingAutoSubmitCoordinator.getDiagnostics(),
     },
+    sessions: service.getAccountSessionDiagnostics(),
+    sessionStorage: getSessionStorageDiagnostics(),
     connectivity: {
       ...connectivity.getDiagnostics(),
       renderer: connectivityRendererTiming,
@@ -153,7 +162,10 @@ function initializeRemoteServices() {
         minimized: mainWindow?.isMinimized?.() || false,
       },
     },
-    ranking: rankingCapabilities.getDiagnostics(activeRankingWeekId),
+    ranking: {
+      ...rankingCapabilities.getDiagnostics(activeRankingWeekId),
+      renderer: rankingRendererTiming,
+    },
   }));
   removeConnectivityListener = connectivity.subscribe((state) => {
     sendRendererEvent("launcher:connectivity-state", state);
@@ -172,6 +184,26 @@ function initializeRemoteServices() {
   });
 }
 
+function initializeSecureSessionStorage() {
+  if (!safeStorage.isEncryptionAvailable()) {
+    configureSessionProtection(null);
+    return;
+  }
+  const backend = process.platform === "linux" ? safeStorage.getSelectedStorageBackend?.() || "unknown" : process.platform;
+  const degraded = backend === "basic_text";
+  configureSessionProtection({
+    degraded,
+    encryptionAvailable: !degraded,
+    provider: `electron-${backend}`,
+    decryptString(value) {
+      return safeStorage.decryptString(Buffer.from(value, "base64"));
+    },
+    encryptString(value) {
+      return safeStorage.encryptString(value).toString("base64");
+    },
+  });
+}
+
 function stopRemoteServices() {
   service.invalidatePendingAutoSubmit("shutdown");
   pendingAutoSubmitCoordinator?.invalidate("shutdown");
@@ -181,6 +213,8 @@ function stopRemoteServices() {
   removeRankingListener = null;
   rankingCapabilities?.stop();
   topologyMonitor?.stop();
+  if (sessionMaintenanceTimer !== null) clearInterval(sessionMaintenanceTimer);
+  sessionMaintenanceTimer = null;
   connectivity?.stop();
   service.setRemoteDiagnosticsProvider(null);
 }
@@ -284,6 +318,13 @@ function registerIpc() {
       appliedAt: timing?.appliedAt || null,
       emittedAt: timing?.emittedAt || null,
       receivedAt: timing?.receivedAt || null,
+    };
+  });
+  ipcMain.on("launcher:ranking-applied", (_event, timing) => {
+    rankingRendererTiming = {
+      appliedAt: timing?.appliedAt || null,
+      receivedAt: timing?.receivedAt || null,
+      stateSequence: Number(timing?.stateSequence) || 0,
     };
   });
   ipcMain.handle("launcher:request-connectivity-refresh", (_event, reason) => {
@@ -464,9 +505,16 @@ function registerIpc() {
   ipcMain.handle("launcher:diagnose", () => service.runDiagnose());
   ipcMain.handle("launcher:play-competition", () => withRemoteContext(service.playCompetition()));
   ipcMain.handle("launcher:practice", () => service.playPractice());
-  ipcMain.handle("launcher:submit-all", async () => {
-    await prepareRemoteAction("submit");
-    return withRemoteContext(service.submitAllPending());
+  ipcMain.handle("launcher:force-account-sync", async () => {
+    pendingAutoSubmitCoordinator.invalidate("development-force");
+    const result = await pendingAutoSubmitCoordinator.request("development-force");
+    return {
+      action: "force-account-sync",
+      lines: [`Cuentas procesadas: ${Number(result?.processedAccounts) || 0}.`],
+      ok: result?.status !== "deferred",
+      state: await service.getLauncherState({ deferRemoteMembership: true }),
+      summary: result?.status === "deferred" ? "La sincronizacion queda pendiente." : "Sincronizacion de cuentas completada.",
+    };
   });
   ipcMain.handle("launcher:restore-failed", (_event, filename) => withRemoteContext(service.restoreFailedSubmission(filename)));
   ipcMain.handle("launcher:sync-plugin", () => service.syncPlugin());
@@ -476,11 +524,15 @@ function registerIpc() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  initializeSecureSessionStorage();
+  await service.migrateRememberedSessionsForGui().catch(() => []);
   initializeRemoteServices();
   registerIpc();
   connectivity.start("startup").catch(() => {});
   topologyMonitor.start();
+  sessionMaintenanceTimer = setInterval(() => schedulePendingAutoSubmit("session-maintenance"), 60 * 1000);
+  sessionMaintenanceTimer.unref?.();
   createMainWindow();
   powerMonitor.on("suspend", handlePowerSuspend);
   powerMonitor.on("resume", handlePowerResume);

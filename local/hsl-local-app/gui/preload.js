@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   getConnectivityState: invoke("launcher:get-connectivity-state"),
   getRankingCapabilitiesState: invoke("launcher:get-ranking-capabilities-state"),
   getState: invoke("launcher:get-state"),
+  forceAccountSync: invoke("launcher:force-account-sync"),
   importPackFolder: invoke("launcher:import-pack-folder"),
   importPackZip: invoke("launcher:import-pack-zip"),
   login: (email, password) => ipcRenderer.invoke("launcher:login", { email, password }),
@@ -39,6 +40,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   removeKnownAccount: (userId) => ipcRenderer.invoke("launcher:remove-known-account", userId),
   requestConnectivityRefresh: (reason) => ipcRenderer.invoke("launcher:request-connectivity-refresh", reason),
   reportConnectivityApplied: (timing) => ipcRenderer.send("launcher:connectivity-applied", timing),
+  reportRankingApplied: (timing) => ipcRenderer.send("launcher:ranking-applied", timing),
   requestRankingCapabilitiesRefresh: invoke("launcher:request-ranking-capabilities-refresh"),
   rescanPackDirectory: invoke("launcher:rescan-pack-directory"),
   restoreFailed: (filename) => ipcRenderer.invoke("launcher:restore-failed", filename),
@@ -47,6 +49,5 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   toggleLibraryFavorite: (packKey) => ipcRenderer.invoke("launcher:toggle-library-favorite", packKey),
   useSuggestedPackDirectory: (directoryPath) => ipcRenderer.invoke("launcher:use-suggested-pack-directory", directoryPath),
   useLibraryPack: (packId) => ipcRenderer.invoke("launcher:use-library-pack", packId),
-  submitAll: invoke("launcher:submit-all"),
   syncPlugin: invoke("launcher:sync-plugin"),
 });

@@ -20,7 +20,7 @@ function ready(revision = "rev-1") {
 test("readiness is explicit and key includes account, connection, and queue", () => {
   assert.equal(derivePendingAutoSubmitReadiness(ready()).ready, true);
   assert.equal(derivePendingAutoSubmitReadiness({ ...ready(), session: null }).reason, "session-not-ready");
-  assert.equal(pendingAutoSubmitKey(ready()), "user-one:2:rev-1");
+  assert.equal(pendingAutoSubmitKey(ready()), "user-one:2:rev-1:0");
 });
 
 test("deferred startup does not consume the opportunity and new revision retriggers", async () => {

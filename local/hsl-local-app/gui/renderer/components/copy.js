@@ -6,7 +6,6 @@ export const COPY = {
     play: "JUGAR",
     practice: "Practicar",
     refresh: "Actualizar estado",
-    submit: "Subir pendientes",
     syncPlugin: "Sincronizar plugin",
   },
   launcherSubtitle: "Tu compañero para jugar la liga.",

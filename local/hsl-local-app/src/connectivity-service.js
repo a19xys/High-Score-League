@@ -16,7 +16,12 @@ const DEFAULT_CONNECTIVITY_OPTIONS = Object.freeze({
   focusStaleMs: 90 * 1000,
   healthTimeoutMs: 3 * 1000,
   jitterRatio: 0.15,
-  offlineRetryMs: 60 * 1000,
+  offlineFastIntervalMs: 3 * 1000,
+  offlineFastWindowMs: 60 * 1000,
+  offlineMediumIntervalMs: 5 * 1000,
+  offlineMediumWindowMs: 5 * 60 * 1000,
+  offlineLongRetryMs: [10, 20, 30, 60].map((seconds) => seconds * 1000),
+  recoveryCanaryTimeoutMs: 1000,
   positiveSignalDebounceMs: 150,
   retryBackoffMs: [5, 10, 20, 30, 60].map((seconds) => seconds * 1000),
 });
@@ -89,6 +94,7 @@ function createConnectivityService(options = {}) {
   let probeGeneration = 0;
   let reachabilityGeneration = 0;
   let deploymentGeneration = 0;
+  let recoveryAttempt = 0;
   const counters = {
     confirmationCount: 0,
     deduplicatedRequestCount: 0,
@@ -113,7 +119,20 @@ function createConnectivityService(options = {}) {
     detectedAt: null,
     emittedAt: null,
     lastHeartbeatAt: null,
+    healthCompletedAt: null,
+    healthStartedAt: null,
     lastTrigger: "initial",
+    offlineSinceAt: null,
+    scheduler: {
+      attempt: 0,
+      deduplicatedBy: null,
+      intervalMs: null,
+      scheduledAt: null,
+      scheduledFor: null,
+      timeoutMs: null,
+      timerKind: null,
+      trigger: null,
+    },
   };
 
   function snapshot() {
@@ -123,6 +142,7 @@ function createConnectivityService(options = {}) {
       probe: { ...state.probe },
       heartbeat: { ...state.heartbeat },
       deployment: { ...state.deployment },
+      scheduler: { ...state.scheduler },
       deploymentGeneration,
       reachabilityGeneration,
     };
@@ -170,7 +190,7 @@ function createConnectivityService(options = {}) {
     return activity === "background" ? config.connectedBackgroundIntervalMs : config.connectedActiveIntervalMs;
   }
 
-  function schedule(delayMs, source) {
+  function schedule(delayMs, source, scheduleOptions = {}) {
     clearScheduled();
     if (!started || disposed || activity === "suspended") return;
     const delay = Math.max(0, delayMs);
@@ -181,11 +201,25 @@ function createConnectivityService(options = {}) {
         ...state.heartbeat,
         intervalMs: source === "heartbeat" ? delay : null,
       },
+      scheduler: {
+        attempt: scheduleOptions.attempt || 0,
+        deduplicatedBy: null,
+        intervalMs: delay,
+        scheduledAt: nowIso(nowImpl),
+        scheduledFor: new Date(nowImpl() + delay).toISOString(),
+        timeoutMs: scheduleOptions.timeoutMs || config.healthTimeoutMs,
+        timerKind: scheduleOptions.timerKind || source,
+        trigger: source,
+      },
     };
     emit();
     timer = setTimeoutImpl(() => {
       timer = null;
-      refresh(source, { force: true, phase: source === "heartbeat" ? "background" : "retry" }).catch(() => {});
+      refresh(source, {
+        force: true,
+        phase: source === "heartbeat" ? "background" : "retry",
+        timeoutMs: scheduleOptions.timeoutMs,
+      }).catch(() => {});
     }, delay);
   }
 
@@ -198,6 +232,26 @@ function createConnectivityService(options = {}) {
     const base = config.retryBackoffMs[index];
     const jitter = base * config.jitterRatio * ((randomImpl() * 2) - 1);
     return Math.max(0, Math.round(base + jitter));
+  }
+
+  function recoveryDelay() {
+    const offlineSinceMs = state.offlineSinceAt ? new Date(state.offlineSinceAt).getTime() : nowImpl();
+    const elapsedMs = Math.max(0, nowImpl() - offlineSinceMs);
+    if (elapsedMs < config.offlineFastWindowMs) return config.offlineFastIntervalMs;
+    if (elapsedMs < config.offlineMediumWindowMs) return config.offlineMediumIntervalMs;
+    const attemptsBeforeLong = Math.ceil(config.offlineFastWindowMs / config.offlineFastIntervalMs) +
+      Math.ceil((config.offlineMediumWindowMs - config.offlineFastWindowMs) / config.offlineMediumIntervalMs);
+    const index = Math.min(Math.max(0, recoveryAttempt - attemptsBeforeLong), config.offlineLongRetryMs.length - 1);
+    return config.offlineLongRetryMs[index];
+  }
+
+  function scheduleRecovery() {
+    const delay = recoveryDelay();
+    schedule(delay, "recovery-canary", {
+      attempt: recoveryAttempt + 1,
+      timeoutMs: config.recoveryCanaryTimeoutMs,
+      timerKind: "offline-recovery",
+    });
   }
 
   function isFresh(maxAgeMs = config.focusStaleMs) {
@@ -214,12 +268,16 @@ function createConnectivityService(options = {}) {
   }
 
   function settleOffline(patch = {}) {
+    const offlineSinceAt = state.reachability === "offline" && state.offlineSinceAt
+      ? state.offlineSinceAt
+      : nowIso(nowImpl);
     return update({
       reachability: "offline",
       probe: idleProbe(),
       heartbeat: { confirmationPending: false, intervalMs: null },
       latencyMs: null,
       nextRetryAt: null,
+      offlineSinceAt,
       ...patch,
     });
   }
@@ -238,7 +296,7 @@ function createConnectivityService(options = {}) {
       lastTrigger: source,
       consecutiveFailures: state.consecutiveFailures + 1,
     });
-    schedule(config.offlineRetryMs, "offline-retry");
+    scheduleRecovery();
     return result;
   }
 
@@ -260,6 +318,7 @@ function createConnectivityService(options = {}) {
       consecutiveFailures: 0,
       detectedAt: nowIso(nowImpl),
       lastTrigger: source,
+      offlineSinceAt: null,
     });
     scheduleHeartbeat();
     return result;
@@ -291,6 +350,7 @@ function createConnectivityService(options = {}) {
       if (requestedPhase === "manual" && state.probe.phase !== "manual") {
         update({ probe: { ...state.probe, phase: "manual" }, source });
       }
+      update({ scheduler: { ...state.scheduler, deduplicatedBy: source } });
       return inFlight;
     }
     const maxAgeMs = Number.isFinite(refreshOptions.maxAgeMs) ? refreshOptions.maxAgeMs : config.focusStaleMs;
@@ -305,7 +365,7 @@ function createConnectivityService(options = {}) {
         netIsOnline: true,
         consecutiveFailures: state.consecutiveFailures + 1,
       });
-      schedule(retryDelay(), "backoff-retry");
+      scheduleRecovery();
       return Promise.resolve(result);
     }
 
@@ -314,6 +374,7 @@ function createConnectivityService(options = {}) {
     const startedAtMs = nowImpl();
     const phase = probePhaseFor(source, state.reachability, refreshOptions.phase);
     const confirmHeartbeat = source === "heartbeat" && state.reachability === "connected";
+    if (source === "recovery-canary") recoveryAttempt += 1;
     if (source === "heartbeat") counters.heartbeatCount += 1;
     update({
       probe: { phase, inFlight: true, startedAt: nowIso(nowImpl) },
@@ -326,6 +387,7 @@ function createConnectivityService(options = {}) {
       detectedAt: refreshOptions.detectedAt || nowIso(nowImpl),
       lastHeartbeatAt: source === "heartbeat" ? nowIso(nowImpl) : state.lastHeartbeatAt,
       lastTrigger: source,
+      healthStartedAt: nowIso(nowImpl),
     });
 
     inFlight = (async () => {
@@ -334,7 +396,9 @@ function createConnectivityService(options = {}) {
       const attempts = confirmHeartbeat ? 2 : 1;
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         try {
-          const timeoutMs = attempt > 0 ? config.confirmationTimeoutMs : config.healthTimeoutMs;
+          const timeoutMs = attempt > 0
+            ? config.confirmationTimeoutMs
+            : (refreshOptions.timeoutMs || config.healthTimeoutMs);
           const { response, controller } = await requestOnce(endpoint, requestGeneration, timeoutMs);
           lastController = controller;
           if (disposed || requestGeneration !== probeGeneration) return snapshot();
@@ -358,8 +422,11 @@ function createConnectivityService(options = {}) {
             nextRetryAt: null,
             netIsOnline: true,
             consecutiveFailures: 0,
+            healthCompletedAt: nowIso(nowImpl),
+            offlineSinceAt: null,
           });
           scheduleHeartbeat();
+          recoveryAttempt = 0;
           return result;
         } catch (error) {
           lastError = error;
@@ -386,8 +453,10 @@ function createConnectivityService(options = {}) {
         latencyMs: Math.max(0, nowImpl() - startedAtMs),
         netIsOnline: true,
         consecutiveFailures: failures,
+        healthCompletedAt: nowIso(nowImpl),
       });
-      schedule(retryDelay(), "backoff-retry");
+      if (result.reachability === "offline") scheduleRecovery();
+      else schedule(retryDelay(), "backoff-retry");
       return result;
     })().finally(() => {
       if (requestGeneration === probeGeneration) {
@@ -425,7 +494,7 @@ function createConnectivityService(options = {}) {
       return snapshot();
     }
     if (state.reachability === "connected") scheduleHeartbeat();
-    else schedule(config.offlineRetryMs, "offline-retry");
+    else scheduleRecovery();
     return snapshot();
   }
 

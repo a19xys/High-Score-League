@@ -51,6 +51,12 @@ function harness(overrides = {}) {
       healthTimeoutMs: 4_000,
       jitterRatio: 0.15,
       offlineRetryMs: 60_000,
+      offlineFastIntervalMs: 3_000,
+      offlineFastWindowMs: 60_000,
+      offlineMediumIntervalMs: 5_000,
+      offlineMediumWindowMs: 300_000,
+      offlineLongRetryMs: [10_000, 20_000, 30_000, 60_000],
+      recoveryCanaryTimeoutMs: 1_000,
       retryBackoffMs: [5_000, 15_000, 30_000],
     },
   });
@@ -136,13 +142,25 @@ test("offline retries show reconnecting only while the request exists", async ()
   await h.service.start();
   assert.equal(h.service.getState().displayStatus, "offline");
   succeeds = true;
-  const retryTimer = [...h.timers.values()].find((timer) => timer.delay === 5_000);
+  const retryTimer = [...h.timers.values()].find((timer) => timer.delay === 3_000);
   retryTimer.callback();
   assert.equal(h.service.getState().displayStatus, "reconnecting");
   assert.equal(h.service.getState().probe.inFlight, true);
   resolveRetry({ status: 204, url: "https://hsl.example/api/launcher/health" });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(h.service.getState().displayStatus, "connected");
+});
+
+test("offline recovery uses a short canary independently from focus", async () => {
+  const h = harness({ fetchImpl: async () => { throw new Error("down"); } });
+  await h.service.start();
+  const state = h.service.getState();
+  assert.equal(state.scheduler.timerKind, "offline-recovery");
+  assert.equal(state.scheduler.intervalMs, 3_000);
+  assert.equal(state.scheduler.timeoutMs, 1_000);
+  h.service.setActivity("background", "blur");
+  assert.equal(h.service.getState().scheduler.intervalMs, 3_000);
+  assert.equal(h.service.getState().scheduler.timerKind, "offline-recovery");
 });
 
 test("manual probes reconnect, deduplicate and settle without transient idle", async () => {

@@ -1,6 +1,5 @@
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
-import { deriveManualSubmitAction } from "../manual-submit-action.js";
 
 function formatDetectedAt(value) {
   if (!value) return "sin fecha";
@@ -213,14 +212,12 @@ export function renderActivityDrawer(state) {
   const pending = state.data?.queue?.pending;
   const failed = state.data?.queue?.failed;
   const sent = state.data?.queue?.sent;
-  const scoped = Boolean(state.data?.scope);
   const totals = state.data?.queue?.totals || { failed: 0, pending: 0, sent: 0 };
   const autoSync = state.data?.autoSync || {};
   const items = pending?.items?.slice(0, 8) || [];
   const body = items.length > 0
     ? `<ul class="queue-list">${items.map(renderQueueItem).join("")}</ul>`
     : `<div class="empty-state">No hay puntuaciones pendientes.</div>`;
-  const submitAction = deriveManualSubmitAction(state);
 
   return `
     <section class="activity-drawer">
@@ -228,12 +225,6 @@ export function renderActivityDrawer(state) {
         <div><strong>${totals.pending}</strong><span>Pendientes</span></div>
         <div><strong>${totals.sent}</strong><span>Enviadas</span></div>
         <div class="${totals.failed ? "activity-stat--warning" : ""}"><strong>${totals.failed}</strong><span>Puntuaciones con error</span></div>
-      </div>
-      <div class="activity-actions">
-        <button class="tool-button" type="button" data-action="submit" title="${escapeHtml(submitAction.reason)}" ${submitAction.enabled ? "" : "disabled"}>
-          Subir pendientes
-          <small>${scoped ? "Cuenta + pack" : "Scope no disponible"}</small>
-        </button>
       </div>
       <div class="activity-details__body">
         <div class="panel-heading compact">

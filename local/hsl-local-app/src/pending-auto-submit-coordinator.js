@@ -8,7 +8,7 @@ function derivePendingAutoSubmitReadiness(context = {}) {
 }
 
 function pendingAutoSubmitKey(context = {}) {
-  return [context.userId, context.connection?.reachabilityGeneration, context.index?.revision].join(":");
+  return [context.userId, context.connection?.reachabilityGeneration, context.index?.revision, context.sessionRevision || 0].join(":");
 }
 
 function createPendingAutoSubmitCoordinator(options = {}) {
@@ -43,6 +43,7 @@ function createPendingAutoSubmitCoordinator(options = {}) {
       connectivityGeneration: context.connection.reachabilityGeneration,
       deferReason: null,
       queueRevision: context.index.revision,
+      sessionRevision: context.sessionRevision || 0,
       readiness: "ready",
       startedAt: now(),
       status: "running",

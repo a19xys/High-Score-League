@@ -14,3 +14,8 @@ No asigna connected. Si no quedan direcciones externas y `net.isOnline()` es
 false, aplica offline inmediato; si es true, health decide. Suspend detiene el
 monitor y resume restablece polling y health. Heartbeat de 20 s cubre perdidas
 sin cambio de interfaces.
+
+Cuando el estado ya es offline, el monitor comparte el scheduler con recovery
+canary. Un cambio de fingerprint solicita una comprobacion inmediata, pero no
+crea una segunda peticion si ya existe health en vuelo. El diagnostico expone
+`timerKind`, intervalo, timeout, intento, trigger y motivo de deduplicacion.
