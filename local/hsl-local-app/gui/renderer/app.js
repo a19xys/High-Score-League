@@ -774,7 +774,13 @@ async function toggleLibraryFavorite(packKey) {
 
 function applyConnectivityState(connectivityState) {
   if (!["offline", "connecting", "reconnecting", "connected"].includes(connectivityState?.displayStatus)) return;
-  store.setState({ connectivity: connectivityState });
+  const receivedAt = new Date().toISOString();
+  store.setState({ connectivity: { ...connectivityState, receivedAt } });
+  window.hslLauncher.reportConnectivityApplied?.({
+    appliedAt: new Date().toISOString(),
+    emittedAt: connectivityState.emittedAt || null,
+    receivedAt,
+  });
 }
 
 function applyRankingCapabilitiesState(capabilitiesState) {

@@ -10,14 +10,15 @@ const {
 
 const HEALTH_PATH = "/api/launcher/health";
 const DEFAULT_CONNECTIVITY_OPTIONS = Object.freeze({
-  connectedActiveIntervalMs: 45 * 1000,
-  connectedBackgroundIntervalMs: 4 * 60 * 1000,
+  connectedActiveIntervalMs: 20 * 1000,
+  connectedBackgroundIntervalMs: 20 * 1000,
+  confirmationTimeoutMs: 1000,
   focusStaleMs: 90 * 1000,
   healthTimeoutMs: 3 * 1000,
   jitterRatio: 0.15,
   offlineRetryMs: 60 * 1000,
   positiveSignalDebounceMs: 150,
-  retryBackoffMs: [5, 15, 30, 60, 120, 300].map((seconds) => seconds * 1000),
+  retryBackoffMs: [5, 10, 20, 30, 60].map((seconds) => seconds * 1000),
 });
 
 function nowIso(nowImpl) {
@@ -88,6 +89,13 @@ function createConnectivityService(options = {}) {
   let probeGeneration = 0;
   let reachabilityGeneration = 0;
   let deploymentGeneration = 0;
+  const counters = {
+    confirmationCount: 0,
+    deduplicatedRequestCount: 0,
+    healthRequestCount: 0,
+    heartbeatCount: 0,
+    transportFailureCount: 0,
+  };
   let state = {
     reachability: "unknown",
     probe: idleProbe(),
@@ -102,6 +110,10 @@ function createConnectivityService(options = {}) {
     activity,
     heartbeat: { confirmationPending: false, intervalMs: null },
     deployment: { apiVersion: null, build: "unknown", environment: "unknown" },
+    detectedAt: null,
+    emittedAt: null,
+    lastHeartbeatAt: null,
+    lastTrigger: "initial",
   };
 
   function snapshot() {
@@ -117,6 +129,7 @@ function createConnectivityService(options = {}) {
   }
 
   function emit() {
+    state = { ...state, emittedAt: nowIso(nowImpl) };
     const value = snapshot();
     for (const listener of listeners) listener(value);
   }
@@ -154,9 +167,7 @@ function createConnectivityService(options = {}) {
   }
 
   function heartbeatInterval() {
-    return activity === "background"
-      ? config.connectedBackgroundIntervalMs
-      : config.connectedActiveIntervalMs;
+    return activity === "background" ? config.connectedBackgroundIntervalMs : config.connectedActiveIntervalMs;
   }
 
   function schedule(delayMs, source) {
@@ -223,6 +234,8 @@ function createConnectivityService(options = {}) {
       reason,
       source,
       netIsOnline: false,
+      detectedAt: nowIso(nowImpl),
+      lastTrigger: source,
       consecutiveFailures: state.consecutiveFailures + 1,
     });
     schedule(config.offlineRetryMs, "offline-retry");
@@ -245,15 +258,18 @@ function createConnectivityService(options = {}) {
       nextRetryAt: null,
       netIsOnline: true,
       consecutiveFailures: 0,
+      detectedAt: nowIso(nowImpl),
+      lastTrigger: source,
     });
     scheduleHeartbeat();
     return result;
   }
 
-  function requestOnce(endpoint, requestGeneration) {
+  function requestOnce(endpoint, requestGeneration, timeoutMs = config.healthTimeoutMs) {
     const controller = new AbortController();
     activeController = controller;
-    const timeout = setTimeoutImpl(() => controller.abort(), config.healthTimeoutMs);
+    counters.healthRequestCount += 1;
+    const timeout = setTimeoutImpl(() => controller.abort(), timeoutMs);
     return options.fetchImpl(endpoint, {
       cache: "no-store",
       method: "GET",
@@ -268,7 +284,9 @@ function createConnectivityService(options = {}) {
   function refresh(source = "background", refreshOptions = {}) {
     if (!started || disposed || activity === "suspended") return Promise.resolve(snapshot());
     if (!Boolean(netIsOnlineImpl())) return Promise.resolve(signalOffline(source, "system-offline"));
+    if (inFlight && refreshOptions.supersede === true) cancelInFlight();
     if (inFlight) {
+      counters.deduplicatedRequestCount += 1;
       const requestedPhase = probePhaseFor(source, state.reachability, refreshOptions.phase);
       if (requestedPhase === "manual" && state.probe.phase !== "manual") {
         update({ probe: { ...state.probe, phase: "manual" }, source });
@@ -296,6 +314,7 @@ function createConnectivityService(options = {}) {
     const startedAtMs = nowImpl();
     const phase = probePhaseFor(source, state.reachability, refreshOptions.phase);
     const confirmHeartbeat = source === "heartbeat" && state.reachability === "connected";
+    if (source === "heartbeat") counters.heartbeatCount += 1;
     update({
       probe: { phase, inFlight: true, startedAt: nowIso(nowImpl) },
       heartbeat: { confirmationPending: false, intervalMs: null },
@@ -304,6 +323,9 @@ function createConnectivityService(options = {}) {
       latencyMs: null,
       nextRetryAt: null,
       netIsOnline: true,
+      detectedAt: refreshOptions.detectedAt || nowIso(nowImpl),
+      lastHeartbeatAt: source === "heartbeat" ? nowIso(nowImpl) : state.lastHeartbeatAt,
+      lastTrigger: source,
     });
 
     inFlight = (async () => {
@@ -312,7 +334,8 @@ function createConnectivityService(options = {}) {
       const attempts = confirmHeartbeat ? 2 : 1;
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         try {
-          const { response, controller } = await requestOnce(endpoint, requestGeneration);
+          const timeoutMs = attempt > 0 ? config.confirmationTimeoutMs : config.healthTimeoutMs;
+          const { response, controller } = await requestOnce(endpoint, requestGeneration, timeoutMs);
           lastController = controller;
           if (disposed || requestGeneration !== probeGeneration) return snapshot();
           const expectedOrigin = new URL(endpoint).origin;
@@ -343,6 +366,7 @@ function createConnectivityService(options = {}) {
           lastController = activeController;
           if (disposed || requestGeneration !== probeGeneration) return snapshot();
           if (attempt + 1 < attempts) {
+            counters.confirmationCount += 1;
             update({
               reachability: "connected",
               probe: { phase: "background", inFlight: true, startedAt: state.probe.startedAt },
@@ -354,6 +378,7 @@ function createConnectivityService(options = {}) {
         }
       }
       const failures = state.consecutiveFailures + 1;
+      counters.transportFailureCount += 1;
       const result = settleOffline({
         checkedAt: nowIso(nowImpl),
         reason: lastError?.reason || transportReason(lastError, lastController?.signal?.aborted),
@@ -445,7 +470,7 @@ function createConnectivityService(options = {}) {
   return {
     config,
     getDiagnostics() {
-      return { ...snapshot(), healthEndpoint: healthEndpoint(webBaseUrl), webBaseUrl };
+      return { ...snapshot(), ...counters, healthEndpoint: healthEndpoint(webBaseUrl), webBaseUrl };
     },
     getState: snapshot,
     isFresh,

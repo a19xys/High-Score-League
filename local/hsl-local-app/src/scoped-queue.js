@@ -1,6 +1,7 @@
 const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
+const { readEventFile } = require("./event-files");
 
 function hashPart(value, length = 16) {
   return crypto.createHash("sha256").update(String(value || "")).digest("hex").slice(0, length);
@@ -221,21 +222,52 @@ function buildScopedSubmitConfig(baseConfig, scopeRecord, options = {}) {
   };
 }
 
-async function discoverPlayerPendingScopes(config = {}, session = {}) {
+async function listPendingDescriptors(dir) {
+  try {
+    const entries = await fsp.readdir(dir, { withFileTypes: true });
+    const files = entries
+      .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".json"))
+      .map((entry) => entry.name)
+      .sort();
+    const descriptors = [];
+    for (const filename of files) {
+      const stat = await fsp.stat(path.join(dir, filename));
+      const parsed = await readEventFile(dir, filename).catch(() => ({ ok: false }));
+      descriptors.push({ filename, mtimeMs: Math.trunc(stat.mtimeMs), size: stat.size, valid: parsed.ok === true });
+    }
+    return { descriptors, readable: true };
+  } catch (error) {
+    return { descriptors: [], readable: error?.code === "ENOENT", reason: error?.code === "ENOENT" ? null : "pending-unreadable" };
+  }
+}
+
+async function buildPlayerPendingIndex(config = {}, session = {}) {
   const playerKey = derivePlayerKey(session);
   const records = [];
+  const scopes = [];
   const skipped = [];
-  if (!playerKey || !config.userDataDir) return { playerKey, records, skipped: [{ reason: "missing-player" }] };
+  const revisionParts = [];
+  if (!playerKey || !config.userDataDir) {
+    return {
+      playerKey,
+      records,
+      revision: hashPart("missing-player", 32),
+      scopes,
+      skipped: [{ reason: "missing-player" }],
+      totals: { invalidPending: 0, pending: 0, validPending: 0 },
+      userId: session.userId || null,
+    };
+  }
   const packsRoot = path.join(config.userDataDir, "players", playerKey, "packs");
   let entries;
   try {
     entries = await fsp.readdir(packsRoot, { withFileTypes: true });
   } catch (error) {
-    if (error?.code === "ENOENT") return { playerKey, records, skipped };
-    return { playerKey, records, skipped: [{ reason: "packs-unreadable" }] };
+    if (error?.code !== "ENOENT") skipped.push({ reason: "packs-unreadable" });
+    entries = [];
   }
 
-  for (const entry of entries) {
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     if (!entry.isDirectory() || entry.isSymbolicLink()) {
       skipped.push({ packKey: entry.name, reason: "not-directory" });
       continue;
@@ -253,35 +285,78 @@ async function discoverPlayerPendingScopes(config = {}, session = {}) {
     };
     let meta;
     try {
-      const raw = await fsp.readFile(path.join(scopedQueueRoot, "meta.json"), "utf8");
+      const metaPath = path.join(scopedQueueRoot, "meta.json");
+      const raw = await fsp.readFile(metaPath, "utf8");
       if (raw.length > 64 * 1024) throw new Error("meta-too-large");
       meta = JSON.parse(raw);
     } catch {
       skipped.push({ packKey: entry.name, reason: "invalid-meta" });
+      revisionParts.push([entry.name, "invalid-meta"]);
       continue;
     }
     const validation = validateScopedMeta(meta, { packKey: entry.name, playerKey, userId: session.userId });
     if (!validation.ok) {
       skipped.push({ packKey: entry.name, reason: validation.reason });
+      revisionParts.push([entry.name, validation.reason]);
       continue;
     }
-    let pendingCount = 0;
-    try {
-      const pendingEntries = await fsp.readdir(scope.scopedPendingDir, { withFileTypes: true });
-      pendingCount = pendingEntries.filter((item) => item.isFile() && item.name.toLowerCase().endsWith(".json")).length;
-    } catch (error) {
-      if (error?.code !== "ENOENT") skipped.push({ packKey: entry.name, reason: "pending-unreadable" });
+    const pending = await listPendingDescriptors(scope.scopedPendingDir);
+    if (!pending.readable) {
+      skipped.push({ packKey: entry.name, reason: pending.reason });
       continue;
     }
-    if (pendingCount > 0) records.push({ meta, pendingCount, scope });
+    const pendingCount = pending.descriptors.length;
+    const validPendingCount = pending.descriptors.filter((item) => item.valid).length;
+    const record = {
+      accepted: true,
+      invalidPendingCount: pendingCount - validPendingCount,
+      meta,
+      metaStatus: "valid",
+      pendingCount,
+      scope,
+      validPendingCount,
+    };
+    scopes.push(record);
+    if (pendingCount > 0) records.push(record);
+    revisionParts.push([
+      entry.name,
+      meta.schemaVersion,
+      meta.player,
+      meta.pack,
+      pending.descriptors.map((item) => [item.filename, item.size, item.mtimeMs, item.valid]),
+    ]);
   }
-  return { playerKey, records, skipped };
+  const totals = scopes.reduce((sum, item) => ({
+    invalidPending: sum.invalidPending + item.invalidPendingCount,
+    pending: sum.pending + item.pendingCount,
+    validPending: sum.validPending + item.validPendingCount,
+  }), { invalidPending: 0, pending: 0, validPending: 0 });
+  const unscopedDir = config.eventsPendingDirAbs || path.join(config.userDataDir, "events", "pending");
+  const unscoped = await listPendingDescriptors(unscopedDir);
+  if (unscoped.descriptors.length > 0) {
+    skipped.push({ count: unscoped.descriptors.length, reason: "legacy-ambiguous" });
+    revisionParts.push(["legacy-ambiguous", unscoped.descriptors.map((item) => [item.filename, item.size, item.mtimeMs])]);
+  }
+  return {
+    playerKey,
+    records,
+    revision: hashPart(JSON.stringify(revisionParts), 32),
+    scopes,
+    skipped,
+    totals,
+    userId: session.userId || null,
+  };
+}
+
+async function discoverPlayerPendingScopes(config = {}, session = {}) {
+  return buildPlayerPendingIndex(config, session);
 }
 
 module.exports = {
   applyScopedQueue,
   buildScopedSubmitConfig,
   buildScopedMeta,
+  buildPlayerPendingIndex,
   derivePackKey,
   derivePlayerKey,
   discoverPlayerPendingScopes,

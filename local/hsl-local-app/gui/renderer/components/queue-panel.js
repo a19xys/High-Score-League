@@ -1,5 +1,6 @@
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
+import { deriveManualSubmitAction } from "../manual-submit-action.js";
 
 function formatDetectedAt(value) {
   if (!value) return "sin fecha";
@@ -219,11 +220,7 @@ export function renderActivityDrawer(state) {
   const body = items.length > 0
     ? `<ul class="queue-list">${items.map(renderQueueItem).join("")}</ul>`
     : `<div class="empty-state">No hay puntuaciones pendientes.</div>`;
-  const canSubmit = !state.busy &&
-    totals.pending > 0 &&
-    state.data?.session?.hasSession &&
-    state.data?.membership?.canSubmit !== false &&
-    state.data?.readiness?.canSubmit !== false;
+  const submitAction = deriveManualSubmitAction(state);
 
   return `
     <section class="activity-drawer">
@@ -233,7 +230,7 @@ export function renderActivityDrawer(state) {
         <div class="${totals.failed ? "activity-stat--warning" : ""}"><strong>${totals.failed}</strong><span>Puntuaciones con error</span></div>
       </div>
       <div class="activity-actions">
-        <button class="tool-button" type="button" data-action="submit" ${canSubmit ? "" : "disabled"}>
+        <button class="tool-button" type="button" data-action="submit" title="${escapeHtml(submitAction.reason)}" ${submitAction.enabled ? "" : "disabled"}>
           Subir pendientes
           <small>${scoped ? "Cuenta + pack" : "Scope no disponible"}</small>
         </button>

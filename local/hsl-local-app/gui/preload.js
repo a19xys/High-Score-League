@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   openRanking: invoke("launcher:open-ranking"),
   removeKnownAccount: (userId) => ipcRenderer.invoke("launcher:remove-known-account", userId),
   requestConnectivityRefresh: (reason) => ipcRenderer.invoke("launcher:request-connectivity-refresh", reason),
+  reportConnectivityApplied: (timing) => ipcRenderer.send("launcher:connectivity-applied", timing),
   requestRankingCapabilitiesRefresh: invoke("launcher:request-ranking-capabilities-refresh"),
   rescanPackDirectory: invoke("launcher:rescan-pack-directory"),
   restoreFailed: (filename) => ipcRenderer.invoke("launcher:restore-failed", filename),

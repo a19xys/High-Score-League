@@ -6,6 +6,7 @@ const path = require("node:path");
 const {
   discoverPlayerPendingScopes,
   derivePlayerKey,
+  buildPlayerPendingIndex,
 } = require("../src/scoped-queue");
 const {
   resetAutoSyncStateForTests,
@@ -110,22 +111,49 @@ test("auto submit processes multiple scopes sequentially through submitAll", asy
   assert.equal(result.sent, 3);
   assert.equal(result.preserved, 0);
   assert.equal(result.diagnostics.connectedGeneration, 4);
-  assert.equal(result.diagnostics.user, playerKey);
+  assert.match(result.diagnostics.user, /^player_[a-f0-9]{12}$/);
 });
 
-test("main coordinator deduplicates by connected generation and updates renderer silently", async () => {
+test("main coordinator uses queue revision and updates renderer silently", async () => {
   const [main, preload, renderer] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "main.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "preload.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8"),
   ]);
-  assert.match(main, /const key = `\$\{connectedGeneration\}:\$\{scheduledUserId\}`/);
-  assert.match(main, /autoSubmitChain = autoSubmitChain/);
+  assert.match(main, /createPendingAutoSubmitCoordinator/);
+  assert.match(main, /getPendingAutoSubmitContext/);
   assert.match(main, /runPendingAutoSubmit/);
   assert.match(main, /invalidatePendingAutoSubmit\("shutdown"\)/);
   assert.match(preload, /onLauncherState/);
   assert.match(renderer, /applyBackgroundLauncherState/);
   assert.doesNotMatch(main, /attemptAutoSync: true/);
+});
+
+test("queue index revision is stable and changes when pending changes", async () => {
+  const userDataDir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-queue-index-"));
+  const session = { hasSession: true, userId: "active-user" };
+  const playerKey = derivePlayerKey(session);
+  const packKey = "pack-one";
+  const root = path.join(userDataDir, "players", playerKey, "packs", packKey);
+  const pending = path.join(root, "events", "pending");
+  await fsp.mkdir(pending, { recursive: true });
+  await fsp.writeFile(path.join(root, "meta.json"), JSON.stringify({
+    schemaVersion: 1,
+    player: { playerKey, userId: session.userId },
+    pack: { gameId: "game", packKey, rom: "invaders", webBaseUrl: "https://hsl.example", weekId: "week-one" },
+  }));
+  try {
+    const first = await buildPlayerPendingIndex({ userDataDir }, session);
+    const same = await buildPlayerPendingIndex({ userDataDir }, session);
+    assert.equal(first.revision, same.revision);
+    await fsp.writeFile(path.join(pending, "new.json"), "{}");
+    const changed = await buildPlayerPendingIndex({ userDataDir }, session);
+    assert.notEqual(first.revision, changed.revision);
+    assert.equal(changed.totals.pending, 1);
+    assert.equal(changed.totals.validPending, 0);
+  } finally {
+    await fsp.rm(userDataDir, { recursive: true, force: true });
+  }
 });
 
 test("membership transport and auth failures preserve pending and stop the cycle", async () => {

@@ -61,10 +61,12 @@ const { submitAll } = require("../src/submission-service");
 const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
 const {
   applyScopedQueue,
+  buildPlayerPendingIndex,
   buildScopedSubmitConfig,
   derivePlayerKey,
   discoverPlayerPendingScopes,
   ensureScopedQueue,
+  hashPart,
 } = require("../src/scoped-queue");
 const {
   checkSeasonMembership,
@@ -118,6 +120,21 @@ function setRemoteDiagnosticsProvider(provider) {
 
 function getPendingAutoSubmitDiagnostics() {
   return { ...pendingAutoSubmitState };
+}
+
+async function getPendingAutoSubmitContext(options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  const session = await getAuthState(config, { deferRemote: true });
+  const index = await buildPlayerPendingIndex(config, session);
+  return {
+    config,
+    connection: options.connection || null,
+    index,
+    playerKey: index.playerKey,
+    session,
+    userId: options.userId || null,
+    webBaseUrl: config.webBaseUrl || null,
+  };
 }
 
 function invalidatePendingAutoSubmit(reason = "context-change") {
@@ -1022,14 +1039,14 @@ async function runAutoSyncIfEligible(context, options = {}) {
 
 async function runPendingAutoSubmit(options = {}) {
   const now = options.now || new Date().toISOString();
-  if (autoSyncInProgress || manualSyncInProgress) return { attempted: false, reason: "sync-in-progress" };
+  if (autoSyncInProgress || manualSyncInProgress) return { attempted: false, reason: "sync-in-progress", status: "deferred" };
   const baseConfig = options.config || loadRuntimeConfig();
-  const session = await (options.getAuthStateImpl || getAuthState)(baseConfig);
+  const session = options.session || await (options.getAuthStateImpl || getAuthState)(baseConfig);
   const playerKey = derivePlayerKey(session);
-  if (!session.hasSession || !playerKey) return { attempted: false, reason: "no-session" };
+  if (!session.hasSession || !playerKey) return { attempted: false, reason: "no-session", status: "deferred" };
 
   const epoch = pendingAutoSubmitEpoch;
-  const discovery = await (options.discoverScopesImpl || discoverPlayerPendingScopes)(baseConfig, session);
+  const discovery = options.index || await (options.discoverScopesImpl || discoverPlayerPendingScopes)(baseConfig, session);
   const sessionFileAbs = (options.getSessionPathImpl || getRememberedSessionPath)(baseConfig, session);
   const totalPending = discovery.records.reduce((sum, item) => sum + item.pendingCount, 0);
   pendingAutoSubmitState = {
@@ -1043,9 +1060,11 @@ async function runPendingAutoSubmit(options = {}) {
     sent: 0,
     skippedScopes: discovery.skipped.length,
     trigger: options.trigger || "unknown",
-    user: playerKey,
+    user: `player_${hashPart(playerKey, 12)}`,
+    queueRevision: discovery.revision || null,
+    validPending: discovery.totals?.validPending ?? totalPending,
   };
-  if (discovery.records.length === 0) return { attempted: false, discovery, reason: "no-pending" };
+  if (discovery.records.length === 0) return { attempted: false, discovery, reason: "no-pending", status: "completed" };
 
   autoSyncInProgress = true;
   autoSyncState = emptyAutoSyncState({
@@ -1134,6 +1153,7 @@ async function runPendingAutoSubmit(options = {}) {
     preserved: Math.max(0, preserved),
     sent,
     transportFailure,
+    status: transportFailure || authFailure ? "deferred" : "completed",
   };
 }
 
@@ -2612,6 +2632,7 @@ module.exports = {
   eventResultToQueueItem,
   getAuthStateForGui,
   getPendingAutoSubmitDiagnostics,
+  getPendingAutoSubmitContext,
   getRemoteBootstrapState,
   getLauncherState,
   importPackFromFolderForGui,

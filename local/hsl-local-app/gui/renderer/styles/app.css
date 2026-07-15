@@ -932,7 +932,8 @@ button:disabled {
   width: 26px;
   height: 26px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 999px;
+  margin-inline-start: -4px;
   padding: 0;
   place-items: center;
   background: transparent;
@@ -940,7 +941,7 @@ button:disabled {
   cursor: pointer;
 }
 
-.connection-refresh-button:hover {
+.connection-refresh-button:hover:not(:disabled) {
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
 

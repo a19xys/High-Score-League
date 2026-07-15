@@ -292,12 +292,12 @@ test("an isolated heartbeat failure gets one immediate confirmation", async () =
   assert.equal(h.service.getState().heartbeat.confirmationPending, false);
 });
 
-test("heartbeat adapts to window activity and stops while suspended", async () => {
+test("blur keeps the bounded heartbeat and only suspend stops it", async () => {
   const h = harness();
   await h.service.start();
   assert.ok([...h.timers.values()].some((entry) => entry.delay === 300_000));
   h.service.setActivity("background", "blur");
-  assert.ok([...h.timers.values()].some((entry) => entry.delay === 240_000));
+  assert.ok([...h.timers.values()].some((entry) => entry.delay === 20_000));
   h.service.setActivity("suspended", "suspend");
   assert.equal(h.timers.size, 0);
   h.service.setActivity("active", "resume");

@@ -1,28 +1,28 @@
 # PENDING-AUTO-SUBMIT-1
 
-El coordinador en Electron main dispara autoenvio una vez por clave
-`reachabilityGeneration:userId` al completar startup connected, recuperar
-conexion o cambiar/iniciar cuenta mientras connected. Un heartbeat exitoso no
-crea otra ejecucion.
+Electron main coordina el autoenvio con la clave
+`userId:reachabilityGeneration:queueRevision`. Sus estados son `scheduled`,
+`deferred`, `running`, `completed` y `cancelled`; solo un resultado terminal
+consume la clave. Health y estado local pueden terminar en cualquier orden.
 
-La enumeracion se limita a
-`userData/players/<playerKey>/packs/<packKey>`. Solo acepta directorios reales,
-`meta.json` schema 1, propietario coincidente, packKey coincidente, weekId
-valido, origen HTTP(S) y al menos un JSON pending. No enumera colas legacy de
-propietario ambiguo y nunca procesa `failed` o `sent`.
+El indice recorre `userData/players/<playerKey>/packs/<packKey>` para la cuenta
+activa. Valida `meta.json`, propietario, pack, week, origen y cada JSON pending.
+Incluye scopes vacios y omitidos en diagnostico, pero solo procesa scopes
+aceptados con pending. Legacy y staging ambiguos se preservan; `failed` y
+`sent` nunca se envian.
 
-Cada scope reconstruye la configuracion desde su meta sin activar el pack. Usa
-la copia de sesion recordada de la cuenta capturada, comprueba membership de la
-semana y llama al mismo `submitAll` que el envio manual. El procesamiento es
-secuencial. `submitAll` admite guardas opcionales entre archivos para detenerse
-por cambio de cuenta, cierre o conectividad, conservando pending.
+`queueRevision` usa identidad estable del meta y nombre, tamano, mtime y validez
+de pending. No usa `Date.now()` ni `meta.updatedAt`. Los disparadores son
+startup, recuperacion, login/cambio de cuenta, captura/adopcion, restore y todo
+snapshot interno que aumente la revision. Focus, refresh y cambio de pack no
+son necesarios.
 
-Los locks manual/automatico son compartidos. El duplicado confirmado conserva
-la politica idempotente existente; validacion/membership mantienen su politica
-actual; transporte y auth conservan pending. Cambio de cuenta y shutdown
-incrementan un epoch que invalida el ciclo previo.
+Cada scope reconstruye configuracion desde meta sin activar el pack. Se usa la
+sesion recordada y congelada de la cuenta, se comprueba membership y se llama al
+mismo `submitAll` del envio manual. Los scopes son secuenciales. Transporte,
+auth, lock o precondiciones temporales conservan pending y quedan `deferred`.
 
-No hay overlay ni popup. Al finalizar se publica un unico snapshot para
-contadores y, si hubo envios, una sola linea amigable. Diagnostico incluye
-trigger, playerKey sanitizado, generacion, scopes, pending encontrados,
-enviados, conservados, failed, estado inFlight y ultima ejecucion.
+Manual y automatico comparten locks. No hay overlay ni popup de background. Al
+terminar se publica un snapshot y, si hubo envios, una sola linea de actividad.
+El diagnostico anonimiza jugador e incluye trigger, revision, generacion,
+scopes, omisiones, pending, validos, enviados, conservados y fallidos.

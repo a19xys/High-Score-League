@@ -4,17 +4,20 @@ const service = require("./launcher-service");
 const { createConnectivityService, isStableConnected } = require("../src/connectivity-service");
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
 const { classifyMembershipConnectivitySignal } = require("../src/remote-connectivity-signals");
+const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
+const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
 
 let mainWindow = null;
 let connectivity = null;
 let rankingCapabilities = null;
+let topologyMonitor = null;
 let activeRankingWeekId = null;
 let removeConnectivityListener = null;
 let removeRankingListener = null;
 let previousReachability = "unknown";
 let activeUserId = null;
-let lastAutoSubmitKey = null;
-let autoSubmitChain = Promise.resolve();
+let pendingAutoSubmitCoordinator = null;
+let connectivityRendererTiming = { appliedAt: null, emittedAt: null, receivedAt: null };
 const CONNECTIVITY_REFRESH_REASONS = new Set([
   "manual",
   "connection-change",
@@ -23,11 +26,13 @@ const CONNECTIVITY_REFRESH_REASONS = new Set([
 ]);
 
 function handlePowerSuspend() {
+  topologyMonitor?.stop();
   connectivity?.setActivity("suspended", "suspend");
 }
 
 function handlePowerResume() {
   connectivity?.setActivity("active", "resume");
+  topologyMonitor?.start();
   connectivity?.signalPossibleRecovery("resume").catch(() => {});
 }
 
@@ -38,43 +43,18 @@ function sendRendererEvent(channel, payload) {
 }
 
 function schedulePendingAutoSubmit(trigger) {
-  const connection = connectivity?.getState();
-  if (connection?.reachability !== "connected" || !activeUserId) return;
-  const connectedGeneration = connection.reachabilityGeneration;
-  const scheduledUserId = activeUserId;
-  const key = `${connectedGeneration}:${scheduledUserId}`;
-  if (key === lastAutoSubmitKey) return;
-  lastAutoSubmitKey = key;
-  autoSubmitChain = autoSubmitChain.catch(() => {}).then(async () => {
-    const current = connectivity?.getState();
-    if (current?.reachability !== "connected" || current.reachabilityGeneration !== connectedGeneration ||
-        activeUserId !== scheduledUserId) return;
-    const result = await service.runPendingAutoSubmit({
-      connectedGeneration,
-      shouldContinue: () => {
-        const latest = connectivity?.getState();
-        return latest?.reachability === "connected" &&
-          latest.reachabilityGeneration === connectedGeneration && activeUserId === scheduledUserId;
-      },
-      trigger,
-    });
-    if (result?.transportFailure) connectivity?.signalOffline("auto-submit-transport", "transport");
-    if (activeUserId === scheduledUserId) {
-      const state = await service.getLauncherState({ deferRemoteMembership: true });
-      sendRendererEvent("launcher:state", { autoSubmit: result, state });
-    }
-  });
+  pendingAutoSubmitCoordinator?.request(trigger).catch(() => {});
 }
 
 function syncRemoteContext(state) {
   if (!state || !connectivity || !rankingCapabilities) return state;
   const webBaseUrl = state.bridge?.webBaseUrl || null;
   const nextUserId = state.session?.hasSession ? state.session.userId || null : null;
-  if (nextUserId !== activeUserId) {
+  const accountChanged = nextUserId !== activeUserId;
+  if (accountChanged) {
     service.invalidatePendingAutoSubmit("account-change");
+    pendingAutoSubmitCoordinator?.invalidate("account-change");
     activeUserId = nextUserId;
-    lastAutoSubmitKey = null;
-    schedulePendingAutoSubmit("account-change");
   }
   activeRankingWeekId = state.game?.weekId || null;
   connectivity.setWebBaseUrl(webBaseUrl).catch(() => {});
@@ -95,6 +75,8 @@ function syncRemoteContext(state) {
   } else if (membershipSignal === "transport-failure") {
     connectivity.signalOffline("membership-transport", "transport");
   }
+
+  schedulePendingAutoSubmit(accountChanged ? "account-change" : "state-ready");
 
   return state;
 }
@@ -118,9 +100,59 @@ function initializeRemoteServices() {
     onReachable: (source) => connectivity.markReachable(source),
     onTransportFailure: (source) => connectivity.signalOffline(source, "transport"),
   });
+  topologyMonitor = createNetworkTopologyMonitor({
+    onChange(change) {
+      if (change.snapshot.externalAddressCount === 0 && !net.isOnline()) {
+        connectivity.signalOffline("topology-change", "system-offline");
+        return;
+      }
+      connectivity.refresh("topology-change", {
+        detectedAt: change.detectedAt,
+        force: true,
+        phase: "retry",
+        supersede: true,
+      }).catch(() => {});
+    },
+  });
+  pendingAutoSubmitCoordinator = createPendingAutoSubmitCoordinator({
+    inspect: () => service.getPendingAutoSubmitContext({
+      connection: connectivity.getState(),
+      userId: activeUserId,
+    }),
+    async onResult(result, context) {
+      if (result?.transportFailure) connectivity.signalOffline("auto-submit-transport", "transport");
+      if (activeUserId !== context.userId) return;
+      const state = await service.getLauncherState({ deferRemoteMembership: true });
+      sendRendererEvent("launcher:state", { autoSubmit: result, state });
+    },
+    run: (context) => service.runPendingAutoSubmit({
+      config: context.config,
+      connectedGeneration: context.connection.reachabilityGeneration,
+      index: context.index,
+      session: context.session,
+      shouldContinue: () => {
+        const latest = connectivity.getState();
+        return latest.reachability === "connected" &&
+          latest.reachabilityGeneration === context.connection.reachabilityGeneration &&
+          activeUserId === context.userId;
+      },
+      trigger: context.trigger,
+    }),
+  });
   service.setRemoteDiagnosticsProvider(() => ({
-    autoSubmit: service.getPendingAutoSubmitDiagnostics(),
-    connectivity: connectivity.getDiagnostics(),
+    autoSubmit: {
+      ...service.getPendingAutoSubmitDiagnostics(),
+      coordinator: pendingAutoSubmitCoordinator.getDiagnostics(),
+    },
+    connectivity: {
+      ...connectivity.getDiagnostics(),
+      renderer: connectivityRendererTiming,
+      topology: topologyMonitor.getDiagnostics(),
+      window: {
+        focused: mainWindow?.isFocused?.() || false,
+        minimized: mainWindow?.isMinimized?.() || false,
+      },
+    },
     ranking: rankingCapabilities.getDiagnostics(activeRankingWeekId),
   }));
   removeConnectivityListener = connectivity.subscribe((state) => {
@@ -142,11 +174,13 @@ function initializeRemoteServices() {
 
 function stopRemoteServices() {
   service.invalidatePendingAutoSubmit("shutdown");
+  pendingAutoSubmitCoordinator?.invalidate("shutdown");
   removeConnectivityListener?.();
   removeRankingListener?.();
   removeConnectivityListener = null;
   removeRankingListener = null;
   rankingCapabilities?.stop();
+  topologyMonitor?.stop();
   connectivity?.stop();
   service.setRemoteDiagnosticsProvider(null);
 }
@@ -245,6 +279,13 @@ async function showImportFolderDialog(event) {
 function registerIpc() {
   ipcMain.handle("launcher:get-state", () => withRemoteContext(service.getLauncherState()));
   ipcMain.handle("launcher:get-connectivity-state", () => connectivity.getState());
+  ipcMain.on("launcher:connectivity-applied", (_event, timing) => {
+    connectivityRendererTiming = {
+      appliedAt: timing?.appliedAt || null,
+      emittedAt: timing?.emittedAt || null,
+      receivedAt: timing?.receivedAt || null,
+    };
+  });
   ipcMain.handle("launcher:request-connectivity-refresh", (_event, reason) => {
     const safeReason = CONNECTIVITY_REFRESH_REASONS.has(reason) ? reason : "manual";
     if (safeReason === "renderer-offline") {
@@ -421,13 +462,13 @@ function registerIpc() {
     return withRemoteContext(service.recheckSeasonMembership());
   });
   ipcMain.handle("launcher:diagnose", () => service.runDiagnose());
-  ipcMain.handle("launcher:play-competition", () => service.playCompetition());
+  ipcMain.handle("launcher:play-competition", () => withRemoteContext(service.playCompetition()));
   ipcMain.handle("launcher:practice", () => service.playPractice());
   ipcMain.handle("launcher:submit-all", async () => {
     await prepareRemoteAction("submit");
     return withRemoteContext(service.submitAllPending());
   });
-  ipcMain.handle("launcher:restore-failed", (_event, filename) => service.restoreFailedSubmission(filename));
+  ipcMain.handle("launcher:restore-failed", (_event, filename) => withRemoteContext(service.restoreFailedSubmission(filename)));
   ipcMain.handle("launcher:sync-plugin", () => service.syncPlugin());
   ipcMain.handle("launcher:logout", () => {
     service.invalidatePendingAutoSubmit("logout");
@@ -439,6 +480,7 @@ app.whenReady().then(() => {
   initializeRemoteServices();
   registerIpc();
   connectivity.start("startup").catch(() => {});
+  topologyMonitor.start();
   createMainWindow();
   powerMonitor.on("suspend", handlePowerSuspend);
   powerMonitor.on("resume", handlePowerResume);

@@ -1,5 +1,7 @@
-export function deriveConnectivityHeaderState(connectivity = {}) {
-  if (connectivity.reachability === "connected") return "connected";
-  if (connectivity.reachability === "offline") return "offline";
+export function deriveConnectivityHeaderState(connectivity) {
+  const reachability = connectivity?.reachability;
+
+  if (reachability === "connected") return "connected";
+  if (reachability === "offline") return "offline";
   return "hidden";
 }

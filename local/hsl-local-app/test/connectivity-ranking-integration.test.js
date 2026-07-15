@@ -122,6 +122,8 @@ test("header shows only stable states with natural width and accessible refresh"
   assert.match(styles, /\.connection-chip\s*\{[\s\S]*?display: inline-flex/);
   assert.doesNotMatch(styles, /174px/);
   assert.match(styles, /\.connection-label[\s\S]*white-space: nowrap/);
+  assert.match(styles, /\.connection-refresh-button\s*\{[\s\S]*?border-radius: 999px;[\s\S]*?margin-inline-start: -4px;/);
+  assert.match(styles, /\.connection-refresh-button:hover:not\(:disabled\)/);
   assert.match(styles, /\.connection-refresh-button:focus-visible/);
   assert.match(app, /refresh-connectivity/);
   assert.match(app, /runWithOperationFeedback/);
@@ -134,6 +136,9 @@ test("header selector hides unknown and ignores transient probe phases", async (
     pathToFileURL(path.join(rendererRoot, "connectivity-header-state.js")).href
   );
 
+  assert.equal(deriveConnectivityHeaderState(null), "hidden");
+  assert.equal(deriveConnectivityHeaderState(undefined), "hidden");
+  assert.equal(deriveConnectivityHeaderState({}), "hidden");
   assert.equal(deriveConnectivityHeaderState({ reachability: "unknown" }), "hidden");
   assert.equal(deriveConnectivityHeaderState({
     reachability: "connected",
@@ -143,6 +148,25 @@ test("header selector hides unknown and ignores transient probe phases", async (
     reachability: "offline",
     probe: { phase: "retry", inFlight: true },
   }), "offline");
+});
+
+test("first header render tolerates null connectivity and keeps the chip hidden", async () => {
+  const { renderHeader } = await import(
+    pathToFileURL(path.join(rendererRoot, "components", "header.js")).href
+  );
+
+  const header = renderHeader({
+    accountMenuOpen: false,
+    busy: true,
+    connectivity: null,
+    data: null,
+    theme: "dark",
+  });
+
+  assert.match(header, /High Score League Launcher/);
+  assert.match(header, /data-action="toggle-theme"/);
+  assert.doesNotMatch(header, /data-connectivity-status=/);
+  assert.doesNotMatch(header, /connection-chip--connected|connection-chip--offline/);
 });
 
 test("pack activation preserves the previous snapshot and uses shared minimum feedback", async () => {
