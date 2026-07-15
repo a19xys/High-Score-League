@@ -185,9 +185,9 @@ export function renderHeader(state) {
   const sessionChipClass = session?.hasSession ? "session-chip--avatar-only" : "session-chip--empty";
   const connection = {
     connected: ["Conectado", "connection-chip--connected"],
-    offline: ["Sin Internet", "connection-chip--offline"],
-    reconnecting: ["Reconectando", "connection-chip--reconnecting"],
-  }[state.connectionStatus] || ["Conectado", "connection-chip--connected"];
+    connecting: ["Conectando", "connection-chip--reconnecting"],
+    offline: ["Desconectado", "connection-chip--offline"],
+  }[state.connectionStatus] || ["Conectando", "connection-chip--reconnecting"];
 
   return `
     <header class="launcher-header app-header">

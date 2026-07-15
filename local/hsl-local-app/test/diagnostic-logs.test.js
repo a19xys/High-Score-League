@@ -59,6 +59,23 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     };
 
     const result = await writeDiagnosticReport(config, report, {
+      remoteDiagnostics: {
+        connectivity: {
+          checkedAt: "2026-07-03T21:14:20.000Z",
+          healthEndpoint: "https://hsl.example/api/launcher/health",
+          reason: null,
+          status: "connected",
+        },
+        ranking: {
+          active: {
+            checkedAt: "2026-07-03T21:14:21.000Z",
+            reason: "public-week",
+            status: "available",
+            url: "https://hsl.example/weeks/week-1",
+          },
+          cache: { available: 1, entries: 1, expired: 0, unavailable: 0, unknown: 0 },
+        },
+      },
       state: {
         bridge: {
           configSource: "pack abierto",
@@ -117,6 +134,9 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.mame.sharedRuntime.available, true);
     assert.equal(saved.pack.packRoot, config.packRoot);
     assert.equal(saved.queue.totals.failed, 1);
+    assert.equal(saved.connectivity.status, "connected");
+    assert.equal(saved.rankingCapabilities.active.status, "available");
+    assert.equal(saved.rankingCapabilities.cache.entries, 1);
     assert.equal(saved.session.hasSession, true);
     assert.match(saved.session.userId, /^user-1\.\.\./);
     assert.equal(/access_token|refresh_token|Authorization|secret-token|secret-access-token|secret-refresh-token/.test(raw), false);

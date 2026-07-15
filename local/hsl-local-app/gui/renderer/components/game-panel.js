@@ -1,6 +1,7 @@
 import { COPY } from "./copy.js";
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
+import { getRankingActionState } from "../ranking-state.js";
 import { renderActivitySummaryCard } from "./queue-panel.js";
 
 function membershipBadge(membership) {
@@ -327,6 +328,7 @@ export function renderGamePanel(state) {
   const competitionDisabled = state.busy || !data?.session?.hasSession || membershipBlocksCompetition || readinessBlocksCompetition ? "disabled" : "";
   const weekLabel = game?.weekNumber ? `Semana ${game.weekNumber}` : game?.weekId ? "Semana" : null;
   const description = game?.shortDescription || "";
+  const ranking = getRankingActionState(state, game);
 
   return `
     <section class="game-panel game-detail-card">
@@ -357,7 +359,7 @@ export function renderGamePanel(state) {
             <span class="action-button-label">${COPY.actions.practice}</span>
           </button>
           ${renderContentAction("open-manual", "Manual", game?.manual, disabled)}
-          ${renderContentAction("open-ranking", "Ranking", game?.ranking, disabled)}
+          ${renderContentAction("open-ranking", "Ranking", ranking, disabled)}
         </div>
         ${renderActivitySummaryCard(state)}
       </div>

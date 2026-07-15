@@ -28,7 +28,8 @@ const store = createStore({
   authFormOpen: false,
   busy: true,
   busyLabel: "Iniciando",
-  connectionStatus: navigator.onLine === false ? "offline" : "connected",
+  connectionStatus: "connecting",
+  connectivity: null,
   data: null,
   libraryFavoriteFilter: "all",
   libraryActivationInProgress: false,
@@ -44,6 +45,8 @@ const store = createStore({
   noticeIds: [],
   pendingFavoriteKeys: {},
   pendingLibraryPackId: null,
+  rankingCapabilities: { entries: {}, generation: 0, inFlight: false },
+  rankingOpening: false,
   theme: savedTheme,
 });
 
@@ -62,6 +65,7 @@ let favoriteTitleFrame = 0;
 let currentDetailScrollKey = null;
 let currentDialogType = null;
 let busyRunSequence = 0;
+let rankingOpenInProgress = false;
 const detailAssetPreloadCache = new Map();
 const favoriteSyncByKey = new Map();
 const unavailableDirectoryPrompts = new Set();
@@ -774,6 +778,46 @@ async function toggleLibraryFavorite(packKey) {
   }
 
   syncLibraryFavorite(packKey);
+}
+
+function applyConnectivityState(connectivityState) {
+  if (!["offline", "connecting", "connected"].includes(connectivityState?.status)) return;
+  store.setState({
+    connectionStatus: connectivityState.status,
+    connectivity: connectivityState,
+  });
+}
+
+function applyRankingCapabilitiesState(capabilitiesState) {
+  if (!capabilitiesState || typeof capabilitiesState !== "object") return;
+  store.setState({ rankingCapabilities: capabilitiesState });
+}
+
+async function openRankingWithoutGlobalBusy() {
+  if (rankingOpenInProgress) return;
+  rankingOpenInProgress = true;
+  store.setState({ rankingOpening: true });
+
+  try {
+    const response = await window.hslLauncher.openRanking();
+    store.setState({
+      data: response.state || store.getState().data,
+      logs: appendLog(store.getState().logs, resultToLog("Ver ranking", response)),
+      rankingOpening: false,
+    });
+  } catch (error) {
+    store.setState({
+      logs: appendLog(store.getState().logs, {
+        details: [],
+        ok: false,
+        summary: "No se pudo comprobar el ranking.",
+        title: "Ver ranking",
+      }),
+      rankingOpening: false,
+    });
+  } finally {
+    rankingOpenInProgress = false;
+  }
 }
 
 async function syncLibraryFavorite(packKey) {
@@ -1527,7 +1571,7 @@ function bindActions() {
     }
 
     if (action === "open-ranking") {
-      runAction(action, "Abriendo ranking", "Ver ranking", () => window.hslLauncher.openRanking());
+      openRankingWithoutGlobalBusy();
     }
 
     if (action === "check-membership") {
@@ -1594,11 +1638,16 @@ window.addEventListener("keydown", (event) => {
     store.setState({ ...closeAccountMenuState(), activeDialog: null, activeOverlay: null });
   }
 });
-window.addEventListener("offline", () => store.setState({ connectionStatus: "offline" }));
-window.addEventListener("online", () => {
-  store.setState({ connectionStatus: "reconnecting" });
-  window.setTimeout(() => store.setState({ connectionStatus: "connected" }), 800);
+window.addEventListener("offline", () => {
+  window.hslLauncher.requestConnectivityRefresh?.("renderer-offline");
 });
+window.addEventListener("online", () => {
+  window.hslLauncher.requestConnectivityRefresh?.("renderer-online");
+});
+window.hslLauncher.onConnectivityState?.(applyConnectivityState);
+window.hslLauncher.onRankingCapabilitiesState?.(applyRankingCapabilitiesState);
+window.hslLauncher.getConnectivityState?.().then(applyConnectivityState).catch(() => {});
+window.hslLauncher.getRankingCapabilitiesState?.().then(applyRankingCapabilitiesState).catch(() => {});
 window.hslLauncher.onBusyPhase?.((phase) => {
   const label = String(phase?.label || "").trim();
 

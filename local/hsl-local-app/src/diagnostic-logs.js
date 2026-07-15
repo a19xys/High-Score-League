@@ -190,6 +190,8 @@ function buildDiagnosticPayload(config, report, context = {}, options = {}) {
       requiresSharedMameRuntime: Boolean(config.requiresSharedMameRuntime),
     },
     bridge: state?.bridge || null,
+    connectivity: context.remoteDiagnostics?.connectivity || state?.connectivity || null,
+    rankingCapabilities: context.remoteDiagnostics?.ranking || state?.rankingCapabilities || null,
     diagnose: {
       counts: countReportLevels(report),
       errors: report?.errors || [],

@@ -72,6 +72,7 @@ let recentPackNotices = [];
 let autoSyncInProgress = false;
 let manualSyncInProgress = false;
 let autoSyncState = emptyAutoSyncState();
+let remoteDiagnosticsProvider = null;
 const libraryOrderModule = import("./shared/library-order.mjs");
 
 function loadRuntimeConfig() {
@@ -80,6 +81,10 @@ function loadRuntimeConfig() {
 
 function getPackPluginName(pack) {
   return pack?.mame?.pluginName || pack?.capture?.pluginName || pack?.contract?.capture?.pluginName || pack?.plugin?.name || "hsl-score";
+}
+
+function setRemoteDiagnosticsProvider(provider) {
+  remoteDiagnosticsProvider = typeof provider === "function" ? provider : null;
 }
 
 function deriveOpenedPackConfig(baseConfig, pack) {
@@ -1358,7 +1363,27 @@ async function runDiagnose(options = {}) {
   const config = options.config || getEffectiveConfig();
   const report = await buildDiagnoseReport(config);
   const state = options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config));
+  const remoteDiagnostics = remoteDiagnosticsProvider?.() || null;
   const directory = state?.library?.directory;
+
+  if (remoteDiagnostics) {
+    const connectivityStatus = remoteDiagnostics.connectivity?.status || "connecting";
+    const connectivityEntry = {
+      level: connectivityStatus === "connected" ? "OK" : connectivityStatus === "offline" ? "WARN" : "INFO",
+      message: `conectividad HSL: ${connectivityStatus}`,
+      detail: remoteDiagnostics.connectivity || null,
+    };
+    report.sections.connectivity = [connectivityEntry];
+    report.sections.ranking = [{
+      level: "INFO",
+      message: "capacidades remotas de ranking",
+      detail: remoteDiagnostics.ranking || null,
+    }];
+
+    if (connectivityEntry.level === "WARN") {
+      report.warnings.push(connectivityEntry);
+    }
+  }
 
   if (directory?.configured && !directory.available) {
     if (directory.classification === "unsupported-layout") {
@@ -1387,8 +1412,15 @@ async function runDiagnose(options = {}) {
 
   try {
     diagnosticLog = await writeDiagnosticReport(config, report, {
+      remoteDiagnostics,
       source,
-      state,
+      state: state && remoteDiagnostics
+        ? {
+            ...state,
+            connectivity: remoteDiagnostics.connectivity,
+            rankingCapabilities: remoteDiagnostics.ranking,
+          }
+        : state,
       summary,
     }, options.diagnosticLogOptions || {});
   } catch (error) {
@@ -2412,6 +2444,7 @@ module.exports = {
   restoreFailedSubmission,
   resolveRememberedPack,
   resetAutoSyncStateForTests,
+  setRemoteDiagnosticsProvider,
   runAutoSyncIfEligible,
   runDiagnose,
   setLibraryPreferencesFromGui,

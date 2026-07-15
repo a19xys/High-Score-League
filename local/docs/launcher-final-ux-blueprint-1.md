@@ -49,6 +49,20 @@ La cabecera debe ser estable, compacta y reconocible:
 - estado de conexión;
 - menú de cuenta.
 
+`WEB-LOCAL-CONNECTIVITY-AND-RANKING-CAPABILITIES-1` fija el contrato definitivo
+de esta senal: `Desconectado` significa que `net.isOnline()` no ve red;
+`Conectando` significa que HSL aun no ha confirmado reachability; y
+`Conectado` requiere una respuesta reciente y valida de HSL. El proceso
+principal de Electron es la unica fuente de verdad. El renderer no infiere
+`Conectado` desde `navigator.onLine`.
+
+Ranking depende de una capacidad semantica por `weekId` consultada por lotes a
+la web. Permanece deshabilitado si la conexion es offline/connecting o si la
+capacidad es checking/unknown/unavailable. Solo el proceso principal abre una
+URL canonica, revalidada y del mismo origen. Los contratos completos estan en
+`local/docs/connectivity-state-1.md`,
+`local/docs/web-ranking-capabilities-1.md` y `docs/launcher-api.md`.
+
 Con cuenta conectada, la zona de cuenta muestra:
 
 - avatar o foto de perfil si existe;

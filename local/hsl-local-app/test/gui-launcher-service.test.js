@@ -1126,8 +1126,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/<p class="eyebrow">HSL<\/p>/.test(header), false);
   assert.equal(/data-action="refresh"/.test(header), false);
   assert.match(header, /Conectado/);
-  assert.match(header, /Sin Internet/);
-  assert.match(header, /Reconectando/);
+  assert.match(header, /Desconectado/);
+  assert.match(header, /Conectando/);
   assert.match(header, /icon-slot-button/);
   assert.match(header, /data-action="toggle-account-menu"/);
   assert.match(header, /<strong>Cuentas<\/strong>/);

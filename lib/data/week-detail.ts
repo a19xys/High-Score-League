@@ -28,6 +28,7 @@ import {
   getDerivedWeekStatusFromRow,
   getWeekStatusHelp,
 } from "@/lib/week-status";
+import { resolvePublicRankingCapability } from "@/lib/launcher-ranking-capabilities";
 import type { SubmissionRow } from "@/types/supabase";
 
 type WeekSubmission = Submission & {
@@ -169,16 +170,13 @@ async function buildRealWeekDetail(
     ? mapGameRowToGame(gameRow)
     : unavailableGame(weekRow.game_id ?? "unassigned");
   const preliminaryDerivedStatus = getDerivedWeekStatusFromRow(weekRow);
-  const isFuture =
-    seasonRow.status === "active" &&
-    activeWeek &&
-    weekRow.week_number > activeWeek.week_number &&
-    weekRow.status !== "published";
-  const isSecret =
-    preliminaryDerivedStatus === "draft" ||
-    preliminaryDerivedStatus === "scheduled" ||
-    Boolean(isFuture) ||
-    weekRow.game_id === null;
+  const rankingCapability = resolvePublicRankingCapability({
+    week: weekRow,
+    season: seasonRow,
+    derivedStatus: preliminaryDerivedStatus,
+    currentActiveWeekNumber: activeWeek?.week_number,
+  });
+  const isSecret = rankingCapability.status !== "available";
   const week = mapWeekRowToWeek(weekRow);
   const rules = isSecret
     ? ["El juego, instrucciones y descargas permanecerán ocultos hasta que se anuncie la semana."]

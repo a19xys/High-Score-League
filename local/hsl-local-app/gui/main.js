@@ -1,8 +1,106 @@
 const path = require("node:path");
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, shell } = require("electron");
 const service = require("./launcher-service");
+const { createConnectivityService } = require("../src/connectivity-service");
+const { createRankingCapabilitiesService } = require("../src/ranking-capabilities-service");
+const { classifyMembershipConnectivitySignal } = require("../src/remote-connectivity-signals");
 
 let mainWindow = null;
+let connectivity = null;
+let rankingCapabilities = null;
+let activeRankingWeekId = null;
+let removeConnectivityListener = null;
+let removeRankingListener = null;
+const CONNECTIVITY_REFRESH_REASONS = new Set([
+  "manual",
+  "renderer-offline",
+  "renderer-online",
+]);
+
+function sendRendererEvent(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
+function syncRemoteContext(state) {
+  if (!state || !connectivity || !rankingCapabilities) return state;
+  const webBaseUrl = state.bridge?.webBaseUrl || null;
+  activeRankingWeekId = state.game?.weekId || null;
+  connectivity.setWebBaseUrl(webBaseUrl).catch(() => {});
+  rankingCapabilities.updateContext({
+    packs: state.library?.packs || [],
+    webBaseUrl,
+  });
+
+  if (connectivity.getState().status === "connected") {
+    rankingCapabilities.refresh("launcher-state").catch(() => {});
+  }
+
+  const membership = state.membership;
+  const membershipSignal = classifyMembershipConnectivitySignal(membership);
+
+  if (membershipSignal === "reachable") {
+    connectivity.markReachable("membership-response");
+  } else if (membershipSignal === "transport-failure") {
+    connectivity.refresh("membership-transport", {
+      maxAgeMs: connectivity.config.focusStaleMs,
+    }).catch(() => {});
+  }
+
+  return state;
+}
+
+async function withRemoteContext(promise) {
+  const value = await promise;
+  syncRemoteContext(value?.state || value);
+  return value;
+}
+
+function initializeRemoteServices() {
+  connectivity = createConnectivityService({
+    fetchImpl: (url, init) => net.fetch(url, init),
+    netIsOnline: () => net.isOnline(),
+  });
+  rankingCapabilities = createRankingCapabilitiesService({
+    fetchImpl: (url, init) => net.fetch(url, init),
+    getConnectivityState: () => connectivity.getState(),
+    onReachable: (source) => connectivity.markReachable(source),
+    onTransportFailure: (source) => connectivity.refresh(source, { force: true }),
+  });
+  service.setRemoteDiagnosticsProvider(() => ({
+    connectivity: connectivity.getDiagnostics(),
+    ranking: rankingCapabilities.getDiagnostics(activeRankingWeekId),
+  }));
+  removeConnectivityListener = connectivity.subscribe((state) => {
+    sendRendererEvent("launcher:connectivity-state", state);
+
+    if (state.status === "connected") {
+      rankingCapabilities.refresh("connectivity-restored").catch(() => {});
+    } else {
+      sendRendererEvent("launcher:ranking-capabilities-state", rankingCapabilities.getState());
+    }
+  });
+  removeRankingListener = rankingCapabilities.subscribe((state) => {
+    sendRendererEvent("launcher:ranking-capabilities-state", state);
+  });
+}
+
+function stopRemoteServices() {
+  removeConnectivityListener?.();
+  removeRankingListener?.();
+  removeConnectivityListener = null;
+  removeRankingListener = null;
+  rankingCapabilities?.stop();
+  connectivity?.stop();
+  service.setRemoteDiagnosticsProvider(null);
+}
+
+async function prepareRemoteAction(source) {
+  await connectivity.refresh(source, {
+    maxAgeMs: connectivity.config.focusStaleMs,
+  });
+}
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -24,6 +122,12 @@ function createMainWindow() {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
+  });
+
+  mainWindow.on("focus", () => {
+    connectivity?.refresh("focus", {
+      maxAgeMs: connectivity.config.focusStaleMs,
+    }).catch(() => {});
   });
 
   mainWindow.on("closed", () => {
@@ -71,9 +175,19 @@ async function showImportFolderDialog(event) {
 }
 
 function registerIpc() {
-  ipcMain.handle("launcher:get-state", () => service.getLauncherState({ attemptAutoSync: true }));
+  ipcMain.handle("launcher:get-state", () => withRemoteContext(service.getLauncherState({ attemptAutoSync: true })));
+  ipcMain.handle("launcher:get-connectivity-state", () => connectivity.getState());
+  ipcMain.handle("launcher:request-connectivity-refresh", (_event, reason) => {
+    const safeReason = CONNECTIVITY_REFRESH_REASONS.has(reason) ? reason : "manual";
+    return connectivity.refresh(safeReason, { force: safeReason !== "manual" });
+  });
+  ipcMain.handle("launcher:get-ranking-capabilities-state", () => rankingCapabilities.getState());
+  ipcMain.handle("launcher:request-ranking-capabilities-refresh", () => rankingCapabilities.refresh("renderer-request"));
   ipcMain.handle("launcher:get-auth-state", () => service.getAuthStateForGui());
-  ipcMain.handle("launcher:login", (_event, credentials) => service.loginWithPassword(credentials));
+  ipcMain.handle("launcher:login", async (_event, credentials) => {
+    await prepareRemoteAction("login");
+    return withRemoteContext(service.loginWithPassword(credentials));
+  });
   ipcMain.handle("launcher:open-pack", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       buttonLabel: "Abrir pack",
@@ -86,7 +200,7 @@ function registerIpc() {
       return service.cancelOpenPack();
     }
 
-    return service.openPackDirectory(result.filePaths[0]);
+    return withRemoteContext(service.openPackDirectory(result.filePaths[0]));
   });
   ipcMain.handle("launcher:choose-pack-directory", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -100,13 +214,13 @@ function registerIpc() {
       return service.cancelChoosePackDirectory();
     }
 
-    return service.choosePackDirectoryFromGui(result.filePaths[0]);
+    return withRemoteContext(service.choosePackDirectoryFromGui(result.filePaths[0]));
   });
   ipcMain.handle("launcher:use-suggested-pack-directory", (_event, directoryPath) => (
-    service.choosePackDirectoryFromGui(directoryPath)
+    withRemoteContext(service.choosePackDirectoryFromGui(directoryPath))
   ));
-  ipcMain.handle("launcher:import-pack-zip", (event) => showImportZipDialog(event));
-  ipcMain.handle("launcher:import-pack-folder", (event) => showImportFolderDialog(event));
+  ipcMain.handle("launcher:import-pack-zip", (event) => withRemoteContext(showImportZipDialog(event)));
+  ipcMain.handle("launcher:import-pack-folder", (event) => withRemoteContext(showImportFolderDialog(event)));
   ipcMain.handle("launcher:open-pack-directory", () => service.openConfiguredPackDirectory({
     openPathImpl: (directoryPath) => shell.openPath(directoryPath),
   }));
@@ -130,12 +244,12 @@ function registerIpc() {
   ipcMain.handle("launcher:open-shared-mame-runtime", () => service.openSharedMameRuntimeDirectory({
     openPathImpl: (directoryPath) => shell.openPath(directoryPath),
   }));
-  ipcMain.handle("launcher:rescan-pack-directory", () => service.rescanPackDirectory());
+  ipcMain.handle("launcher:rescan-pack-directory", () => withRemoteContext(service.rescanPackDirectory()));
   ipcMain.handle("launcher:set-library-preferences", (_event, patch) => service.setLibraryPreferencesFromGui(patch));
   ipcMain.handle("launcher:toggle-library-favorite", (_event, packKey) => service.toggleLibraryFavoriteFromGui(packKey));
   ipcMain.handle("launcher:remove-known-account", (_event, userId) => service.removeKnownAccountFromGui(userId));
   ipcMain.handle("launcher:switch-account", (_event, userId) => service.switchKnownAccountFromGui(userId));
-  ipcMain.handle("launcher:use-library-pack", (_event, packId) => service.activateLibraryPack(packId));
+  ipcMain.handle("launcher:use-library-pack", (_event, packId) => withRemoteContext(service.activateLibraryPack(packId)));
   ipcMain.handle("launcher:open-membership-url", async () => {
     const state = await service.getLauncherState();
     const url = state.membership?.joinUrl || state.bridge?.webBaseUrl;
@@ -164,29 +278,85 @@ function registerIpc() {
     openExternalImpl: (url) => shell.openExternal(url),
     openPathImpl: (filePath) => shell.openPath(filePath),
   }));
-  ipcMain.handle("launcher:open-ranking", () => service.openPackRanking({
-    openExternalImpl: (url) => shell.openExternal(url),
-    openPathImpl: (filePath) => shell.openPath(filePath),
-  }));
-  ipcMain.handle("launcher:check-membership", () => service.recheckSeasonMembership());
+  ipcMain.handle("launcher:open-ranking", async () => {
+    const state = await service.getLauncherState();
+    syncRemoteContext(state);
+    const weekId = state.game?.weekId || null;
+
+    if (!weekId) {
+      return {
+        action: "open-ranking",
+        lines: ["Este pack no tiene un ranking configurado."],
+        ok: false,
+        summary: "Este pack no tiene un ranking configurado.",
+        state,
+      };
+    }
+
+    const connection = await connectivity.refresh("ranking-click", {
+      maxAgeMs: connectivity.config.focusStaleMs,
+    });
+
+    if (connection.status !== "connected") {
+      const summary = connection.status === "offline"
+        ? "Necesitas conexion para abrir el ranking."
+        : "Comprobando conexion con High Score League.";
+      return { action: "open-ranking", lines: [summary], ok: false, summary, state };
+    }
+
+    const capability = await rankingCapabilities.ensureCapability(weekId);
+
+    if (capability.status !== "available" || !capability.url) {
+      const summary = capability.status === "unavailable"
+        ? "El ranking todavia no esta disponible."
+        : "No se pudo comprobar el ranking.";
+      return { action: "open-ranking", lines: [summary], ok: false, summary, state };
+    }
+
+    await shell.openExternal(capability.url);
+    return {
+      action: "open-ranking",
+      lines: ["Ranking abierto en High Score League."],
+      ok: true,
+      summary: "Ranking abierto en la web.",
+      state,
+    };
+  });
+  ipcMain.handle("launcher:check-membership", async () => {
+    await prepareRemoteAction("membership");
+    return withRemoteContext(service.recheckSeasonMembership());
+  });
   ipcMain.handle("launcher:diagnose", () => service.runDiagnose());
   ipcMain.handle("launcher:play-competition", () => service.playCompetition());
   ipcMain.handle("launcher:practice", () => service.playPractice());
-  ipcMain.handle("launcher:submit-all", () => service.submitAllPending());
+  ipcMain.handle("launcher:submit-all", async () => {
+    await prepareRemoteAction("submit");
+    return withRemoteContext(service.submitAllPending());
+  });
   ipcMain.handle("launcher:restore-failed", (_event, filename) => service.restoreFailedSubmission(filename));
   ipcMain.handle("launcher:sync-plugin", () => service.syncPlugin());
   ipcMain.handle("launcher:logout", () => service.logoutSession());
 }
 
 app.whenReady().then(() => {
+  initializeRemoteServices();
   registerIpc();
   createMainWindow();
+  connectivity.start("startup").catch(() => {});
+  powerMonitor.on("resume", () => {
+    connectivity.refresh("resume", { force: true }).catch(() => {});
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
     }
   });
+});
+
+app.on("before-quit", () => {
+  powerMonitor.removeAllListeners("resume");
+  stopRemoteServices();
 });
 
 app.on("window-all-closed", () => {
