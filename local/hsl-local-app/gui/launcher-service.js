@@ -79,6 +79,14 @@ function loadRuntimeConfig() {
   return loadConfig();
 }
 
+function getRemoteBootstrapState() {
+  const config = loadRuntimeConfig();
+
+  return {
+    webBaseUrl: config.webBaseUrl || null,
+  };
+}
+
 function getPackPluginName(pack) {
   return pack?.mame?.pluginName || pack?.capture?.pluginName || pack?.contract?.capture?.pluginName || pack?.plugin?.name || "hsl-score";
 }
@@ -762,7 +770,9 @@ async function getScopedGuiConfig(baseConfig, session) {
 
 async function getLauncherContext(options = {}) {
   const runtimeConfig = options.config || loadRuntimeConfig();
-  const session = await getAuthState(runtimeConfig);
+  const session = await getAuthState(runtimeConfig, {
+    deferRemote: options.deferRemoteMembership === true,
+  });
   const [library, libraryPreferences] = await Promise.all([
     scanPackLibrary(runtimeConfig),
     readLibraryPreferences(runtimeConfig, session),
@@ -774,7 +784,9 @@ async function getLauncherContext(options = {}) {
   const accountsStore = session.hasSession
     ? await rememberSessionAccount(baseConfig, session)
     : await readKnownAccounts(baseConfig);
-  const membership = await checkSeasonMembership(baseConfig, session);
+  const membership = await checkSeasonMembership(baseConfig, session, {
+    deferRemote: options.deferRemoteMembership === true,
+  });
   const scoped = await getScopedGuiConfig(baseConfig, session);
   const queue = scoped.scope
     ? await getQueueState(scoped.config)
@@ -1287,7 +1299,10 @@ function getEmptyBridgeState(library) {
 }
 
 async function getLauncherState(options = {}) {
-  const context = await getLauncherContext({ config: options.config || null });
+  const context = await getLauncherContext({
+    config: options.config || null,
+    deferRemoteMembership: options.deferRemoteMembership === true,
+  });
 
   if (options.attemptAutoSync) {
     const result = await runAutoSyncIfEligible(context);
@@ -1367,7 +1382,7 @@ async function runDiagnose(options = {}) {
   const directory = state?.library?.directory;
 
   if (remoteDiagnostics) {
-    const connectivityStatus = remoteDiagnostics.connectivity?.status || "connecting";
+    const connectivityStatus = remoteDiagnostics.connectivity?.displayStatus || "offline";
     const connectivityEntry = {
       level: connectivityStatus === "connected" ? "OK" : connectivityStatus === "offline" ? "WARN" : "INFO",
       message: `conectividad HSL: ${connectivityStatus}`,
@@ -2375,7 +2390,10 @@ async function activateLibraryPack(packId, options = {}) {
       lines: ["No se encontro ese pack en la biblioteca."],
       ok: false,
       summary: "No se encontro ese pack en la biblioteca.",
-      state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
+      state: options.includeState === false ? null : await getLauncherState({
+        ...stateOptionsForAction(options, config),
+        deferRemoteMembership: options.deferRemoteMembership === true,
+      }),
     };
   }
 
@@ -2406,7 +2424,10 @@ async function activateLibraryPack(packId, options = {}) {
       packRoot: pack.packDir,
     },
     summary: hasIssues ? "Pack con errores seleccionado." : "Pack activado desde biblioteca.",
-    state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
+    state: options.includeState === false ? null : await getLauncherState({
+      ...stateOptionsForAction(options, config),
+      deferRemoteMembership: options.deferRemoteMembership === true,
+    }),
   };
 }
 
@@ -2424,6 +2445,7 @@ module.exports = {
   deriveOpenedPackConfig,
   eventResultToQueueItem,
   getAuthStateForGui,
+  getRemoteBootstrapState,
   getLauncherState,
   importPackFromFolderForGui,
   importPackFromZipForGui,

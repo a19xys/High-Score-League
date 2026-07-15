@@ -15,14 +15,20 @@ function jsonResponse(body, status = 200) {
 
 function harness(overrides = {}) {
   let now = 1_700_000_000_000;
-  let connectivityStatus = "connected";
+  let connectivityState = {
+    displayStatus: "connected",
+    probe: { phase: "idle", inFlight: false },
+    reachability: "connected",
+    reachabilityGeneration: 1,
+  };
   const calls = [];
   const transportFailures = [];
+  const reachableResponses = [];
   const timers = new Map();
   let timerId = 0;
   const service = createRankingCapabilitiesService({
     now: () => now,
-    getConnectivityState: () => ({ status: connectivityStatus }),
+    getConnectivityState: () => connectivityState,
     setTimeout: (callback, delay) => {
       const id = ++timerId;
       timers.set(id, { callback, delay });
@@ -43,6 +49,7 @@ function harness(overrides = {}) {
       });
     }),
     onTransportFailure: (source) => transportFailures.push(source),
+    onReachable: (source) => reachableResponses.push(source),
     config: {
       availableTtlMs: 300_000,
       unavailableTtlMs: 120_000,
@@ -57,8 +64,16 @@ function harness(overrides = {}) {
     service,
     timers,
     transportFailures,
+    reachableResponses,
     advance(ms) { now += ms; },
-    setConnectivity(status) { connectivityStatus = status; },
+    setConnectivity(status) {
+      connectivityState = {
+        displayStatus: status === "connected" ? "connected" : "offline",
+        probe: { phase: "idle", inFlight: false },
+        reachability: status === "connected" ? "connected" : "offline",
+        reachabilityGeneration: connectivityState.reachabilityGeneration + 1,
+      };
+    },
   };
 }
 
@@ -189,6 +204,46 @@ test("transport errors request connectivity reevaluation", async () => {
   h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
   await h.service.refresh();
   assert.deepEqual(h.transportFailures, ["ranking-capabilities"]);
+});
+
+test("HTTP 503 is unknown but confirms HSL reachability and records a safe code", async () => {
+  const h = harness({
+    fetchImpl: async () => jsonResponse({
+      code: "RANKING_CONTEXT_QUERY_FAILED",
+      error: "No se pudo comprobar la disponibilidad.",
+    }, 503),
+  });
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
+  await h.service.refresh();
+  assert.equal(h.service.getCapability("week-1").status, "unknown");
+  assert.deepEqual(h.reachableResponses, ["ranking-capabilities-response"]);
+  assert.deepEqual(h.transportFailures, []);
+  assert.equal(h.service.getDiagnostics("week-1").lastRequest.httpStatus, 503);
+  assert.equal(h.service.getDiagnostics("week-1").lastRequest.errorCode, "RANKING_CONTEXT_QUERY_FAILED");
+});
+
+test("a response crossing an offline generation cannot populate cache", async () => {
+  let resolveFetch;
+  const h = harness({
+    fetchImpl: (_url, init) => new Promise((resolve) => {
+      const body = JSON.parse(init.body);
+      resolveFetch = () => resolve(jsonResponse({
+        version: 1,
+        results: body.requests.map((request) => ({
+          requestKey: request.requestKey,
+          status: "available",
+          reason: "public-week",
+          url: `https://hsl.example/weeks/${request.weekId}`,
+        })),
+      }));
+    }),
+  });
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
+  const pending = h.service.refresh();
+  h.setConnectivity("offline");
+  resolveFetch();
+  await pending;
+  assert.equal(h.service.getDiagnostics("week-1").cache.available, 0);
 });
 
 test("discards stale library responses", async () => {

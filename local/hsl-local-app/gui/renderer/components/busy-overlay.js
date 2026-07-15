@@ -7,6 +7,11 @@ const DEFAULT_BUSY_CONTENT = Object.freeze({
 });
 
 const BUSY_CONTENT_BY_LABEL = Object.freeze({
+  "Comprobando conexi\u00f3n": {
+    title: "Comprobando conexi\u00f3n...",
+    hint: "Verificando el acceso a High Score League.",
+    variant: "working",
+  },
   "Abriendo competición": {
     title: "Abriendo competición...",
     hint: "Preparando todo para jugar.",

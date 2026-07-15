@@ -231,7 +231,7 @@ async function getAuthStateLegacy(config) {
   }
 }
 
-async function getAuthState(config) {
+async function getAuthState(config, options = {}) {
   try {
     assertAuthConfig(config);
   } catch {
@@ -259,7 +259,7 @@ async function getAuthState(config) {
       };
     }
 
-    if (isSessionExpiringSoon(storedSession)) {
+    if (isSessionExpiringSoon(storedSession) && options.deferRemote !== true) {
       storedSession = await refreshStoredSession(config, storedSession);
     }
 

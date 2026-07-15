@@ -71,5 +71,29 @@ de ranking disponible. Una tabla publica sin puntuaciones cuenta como
 disponible.
 
 Errores de infraestructura o consulta devuelven `503`; Electron los conserva
-como estado operativo `unknown`, no como ausencia concluyente del ranking.
+como estado operativo `unknown`, no como ausencia concluyente del ranking. La
+respuesta solo incluye un codigo sanitizado:
+
+- `RANKING_SERVICE_NOT_CONFIGURED`: faltan URL o service role en servidor;
+- `RANKING_WEEKS_QUERY_FAILED`: fallo al consultar las semanas solicitadas;
+- `RANKING_CONTEXT_QUERY_FAILED`: fallo al cargar temporada o contexto.
+
+Nunca se devuelve el mensaje interno de Supabase. `createSupabaseAdminClient`
+requiere `NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`; ambas deben
+estar configuradas en el despliegue y la segunda nunca debe exponerse al
+cliente.
+
+## Comprobacion desplegada
+
+El script seguro comprueba health, una semana real, una identidad inexistente y
+la ausencia de campos privados:
+
+```powershell
+$env:HSL_LAUNCHER_WEEK_ID='<week-id-real>'
+npm.cmd run test:launcher-api
+```
+
+Por defecto usa `https://high-score-league.vercel.app`. Para otro despliegue se
+puede definir `HSL_LAUNCHER_API_BASE_URL`. El identificador real solo se aporta
+como variable de entorno y no se guarda en el repositorio.
 

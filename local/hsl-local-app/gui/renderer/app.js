@@ -28,7 +28,6 @@ const store = createStore({
   authFormOpen: false,
   busy: true,
   busyLabel: "Iniciando",
-  connectionStatus: "connecting",
   connectivity: null,
   data: null,
   libraryFavoriteFilter: "all",
@@ -135,33 +134,6 @@ function resetUnavailableDirectoryPrompt(data) {
   if (key) {
     unavailableDirectoryPrompts.delete(key);
   }
-}
-
-function neutralizeActivePackData(data) {
-  if (!data) {
-    return data;
-  }
-
-  return {
-    ...data,
-    activePack: null,
-    bridge: {
-      ...(data.bridge || {}),
-      activeInstanceKey: null,
-      activePackName: null,
-      mode: "no-selection",
-      packLoaded: false,
-      packPath: null,
-      packRoot: null,
-    },
-    game: null,
-    selection: {
-      ...(data.selection || {}),
-      activeInstanceKey: null,
-      activePackDir: null,
-      source: "none",
-    },
-  };
 }
 
 function clampSidebarWidth(value) {
@@ -517,6 +489,14 @@ function findLibraryPack(packId) {
   return store.getState().data?.library?.packs?.find((pack) => pack.id === packId) || null;
 }
 
+function refreshRemoteStateAfterPackActivation(requestId, expectedInstanceKey) {
+  window.hslLauncher.getState().then((nextData) => {
+    if (requestId !== libraryPackSelectionSequence) return;
+    if (nextData?.selection?.activeInstanceKey !== expectedInstanceKey) return;
+    store.setState({ data: nextData });
+  }).catch(() => {});
+}
+
 function withFavoritePatch(data, packKey, patch) {
   if (!data?.library?.packs || !packKey) {
     return data;
@@ -781,11 +761,8 @@ async function toggleLibraryFavorite(packKey) {
 }
 
 function applyConnectivityState(connectivityState) {
-  if (!["offline", "connecting", "connected"].includes(connectivityState?.status)) return;
-  store.setState({
-    connectionStatus: connectivityState.status,
-    connectivity: connectivityState,
-  });
+  if (!["offline", "connecting", "reconnecting", "connected"].includes(connectivityState?.displayStatus)) return;
+  store.setState({ connectivity: connectivityState });
 }
 
 function applyRankingCapabilitiesState(capabilitiesState) {
@@ -1026,9 +1003,6 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
     ...closeAccountMenuState(),
     busy: true,
     busyLabel,
-    ...(options.neutralizeActivePack
-      ? { data: neutralizeActivePackData(store.getState().data) }
-      : {}),
   });
 
   if (options.runningLabel) {
@@ -1197,6 +1171,7 @@ async function activateLibraryPackWithPreload(packId) {
   if (!safePackId) return;
 
   const requestId = ++libraryPackSelectionSequence;
+  const activationStartedAt = Date.now();
   const optimisticPack = findLibraryPack(safePackId);
   const optimisticPreload = preloadDetailAssetUrls(detailAssetUrlsFromLibraryPack(optimisticPack));
 
@@ -1225,6 +1200,10 @@ async function activateLibraryPackWithPreload(packId) {
       return;
     }
 
+    await waitForMinimumVisibleDuration({ minVisibleMs: 600, startedAt: activationStartedAt });
+
+    if (requestId !== libraryPackSelectionSequence) return;
+
     store.setState({
       busy: false,
       busyLabel: null,
@@ -1233,10 +1212,18 @@ async function activateLibraryPackWithPreload(packId) {
       logs: appendLog(store.getState().logs, resultToLog("Usar pack de biblioteca", response)),
       pendingLibraryPackId: null,
     });
+    refreshRemoteStateAfterPackActivation(
+      requestId,
+      response.state?.selection?.activeInstanceKey || response.pack?.instanceKey || null,
+    );
   } catch (error) {
     if (requestId !== libraryPackSelectionSequence) {
       return;
     }
+
+    await waitForMinimumVisibleDuration({ minVisibleMs: 600, startedAt: activationStartedAt });
+
+    if (requestId !== libraryPackSelectionSequence) return;
 
     store.setState({
       busy: false,
@@ -1552,7 +1539,6 @@ function bindActions() {
       resetUnavailableDirectoryPrompt(store.getState().data);
       runAction(action, "Reescaneando", "Reescanear", () => window.hslLauncher.rescanPackDirectory(), {
         minVisibleMs: 600,
-        neutralizeActivePack: true,
         promptForUnavailableDirectory: true,
       });
     }
@@ -1572,6 +1558,19 @@ function bindActions() {
 
     if (action === "open-ranking") {
       openRankingWithoutGlobalBusy();
+    }
+
+    if (action === "refresh-connectivity") {
+      runAction(action, "Comprobando conexi\u00f3n", "Comprobar conexi\u00f3n", async () => {
+        const connectivity = await window.hslLauncher.requestConnectivityRefresh("manual");
+        const ok = connectivity?.reachability === "connected";
+        return {
+          action,
+          connectivity,
+          ok,
+          summary: ok ? "Conexi\u00f3n con High Score League confirmada." : "No se pudo conectar con High Score League.",
+        };
+      }, { minVisibleMs: 600 });
     }
 
     if (action === "check-membership") {

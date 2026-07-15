@@ -1,71 +1,67 @@
 # LOCAL-WEB-RANKING-CAPABILITIES-1
 
-El boton Ranking ya no se habilita porque el pack contenga o permita construir
-una URL. La web decide por lotes si la semana canonica dispone de ranking y
-devuelve la URL que Electron puede abrir.
+La web decide por lotes si una semana canonica tiene ranking publico. Electron
+no habilita el boton por la mera presencia de una URL en el pack.
 
-## Identidad y fuente de verdad
+## Politica web
 
-La identidad canonica es `weekId`. `requestKey` solo correlaciona peticiones y
-respuestas. No se usan titulo, posicion de card, nombre de carpeta, `packId` ni
-una URL aportada por Electron.
-
-`resolvePublicRankingCapability` comparte la decision con la carga de la pagina
-de semana. Una capacidad es `available` cuando:
+La identidad es `weekId`; `requestKey` solo correlaciona el batch. El helper
+compartido con la pagina de semana considera disponible una semana cuando:
 
 - existen temporada, semana y juego;
 - la temporada no es draft;
-- la semana no es futura respecto a la semana activa de su temporada;
-- el estado derivado es activo, tramo final, cerrado o publicado.
+- no es una semana futura secreta;
+- el estado derivado es `active`, `final_stretch`, `closed` o `published`.
 
-Una tabla sin puntuaciones sigue siendo una pagina valida. Una semana
-publicada explicitamente sigue disponible. El endpoint no carga puntuaciones,
-perfiles ni HTML.
+`draft`, `scheduled`/inactiva, futura oculta, temporada draft, sin juego o no
+encontrada son `unavailable`. No se exige que existan puntuaciones ni resultados
+oficiales.
 
-## Cliente Electron
+La ruta usa el cliente admin solo en servidor porque la RLS actual requiere
+sesion para estas tablas. Selecciona las columnas minimas y solo devuelve
+`available`/`unavailable` y una URL canonica. Si falta la configuracion o falla
+una consulta devuelve 503 con uno de estos codigos publicos sanitizados:
 
-El cliente consulta `POST /api/launcher/ranking-capabilities` solo cuando la
-conectividad es `connected`. Deduplica `weekId`, usa un unico batch hasta 100
-identidades y parte lotes mayores. Las consultas no bloquean el arranque, el
-escaneo, la seleccion ni el render local.
+- `RANKING_SERVICE_NOT_CONFIGURED`;
+- `RANKING_WEEKS_QUERY_FAILED`;
+- `RANKING_CONTEXT_QUERY_FAILED`.
 
-Cache en memoria por `origen + weekId`:
+No se devuelve el error de Supabase, claves, perfiles, scores ni membership.
+Un 503 deja la capacidad en `unknown`, pero confirma que HSL ha respondido y no
+convierte la conectividad global en offline.
+
+## Cliente Electron y cache
+
+El cliente consulta `POST /api/launcher/ranking-capabilities` solo con
+reachability estable. Deduplica `weekId`, divide lotes por el maximo de 100 y no
+bloquea arranque, escaneo, seleccion ni render local.
 
 - `available`: 5 minutos;
 - `unavailable`: 2 minutos;
 - `unknown`: 20 segundos;
-- timeout de request: 4 segundos.
+- timeout: 4 segundos.
 
-El servidor solo devuelve resultados concluyentes `available` o `unavailable`.
-Electron anade `checking` y `unknown`; timeout, DNS, HTTP temporal, payload
-invalido y URL insegura nunca se convierten en `unavailable`.
+Cada respuesta captura las generaciones de biblioteca y reachability. No puede
+escribir cache si cambia la conexion, el pack, `weekId` u origen mientras esta
+en curso. La cache puede conservarse offline, pero no habilita acciones.
 
-Los cambios de biblioteca o `webBaseUrl` incrementan una generacion y descartan
-respuestas obsoletas. La cache puede conservarse internamente al perder red,
-pero no habilita Ranking mientras la conexion no sea `connected`.
+## Selector unico de Ranking
 
-## Matriz del boton
+`getRankingActionState` exige en el mismo snapshot:
 
-- pack sin `weekId`: disabled, `Este pack no tiene un ranking configurado.`
-- offline: disabled, `Necesitas conexion para abrir el ranking.`
-- connecting: disabled, `Comprobando conexion con High Score League.`
-- connected + checking: disabled, comprobando disponibilidad.
-- connected + unknown: disabled, no se pudo comprobar.
-- connected + unavailable: disabled, todavia no disponible.
-- connected + available: enabled.
+- `reachability=connected` y estado visible `connected`;
+- capacidad `available`, vigente y del `weekId` activo;
+- URL HTTP(S) del mismo origen que `webBaseUrl`.
 
-El click vuelve a exigir conectividad fresca y capacidad no expirada. Solo el
-proceso principal llama a `shell.openExternal`, despues de comprobar que la URL
-es HTTP(S), pertenece al mismo origen de `webBaseUrl` y corresponde al `weekId`
-activo.
+Connecting, reconnecting, offline, checking, unknown, unavailable, capacidad
+expirada o identidad distinta quedan deshabilitados. `open-ranking` vuelve a
+validar todas estas condiciones en main antes de `shell.openExternal`.
 
-## IPC y diagnostico
+## Transicion de packs
 
-- `launcher:get-ranking-capabilities-state`
-- `launcher:request-ranking-capabilities-refresh`
-- evento `launcher:ranking-capabilities-state`
-
-El diagnostico muestra para el pack activo identidad, estado, motivo,
-timestamps, expiracion, URL segura y version del contrato. Tambien resume las
-entradas available, unavailable, unknown y expiradas. No contiene secretos.
-
+La activacion local no espera el batch remoto, la consulta de membership ni una
+renovacion de sesion. Conserva el pack anterior bajo el overlay, aplica un minimo
+visual de 600 ms y publica el nuevo snapshot cuando los datos locales estan
+listos. Membership y Ranking se resuelven despues de forma asincrona y con guardas
+de identidad. El fallback de marca depende de estados estructurales de
+biblioteca, no de un `game` temporalmente nulo ni de una comprobacion remota.

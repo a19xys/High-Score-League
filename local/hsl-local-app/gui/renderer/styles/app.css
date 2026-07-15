@@ -911,15 +911,62 @@ button:disabled {
 }
 
 .connection-chip {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: 8px minmax(0, 1fr) 26px;
   align-items: center;
   gap: 7px;
+  inline-size: 174px;
+  min-inline-size: 174px;
+  max-inline-size: 174px;
   padding-inline: 11px;
   color: var(--text-muted);
   font-size: 12px;
+  white-space: nowrap;
 }
 
-.connection-chip i {
+.connection-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.connection-refresh-slot,
+.connection-refresh-placeholder {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+}
+
+.connection-refresh-button {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  place-items: center;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+}
+
+.connection-refresh-button:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.connection-refresh-button:focus-visible {
+  outline: 2px solid var(--circuit);
+  outline-offset: 1px;
+}
+
+.connection-refresh-icon.ui-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.connection-chip > i {
   width: 8px;
   height: 8px;
   border-radius: 999px;

@@ -1,4 +1,5 @@
 const {
+  isStableConnected,
   normalizeWebBaseUrl,
 } = require("./connectivity-service");
 
@@ -59,6 +60,20 @@ function createRankingCapabilitiesService(options = {}) {
   let pendingIds = new Set();
   let refreshTimer = null;
   let disposed = false;
+  let lastRequest = {
+    checkedAt: null,
+    errorCode: null,
+    httpStatus: null,
+    reason: "not-checked",
+  };
+
+  function connectivityState() {
+    return options.getConnectivityState();
+  }
+
+  function canQuery() {
+    return isStableConnected(connectivityState());
+  }
 
   function cacheKey(weekId) {
     return `${context.webBaseUrl || "missing"}|${weekId}`;
@@ -67,6 +82,7 @@ function createRankingCapabilitiesService(options = {}) {
   function entryFor(weekId) {
     if (!validWeekId(weekId)) {
       return {
+        weekId: null,
         status: "unavailable",
         url: null,
         reason: "not-configured",
@@ -77,13 +93,14 @@ function createRankingCapabilitiesService(options = {}) {
     }
 
     const cached = cache.get(cacheKey(weekId));
-    const connected = options.getConnectivityState().status === "connected";
+    const connected = canQuery();
 
     if (cached && cached.expiresAtMs > nowImpl()) {
       return { ...cached, expiresAtMs: undefined };
     }
 
     return {
+      weekId,
       status: connected && (pendingIds.has(weekId) || !cached) ? "checking" : "unknown",
       url: null,
       reason: cached ? "expired" : "not-checked",
@@ -109,6 +126,7 @@ function createRankingCapabilitiesService(options = {}) {
       contractVersion: RANKING_CONTRACT_VERSION,
       generation: context.generation,
       inFlight: Boolean(inFlight),
+      webBaseUrl: context.webBaseUrl,
       entries: Object.fromEntries(context.weekIds.map((weekId) => [weekId, entryFor(weekId)])),
       cache: cacheSummary(),
     };
@@ -128,7 +146,7 @@ function createRankingCapabilitiesService(options = {}) {
 
   function scheduleRefresh() {
     clearRefreshTimer();
-    if (disposed || options.getConnectivityState().status !== "connected") return;
+    if (disposed || !canQuery()) return;
     const expirations = context.weekIds
       .map((weekId) => cache.get(cacheKey(weekId))?.expiresAtMs)
       .filter(Number.isFinite);
@@ -149,6 +167,7 @@ function createRankingCapabilitiesService(options = {}) {
         : config.unknownTtlMs;
     const checkedAtMs = nowImpl();
     cache.set(cacheKey(weekId), {
+      weekId,
       status,
       url,
       reason,
@@ -204,8 +223,18 @@ function createRankingCapabilitiesService(options = {}) {
     });
   }
 
+  async function safeServiceErrorCode(response) {
+    try {
+      const payload = await response.json();
+      const code = String(payload?.code || "");
+      return /^[A-Z0-9_]{1,64}$/.test(code) ? code : null;
+    } catch {
+      return null;
+    }
+  }
+
   function refresh(reason = "manual", refreshOptions = {}) {
-    if (disposed || options.getConnectivityState().status !== "connected") {
+    if (disposed || !canQuery()) {
       emit();
       return Promise.resolve(snapshot());
     }
@@ -225,6 +254,7 @@ function createRankingCapabilitiesService(options = {}) {
 
     const requestGeneration = context.generation;
     const requestBaseUrl = context.webBaseUrl;
+    const requestReachabilityGeneration = connectivityState().reachabilityGeneration;
     const controller = new AbortController();
     activeController = controller;
     pendingIds = new Set(weekIds);
@@ -250,15 +280,29 @@ function createRankingCapabilitiesService(options = {}) {
             signal: controller.signal,
           });
 
+          options.onReachable?.("ranking-capabilities-response");
+          lastRequest = {
+            checkedAt: new Date(nowImpl()).toISOString(),
+            errorCode: null,
+            httpStatus: response.status,
+            reason: response.ok ? null : `http-${response.status}`,
+          };
+
           if (!response.ok) {
-            throw Object.assign(new Error("Ranking endpoint unavailable"), { reason: `http-${response.status}` });
+            const errorCode = await safeServiceErrorCode(response);
+            lastRequest = { ...lastRequest, errorCode };
+            throw Object.assign(new Error("Ranking endpoint unavailable"), {
+              errorCode,
+              reason: `http-${response.status}`,
+            });
           }
 
           const payload = await response.json();
           allResults.push(...validateBatchResponse(payload, requests, requestBaseUrl));
         }
 
-        if (disposed || requestGeneration !== context.generation || requestBaseUrl !== context.webBaseUrl) {
+        if (disposed || requestGeneration !== context.generation || requestBaseUrl !== context.webBaseUrl ||
+            requestReachabilityGeneration !== connectivityState().reachabilityGeneration || !canQuery()) {
           return snapshot();
         }
 
@@ -266,14 +310,24 @@ function createRankingCapabilitiesService(options = {}) {
           writeEntry(result.weekId, result.status, result.reason, result.url);
         }
 
-        options.onReachable?.("ranking-capabilities");
       } catch (error) {
-        if (!disposed && requestGeneration === context.generation && requestBaseUrl === context.webBaseUrl) {
+        const connectivityUnchanged = requestReachabilityGeneration === connectivityState().reachabilityGeneration;
+
+        if (!disposed && requestGeneration === context.generation && requestBaseUrl === context.webBaseUrl && connectivityUnchanged) {
           for (const weekId of weekIds) {
             writeEntry(weekId, "unknown", error?.reason || "temporary-failure");
           }
 
           const reason = String(error?.reason || "temporary-failure");
+
+          if (!reason.startsWith("http-") || !lastRequest.checkedAt) {
+            lastRequest = {
+              checkedAt: new Date(nowImpl()).toISOString(),
+              errorCode: error?.errorCode || null,
+              httpStatus: reason === "temporary-failure" || controller.signal.aborted ? null : lastRequest.httpStatus,
+              reason: controller.signal.aborted ? "timeout" : reason,
+            };
+          }
 
           if (controller.signal.aborted || reason === "temporary-failure") {
             options.onTransportFailure?.("ranking-capabilities");
@@ -340,8 +394,12 @@ function createRankingCapabilitiesService(options = {}) {
     getCapability: entryFor,
     getDiagnostics(activeWeekId = null) {
       return {
+        activeWeekId,
         active: activeWeekId ? entryFor(activeWeekId) : null,
         cache: cacheSummary(),
+        endpoint: rankingCapabilitiesEndpoint(context.webBaseUrl),
+        configurationAvailable: Boolean(rankingCapabilitiesEndpoint(context.webBaseUrl)),
+        lastRequest: { ...lastRequest },
         context: {
           contractVersion: RANKING_CONTRACT_VERSION,
           generation: context.generation,

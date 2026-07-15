@@ -83,6 +83,25 @@ test("sin weekId devuelve missing_week", async () => {
   assert.equal(result.canPlayCompetition, false);
 });
 
+test("deferred membership returns immediately without a remote request", async () => {
+  let fetched = false;
+  const result = await checkSeasonMembership(config(), sessionState(), {
+    deferRemote: true,
+    fetchImpl: async () => {
+      fetched = true;
+      throw new Error("must not run");
+    },
+  });
+
+  assert.equal(fetched, false);
+  assert.equal(result.status, "unknown");
+  assert.equal(result.canPlayCompetition, true);
+  assert.equal(result.canSubmit, false);
+  assert.equal(result.checkedAt, null);
+  assert.equal(result.request, null);
+  assert.equal(result.technicalReason, "deferred");
+});
+
 test("respuesta member permite competicion y subida", async () => {
   let authorization = null;
   const result = await checkSeasonMembership(config(), sessionState(), {

@@ -62,9 +62,11 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
       remoteDiagnostics: {
         connectivity: {
           checkedAt: "2026-07-03T21:14:20.000Z",
+          displayStatus: "connected",
           healthEndpoint: "https://hsl.example/api/launcher/health",
+          probe: { phase: "idle", inFlight: false, startedAt: null },
+          reachability: "connected",
           reason: null,
-          status: "connected",
         },
         ranking: {
           active: {
@@ -134,7 +136,9 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.mame.sharedRuntime.available, true);
     assert.equal(saved.pack.packRoot, config.packRoot);
     assert.equal(saved.queue.totals.failed, 1);
-    assert.equal(saved.connectivity.status, "connected");
+    assert.equal(saved.connectivity.reachability, "connected");
+    assert.equal(saved.connectivity.displayStatus, "connected");
+    assert.equal(saved.connectivity.probe.inFlight, false);
     assert.equal(saved.rankingCapabilities.active.status, "available");
     assert.equal(saved.rankingCapabilities.cache.entries, 1);
     assert.equal(saved.session.hasSession, true);

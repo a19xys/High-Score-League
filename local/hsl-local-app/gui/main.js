@@ -1,8 +1,8 @@
 const path = require("node:path");
 const { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, shell } = require("electron");
 const service = require("./launcher-service");
-const { createConnectivityService } = require("../src/connectivity-service");
-const { createRankingCapabilitiesService } = require("../src/ranking-capabilities-service");
+const { createConnectivityService, isStableConnected } = require("../src/connectivity-service");
+const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
 const { classifyMembershipConnectivitySignal } = require("../src/remote-connectivity-signals");
 
 let mainWindow = null;
@@ -33,7 +33,7 @@ function syncRemoteContext(state) {
     webBaseUrl,
   });
 
-  if (connectivity.getState().status === "connected") {
+  if (isStableConnected(connectivity.getState())) {
     rankingCapabilities.refresh("launcher-state").catch(() => {});
   }
 
@@ -58,15 +58,17 @@ async function withRemoteContext(promise) {
 }
 
 function initializeRemoteServices() {
+  const bootstrap = service.getRemoteBootstrapState();
   connectivity = createConnectivityService({
     fetchImpl: (url, init) => net.fetch(url, init),
     netIsOnline: () => net.isOnline(),
+    webBaseUrl: bootstrap.webBaseUrl,
   });
   rankingCapabilities = createRankingCapabilitiesService({
     fetchImpl: (url, init) => net.fetch(url, init),
     getConnectivityState: () => connectivity.getState(),
     onReachable: (source) => connectivity.markReachable(source),
-    onTransportFailure: (source) => connectivity.refresh(source, { force: true }),
+    onTransportFailure: (source) => connectivity.refresh(source, { force: true, phase: "background" }),
   });
   service.setRemoteDiagnosticsProvider(() => ({
     connectivity: connectivity.getDiagnostics(),
@@ -75,7 +77,7 @@ function initializeRemoteServices() {
   removeConnectivityListener = connectivity.subscribe((state) => {
     sendRendererEvent("launcher:connectivity-state", state);
 
-    if (state.status === "connected") {
+    if (isStableConnected(state)) {
       rankingCapabilities.refresh("connectivity-restored").catch(() => {});
     } else {
       sendRendererEvent("launcher:ranking-capabilities-state", rankingCapabilities.getState());
@@ -97,9 +99,16 @@ function stopRemoteServices() {
 }
 
 async function prepareRemoteAction(source) {
+  if (connectivity.getState().reachability !== "connected") {
+    return connectivity.getState();
+  }
+
   await connectivity.refresh(source, {
     maxAgeMs: connectivity.config.focusStaleMs,
+    phase: "background",
   });
+
+  return connectivity.getState();
 }
 
 function createMainWindow() {
@@ -127,6 +136,7 @@ function createMainWindow() {
   mainWindow.on("focus", () => {
     connectivity?.refresh("focus", {
       maxAgeMs: connectivity.config.focusStaleMs,
+      phase: "background",
     }).catch(() => {});
   });
 
@@ -179,7 +189,12 @@ function registerIpc() {
   ipcMain.handle("launcher:get-connectivity-state", () => connectivity.getState());
   ipcMain.handle("launcher:request-connectivity-refresh", (_event, reason) => {
     const safeReason = CONNECTIVITY_REFRESH_REASONS.has(reason) ? reason : "manual";
-    return connectivity.refresh(safeReason, { force: safeReason !== "manual" });
+    const phase = safeReason === "manual"
+      ? "manual"
+      : safeReason === "renderer-online"
+        ? "retry"
+        : "background";
+    return connectivity.refresh(safeReason, { force: true, phase });
   });
   ipcMain.handle("launcher:get-ranking-capabilities-state", () => rankingCapabilities.getState());
   ipcMain.handle("launcher:request-ranking-capabilities-refresh", () => rankingCapabilities.refresh("renderer-request"));
@@ -249,7 +264,9 @@ function registerIpc() {
   ipcMain.handle("launcher:toggle-library-favorite", (_event, packKey) => service.toggleLibraryFavoriteFromGui(packKey));
   ipcMain.handle("launcher:remove-known-account", (_event, userId) => service.removeKnownAccountFromGui(userId));
   ipcMain.handle("launcher:switch-account", (_event, userId) => service.switchKnownAccountFromGui(userId));
-  ipcMain.handle("launcher:use-library-pack", (_event, packId) => withRemoteContext(service.activateLibraryPack(packId)));
+  ipcMain.handle("launcher:use-library-pack", (_event, packId) => withRemoteContext(service.activateLibraryPack(packId, {
+    deferRemoteMembership: true,
+  })));
   ipcMain.handle("launcher:open-membership-url", async () => {
     const state = await service.getLauncherState();
     const url = state.membership?.joinUrl || state.bridge?.webBaseUrl;
@@ -282,6 +299,7 @@ function registerIpc() {
     const state = await service.getLauncherState();
     syncRemoteContext(state);
     const weekId = state.game?.weekId || null;
+    const webBaseUrl = state.bridge?.webBaseUrl || null;
 
     if (!weekId) {
       return {
@@ -293,27 +311,37 @@ function registerIpc() {
       };
     }
 
-    const connection = await connectivity.refresh("ranking-click", {
-      maxAgeMs: connectivity.config.focusStaleMs,
-    });
-
-    if (connection.status !== "connected") {
-      const summary = connection.status === "offline"
+    if (!isStableConnected(connectivity.getState())) {
+      const summary = connectivity.getState().displayStatus === "offline"
         ? "Necesitas conexion para abrir el ranking."
         : "Comprobando conexion con High Score League.";
       return { action: "open-ranking", lines: [summary], ok: false, summary, state };
     }
 
+    const connection = await connectivity.refresh("ranking-click", {
+      maxAgeMs: connectivity.config.focusStaleMs,
+      phase: "background",
+    });
+
+    if (!isStableConnected(connection)) {
+      const summary = "Necesitas conexion para abrir el ranking.";
+      return { action: "open-ranking", lines: [summary], ok: false, summary, state };
+    }
+
     const capability = await rankingCapabilities.ensureCapability(weekId);
 
-    if (capability.status !== "available" || !capability.url) {
+    const safeUrl = safeRankingUrl(capability.url, webBaseUrl);
+    const contextStillMatches = activeRankingWeekId === weekId;
+
+    if (!isStableConnected(connectivity.getState()) || !contextStillMatches ||
+        capability.weekId !== weekId || capability.status !== "available" || !safeUrl) {
       const summary = capability.status === "unavailable"
         ? "El ranking todavia no esta disponible."
         : "No se pudo comprobar el ranking.";
       return { action: "open-ranking", lines: [summary], ok: false, summary, state };
     }
 
-    await shell.openExternal(capability.url);
+    await shell.openExternal(safeUrl);
     return {
       action: "open-ranking",
       lines: ["Ranking abierto en High Score League."],
@@ -341,10 +369,10 @@ function registerIpc() {
 app.whenReady().then(() => {
   initializeRemoteServices();
   registerIpc();
-  createMainWindow();
   connectivity.start("startup").catch(() => {});
+  createMainWindow();
   powerMonitor.on("resume", () => {
-    connectivity.refresh("resume", { force: true }).catch(() => {});
+    connectivity.refresh("resume", { force: true, phase: "background" }).catch(() => {});
   });
 
   app.on("activate", () => {

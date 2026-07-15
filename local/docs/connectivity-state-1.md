@@ -1,74 +1,80 @@
 # LOCAL-CONNECTIVITY-STATE-1
 
-La conectividad del launcher tiene una unica fuente de verdad: el proceso
-principal de Electron. El renderer presenta el estado y puede pedir una
-reevaluacion, pero nunca confirma por si mismo que High Score League responde.
+La conectividad del launcher tiene una unica fuente de verdad en el proceso
+principal de Electron. El renderer solo presenta el snapshot y puede solicitar
+una reevaluacion; `navigator.onLine` nunca confirma que HSL responda.
 
-## Estados
+## Estado estable y probe
 
-- `offline` / `Desconectado`: `net.isOnline()` informa que no hay una interfaz
-  de red utilizable.
-- `connecting` / `Conectando`: existe una posible red, pero HSL todavia no ha
-  respondido correctamente o la comprobacion fallo de forma temporal.
-- `connected` / `Conectado`: una respuesta reciente de HSL ha confirmado
-  reachability.
+El estado separa dos conceptos:
 
-`net.isOnline()` es solo una senal previa. Un valor `true` nunca establece
-`connected`. `navigator.onLine` no es fuente de estado; sus eventos `online` y
-`offline` solo solicitan una reevaluacion al proceso principal.
+- `reachability`: ultimo resultado estable (`unknown`, `connected`, `offline`);
+- `probe`: comprobacion actual (`idle`, `startup`, `manual`, `retry`,
+  `background`), con `inFlight` y `startedAt`.
 
-## Health check
+`deriveConnectivityDisplayState` es el unico selector visual:
 
-El coordinador usa `net.fetch` con `GET /api/launcher/health`, `cache: no-store`,
-redirecciones manuales y `AbortController`. Solo acepta `204` procedente del
-mismo origen configurado. No envia sesion, cookies HSL de la web ni tokens del
-jugador.
+| Reachability | Probe real | Estado visible |
+| --- | --- | --- |
+| unknown | startup | Conectando |
+| offline | retry o manual | Reconectando |
+| connected | manual | Reconectando |
+| connected | background | Conectado |
+| connected | idle | Conectado |
+| offline | idle | Desconectado |
 
-Valores iniciales:
+`Conectando` implica siempre `startup + inFlight`; `Reconectando` implica
+siempre `manual/retry + inFlight`. Un fallo finaliza el probe y deja
+`reachability=offline`, incluso mientras espera el siguiente backoff.
+
+## Politica de comprobaciones
+
+El health check usa `net.fetch` con `GET /api/launcher/health`, `cache:
+no-store`, redirecciones manuales y `AbortController`. Solo acepta un `204` del
+mismo origen configurado. No envia sesion, cookies ni tokens.
+
+Valores:
 
 - timeout: 4 segundos;
-- resultado conectado: comprobacion periodica cada 5 minutos;
-- focus: solo comprueba si el ultimo resultado tiene mas de 90 segundos;
-- offline: reintento cada 60 segundos;
-- backoff: 5, 15, 30, 60, 120 y 300 segundos;
-- jitter: +/-15 % sobre cada tramo de backoff.
+- conectado: mantenimiento cada 5 minutos;
+- focus/resume: probe de fondo si el resultado tiene mas de 90 segundos;
+- sin interfaz: reintento cada 60 segundos;
+- backoff: 5, 15, 30, 60, 120 y 300 segundos, con jitter de +/-15 %.
 
-Las peticiones concurrentes comparten el mismo `Promise`. Cada cambio de
-`webBaseUrl`, perdida de red o cierre incrementa la generacion y aborta o
-descarta respuestas anteriores. Los timers y listeners se eliminan en
-`before-quit`.
+El arranque crea un unico probe `startup`. Los probes periodicos, de foco y de
+resume son `background`: mientras estan en curso el chip sigue en Conectado y
+Ranking puede usar una capacidad vigente. Un fallo pasa directamente a
+Desconectado.
 
-## Disparadores
+Desde offline, el backoff solo muestra Reconectando durante la peticion real.
+`nextRetryAt` no implica que haya una peticion activa. El refresco manual fuerza
+o reutiliza el probe actual, lo eleva a fase `manual`, evita solicitudes
+duplicadas y muestra Reconectando.
 
-- arranque, despues de `app.whenReady()`;
-- vencimiento del intervalo o backoff;
-- cambio real de `webBaseUrl`;
-- `resume` de `powerMonitor`;
-- foco si el resultado esta stale;
-- senales `online`/`offline` del renderer;
-- accion remota con salud no reciente;
-- fallo de transporte observado por membership o ranking capabilities.
+Las operaciones locales, incluida la seleccion de pack, no lanzan probes
+visibles. Una accion remota usa health reciente o inicia mantenimiento de fondo.
+Una respuesta HTTP valida de HSL puede confirmar reachability aunque el producto
+responda 400, 401, 403, 404 o 503. Solo un fallo de transporte solicita una
+reevaluacion.
 
-No se comprueba en cada render, cambio de vista o seleccion local. Una
-respuesta HTTP valida de una accion HSL confirma reachability aunque su
-resultado sea 401, membership denegada o validacion de producto. Esos errores
-no significan falta de red. Solo la ausencia de respuesta por transporte pide
-una nueva comprobacion.
+## Senales de sistema e IPC
 
-## IPC
+`net.isOnline() === false` establece offline inmediatamente. Un valor `true`
+solo permite intentar el health check: Windows puede conservar adaptadores
+virtuales o interfaces logicas sin salida a HSL.
 
 - `launcher:get-connectivity-state`
 - `launcher:request-connectivity-refresh`
 - evento `launcher:connectivity-state`
 
-Los motivos aceptados desde renderer estan limitados a `manual`,
-`renderer-online` y `renderer-offline`. Preload no expone `net.fetch` ni un
-canal para URLs arbitrarias.
+Los motivos del renderer se limitan a `manual`, `renderer-online` y
+`renderer-offline`. Cada invalidacion incrementa una generacion; respuestas
+anteriores no pueden sustituir un estado mas nuevo.
 
 ## Diagnostico
 
-El diagnostico incluye estado, `netIsOnline`, endpoint health, timestamps,
-motivo tecnico sanitizado, fuente, latencia, siguiente reintento, fallos
-consecutivos, peticion en curso y `webBaseUrl` normalizado. No incluye tokens,
-cookies, cabeceras Authorization ni cuerpos sensibles.
+El informe incluye `reachability`, `displayStatus`, `probe.phase`,
+`probe.inFlight`, `startedAt`, `checkedAt`, `changedAt`, `reason`, `source`,
+latencia, siguiente reintento, fallos consecutivos, `netIsOnline`, generacion y
+origen normalizado. Nunca incluye tokens, cookies, cabeceras o cuerpos sensibles.
 

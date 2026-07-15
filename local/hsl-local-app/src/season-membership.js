@@ -269,6 +269,18 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
     });
   }
 
+  if (options.deferRemote === true) {
+    return baseState({
+      canPlayCompetition: true,
+      canSubmit: false,
+      joinUrl: normalizeWebBaseUrl(config.webBaseUrl),
+      message: PLAYER_MESSAGES.unknown,
+      status: "unknown",
+      technicalReason: "deferred",
+      weekId,
+    });
+  }
+
   let storedSession;
 
   try {

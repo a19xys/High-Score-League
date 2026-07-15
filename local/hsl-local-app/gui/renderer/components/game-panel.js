@@ -257,6 +257,28 @@ function renderUnavailableLibraryPanel(directory) {
   });
 }
 
+export function shouldRenderLibraryBrandFallback(state) {
+  if (state.libraryActivationInProgress) return null;
+  const data = state.data;
+  const directory = data?.library?.directory;
+  const libraryStatus = data?.library?.status || null;
+
+  if (["missing", "inaccessible"].includes(libraryStatus) || (directory?.configured && !directory.available)) {
+    return "unavailable";
+  }
+
+  if (libraryStatus === "unconfigured" || (!data?.game && !directory?.configured)) return "unconfigured";
+  if (libraryStatus === "available-empty" || (!data?.game && directory?.available && (data?.library?.packs?.length || 0) === 0)) return "empty";
+
+  if (libraryStatus === "available-populated") {
+    const activeInstanceKey = data?.selection?.activeInstanceKey || null;
+    const activePackExists = activeInstanceKey && data.library.packs.some((pack) => pack.instanceKey === activeInstanceKey);
+    if (!data?.game || !activePackExists || data.game.instanceKey !== activeInstanceKey) return "no-selection";
+  }
+
+  return null;
+}
+
 export function renderGamePanel(state) {
   const data = state.data;
 
@@ -270,15 +292,13 @@ export function renderGamePanel(state) {
   }
 
   const directory = data.library?.directory;
-  const libraryStatus = data.library?.status || null;
+  const fallbackReason = shouldRenderLibraryBrandFallback(state);
 
-  if (["missing", "inaccessible"].includes(libraryStatus) || (directory?.configured && !directory.available)) {
+  if (fallbackReason === "unavailable") {
     return renderUnavailableLibraryPanel(directory);
   }
 
-  const game = data?.game;
-
-  if (libraryStatus === "unconfigured" || (!game && !directory?.configured)) {
+  if (fallbackReason === "unconfigured") {
     return renderBrandedEmptyPanel({
       ariaLabel: "Biblioteca de packs sin configurar",
       body: "Escoge una carpeta para empezar a añadir y jugar tus packs.",
@@ -286,7 +306,7 @@ export function renderGamePanel(state) {
     });
   }
 
-  if (libraryStatus === "available-empty" || (!game && directory?.available && (data.library?.packs?.length || 0) === 0)) {
+  if (fallbackReason === "empty") {
     return renderBrandedEmptyPanel({
       ariaLabel: "Biblioteca de packs vacía",
       body: "No hay packs en esta ubicación. Importa un pack o cambia la ubicación de la biblioteca.",
@@ -294,27 +314,23 @@ export function renderGamePanel(state) {
     });
   }
 
-  if (libraryStatus === "available-populated") {
-    const activeInstanceKey = data.selection?.activeInstanceKey || null;
-    const activePackExists = activeInstanceKey && data.library.packs.some(
-      (pack) => pack.instanceKey === activeInstanceKey
-    );
-
-    if (!game || !activePackExists || game.instanceKey !== activeInstanceKey) {
-      return renderBrandedEmptyPanel({
-        ariaLabel: "Biblioteca sin pack seleccionado",
-        body: "Selecciona un pack para ver sus detalles.",
-        title: "Elige un juego de tu biblioteca",
-      });
-    }
-  }
-
-  if (!game) {
+  if (fallbackReason === "no-selection") {
     return renderBrandedEmptyPanel({
       ariaLabel: "Biblioteca sin pack seleccionado",
       body: "Selecciona un pack para ver sus detalles.",
       title: "Elige un juego de tu biblioteca",
     });
+  }
+
+  const game = data?.game;
+
+  if (!game) {
+    return `
+      <section class="game-panel game-detail-card game-detail-card--empty" aria-busy="true">
+        <div class="game-hero-stage game-hero-stage--empty" aria-hidden="true"></div>
+        <div class="game-detail-body game-detail-body--empty"></div>
+      </section>
+    `;
   }
 
   const bridge = data?.bridge;

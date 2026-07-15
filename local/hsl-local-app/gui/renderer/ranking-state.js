@@ -7,20 +7,30 @@ const RANKING_COPY = Object.freeze({
   unknown: "No se pudo comprobar el ranking.",
 });
 
-export function getRankingActionState(state, game) {
+function safeCapabilityUrl(value, webBaseUrl) {
+  try {
+    const candidate = new URL(String(value || ""));
+    const allowed = new URL(String(webBaseUrl || ""));
+    return ["http:", "https:"].includes(candidate.protocol) && candidate.origin === allowed.origin;
+  } catch {
+    return false;
+  }
+}
+
+export function getRankingActionState(state, game, now = Date.now()) {
   const weekId = game?.weekId || null;
 
   if (!weekId) {
     return { available: false, status: "unavailable", reason: RANKING_COPY.notConfigured, url: null };
   }
 
-  const connectionStatus = state.connectivity?.status || state.connectionStatus || "connecting";
+  const displayStatus = state.connectivity?.displayStatus || "connecting";
 
-  if (connectionStatus === "offline") {
+  if (displayStatus === "offline") {
     return { available: false, status: "unknown", reason: RANKING_COPY.offline, url: null };
   }
 
-  if (connectionStatus !== "connected") {
+  if (displayStatus !== "connected" || state.connectivity?.reachability !== "connected") {
     return { available: false, status: "checking", reason: RANKING_COPY.connecting, url: null };
   }
 
@@ -29,19 +39,23 @@ export function getRankingActionState(state, game) {
   }
 
   const capability = state.rankingCapabilities?.entries?.[weekId];
+  const expiresAt = capability?.expiresAt ? new Date(capability.expiresAt).getTime() : 0;
+  const fresh = Number.isFinite(expiresAt) && expiresAt > now;
+  const identityMatches = capability?.weekId === weekId;
+  const safeUrl = safeCapabilityUrl(capability?.url, state.rankingCapabilities?.webBaseUrl);
   const status = capability?.status || "checking";
 
-  if (status === "available" && capability?.url) {
+  if (status === "available" && fresh && identityMatches && safeUrl) {
     return { available: true, status, reason: null, url: capability.url };
   }
 
-  const reason = status === "unavailable"
+  const reason = status === "unavailable" && fresh && identityMatches
     ? RANKING_COPY.unavailable
     : status === "unknown"
       ? RANKING_COPY.unknown
       : RANKING_COPY.checking;
 
-  return { available: false, status, reason, url: null };
+  return { available: false, status: fresh && identityMatches ? status : "checking", reason, url: null };
 }
 
-export { RANKING_COPY };
+export { RANKING_COPY, safeCapabilityUrl };

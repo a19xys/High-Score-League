@@ -151,3 +151,20 @@ test("getAuthState returns connected state without exposing tokens", async () =>
     assert.equal(JSON.stringify(state).includes("refresh-token-secret"), false);
   });
 });
+
+test("getAuthState can defer remote refresh for local pack activation", async () => {
+  await withTempDir(async (dir) => {
+    const config = createConfig(dir);
+    const expiringSession = {
+      ...validSession(),
+      expires_at: Math.floor(Date.now() / 1000) + 5,
+    };
+    await saveSession(config, expiringSession, { id: "user-1", email: "player@example.com" });
+
+    const state = await getAuthState(config, { deferRemote: true });
+
+    assert.equal(state.hasSession, true);
+    assert.equal(state.email, "player@example.com");
+    assert.equal(JSON.stringify(state).includes("refresh-token-secret"), false);
+  });
+});

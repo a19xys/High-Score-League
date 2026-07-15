@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   createConnectivityService,
+  deriveConnectivityDisplayState,
   healthEndpoint,
   normalizeWebBaseUrl,
 } = require("../src/connectivity-service");
@@ -9,6 +10,7 @@ const {
 function harness(overrides = {}) {
   let now = 1_700_000_000_000;
   let online = overrides.online ?? true;
+  let fetchImpl = overrides.fetchImpl || (async (url) => ({ status: 204, url }));
   let nextTimerId = 0;
   const timers = new Map();
   const calls = [];
@@ -27,10 +29,10 @@ function harness(overrides = {}) {
       return id;
     },
     clearTimeout: (id) => timers.delete(id),
-    fetchImpl: overrides.fetchImpl || (async (url, init) => {
+    fetchImpl: async (url, init) => {
       calls.push({ url, init });
-      return { status: 204, url };
-    }),
+      return fetchImpl(url, init);
+    },
     config: {
       connectedIntervalMs: 300_000,
       focusStaleMs: 90_000,
@@ -46,120 +48,185 @@ function harness(overrides = {}) {
     service,
     timers,
     advance(ms) { now += ms; },
+    setFetch(value) { fetchImpl = value; },
     setOnline(value) { online = value; },
     get netChecks() { return netChecks; },
   };
 }
 
-test("normalizes only http origins and fixes the health endpoint", () => {
+test("normalizes origins and derives visible states only from real probes", () => {
   assert.equal(normalizeWebBaseUrl("https://user:pass@hsl.example/path?q=1"), "https://hsl.example");
   assert.equal(normalizeWebBaseUrl("file:///tmp"), null);
   assert.equal(healthEndpoint("http://localhost:3000/path"), "http://localhost:3000/api/launcher/health");
+  assert.equal(deriveConnectivityDisplayState({
+    reachability: "unknown",
+    probe: { phase: "startup", inFlight: true },
+  }), "connecting");
+  assert.equal(deriveConnectivityDisplayState({
+    reachability: "offline",
+    probe: { phase: "retry", inFlight: true },
+  }), "reconnecting");
+  assert.equal(deriveConnectivityDisplayState({
+    reachability: "connected",
+    probe: { phase: "background", inFlight: true },
+  }), "connected");
+  assert.equal(deriveConnectivityDisplayState({
+    reachability: "offline",
+    probe: { phase: "retry", inFlight: false },
+  }), "offline");
 });
 
-test("net false is offline and net true requires a valid health response", async () => {
+test("startup is connecting only in flight and settles connected or offline", async () => {
+  let resolveFetch;
+  const online = harness({
+    fetchImpl: (url) => new Promise((resolve) => {
+      resolveFetch = () => resolve({ status: 204, url });
+    }),
+  });
+  assert.equal(online.netChecks, 0);
+  const pending = online.service.start();
+  assert.equal(online.service.getState().displayStatus, "connecting");
+  assert.equal(online.service.getState().probe.inFlight, true);
+  resolveFetch();
+  await pending;
+  assert.equal(online.service.getState().reachability, "connected");
+  assert.equal(online.service.getState().displayStatus, "connected");
+  assert.equal(online.service.getState().probe.inFlight, false);
+
+  const failed = harness({ fetchImpl: async () => { throw new Error("transport"); } });
+  await failed.service.start();
+  assert.equal(failed.service.getState().reachability, "offline");
+  assert.equal(failed.service.getState().displayStatus, "offline");
+  assert.equal(failed.service.getState().probe.inFlight, false);
+});
+
+test("net false is immediately offline and net true never confirms connected", async () => {
   const offline = harness({ online: false });
-  assert.equal(offline.netChecks, 0);
   await offline.service.start();
-  assert.equal(offline.service.getState().status, "offline");
+  assert.equal(offline.service.getState().reachability, "offline");
   assert.equal(offline.calls.length, 0);
 
-  const online = harness();
-  const pending = online.service.start();
-  assert.equal(online.service.getState().status, "connecting");
-  await pending;
-  assert.equal(online.service.getState().status, "connected");
-  assert.equal(online.calls.length, 1);
+  const virtualAdapter = harness({ fetchImpl: async () => { throw new Error("unreachable"); } });
+  await virtualAdapter.service.start();
+  assert.equal(virtualAdapter.service.getState().netIsOnline, true);
+  assert.equal(virtualAdapter.service.getState().displayStatus, "offline");
 });
 
-test("timeout and DNS failures stay connecting with sanitized reasons", async () => {
+test("offline retries show reconnecting only while the request exists", async () => {
+  let succeeds = false;
+  let resolveRetry;
+  const h = harness({
+    fetchImpl: async () => {
+      if (!succeeds) throw new Error("down");
+      return new Promise((resolve) => { resolveRetry = resolve; });
+    },
+  });
+  await h.service.start();
+  assert.equal(h.service.getState().displayStatus, "offline");
+  succeeds = true;
+  const retryTimer = [...h.timers.values()].find((timer) => timer.delay === 5_000);
+  retryTimer.callback();
+  assert.equal(h.service.getState().displayStatus, "reconnecting");
+  assert.equal(h.service.getState().probe.inFlight, true);
+  resolveRetry({ status: 204, url: "https://hsl.example/api/launcher/health" });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(h.service.getState().displayStatus, "connected");
+});
+
+test("manual probes reconnect, deduplicate and settle without transient idle", async () => {
+  let resolveFetch;
+  const h = harness();
+  await h.service.start();
+  h.setFetch((url) => new Promise((resolve) => {
+    resolveFetch = () => resolve({ status: 204, url });
+  }));
+  const first = h.service.refresh("manual", { force: true, phase: "manual" });
+  const second = h.service.refresh("manual", { force: true, phase: "manual" });
+  assert.equal(first, second);
+  assert.equal(h.service.getState().displayStatus, "reconnecting");
+  resolveFetch();
+  await first;
+  assert.equal(h.service.getState().displayStatus, "connected");
+  assert.equal(h.service.getState().probe.inFlight, false);
+});
+
+test("manual refresh promotes an existing background probe without duplicating it", async () => {
+  let resolveFetch;
+  const h = harness();
+  await h.service.start();
+  h.setFetch((url) => new Promise((resolve) => {
+    resolveFetch = () => resolve({ status: 204, url });
+  }));
+  const background = h.service.refresh("periodic", { force: true, phase: "background" });
+  assert.equal(h.service.getState().displayStatus, "connected");
+
+  const manual = h.service.refresh("manual", { force: true, phase: "manual" });
+  assert.equal(manual, background);
+  assert.equal(h.calls.length, 2);
+  assert.equal(h.service.getState().probe.phase, "manual");
+  assert.equal(h.service.getState().displayStatus, "reconnecting");
+
+  resolveFetch();
+  await manual;
+  assert.equal(h.service.getState().displayStatus, "connected");
+});
+
+test("background probes keep connected visible and failure goes directly offline", async () => {
+  let rejectFetch;
+  const h = harness();
+  await h.service.start();
+  h.setFetch(() => new Promise((_resolve, reject) => { rejectFetch = reject; }));
+  const pending = h.service.refresh("periodic", { force: true, phase: "background" });
+  assert.equal(h.service.getState().displayStatus, "connected");
+  assert.equal(h.service.getState().probe.phase, "background");
+  rejectFetch(new Error("lost"));
+  await pending;
+  assert.equal(h.service.getState().displayStatus, "offline");
+  assert.equal(h.service.getState().probe.inFlight, false);
+});
+
+test("timeout, DNS and unexpected status settle offline with sanitized reasons", async () => {
   const timeout = harness({
     fetchImpl: (_url, init) => new Promise((_resolve, reject) => {
       init.signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
     }),
   });
   const pending = timeout.service.start();
-  const timeoutTimer = [...timeout.timers.values()].find((timer) => timer.delay === 4_000);
-  timeoutTimer.callback();
+  [...timeout.timers.values()].find((timer) => timer.delay === 4_000).callback();
   await pending;
   assert.equal(timeout.service.getState().reason, "timeout");
+  assert.equal(timeout.service.getState().displayStatus, "offline");
 
-  const dns = harness({
-    fetchImpl: async () => {
-      throw Object.assign(new Error("host secret.example failed"), { code: "ENOTFOUND" });
-    },
-  });
+  const dns = harness({ fetchImpl: async () => { throw Object.assign(new Error("secret host"), { code: "ENOTFOUND" }); } });
   await dns.service.start();
   assert.equal(dns.service.getState().reason, "dns");
-  assert.equal(JSON.stringify(dns.service.getState()).includes("secret.example"), false);
-});
+  assert.equal(JSON.stringify(dns.service.getState()).includes("secret host"), false);
 
-test("deduplicates concurrent checks and honors connected TTL", async () => {
-  let resolveFetch;
-  const h = harness({
-    fetchImpl: (url) => new Promise((resolve) => {
-      resolveFetch = () => resolve({ status: 204, url });
-    }),
-  });
-  const first = h.service.start();
-  const second = h.service.refresh("renderer-online", { force: true });
-
-  assert.equal(first, second);
-  resolveFetch();
-  await first;
-  await h.service.refresh("focus");
-  assert.equal(h.service.getState().status, "connected");
-});
-
-test("timeout and unexpected responses remain connecting with backoff", async () => {
-  const unexpected = harness({
-    fetchImpl: async (url) => ({ status: 200, url }),
-  });
+  const unexpected = harness({ fetchImpl: async (url) => ({ status: 200, url }) });
   await unexpected.service.start();
-  assert.equal(unexpected.service.getState().status, "connecting");
   assert.equal(unexpected.service.getState().reason, "unexpected-status");
-  assert.equal(unexpected.service.getState().consecutiveFailures, 1);
-  assert.equal([...unexpected.timers.values()].some((timer) => timer.delay === 5_000), true);
+  assert.equal(unexpected.service.getState().displayStatus, "offline");
 });
 
-test("backoff jitter stays bounded and success resets failures", async () => {
-  let succeeds = false;
-  const h = harness({
-    random: () => 1,
-    fetchImpl: async (url) => succeeds
-      ? { status: 204, url }
-      : Promise.reject(new Error("temporary")),
-  });
-  await h.service.start();
-  const retry = [...h.timers.values()].find((timer) => timer.delay !== 4_000);
-  assert.ok(retry.delay >= 4_250 && retry.delay <= 5_750);
-  succeeds = true;
-  await h.service.refresh("recovery", { force: true });
-  assert.equal(h.service.getState().status, "connected");
-  assert.equal(h.service.getState().consecutiveFailures, 0);
-});
-
-test("stale generation cannot overwrite offline and stop clears timers", async () => {
+test("stale probes cannot overwrite offline and stop clears timers", async () => {
   let resolveFetch;
   const h = harness({
-    fetchImpl: (url) => new Promise((resolve) => {
-      resolveFetch = () => resolve({ status: 204, url });
-    }),
+    fetchImpl: (url) => new Promise((resolve) => { resolveFetch = () => resolve({ status: 204, url }); }),
   });
   const pending = h.service.start();
   h.setOnline(false);
-  await h.service.refresh("renderer-offline", { force: true });
+  await h.service.refresh("renderer-offline", { force: true, phase: "background" });
   resolveFetch();
   await pending;
-  assert.equal(h.service.getState().status, "offline");
+  assert.equal(h.service.getState().reachability, "offline");
   h.service.stop();
   assert.equal(h.timers.size, 0);
 });
 
-test("changing webBaseUrl invalidates the previous generation", async () => {
+test("changing webBaseUrl invalidates the old origin and probes silently", async () => {
   const h = harness();
   await h.service.start();
   await h.service.setWebBaseUrl("https://other.example/path");
   assert.equal(h.service.getDiagnostics().healthEndpoint, "https://other.example/api/launcher/health");
-  assert.equal(h.service.getState().status, "connected");
+  assert.equal(h.service.getState().reachability, "connected");
 });

@@ -183,11 +183,15 @@ export function renderHeader(state) {
     ? renderAccountAvatar(activeAccount, "account-chip-avatar")
     : `<span class="session-chip__empty">${SESSION_CHIP_EMPTY_LABEL}</span>`;
   const sessionChipClass = session?.hasSession ? "session-chip--avatar-only" : "session-chip--empty";
+  const displayStatus = state.connectivity?.displayStatus || "connecting";
   const connection = {
     connected: ["Conectado", "connection-chip--connected"],
     connecting: ["Conectando", "connection-chip--reconnecting"],
+    reconnecting: ["Reconectando", "connection-chip--reconnecting"],
     offline: ["Desconectado", "connection-chip--offline"],
-  }[state.connectionStatus] || ["Conectando", "connection-chip--reconnecting"];
+  }[displayStatus] || ["Conectando", "connection-chip--reconnecting"];
+  const showRefresh = ["connected", "offline"].includes(displayStatus);
+  const silentBackground = state.connectivity?.probe?.phase === "background" && state.connectivity?.probe?.inFlight;
 
   return `
     <header class="launcher-header app-header">
@@ -199,7 +203,13 @@ export function renderHeader(state) {
         </div>
       </div>
       <div class="header-actions">
-        <span class="connection-chip ${connection[1]}"><span class="connection-dot" aria-hidden="true"></span>${connection[0]}</span>
+        <div class="connection-chip ${connection[1]}" data-connectivity-status="${displayStatus}">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span class="connection-label" aria-live="${silentBackground ? "off" : "polite"}" aria-atomic="true">${connection[0]}</span>
+          <span class="connection-refresh-slot">
+            ${showRefresh ? `<button class="connection-refresh-button" type="button" data-action="refresh-connectivity" title="Comprobar conexi\u00f3n" aria-label="Comprobar conexi\u00f3n">${renderIcon("refresh", { className: "connection-refresh-icon", size: "sm" })}</button>` : `<span class="connection-refresh-placeholder" aria-hidden="true"></span>`}
+          </span>
+        </div>
         <button class="theme-button theme-button--icon" type="button" data-action="toggle-theme" title="${themeLabel}" aria-label="${themeLabel}">
           ${renderIcon(themeIcon, { className: "button-icon theme-icon", size: "sm" })}
         </button>

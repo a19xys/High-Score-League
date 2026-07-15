@@ -1,3 +1,8 @@
+const {
+  deriveConnectivityDisplayState,
+  isStableConnected,
+} = require("./connectivity-state");
+
 const HEALTH_PATH = "/api/launcher/health";
 const DEFAULT_CONNECTIVITY_OPTIONS = Object.freeze({
   connectedIntervalMs: 5 * 60 * 1000,
@@ -12,13 +17,15 @@ function nowIso(nowImpl) {
   return new Date(nowImpl()).toISOString();
 }
 
+function idleProbe() {
+  return { phase: "idle", inFlight: false, startedAt: null };
+}
+
 function normalizeWebBaseUrl(value) {
   try {
     const url = new URL(String(value || "").trim());
 
-    if (!["http:", "https:"].includes(url.protocol)) {
-      return null;
-    }
+    if (!["http:", "https:"].includes(url.protocol)) return null;
 
     url.username = "";
     url.password = "";
@@ -37,32 +44,31 @@ function healthEndpoint(webBaseUrl) {
 }
 
 function transportReason(error, aborted) {
-  if (aborted || error?.name === "AbortError") {
-    return "timeout";
-  }
-
+  if (aborted || error?.name === "AbortError") return "timeout";
   const code = String(error?.code || error?.cause?.code || "").toUpperCase();
-
-  if (code.includes("ENOTFOUND") || code.includes("EAI_AGAIN")) {
-    return "dns";
-  }
-
-  if (code.includes("CERT")) {
-    return "certificate";
-  }
-
+  if (code.includes("ENOTFOUND") || code.includes("EAI_AGAIN")) return "dns";
+  if (code.includes("CERT")) return "certificate";
   return "transport";
 }
 
+function probePhaseFor(source, reachability, requestedPhase) {
+  if (["startup", "manual", "retry", "background"].includes(requestedPhase)) {
+    return requestedPhase;
+  }
+
+  if (source === "startup") return "startup";
+  if (source === "manual") return "manual";
+  if (["retry", "offline-retry", "backoff-retry", "renderer-online"].includes(source)) return "retry";
+  return reachability === "unknown" ? "startup" : "background";
+}
+
 function createConnectivityService(options = {}) {
-  const config = {
-    ...DEFAULT_CONNECTIVITY_OPTIONS,
-    ...(options.config || {}),
-  };
+  const config = { ...DEFAULT_CONNECTIVITY_OPTIONS, ...(options.config || {}) };
   const nowImpl = options.now || Date.now;
   const setTimeoutImpl = options.setTimeout || setTimeout;
   const clearTimeoutImpl = options.clearTimeout || clearTimeout;
   const randomImpl = options.random || Math.random;
+  const netIsOnlineImpl = options.netIsOnline || (() => false);
   const listeners = new Set();
   let webBaseUrl = normalizeWebBaseUrl(options.webBaseUrl);
   let started = false;
@@ -70,9 +76,11 @@ function createConnectivityService(options = {}) {
   let timer = null;
   let inFlight = null;
   let activeController = null;
-  let generation = 0;
+  let probeGeneration = 0;
+  let reachabilityGeneration = 0;
   let state = {
-    status: "connecting",
+    reachability: "unknown",
+    probe: idleProbe(),
     checkedAt: null,
     changedAt: nowIso(nowImpl),
     reason: webBaseUrl ? "not-checked" : "missing-web-base-url",
@@ -81,11 +89,15 @@ function createConnectivityService(options = {}) {
     nextRetryAt: null,
     netIsOnline: null,
     consecutiveFailures: 0,
-    inFlight: false,
   };
 
   function snapshot() {
-    return { ...state };
+    return {
+      ...state,
+      displayStatus: deriveConnectivityDisplayState(state),
+      probe: { ...state.probe },
+      reachabilityGeneration,
+    };
   }
 
   function emit() {
@@ -94,11 +106,14 @@ function createConnectivityService(options = {}) {
   }
 
   function update(patch) {
-    const statusChanged = patch.status && patch.status !== state.status;
+    const nextReachability = patch.reachability || state.reachability;
+    const reachabilityChanged = nextReachability !== state.reachability;
+    if (reachabilityChanged) reachabilityGeneration += 1;
     state = {
       ...state,
       ...patch,
-      ...(statusChanged ? { changedAt: nowIso(nowImpl) } : {}),
+      ...(patch.probe ? { probe: { ...patch.probe } } : {}),
+      ...(reachabilityChanged ? { changedAt: nowIso(nowImpl) } : {}),
     };
     emit();
     return snapshot();
@@ -114,46 +129,61 @@ function createConnectivityService(options = {}) {
   function schedule(delayMs, source) {
     clearScheduled();
     if (!started || disposed) return;
-    const dueAt = nowImpl() + Math.max(0, delayMs);
-    state = { ...state, nextRetryAt: new Date(dueAt).toISOString() };
+    const delay = Math.max(0, delayMs);
+    state = { ...state, nextRetryAt: new Date(nowImpl() + delay).toISOString() };
     emit();
     timer = setTimeoutImpl(() => {
       timer = null;
-      refresh(source, { force: true });
-    }, Math.max(0, delayMs));
+      refresh(source, { force: true, phase: source === "periodic" ? "background" : "retry" }).catch(() => {});
+    }, delay);
   }
 
   function retryDelay() {
-    const index = Math.min(
-      Math.max(0, state.consecutiveFailures - 1),
-      config.retryBackoffMs.length - 1,
-    );
+    const index = Math.min(Math.max(0, state.consecutiveFailures - 1), config.retryBackoffMs.length - 1);
     const base = config.retryBackoffMs[index];
     const jitter = base * config.jitterRatio * ((randomImpl() * 2) - 1);
     return Math.max(0, Math.round(base + jitter));
   }
 
   function isFresh(maxAgeMs = config.focusStaleMs) {
-    if (state.status !== "connected" || !state.checkedAt) return false;
+    if (!isStableConnected(state) || !state.checkedAt) return false;
     const checkedAt = new Date(state.checkedAt).getTime();
     return Number.isFinite(checkedAt) && nowImpl() - checkedAt <= maxAgeMs;
   }
 
   function cancelInFlight() {
-    generation += 1;
+    probeGeneration += 1;
     activeController?.abort();
     activeController = null;
     inFlight = null;
   }
 
+  function settleOffline(patch = {}) {
+    return update({
+      reachability: "offline",
+      probe: idleProbe(),
+      latencyMs: null,
+      nextRetryAt: null,
+      ...patch,
+    });
+  }
+
   function markReachable(source = "remote-response") {
-    if (!started || disposed || options.netIsOnline() === false) {
-      return snapshot();
+    if (!started || disposed) return snapshot();
+    const netIsOnline = Boolean(netIsOnlineImpl());
+    if (!netIsOnline) {
+      cancelInFlight();
+      clearScheduled();
+      const result = settleOffline({ reason: "system-offline", source, netIsOnline: false });
+      schedule(config.offlineRetryMs, "offline-retry");
+      return result;
     }
 
+    if (inFlight) cancelInFlight();
     clearScheduled();
     const result = update({
-      status: "connected",
+      reachability: "connected",
+      probe: idleProbe(),
       checkedAt: nowIso(nowImpl),
       reason: null,
       source,
@@ -166,70 +196,65 @@ function createConnectivityService(options = {}) {
     return result;
   }
 
-  function refresh(source = "manual", refreshOptions = {}) {
-    if (!started || disposed) {
-      return Promise.resolve(snapshot());
-    }
+  function refresh(source = "background", refreshOptions = {}) {
+    if (!started || disposed) return Promise.resolve(snapshot());
 
-    const netIsOnline = Boolean(options.netIsOnline());
-
+    const netIsOnline = Boolean(netIsOnlineImpl());
     if (!netIsOnline) {
       cancelInFlight();
       clearScheduled();
-      const result = update({
-        status: "offline",
+      const result = settleOffline({
+        checkedAt: nowIso(nowImpl),
         reason: "system-offline",
         source,
-        latencyMs: null,
-        nextRetryAt: null,
         netIsOnline: false,
-        inFlight: false,
+        consecutiveFailures: state.consecutiveFailures + 1,
       });
       schedule(config.offlineRetryMs, "offline-retry");
       return Promise.resolve(result);
     }
 
     if (inFlight) {
+      const requestedPhase = probePhaseFor(source, state.reachability, refreshOptions.phase);
+      if (requestedPhase === "manual" && state.probe.phase !== "manual") {
+        update({
+          probe: { ...state.probe, phase: "manual" },
+          source,
+        });
+      }
       return inFlight;
     }
 
-    const maxAgeMs = Number.isFinite(refreshOptions.maxAgeMs)
-      ? refreshOptions.maxAgeMs
-      : config.focusStaleMs;
-
-    if (!refreshOptions.force && isFresh(maxAgeMs)) {
-      return Promise.resolve(snapshot());
-    }
+    const maxAgeMs = Number.isFinite(refreshOptions.maxAgeMs) ? refreshOptions.maxAgeMs : config.focusStaleMs;
+    if (!refreshOptions.force && isFresh(maxAgeMs)) return Promise.resolve(snapshot());
 
     const endpoint = healthEndpoint(webBaseUrl);
-
     if (!endpoint) {
       clearScheduled();
-      const result = update({
-        status: "connecting",
+      const result = settleOffline({
+        checkedAt: nowIso(nowImpl),
         reason: "missing-web-base-url",
         source,
-        latencyMs: null,
         netIsOnline: true,
-        inFlight: false,
+        consecutiveFailures: state.consecutiveFailures + 1,
       });
-      schedule(retryDelay(), "configuration-retry");
+      schedule(retryDelay(), "backoff-retry");
       return Promise.resolve(result);
     }
 
     clearScheduled();
-    const requestGeneration = ++generation;
-    const startedAt = nowImpl();
+    const requestGeneration = ++probeGeneration;
+    const startedAtMs = nowImpl();
     const controller = new AbortController();
+    const phase = probePhaseFor(source, state.reachability, refreshOptions.phase);
     activeController = controller;
     update({
-      status: "connecting",
+      probe: { phase, inFlight: true, startedAt: nowIso(nowImpl) },
       reason: "checking",
       source,
       latencyMs: null,
       nextRetryAt: null,
       netIsOnline: true,
-      inFlight: true,
     });
     const timeout = setTimeoutImpl(() => controller.abort(), config.healthTimeoutMs);
 
@@ -242,52 +267,45 @@ function createConnectivityService(options = {}) {
           signal: controller.signal,
         });
 
-        if (disposed || requestGeneration !== generation) return snapshot();
-
+        if (disposed || requestGeneration !== probeGeneration) return snapshot();
         const expectedOrigin = new URL(endpoint).origin;
         const responseOrigin = response.url ? new URL(response.url).origin : expectedOrigin;
-
         if (responseOrigin !== expectedOrigin) {
           throw Object.assign(new Error("Unexpected health origin"), { reason: "unexpected-origin" });
         }
-
         if (response.status !== 204) {
           throw Object.assign(new Error("Unexpected health status"), { reason: "unexpected-status" });
         }
 
         const result = update({
-          status: "connected",
+          reachability: "connected",
+          probe: idleProbe(),
           checkedAt: nowIso(nowImpl),
           reason: null,
           source,
-          latencyMs: Math.max(0, nowImpl() - startedAt),
+          latencyMs: Math.max(0, nowImpl() - startedAtMs),
           nextRetryAt: null,
           netIsOnline: true,
           consecutiveFailures: 0,
-          inFlight: false,
         });
         schedule(config.connectedIntervalMs, "periodic");
         return result;
       } catch (error) {
-        if (disposed || requestGeneration !== generation) return snapshot();
-        const reason = error?.reason || transportReason(error, controller.signal.aborted);
+        if (disposed || requestGeneration !== probeGeneration) return snapshot();
         const failures = state.consecutiveFailures + 1;
-        const result = update({
-          status: "connecting",
+        const result = settleOffline({
           checkedAt: nowIso(nowImpl),
-          reason,
+          reason: error?.reason || transportReason(error, controller.signal.aborted),
           source,
-          latencyMs: Math.max(0, nowImpl() - startedAt),
-          nextRetryAt: null,
+          latencyMs: Math.max(0, nowImpl() - startedAtMs),
           netIsOnline: true,
           consecutiveFailures: failures,
-          inFlight: false,
         });
         schedule(retryDelay(), "backoff-retry");
         return result;
       } finally {
         clearTimeoutImpl(timeout);
-        if (requestGeneration === generation) {
+        if (requestGeneration === probeGeneration) {
           activeController = null;
           inFlight = null;
         }
@@ -300,7 +318,7 @@ function createConnectivityService(options = {}) {
   function start(source = "startup") {
     if (started || disposed) return Promise.resolve(snapshot());
     started = true;
-    return refresh(source, { force: true });
+    return refresh(source, { force: true, phase: "startup" });
   }
 
   function setWebBaseUrl(value, source = "web-base-url-change") {
@@ -308,17 +326,18 @@ function createConnectivityService(options = {}) {
     if (normalized === webBaseUrl) return Promise.resolve(snapshot());
     webBaseUrl = normalized;
     cancelInFlight();
+    clearScheduled();
     update({
-      status: "connecting",
+      reachability: "offline",
+      probe: idleProbe(),
       checkedAt: null,
       reason: normalized ? "web-base-url-changed" : "missing-web-base-url",
       source,
       latencyMs: null,
       nextRetryAt: null,
       consecutiveFailures: 0,
-      inFlight: false,
     });
-    return started ? refresh(source, { force: true }) : Promise.resolve(snapshot());
+    return started ? refresh(source, { force: true, phase: "background" }) : Promise.resolve(snapshot());
   }
 
   function stop() {
@@ -327,17 +346,14 @@ function createConnectivityService(options = {}) {
     started = false;
     clearScheduled();
     cancelInFlight();
+    state = { ...state, probe: idleProbe(), nextRetryAt: null };
     listeners.clear();
   }
 
   return {
     config,
     getDiagnostics() {
-      return {
-        ...snapshot(),
-        healthEndpoint: healthEndpoint(webBaseUrl),
-        webBaseUrl,
-      };
+      return { ...snapshot(), healthEndpoint: healthEndpoint(webBaseUrl), webBaseUrl };
     },
     getState: snapshot,
     isFresh,
@@ -358,7 +374,10 @@ module.exports = {
   DEFAULT_CONNECTIVITY_OPTIONS,
   HEALTH_PATH,
   createConnectivityService,
+  deriveConnectivityDisplayState,
   healthEndpoint,
+  isStableConnected,
   normalizeWebBaseUrl,
+  probePhaseFor,
   transportReason,
 };
