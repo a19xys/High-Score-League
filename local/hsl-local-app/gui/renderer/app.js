@@ -9,10 +9,11 @@ import { renderIcon } from "./components/icon.js";
 import { renderLibraryPanel } from "./components/library-panel.js";
 import { renderLogPanel } from "./components/log-panel.js";
 import { renderActivityDrawer } from "./components/queue-panel.js";
+import { getLibraryCapabilities } from "./library-capabilities.js";
 import { waitForMinimumVisibleDuration } from "./operation-feedback.js";
 
 const root = document.getElementById("app");
-const savedTheme = localStorage.getItem("hsl-launcher-theme") || "dark";
+const savedTheme = window.__HSL_INITIAL_THEME__ === "light" ? "light" : "dark";
 const LIBRARY_SIDEBAR_MIN = 340;
 const LIBRARY_SIDEBAR_MAX = 600;
 const LIBRARY_SIDEBAR_DEFAULT = 440;
@@ -100,12 +101,28 @@ function unavailableDirectoryDialogPatch(data) {
 }
 
 function libraryUnavailableStatePatch(data) {
-  const directory = data?.library?.directory;
-  const hasNoPacks = (data?.library?.packs?.length || 0) === 0;
+  const capabilities = getLibraryCapabilities({ library: data?.library });
 
-  return hasNoPacks || (directory?.configured && !directory.available)
+  return !capabilities.filtersEnabled
     ? { libraryFiltersOpen: false }
     : {};
+}
+
+function rejectedLibraryRootDialogPatch(response) {
+  const result = response?.result;
+
+  if (response?.ok || response?.canceled || !result?.classification) {
+    return {};
+  }
+
+  return {
+    activeDialog: {
+      candidatePath: result.candidatePath || null,
+      classification: result.classification,
+      suggestedRootPath: result.suggestedRootPath || null,
+      type: "library-root-rejected",
+    },
+  };
 }
 
 function resetUnavailableDirectoryPrompt(data) {
@@ -154,8 +171,11 @@ function clampSidebarWidth(value) {
 }
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  localStorage.setItem("hsl-launcher-theme", theme);
+  const normalizedTheme = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = normalizedTheme;
+  document.documentElement.style.colorScheme = normalizedTheme;
+  document.documentElement.classList.remove("theme-bootstrap");
+  localStorage.setItem("hsl-launcher-theme", normalizedTheme);
 }
 
 function readMainScrollState() {
@@ -1008,6 +1028,10 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
       }
     }
 
+    if (options.promptForRejectedLibraryRoot) {
+      Object.assign(statePatch, rejectedLibraryRootDialogPatch(response));
+    }
+
     store.setState(statePatch);
   } catch (error) {
     window.clearTimeout(phaseTimer);
@@ -1362,6 +1386,10 @@ function bindActions() {
     }
 
     if (action === "set-library-view") {
+      if (button.disabled || !getLibraryCapabilities(store.getState()).viewsEnabled) {
+        return;
+      }
+
       const libraryView = button.dataset.view || "covers";
       markLibraryPreferenceUserChange();
       store.setState({ libraryView });
@@ -1369,9 +1397,7 @@ function bindActions() {
     }
 
     if (action === "toggle-library-filters") {
-      const directory = store.getState().data?.library?.directory;
-
-      if (button.disabled || (directory?.configured && !directory.available)) {
+      if (button.disabled || !getLibraryCapabilities(store.getState()).filtersEnabled) {
         return;
       }
 
@@ -1421,15 +1447,35 @@ function bindActions() {
 
     if (action === "choose-pack-directory") {
       runAction(action, "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
-        neutralizeActivePack: true,
+        promptForRejectedLibraryRoot: true,
       });
     }
 
     if (action === "choose-unavailable-pack-directory") {
       store.setState({ activeDialog: null });
       runAction("choose-pack-directory", "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
-        neutralizeActivePack: true,
+        promptForRejectedLibraryRoot: true,
       });
+    }
+
+    if (action === "choose-other-library-root") {
+      store.setState({ activeDialog: null });
+      runAction("choose-pack-directory", "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
+        promptForRejectedLibraryRoot: true,
+      });
+    }
+
+    if (action === "use-suggested-library-root") {
+      const suggestedRootPath = current.activeDialog?.suggestedRootPath;
+
+      if (suggestedRootPath) {
+        store.setState({ activeDialog: null });
+        runAction("choose-pack-directory", "Actualizando biblioteca", "Usar carpeta superior", () => (
+          window.hslLauncher.useSuggestedPackDirectory(suggestedRootPath)
+        ), {
+          promptForRejectedLibraryRoot: true,
+        });
+      }
     }
 
     if (action === "import-pack") {

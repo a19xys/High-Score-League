@@ -2,6 +2,19 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { readLibraryLocations } = require("./library-locations");
 
+const LIBRARY_ROOT_CLASSIFICATIONS = Object.freeze({
+  INSIDE_PACK: "inside-pack",
+  INACCESSIBLE: "inaccessible",
+  INVALID_FILE: "invalid-file",
+  MISSING: "missing",
+  PACK_ROOT: "pack-root",
+  UNSUPPORTED_LAYOUT: "unsupported-layout",
+  VALID_EMPTY_ROOT: "valid-empty-root",
+  VALID_POPULATED_ROOT: "valid-populated-root",
+});
+const ROOT_INSPECTION_MAX_DEPTH = 4;
+const ROOT_INSPECTION_MAX_ENTRIES = 512;
+
 function getPackDirectoryFile(config) {
   if (!config?.userDataDir) {
     throw new Error("No se pudo resolver userDataDir para pack directory.");
@@ -84,6 +97,248 @@ async function directoryLooksLikePackRoot(directoryPath) {
   return info.exists && info.isFile;
 }
 
+function isValidLibraryRootClassification(classification) {
+  return classification === LIBRARY_ROOT_CLASSIFICATIONS.VALID_EMPTY_ROOT ||
+    classification === LIBRARY_ROOT_CLASSIFICATIONS.VALID_POPULATED_ROOT;
+}
+
+function isMissingError(error) {
+  return ["ENOENT", "ENOTDIR"].includes(error?.code);
+}
+
+async function safeRealpath(candidatePath, options = {}) {
+  try {
+    return await (options.realpathImpl || fsp.realpath)(candidatePath);
+  } catch {
+    return candidatePath;
+  }
+}
+
+async function isRegularPackManifest(directoryPath, options = {}) {
+  try {
+    const stat = await (options.lstatImpl || fsp.lstat)(path.join(directoryPath, "pack.json"));
+    return stat.isFile() && !stat.isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+function inspectableDirectoryEntry(entry) {
+  return entry.isDirectory() && !entry.isSymbolicLink() && !entry.name.startsWith(".hsl-import-");
+}
+
+async function findDirectPackChildren(directoryPath, entries, options = {}) {
+  const packDirectories = [];
+
+  for (const entry of entries) {
+    if (!inspectableDirectoryEntry(entry)) {
+      continue;
+    }
+
+    const childPath = path.join(directoryPath, entry.name);
+
+    if (await isRegularPackManifest(childPath, options)) {
+      packDirectories.push(childPath);
+    }
+  }
+
+  return packDirectories;
+}
+
+async function findNestedPack(directoryPath, rootEntries, options = {}) {
+  const maxDepth = options.maxInspectionDepth || ROOT_INSPECTION_MAX_DEPTH;
+  const maxEntries = options.maxInspectionEntries || ROOT_INSPECTION_MAX_ENTRIES;
+  const queue = rootEntries
+    .filter(inspectableDirectoryEntry)
+    .map((entry) => ({ depth: 1, directoryPath: path.join(directoryPath, entry.name) }));
+  let inspectedEntries = rootEntries.length;
+
+  while (queue.length > 0 && inspectedEntries <= maxEntries) {
+    const current = queue.shift();
+
+    if (current.depth > 1 && await isRegularPackManifest(current.directoryPath, options)) {
+      return current.directoryPath;
+    }
+
+    if (current.depth >= maxDepth) {
+      continue;
+    }
+
+    let entries;
+
+    try {
+      entries = await (options.readdirImpl || fsp.readdir)(current.directoryPath, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    inspectedEntries += entries.length;
+
+    for (const entry of entries) {
+      if (!inspectableDirectoryEntry(entry)) {
+        continue;
+      }
+
+      queue.push({
+        depth: current.depth + 1,
+        directoryPath: path.join(current.directoryPath, entry.name),
+      });
+    }
+  }
+
+  return null;
+}
+
+async function findNearestPackAncestor(candidatePath, options = {}) {
+  const volumeRoot = path.parse(candidatePath).root;
+  let current = path.dirname(candidatePath);
+
+  while (current) {
+    if (await isRegularPackManifest(current, options)) {
+      return current;
+    }
+
+    if (current === volumeRoot || current === path.dirname(current)) {
+      break;
+    }
+
+    current = path.dirname(current);
+  }
+
+  return null;
+}
+
+async function classifyLibraryRootCandidateInternal(directoryPath, options = {}, includeSuggestion = true) {
+  const candidatePath = normalizeDirectoryPath(directoryPath);
+  const base = {
+    candidatePath,
+    classification: LIBRARY_ROOT_CLASSIFICATIONS.MISSING,
+    directPackPaths: [],
+    nestedPackPath: null,
+    ok: false,
+    packRootPath: null,
+    resolvedPath: candidatePath,
+    suggestedRootPath: null,
+  };
+
+  if (!candidatePath) {
+    return base;
+  }
+
+  let stat;
+
+  try {
+    stat = await (options.statImpl || fsp.stat)(candidatePath);
+  } catch (error) {
+    return {
+      ...base,
+      classification: isMissingError(error)
+        ? LIBRARY_ROOT_CLASSIFICATIONS.MISSING
+        : LIBRARY_ROOT_CLASSIFICATIONS.INACCESSIBLE,
+      errorCode: error?.code || "UNKNOWN",
+    };
+  }
+
+  if (!stat.isDirectory()) {
+    return {
+      ...base,
+      classification: LIBRARY_ROOT_CLASSIFICATIONS.INVALID_FILE,
+      resolvedPath: await safeRealpath(candidatePath, options),
+    };
+  }
+
+  const resolvedPath = await safeRealpath(candidatePath, options);
+
+  if (await isRegularPackManifest(resolvedPath, options)) {
+    const result = {
+      ...base,
+      classification: LIBRARY_ROOT_CLASSIFICATIONS.PACK_ROOT,
+      packRootPath: resolvedPath,
+      resolvedPath,
+    };
+
+    if (includeSuggestion) {
+      const parent = path.dirname(resolvedPath);
+      const parentResult = await classifyLibraryRootCandidateInternal(parent, options, false);
+
+      if (isValidLibraryRootClassification(parentResult.classification)) {
+        result.suggestedRootPath = parentResult.candidatePath;
+      }
+    }
+
+    return result;
+  }
+
+  const packRootPath = await findNearestPackAncestor(resolvedPath, options);
+
+  if (packRootPath) {
+    const result = {
+      ...base,
+      classification: LIBRARY_ROOT_CLASSIFICATIONS.INSIDE_PACK,
+      packRootPath,
+      resolvedPath,
+    };
+
+    if (includeSuggestion) {
+      const parent = path.dirname(packRootPath);
+      const parentResult = await classifyLibraryRootCandidateInternal(parent, options, false);
+
+      if (isValidLibraryRootClassification(parentResult.classification)) {
+        result.suggestedRootPath = parentResult.candidatePath;
+      }
+    }
+
+    return result;
+  }
+
+  let entries;
+
+  try {
+    entries = await (options.readdirImpl || fsp.readdir)(resolvedPath, { withFileTypes: true });
+  } catch (error) {
+    return {
+      ...base,
+      classification: LIBRARY_ROOT_CLASSIFICATIONS.INACCESSIBLE,
+      errorCode: error?.code || "UNKNOWN",
+      resolvedPath,
+    };
+  }
+
+  const directPackPaths = await findDirectPackChildren(resolvedPath, entries, options);
+
+  if (directPackPaths.length > 0) {
+    return {
+      ...base,
+      classification: LIBRARY_ROOT_CLASSIFICATIONS.VALID_POPULATED_ROOT,
+      directPackPaths,
+      ok: true,
+      resolvedPath,
+    };
+  }
+
+  const nestedPackPath = await findNestedPack(resolvedPath, entries, options);
+
+  if (nestedPackPath) {
+    return {
+      ...base,
+      classification: LIBRARY_ROOT_CLASSIFICATIONS.UNSUPPORTED_LAYOUT,
+      nestedPackPath,
+      resolvedPath,
+    };
+  }
+
+  return {
+    ...base,
+    classification: LIBRARY_ROOT_CLASSIFICATIONS.VALID_EMPTY_ROOT,
+    ok: true,
+    resolvedPath,
+  };
+}
+
+async function classifyLibraryRootCandidate(directoryPath, options = {}) {
+  return classifyLibraryRootCandidateInternal(directoryPath, options, true);
+}
+
 async function annotateDirectoryState(state) {
   const warnings = [...(state.warnings || [])];
 
@@ -94,13 +349,13 @@ async function annotateDirectoryState(state) {
     });
   }
 
-  const info = await pathInfo(state.directoryPath);
-  const looksLikePackRoot = info.exists && info.isDirectory
-    ? await directoryLooksLikePackRoot(state.directoryPath)
-    : false;
-
-  const missing = !info.exists && ["ENOENT", "ENOTDIR"].includes(info.errorCode);
-  const inaccessible = (!info.exists && !missing) || (info.exists && !info.isDirectory);
+  const candidate = await classifyLibraryRootCandidate(state.directoryPath);
+  const classification = candidate.classification;
+  const validRoot = isValidLibraryRootClassification(classification);
+  const missing = classification === LIBRARY_ROOT_CLASSIFICATIONS.MISSING;
+  const inaccessible = classification === LIBRARY_ROOT_CLASSIFICATIONS.INACCESSIBLE ||
+    classification === LIBRARY_ROOT_CLASSIFICATIONS.INVALID_FILE;
+  const looksLikePackRoot = classification === LIBRARY_ROOT_CLASSIFICATIONS.PACK_ROOT;
 
   if (missing) {
     warnings.push("No se encuentra el directorio de packs. Recupera la carpeta o cambia la ubicación de la biblioteca.");
@@ -108,15 +363,25 @@ async function annotateDirectoryState(state) {
     warnings.push("No puedo acceder al directorio de packs. Comprueba que la unidad esté conectada o cambia la ubicación de la biblioteca.");
   } else if (looksLikePackRoot) {
     warnings.push("Parece que has elegido una carpeta de pack. Elige la carpeta que contiene todos tus packs.");
+  } else if (classification === LIBRARY_ROOT_CLASSIFICATIONS.INSIDE_PACK) {
+    warnings.push("La carpeta configurada forma parte de un pack. Elige la carpeta que contiene todos tus packs.");
+  } else if (classification === LIBRARY_ROOT_CLASSIFICATIONS.UNSUPPORTED_LAYOUT) {
+    warnings.push("Los packs deben estar en subcarpetas directas de la biblioteca.");
   }
 
   return emptyPackDirectoryState({
     ...state,
-    available: info.exists && info.isDirectory,
+    available: validRoot,
+    classification,
     configured: true,
-    exists: info.exists,
+    exists: !missing,
     looksLikePackRoot,
-    reason: missing ? "missing" : inaccessible ? "inaccessible" : null,
+    reason: missing
+      ? "missing"
+      : inaccessible
+        ? "inaccessible"
+        : validRoot ? null : classification,
+    suggestedRootPath: candidate.suggestedRootPath,
     warnings,
   });
 }
@@ -311,44 +576,68 @@ async function setPackDirectory(config, directoryPath, options = {}) {
     throw new Error("El directorio de packs es obligatorio.");
   }
 
-  const info = await pathInfo(normalizedPath);
+  const stored = await readStoredPackDirectory(config);
+  const current = stored.directoryPath || stored.error
+    ? stored
+    : await readLegacyFallback(config, { migrateLegacy: false });
+  const candidate = await classifyLibraryRootCandidate(normalizedPath, options.classifierOptions);
 
-  if (!info.exists || !info.isDirectory) {
-    return {
-      code: "missing_directory",
+  if (!candidate.ok) {
+    const resultMeta = {
+      candidatePath: candidate.candidatePath,
+      classification: candidate.classification,
       ok: false,
-      state: await annotateDirectoryState({
-        directoryPath: normalizedPath,
-        packDirectoryFile: getPackDirectoryFile(config),
-        source: "selected",
-      }),
-      summary: "No encuentro el directorio de packs.",
+      packRootPath: candidate.packRootPath,
+      previousLibraryRoot: current.directoryPath,
+      state: current,
+      suggestedRootPath: candidate.suggestedRootPath,
+    };
+    const failures = {
+      [LIBRARY_ROOT_CLASSIFICATIONS.INSIDE_PACK]: {
+        code: "inside_pack_selected",
+        summary: "Esta carpeta forma parte de un pack. La biblioteca anterior se mantiene sin cambios.",
+      },
+      [LIBRARY_ROOT_CLASSIFICATIONS.INACCESSIBLE]: {
+        code: "inaccessible_directory",
+        summary: "No puedo acceder a la carpeta elegida. La biblioteca anterior se mantiene sin cambios.",
+      },
+      [LIBRARY_ROOT_CLASSIFICATIONS.INVALID_FILE]: {
+        code: "invalid_file",
+        summary: "La ruta elegida no es una carpeta. La biblioteca anterior se mantiene sin cambios.",
+      },
+      [LIBRARY_ROOT_CLASSIFICATIONS.MISSING]: {
+        code: "missing_directory",
+        summary: "No encuentro la carpeta elegida. La biblioteca anterior se mantiene sin cambios.",
+      },
+      [LIBRARY_ROOT_CLASSIFICATIONS.PACK_ROOT]: {
+        code: "pack_root_selected",
+        summary: "Has elegido la carpeta de un pack. La biblioteca anterior se mantiene sin cambios.",
+      },
+      [LIBRARY_ROOT_CLASSIFICATIONS.UNSUPPORTED_LAYOUT]: {
+        code: "unsupported_layout",
+        summary: "Los packs deben estar en subcarpetas directas. La biblioteca anterior se mantiene sin cambios.",
+      },
+    };
+
+    return {
+      ...resultMeta,
+      ...(failures[candidate.classification] || failures[LIBRARY_ROOT_CLASSIFICATIONS.INACCESSIBLE]),
     };
   }
 
-  if (await directoryLooksLikePackRoot(normalizedPath)) {
-    return {
-      code: "pack_root_selected",
-      ok: false,
-      state: await annotateDirectoryState({
-        directoryPath: normalizedPath,
-        packDirectoryFile: getPackDirectoryFile(config),
-        source: "selected",
-      }),
-      summary: "Parece que has elegido una carpeta de pack. Elige la carpeta que contiene todos tus packs.",
-    };
-  }
-
-  const current = await readStoredPackDirectory(config);
   const state = await writePackDirectory(config, normalizedPath, {
     selectedAt: current.selectedAt || options.selectedAt || options.updatedAt,
     updatedAt: options.updatedAt,
   });
 
   return {
+    candidatePath: candidate.candidatePath,
+    classification: candidate.classification,
     code: "ok",
     ok: true,
+    previousLibraryRoot: current.directoryPath,
     state,
+    suggestedRootPath: null,
     summary: "Directorio de packs actualizado.",
   };
 }
@@ -373,6 +662,8 @@ async function clearPackDirectory(config, options = {}) {
 }
 
 module.exports = {
+  LIBRARY_ROOT_CLASSIFICATIONS,
+  classifyLibraryRootCandidate,
   clearPackDirectory,
   directoryLooksLikePackRoot,
   getDirectoryKey,
@@ -380,5 +671,6 @@ module.exports = {
   normalizeDirectoryPath,
   readPackDirectory,
   setPackDirectory,
+  isValidLibraryRootClassification,
   writePackDirectory,
 };

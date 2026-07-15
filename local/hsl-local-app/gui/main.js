@@ -11,6 +11,7 @@ function createMainWindow() {
     minWidth: 1180,
     minHeight: 620,
     backgroundColor: "#0f172a",
+    show: false,
     title: "High Score League Launcher",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -20,6 +21,10 @@ function createMainWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+
+  mainWindow.once("ready-to-show", () => {
+    mainWindow?.show();
+  });
 
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -97,6 +102,9 @@ function registerIpc() {
 
     return service.choosePackDirectoryFromGui(result.filePaths[0]);
   });
+  ipcMain.handle("launcher:use-suggested-pack-directory", (_event, directoryPath) => (
+    service.choosePackDirectoryFromGui(directoryPath)
+  ));
   ipcMain.handle("launcher:import-pack-zip", (event) => showImportZipDialog(event));
   ipcMain.handle("launcher:import-pack-folder", (event) => showImportFolderDialog(event));
   ipcMain.handle("launcher:open-pack-directory", () => service.openConfiguredPackDirectory({

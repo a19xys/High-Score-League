@@ -620,11 +620,11 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/<select data-library-sort-direction/.test(libraryPanel), false);
   assert.match(libraryPanel, /normalizeSortBy\(state\.librarySortBy\)/);
   assert.match(libraryPanel, /normalizeSortDirection\(state\.librarySortDirection\)/);
-  assert.match(libraryPanel, /if \(!state\.libraryFiltersOpen \|\| libraryControlsDisabled\(state, packs\)\)/);
+  assert.match(libraryPanel, /if \(!state\.libraryFiltersOpen \|\| !getLibraryCapabilities\(state\)\.filtersEnabled\)/);
   assert.equal(/data-library-status|<span>Estado<\/span>/.test(libraryPanel), false);
-  assert.match(libraryPanel, /renderViewButton\(state, "covers", "Portadas", "covers", controlsDisabled\)/);
-  assert.match(libraryPanel, /renderViewButton\(state, "list", "Lista", "list", controlsDisabled\)/);
-  assert.match(libraryPanel, /renderViewButton\(state, "icons", "Iconos", "icons", controlsDisabled\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "covers", "Portadas", "covers", viewsDisabled\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "list", "Lista", "list", viewsDisabled\)/);
+  assert.match(libraryPanel, /renderViewButton\(state, "icons", "Iconos", "icons", viewsDisabled\)/);
   assert.match(libraryPanel, /aria-label="\$\{label\}"/);
   assert.match(libraryPanel, /title="\$\{label\}"/);
   assert.match(libraryPanel, /library-view-button__icon/);
@@ -667,8 +667,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/Anadir ubicacion|Ubicaciones/.test(libraryPanel), false);
   assert.equal(/Añadir pack|Anadir pack/.test(libraryPanel), false);
   assert.match(emptyState, /library-empty-state/);
-  assert.match(packCard, /if \(view === "covers"\) return pack\.cover \|\| pack\.icon/);
-  assert.match(packCard, /return pack\.icon \|\| pack\.cover/);
+  assert.match(packCard, /kind: "cover"/);
+  assert.match(packCard, /kind: "icon"/);
+  assert.match(packCard, /kind: "cover-fallback"/);
   assert.equal(/pack\.logo/.test(packCard), false);
   assert.match(packCard, /pack-card__placeholder/);
   assert.match(packCard, /statusMeta/);
@@ -810,8 +811,8 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.week-status--ending[\s\S]*#a78bfa/);
   assert.match(styles, /\.week-status--closed[\s\S]*var\(--warn\)/);
   assert.match(styles, /\.pack-card__subtitle[\s\S]*align-items: center/);
-  assert.match(styles, /\.pack-card__subtitle-icon\.ui-icon[\s\S]*transform: none/);
-  assert.match(styles, /\.pack-card--covers \.pack-card__subtitle-icon\.ui-icon,\s*\n\.pack-card--list \.pack-card__subtitle-icon\.ui-icon[\s\S]*width: 12px[\s\S]*height: 12px/);
+  assert.match(styles, /\.pack-card__subtitle-icon \{[\s\S]*flex: 0 0 12px[\s\S]*place-items: center/);
+  assert.match(styles, /\.pack-card__subtitle-icon \.ui-icon \{[\s\S]*color: currentColor/);
   assert.match(styles, /\.view-button \.library-view-icon\.ui-icon[\s\S]*color: currentColor/);
   assert.match(styles, /\.view-button:not\(\.view-button--active\)[\s\S]*color: var\(--text-muted\)/);
   assert.match(styles, /\.view-button--active[\s\S]*color: var\(--circuit\)/);
@@ -1648,7 +1649,7 @@ test("renderer muestra fallback HSL limpio cuando falta la biblioteca", async ()
       },
     },
   });
-  assert.match(recoveredHtml, /data-action="toggle-library-filters"[^>]*aria-expanded="false"[^>]*aria-disabled="true"[^>]*disabled/);
+  assert.match(recoveredHtml, /data-action="toggle-library-filters"[^>]*aria-expanded="false"[^>]*aria-disabled="false"/);
 });
 
 test("renderer separa biblioteca vacía, sin configurar y sin selección real", async () => {
@@ -1780,7 +1781,7 @@ test("renderer controla el dialogo missing una vez y permite reintento explicito
   assert.match(app, /function libraryUnavailableStatePatch\(data\)/);
   assert.match(app, /libraryUnavailableStatePatch\(data\)/);
   assert.match(app, /Object\.assign\(statePatch, libraryUnavailableStatePatch\(response\.state\)\)/);
-  assert.match(app, /action === "toggle-library-filters"[\s\S]*button\.disabled[\s\S]*!directory\.available[\s\S]*return/);
+  assert.match(app, /action === "toggle-library-filters"[\s\S]*getLibraryCapabilities\(store\.getState\(\)\)\.filtersEnabled[\s\S]*return/);
   assert.match(app, /closest\("\[data-hsl-fallback-hero\]"\)[\s\S]*hero\.hidden = true/);
   assert.match(app, /action === "choose-unavailable-pack-directory"[\s\S]*window\.hslLauncher\.choosePackDirectory\(\)/);
   assert.match(app, /action === "rescan-pack-directory"[\s\S]*resetUnavailableDirectoryPrompt[\s\S]*window\.hslLauncher\.rescanPackDirectory\(\)/);
@@ -2817,6 +2818,43 @@ test("selector conserva A al cancelar o elegir missing y limpia el activo al cam
     assert.equal(changed.state.activePack, null);
     assert.equal(changed.state.game, null);
     assert.equal(changed.state.selection.activeInstanceKey, null);
+  });
+});
+
+test("selector rechaza pack e interior, conserva A y permite usar la raiz sugerida", async () => {
+  await withTempDir(async (dir) => {
+    const config = { userDataDir: path.join(dir, "userData") };
+    const rootA = path.join(dir, "library-a");
+    const rootB = path.join(dir, "library-b");
+    const packB = path.join(rootB, "Beta");
+    const packAssets = path.join(packB, "assets");
+    await writeValidV2PackDir(path.join(rootA, "Alpha"), { packId: "alpha" });
+    await writeValidV2PackDir(packB, { packId: "beta" });
+    await fsp.mkdir(packAssets, { recursive: true });
+    await setPackDirectory(config, rootA);
+    const stateA = await getLauncherState({ config });
+
+    const rejectedPack = await choosePackDirectoryFromGui(packB, { config });
+    assert.equal(rejectedPack.ok, false);
+    assert.equal(rejectedPack.result.classification, "pack-root");
+    assert.equal(rejectedPack.result.suggestedRootPath, path.resolve(rootB));
+    assert.equal(rejectedPack.result.previousLibraryRoot, path.resolve(rootA));
+    assert.equal(rejectedPack.state.library.directory.path, path.resolve(rootA));
+    assert.equal(rejectedPack.state.activePack.instanceKey, stateA.activePack.instanceKey);
+    assert.doesNotMatch(rejectedPack.summary, /Directorio de packs actualizado/);
+
+    const rejectedInside = await choosePackDirectoryFromGui(packAssets, { config });
+    assert.equal(rejectedInside.ok, false);
+    assert.equal(rejectedInside.result.classification, "inside-pack");
+    assert.equal(rejectedInside.result.suggestedRootPath, path.resolve(rootB));
+    assert.equal(rejectedInside.state.library.directory.path, path.resolve(rootA));
+    assert.equal(rejectedInside.state.activePack.instanceKey, stateA.activePack.instanceKey);
+
+    const acceptedParent = await choosePackDirectoryFromGui(rejectedPack.result.suggestedRootPath, { config });
+    assert.equal(acceptedParent.ok, true);
+    assert.equal(acceptedParent.result.classification, "valid-populated-root");
+    assert.equal(acceptedParent.state.library.directory.path, path.resolve(rootB));
+    assert.equal(acceptedParent.state.activePack.packDir, packB);
   });
 });
 

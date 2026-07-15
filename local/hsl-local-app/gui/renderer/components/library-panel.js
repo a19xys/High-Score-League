@@ -2,6 +2,7 @@ import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
 import { renderLibraryEmptyState } from "./library-empty-state.js";
 import { renderPackCard } from "./pack-card.js";
+import { getLibraryCapabilities } from "../library-capabilities.js";
 import {
   comparePacks,
   normalizedYear,
@@ -158,18 +159,8 @@ function renderFavoriteFilterButton(state) {
   `;
 }
 
-function libraryUnavailable(state) {
-  const directory = state.data?.library?.directory;
-
-  return Boolean(directory?.configured && !directory.available);
-}
-
-function libraryControlsDisabled(state, packs = []) {
-  return state.busy || libraryUnavailable(state) || packs.length === 0;
-}
-
 function renderFilterCard(state, packs) {
-  if (!state.libraryFiltersOpen || libraryControlsDisabled(state, packs)) {
+  if (!state.libraryFiltersOpen || !getLibraryCapabilities(state).filtersEnabled) {
     return "";
   }
 
@@ -219,11 +210,12 @@ function renderFilterCard(state, packs) {
 }
 
 function renderLibraryControls(state, packs) {
-  const controlsDisabled = libraryControlsDisabled(state, packs);
-  const filtersDisabled = libraryUnavailable(state) || packs.length === 0;
-  const filtersOpen = !filtersDisabled && Boolean(state.libraryFiltersOpen);
+  const capabilities = getLibraryCapabilities(state);
+  const filtersDisabled = !capabilities.filtersEnabled;
+  const viewsDisabled = !capabilities.viewsEnabled;
+  const filtersOpen = capabilities.filtersEnabled && Boolean(state.libraryFiltersOpen);
   const disabled = state.busy ? "disabled" : "";
-  const filterDisabled = controlsDisabled ? "disabled" : "";
+  const filterDisabled = filtersDisabled ? "disabled" : "";
   const hasDirectory = Boolean(state.data?.library?.directory?.path);
   const locationLabel = hasDirectory ? "Cambiar ubicación" : "Añadir ubicación";
 
@@ -234,16 +226,16 @@ function renderLibraryControls(state, packs) {
           ${renderIcon("folder", { className: "library-control-icon" })}
           <span>${locationLabel}</span>
         </button>
-        <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-label="Filtros" title="${controlsDisabled ? "Filtros no disponibles" : "Filtros"}" aria-expanded="${filtersOpen ? "true" : "false"}" aria-disabled="${controlsDisabled ? "true" : "false"}" aria-controls="library-filter-card" ${filterDisabled}>
+        <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-label="Filtros" title="${filtersDisabled ? "Filtros no disponibles" : "Filtros"}" aria-expanded="${filtersOpen ? "true" : "false"}" aria-disabled="${filtersDisabled ? "true" : "false"}" aria-controls="library-filter-card" ${filterDisabled}>
           ${renderIcon("filter", { className: "library-control-icon" })}
           <span>Filtros</span>
         </button>
       </div>
       ${renderFilterCard(state, packs)}
       <div class="library-views" aria-label="Vista de biblioteca">
-        ${renderViewButton(state, "covers", "Portadas", "covers", controlsDisabled)}
-        ${renderViewButton(state, "list", "Lista", "list", controlsDisabled)}
-        ${renderViewButton(state, "icons", "Iconos", "icons", controlsDisabled)}
+        ${renderViewButton(state, "covers", "Portadas", "covers", viewsDisabled)}
+        ${renderViewButton(state, "list", "Lista", "list", viewsDisabled)}
+        ${renderViewButton(state, "icons", "Iconos", "icons", viewsDisabled)}
       </div>
     </div>
   `;
@@ -270,6 +262,22 @@ function renderPacks(state) {
       body: "Has seleccionado la carpeta de un juego. Cambia al directorio que contiene todos tus packs.",
       state,
       title: "Ese directorio parece un pack.",
+    });
+  }
+
+  if (directory.classification === "inside-pack") {
+    return renderLibraryEmptyState({
+      body: "Selecciona la carpeta que contiene todos tus packs.",
+      state,
+      title: "La ubicación forma parte de un pack.",
+    });
+  }
+
+  if (directory.classification === "unsupported-layout") {
+    return renderLibraryEmptyState({
+      body: "Mueve cada pack a una subcarpeta directa de la biblioteca.",
+      state,
+      title: "Los packs están demasiado profundos.",
     });
   }
 

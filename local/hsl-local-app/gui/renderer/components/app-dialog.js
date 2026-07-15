@@ -66,7 +66,62 @@ function renderUnavailablePackDirectoryDialog() {
   `;
 }
 
+function renderRejectedLibraryRootDialog(dialog) {
+  const titleId = "app-dialog-library-root-title";
+  const descriptionId = "app-dialog-library-root-description";
+  const packRoot = dialog.classification === "pack-root";
+  const insidePack = dialog.classification === "inside-pack";
+  const unsupported = dialog.classification === "unsupported-layout";
+  const title = packRoot
+    ? "Has elegido la carpeta de un pack"
+    : insidePack
+      ? "Esta carpeta forma parte de un pack"
+      : unsupported
+        ? "Los packs están demasiado profundos"
+        : "Esta carpeta no puede usarse como biblioteca";
+  const description = packRoot
+    ? "Esta carpeta contiene un juego concreto. Elige la carpeta que contiene todos tus packs."
+    : insidePack
+      ? "Has elegido una carpeta interna de un juego. Selecciona la carpeta que contiene todos tus packs."
+      : unsupported
+        ? "Cada pack debe estar en una subcarpeta directa de la biblioteca. No se cargarán packs de niveles más profundos."
+        : "La carpeta elegida no es una raíz de biblioteca válida. La biblioteca anterior se mantiene sin cambios.";
+  const suggestedLabel = insidePack ? "Usar biblioteca detectada" : "Usar carpeta superior";
+  const buttons = [
+    ...(dialog.suggestedRootPath
+      ? [{ action: "use-suggested-library-root", autofocus: true, icon: "folder", label: suggestedLabel, variant: "primary" }]
+      : []),
+    {
+      action: "choose-other-library-root",
+      autofocus: !dialog.suggestedRootPath,
+      icon: "folder",
+      label: "Elegir otra carpeta",
+      variant: dialog.suggestedRootPath ? "secondary" : "primary",
+    },
+    { action: "close-dialog", label: "Cancelar", variant: "secondary" },
+  ];
+
+  return `
+    <div class="app-dialog-layer" data-dialog-backdrop>
+      <section class="app-dialog app-dialog--pack-directory" role="dialog" aria-modal="true" aria-labelledby="${titleId}" aria-describedby="${descriptionId}" data-dialog>
+        <div class="app-dialog__header">
+          <p class="eyebrow">Ubicación de biblioteca</p>
+          <h2 id="${titleId}">${title}</h2>
+          <p id="${descriptionId}">${description}</p>
+        </div>
+        <div class="app-dialog__actions app-dialog__actions--pack-directory app-dialog__actions--library-root">
+          ${buttons.map(renderDialogButton).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 export function renderAppDialog(state) {
+  if (state?.activeDialog?.type === "library-root-rejected") {
+    return renderRejectedLibraryRootDialog(state.activeDialog);
+  }
+
   if (state?.activeDialog?.type === "pack-directory-unavailable") {
     return renderUnavailablePackDirectoryDialog();
   }

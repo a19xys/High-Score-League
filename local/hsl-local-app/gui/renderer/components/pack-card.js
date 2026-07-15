@@ -63,8 +63,15 @@ function subtitleForPack(pack) {
 }
 
 function visualAsset(pack, view) {
-  if (view === "covers") return pack.cover || pack.icon;
-  return pack.icon || pack.cover;
+  if (view === "covers") {
+    return pack.cover
+      ? { ...pack.cover, kind: "cover" }
+      : pack.icon ? { ...pack.icon, kind: "icon" } : null;
+  }
+
+  return pack.icon
+    ? { ...pack.icon, kind: "icon" }
+    : pack.cover ? { ...pack.cover, kind: "cover-fallback" } : null;
 }
 
 function renderPackVisual(pack, view) {
@@ -72,8 +79,8 @@ function renderPackVisual(pack, view) {
 
   if (asset?.url) {
     return `
-      <div class="pack-card__media has-asset">
-        <img src="${escapeHtml(asset.url)}" alt="">
+      <div class="pack-card__media pack-card__media--${escapeHtml(asset.kind)} has-asset">
+        <img class="pack-card__art" src="${escapeHtml(asset.url)}" alt="">
       </div>
     `;
   }
@@ -152,7 +159,10 @@ export function renderPackCard(pack, state, view = "covers") {
       <div class="pack-card__body">
         <div class="pack-card__text">
           <h3>${escapeHtml(pack.title || "Pack local")}</h3>
-          <p class="pack-card__subtitle">${renderIcon("calendar", { className: "status-icon pack-card__subtitle-icon", size: "sm" })}${escapeHtml(subtitle)}</p>
+          <p class="pack-card__subtitle">
+            <span class="pack-card__subtitle-icon">${renderIcon("calendar", { className: "status-icon", size: "sm" })}</span>
+            <span class="pack-card__subtitle-text">${escapeHtml(subtitle)}</span>
+          </p>
           ${renderMetadata(pack, view)}
         </div>
       </div>

@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   setLibraryPreferences: (patch) => ipcRenderer.invoke("launcher:set-library-preferences", patch),
   switchAccount: (userId) => ipcRenderer.invoke("launcher:switch-account", userId),
   toggleLibraryFavorite: (packKey) => ipcRenderer.invoke("launcher:toggle-library-favorite", packKey),
+  useSuggestedPackDirectory: (directoryPath) => ipcRenderer.invoke("launcher:use-suggested-pack-directory", directoryPath),
   useLibraryPack: (packId) => ipcRenderer.invoke("launcher:use-library-pack", packId),
   submitAll: invoke("launcher:submit-all"),
   syncPlugin: invoke("launcher:sync-plugin"),

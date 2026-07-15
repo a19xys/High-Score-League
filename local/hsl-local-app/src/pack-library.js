@@ -2,7 +2,11 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
-const { readPackDirectory } = require("./pack-directory");
+const {
+  LIBRARY_ROOT_CLASSIFICATIONS,
+  isValidLibraryRootClassification,
+  readPackDirectory,
+} = require("./pack-directory");
 const { loadPackFromDir } = require("./pack");
 
 function hashId(value, prefix) {
@@ -208,8 +212,17 @@ function groupDuplicatePackIds(packs) {
 
 async function scanDirectory(directoryState, options = {}) {
   const directoryPath = directoryState.directoryPath;
+  const classification = directoryState.classification || (
+    directoryState.looksLikePackRoot
+      ? LIBRARY_ROOT_CLASSIFICATIONS.PACK_ROOT
+      : directoryState.available
+        ? LIBRARY_ROOT_CLASSIFICATIONS.VALID_EMPTY_ROOT
+        : null
+  );
+  const validRoot = isValidLibraryRootClassification(classification);
   const directory = {
     available: Boolean(directoryState.available),
+    classification,
     configured: Boolean(directoryPath),
     error: directoryState.error,
     exists: directoryState.exists,
@@ -220,15 +233,17 @@ async function scanDirectory(directoryState, options = {}) {
     reason: directoryState.reason || null,
     status: !directoryPath
       ? "unconfigured"
-      : !directoryState.available
+      : classification === LIBRARY_ROOT_CLASSIFICATIONS.MISSING ||
+          classification === LIBRARY_ROOT_CLASSIFICATIONS.INACCESSIBLE ||
+          classification === LIBRARY_ROOT_CLASSIFICATIONS.INVALID_FILE
         ? directoryState.reason || "inaccessible"
-        : directoryState.looksLikePackRoot
-          ? "pack-root"
+        : !validRoot
+          ? classification || "inaccessible"
           : "ok",
     warnings: directoryState.warnings || [],
   };
 
-  if (!directoryPath || !directoryState.available || directoryState.looksLikePackRoot) {
+  if (!directoryPath || !validRoot) {
     return {
       directory,
       packs: [],
@@ -345,10 +360,10 @@ async function scanPackLibrary(config) {
   const status = !directory.configured
     ? "unconfigured"
     : !directory.available
-      ? directory.reason || "error"
-      : directory.looksLikePackRoot
-        ? "error"
-        : packs.length === 0
+      ? ["missing", "inaccessible"].includes(directory.reason)
+        ? directory.reason
+        : "error"
+      : packs.length === 0
           ? "available-empty"
           : "available-populated";
 

@@ -1361,7 +1361,13 @@ async function runDiagnose(options = {}) {
   const directory = state?.library?.directory;
 
   if (directory?.configured && !directory.available) {
-    report.recommendations.push("Recupera la unidad o cambia la ubicación de la biblioteca de packs.");
+    if (directory.classification === "unsupported-layout") {
+      report.recommendations.push("Mueve cada pack a una subcarpeta directa de la raíz de biblioteca.");
+    } else if (["pack-root", "inside-pack"].includes(directory.classification)) {
+      report.recommendations.push("Elige la carpeta que contiene todos tus packs, no un pack ni una carpeta interna.");
+    } else {
+      report.recommendations.push("Recupera la unidad o cambia la ubicación de la biblioteca de packs.");
+    }
   }
 
   const activeInstanceKey = state?.selection?.activeInstanceKey || null;
@@ -2233,9 +2239,13 @@ async function rescanPackDirectory(options = {}) {
 
   const unavailable = library.directory?.configured && !library.directory?.available;
   const summary = unavailable
-    ? library.directory.reason === "missing"
-      ? "No se encuentra el directorio de packs."
-      : "No puedo acceder al directorio de packs."
+    ? library.directory.classification === "unsupported-layout"
+      ? "Los packs deben estar en subcarpetas directas de la biblioteca."
+      : ["pack-root", "inside-pack"].includes(library.directory.classification)
+        ? "La carpeta configurada no es una raíz de biblioteca válida."
+        : library.directory.reason === "missing"
+          ? "No se encuentra el directorio de packs."
+          : "No puedo acceder al directorio de packs."
     : "Biblioteca reescaneada.";
 
   return {

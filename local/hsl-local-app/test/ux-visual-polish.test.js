@@ -40,12 +40,12 @@ function libraryState(status, overrides = {}) {
   };
 }
 
-test("library controls stay visible and disabled without packs, then recover the saved view", async () => {
+test("library controls follow structural availability and preserve the saved view", async () => {
   const { renderLibraryPanel } = await import(
     pathToFileURL(path.join(rendererRoot, "components", "library-panel.js")).href
   );
 
-  for (const status of ["unconfigured", "missing", "inaccessible", "available-empty"]) {
+  for (const status of ["unconfigured", "missing", "inaccessible"]) {
     const state = libraryState(status);
     const html = renderLibraryPanel(state);
 
@@ -54,6 +54,13 @@ test("library controls stay visible and disabled without packs, then recover the
     assert.doesNotMatch(html, /id="library-filter-card"/);
     assert.equal(state.libraryView, "icons");
   }
+
+  const empty = libraryState("available-empty");
+  const emptyHtml = renderLibraryPanel(empty);
+  assert.match(emptyHtml, /data-action="toggle-library-filters"[^>]*aria-expanded="true"[^>]*aria-disabled="false"/);
+  assert.equal((emptyHtml.match(/class="view-button[^"]*"[^>]*aria-disabled="false"/g) || []).length, 3);
+  assert.match(emptyHtml, /id="library-filter-card"/);
+  assert.equal(empty.libraryView, "icons");
 
   const recovered = libraryState("available-populated");
   recovered.data.library.packs = [{
