@@ -450,7 +450,7 @@ test("runAutoSyncIfEligible reports partial failed queue after submit", async ()
   assert.equal(result.autoSync.failedCount, 1);
 });
 
-test("launcher service wires auto-sync to safe GUI state transitions", async () => {
+test("launcher service wires scoped auto-submit to safe GUI state transitions", async () => {
   const service = await fsp.readFile(
     path.join(__dirname, "..", "gui", "launcher-service.js"),
     "utf8",
@@ -458,8 +458,11 @@ test("launcher service wires auto-sync to safe GUI state transitions", async () 
 
   assert.match(service, /getLauncherState\(options = \{\}\)/);
   assert.match(service, /runAutoSyncIfEligible\(context\)/);
-  assert.match(service, /getLauncherState\(\{ attemptAutoSync: result\.ok \}\)/);
-  assert.match(service, /getLauncherState\(\{ attemptAutoSync: true \}\)/);
+  assert.match(service, /runPendingAutoSubmit\(options = \{\}\)/);
+  assert.match(service, /discoverPlayerPendingScopes/);
+  assert.match(service, /buildScopedSubmitConfig/);
+  assert.match(service, /stopOnTransportFailure: true/);
+  assert.doesNotMatch(service, /getLauncherState\(\{ attemptAutoSync: true \}\)/);
   assert.match(service, /Puntuacion guardada localmente\. Se sincronizara cuando pueda comprobarse la temporada\./);
   assert.match(service, /autoSyncInProgress \|\| manualSyncInProgress/);
   assert.match(service, /submitAll\(scoped\.config\)/);

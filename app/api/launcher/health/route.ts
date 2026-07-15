@@ -1,3 +1,5 @@
+import { getLauncherDeploymentHeaders } from "../../../../lib/launcher-deployment.js";
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
@@ -5,6 +7,7 @@ export async function GET() {
     status: 204,
     headers: {
       "Cache-Control": "no-store, max-age=0",
+      ...getLauncherDeploymentHeaders(),
     },
   });
 }

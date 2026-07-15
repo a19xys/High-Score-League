@@ -1,48 +1,41 @@
 # CONNECTIVITY-RANKING-RELIABILITY-2
 
-## Diagnostico corregido
+## Causa del 503
 
-El estado anterior mezclaba el ultimo resultado estable con el periodo de
-backoff. Tras un fallo escribia `status=connecting` aunque `inFlight=false`, por
-lo que el chip podia quedar permanentemente en Conectando. `net.isOnline=true`
-sin Ethernet era compatible con adaptadores virtuales de Windows y nunca debio
-tratarse como confirmacion positiva.
+La reproduccion controlada separo health, batch vacio, semana real e identidad
+inexistente. La semana UUID real devolvio 200/available. La identidad publica no
+UUID devolvio `RANKING_WEEKS_QUERY_FAILED` porque se enviaba a
+`weeks.id IN (...)`, columna PostgreSQL UUID. Un solo valor no UUID hacia fallar
+todo el batch antes de aplicar reglas de publicacion.
 
-El batch 503 convertia las cinco semanas solicitadas en cinco capacidades
-`unknown`; no era una regla de semana cerrada. Ademas, la respuesta capturaba la
-generacion de biblioteca, pero no la de reachability, de modo que una respuesta
-iniciada online podia escribir cache despues de una perdida de red. El selector
-actual y la revalidacion de main impiden tanto habilitar como abrir esa URL.
+La reproduccion directa devolvio PostgreSQL `22P02`: `invalid input syntax for
+type uuid` para la identidad de comprobacion no UUID.
 
-Durante operaciones busy se neutralizaban `activePack` y `game`. El panel
-interpretaba el valor temporal nulo como ausencia estructural y podia mostrar el
-hero HSL. Ademas, la activacion reconstruia el estado mediante
-`getLauncherState`, que podia esperar membership y una renovacion de sesion. La
-transicion ahora conserva el snapshot anterior, difiere esos accesos remotos,
-usa el feedback comun de 600 ms y solo muestra marca para estados estructurales.
+La ruta mantiene el contrato publico permisivo, pero solo consulta Supabase con
+identidades UUID. Las demas se resuelven como `unavailable/not-found`; un batch
+mixto ya no se contamina. No se añadio excepcion por juego, pack o semana.
 
-## Endpoint desplegado
+La consulta sigue usando service role exclusivamente en servidor debido a la
+RLS actual. No se eligio RPC porque la consulta minima existente es suficiente.
+Los fallos internos se clasifican y registran solo en servidor, con request ID,
+stage, operacion y diagnostico sanitizado; el cliente conserva codigos estables.
 
-El 15 de julio de 2026 health devolvio 204. Una primera llamada al batch devolvio
-200/available, pero las repeticiones posteriores devolvieron 503, incluso al
-consultar unicamente una identidad inexistente. Produccion aun ejecutaba la ruta
-anterior y solo respondia el error generico, sin codigo de etapa. Eso demuestra
-que falla la primera consulta a `weeks`, no una regla de publicacion ni la
-consulta de contexto. El cliente admin llega a crearse, por lo que las dos
-variables tienen algun valor en Vercel.
+## Electron
 
-Con las credenciales locales, la consulta exacta y las columnas antiguas y
-nuevas devuelven 200 y la semana esperada. Sin acceso a los logs y valores del
-despliegue no se puede distinguir entre una credencial desplegada obsoleta y un
-fallo de transporte del runtime. La ruta corregida reduce la seleccion y separa
-configuracion, consulta inicial y contexto con codigos sanitizados. Debe
-desplegarse, revisar la configuracion de Vercel y repetir `test:launcher-api`
-antes de dar por validada produccion.
+La cache se segmenta por origen, weekId y fingerprint de health. Cada request
+captura generaciones de biblioteca, reachability y deployment. Un cambio de
+cualquiera descarta la respuesta. Health y Ranking deben coincidir en build,
+entorno y contrato; en desarrollo se admite `unknown` cuando ambos lados
+carecen de build.
 
-## Limites
+Ranking solo se habilita con reachability connected, capability available y
+vigente, mismo weekId, URL HTTP(S) del mismo origen y generaciones actuales.
+Main repite la validacion antes de `shell.openExternal`.
 
-Esta tarea no introduce snapshots versionados, revisiones de contenido o assets,
-refresco de manuales ni publicacion atomica general de biblioteca. Esos cambios
-pertenecen a LOCAL-LIBRARY-CONTENT-REFRESH-1. La desconexion fisica y posterior
-recuperacion deben verificarse manualmente en un equipo donde se pueda retirar
-Ethernet sin interrumpir el entorno de trabajo.
+## Validacion pendiente de entorno
+
+El codigo local y sus pruebas estan cerrados, pero produccion seguia sin headers
+de fingerprint antes de este cambio. El operador de despliegue debe publicar el
+commit resultante y ejecutar el smoke con SHA esperado. La retirada/reconexion
+fisica de Ethernet y suspend/resume requieren validacion manual en el equipo del
+usuario; no se simulan con comandos del sistema operativo.

@@ -7,6 +7,15 @@ const {
 
 function jsonResponse(body, status = 200) {
   return {
+    headers: {
+      get(name) {
+        return {
+          "x-hsl-build": body?.build || "unknown",
+          "x-hsl-environment": body?.environment || "unknown",
+          "x-hsl-launcher-api-version": String(body?.version || 1),
+        }[String(name).toLowerCase()] || null;
+      },
+    },
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
@@ -16,6 +25,8 @@ function jsonResponse(body, status = 200) {
 function harness(overrides = {}) {
   let now = 1_700_000_000_000;
   let connectivityState = {
+    deployment: { apiVersion: 1, build: "unknown", environment: "unknown" },
+    deploymentGeneration: 1,
     displayStatus: "connected",
     probe: { phase: "idle", inFlight: false },
     reachability: "connected",
@@ -68,6 +79,8 @@ function harness(overrides = {}) {
     advance(ms) { now += ms; },
     setConnectivity(status) {
       connectivityState = {
+        deployment: connectivityState.deployment,
+        deploymentGeneration: connectivityState.deploymentGeneration,
         displayStatus: status === "connected" ? "connected" : "offline",
         probe: { phase: "idle", inFlight: false },
         reachability: status === "connected" ? "connected" : "offline",
@@ -274,4 +287,28 @@ test("rejects unsafe schemes and foreign origins", () => {
   assert.equal(safeRankingUrl("javascript:alert(1)", "https://hsl.example"), null);
   assert.equal(safeRankingUrl("https://other.example/weeks/1", "https://hsl.example"), null);
   assert.equal(safeRankingUrl("https://hsl.example/weeks/1", "https://hsl.example"), "https://hsl.example/weeks/1");
+});
+
+test("deployment mismatch cannot populate ranking cache", async () => {
+  const h = harness({
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      return jsonResponse({
+        version: 1,
+        build: "ranking-build",
+        environment: "production",
+        results: body.requests.map((request) => ({
+          requestKey: request.requestKey,
+          status: "available",
+          reason: "public-week",
+          url: `https://hsl.example/weeks/${request.weekId}`,
+        })),
+      });
+    },
+  });
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
+  await h.service.refresh();
+  assert.equal(h.service.getCapability("week-1").status, "unknown");
+  assert.equal(h.service.getCapability("week-1").reason, "deployment-mismatch");
+  assert.equal(h.service.getDiagnostics("week-1").lastRequest.deploymentMatchesHealth, false);
 });

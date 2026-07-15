@@ -1,80 +1,56 @@
 # LOCAL-CONNECTIVITY-STATE-1
 
-La conectividad del launcher tiene una unica fuente de verdad en el proceso
-principal de Electron. El renderer solo presenta el snapshot y puede solicitar
-una reevaluacion; `navigator.onLine` nunca confirma que HSL responda.
+La conectividad tiene una unica fuente de verdad en Electron main. El renderer
+solo presenta snapshots y envia señales; `navigator.onLine` y
+`net.isOnline() === true` nunca confirman acceso a HSL.
 
-## Estado estable y probe
+## Modelo
 
-El estado separa dos conceptos:
+- `reachability`: `unknown`, `connected` u `offline`.
+- `probe`: fases internas `startup`, `manual`, `retry` y `background`.
+- `reachabilityGeneration`: invalida respuestas remotas antiguas.
+- `deploymentGeneration`: invalida cache de Ranking al cambiar build/contrato.
+- `activity`: `active`, `background` o `suspended`.
 
-- `reachability`: ultimo resultado estable (`unknown`, `connected`, `offline`);
-- `probe`: comprobacion actual (`idle`, `startup`, `manual`, `retry`,
-  `background`), con `inFlight` y `startedAt`.
+`deriveConnectivityDisplayState` se conserva para diagnostico y compatibilidad.
+El header usa `deriveConnectivityHeaderState`: oculta `unknown` y solo presenta
+`Conectado` o `Desconectado`. Un probe manual mantiene el texto estable y deja
+el boton refresh visible pero deshabilitado.
 
-`deriveConnectivityDisplayState` es el unico selector visual:
+## Señales y probes
 
-| Reachability | Probe real | Estado visible |
-| --- | --- | --- |
-| unknown | startup | Conectando |
-| offline | retry o manual | Reconectando |
-| connected | manual | Reconectando |
-| connected | background | Conectado |
-| connected | idle | Conectado |
-| offline | idle | Desconectado |
+El coordinador recibe `online`, `offline`, el cambio opcional de
+`navigator.connection`, `net.isOnline()`, focus/blur, suspend/resume, fallos de
+transporte, refresh manual, heartbeat y retry. Ningun consumidor hace health
+por su cuenta.
 
-`Conectando` implica siempre `startup + inFlight`; `Reconectando` implica
-siempre `manual/retry + inFlight`. Un fallo finaliza el probe y deja
-`reachability=offline`, incluso mientras espera el siguiente backoff.
+- Señal negativa fuerte: offline inmediato, aborto del probe viejo y retry.
+- Señal positiva: debounce de 150 ms y un unico health compartido; nunca asigna
+  connected antes del 204.
+- HTTP de HSL, incluido 503: confirma reachability.
+- Fallo aislado de heartbeat: segundo intento inmediato dentro de la misma
+  operacion; solo dos fallos consecutivos establecen offline.
 
-## Politica de comprobaciones
+Health usa `net.fetch`, mismo origen, redireccion manual, `cache: no-store`, body
+vacio y contrato 1. No envia sesion ni cookies.
 
-El health check usa `net.fetch` con `GET /api/launcher/health`, `cache:
-no-store`, redirecciones manuales y `AbortController`. Solo acepta un `204` del
-mismo origen configurado. No envia sesion, cookies ni tokens.
+Valores medidos y elegidos el 15-07-2026:
 
-Valores:
+- 8 muestras de produccion: min 169 ms, mediana 181 ms, p95/max 2215 ms;
+- timeout: 3000 ms;
+- connected activo: 45 s;
+- connected segundo plano: 4 min;
+- suspendido: sin polling;
+- backoff offline: 5, 15, 30, 60, 120 y 300 s, jitter +/-15 %;
+- `net.isOnline=false`: fast path, con retry de seguridad a 60 s.
 
-- timeout: 4 segundos;
-- conectado: mantenimiento cada 5 minutos;
-- focus/resume: probe de fondo si el resultado tiene mas de 90 segundos;
-- sin interfaz: reintento cada 60 segundos;
-- backoff: 5, 15, 30, 60, 120 y 300 segundos, con jitter de +/-15 %.
+## Ciclo de vida y diagnostico
 
-El arranque crea un unico probe `startup`. Los probes periodicos, de foco y de
-resume son `background`: mientras estan en curso el chip sigue en Conectado y
-Ranking puede usar una capacidad vigente. Un fallo pasa directamente a
-Desconectado.
+Los listeners tienen funciones nominadas y cleanup (`removeListener`,
+`beforeunload`). Un cambio de `webBaseUrl` aborta health, borra fingerprint,
+invalida generaciones y consulta el nuevo origen. Resume no confia en timers
+dormidos y solicita health inmediato.
 
-Desde offline, el backoff solo muestra Reconectando durante la peticion real.
-`nextRetryAt` no implica que haya una peticion activa. El refresco manual fuerza
-o reutiliza el probe actual, lo eleva a fase `manual`, evita solicitudes
-duplicadas y muestra Reconectando.
-
-Las operaciones locales, incluida la seleccion de pack, no lanzan probes
-visibles. Una accion remota usa health reciente o inicia mantenimiento de fondo.
-Una respuesta HTTP valida de HSL puede confirmar reachability aunque el producto
-responda 400, 401, 403, 404 o 503. Solo un fallo de transporte solicita una
-reevaluacion.
-
-## Senales de sistema e IPC
-
-`net.isOnline() === false` establece offline inmediatamente. Un valor `true`
-solo permite intentar el health check: Windows puede conservar adaptadores
-virtuales o interfaces logicas sin salida a HSL.
-
-- `launcher:get-connectivity-state`
-- `launcher:request-connectivity-refresh`
-- evento `launcher:connectivity-state`
-
-Los motivos del renderer se limitan a `manual`, `renderer-online` y
-`renderer-offline`. Cada invalidacion incrementa una generacion; respuestas
-anteriores no pueden sustituir un estado mas nuevo.
-
-## Diagnostico
-
-El informe incluye `reachability`, `displayStatus`, `probe.phase`,
-`probe.inFlight`, `startedAt`, `checkedAt`, `changedAt`, `reason`, `source`,
-latencia, siguiente reintento, fallos consecutivos, `netIsOnline`, generacion y
-origen normalizado. Nunca incluye tokens, cookies, cabeceras o cuerpos sensibles.
-
+El diagnostico incluye señal/fuente, reachability, probe, latencia, timeout,
+heartbeat, actividad, retry, generaciones y fingerprint. Nunca incluye tokens,
+cookies ni cuerpos remotos.

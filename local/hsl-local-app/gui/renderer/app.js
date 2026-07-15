@@ -10,7 +10,11 @@ import { renderLibraryPanel } from "./components/library-panel.js";
 import { renderLogPanel } from "./components/log-panel.js";
 import { renderActivityDrawer } from "./components/queue-panel.js";
 import { getLibraryCapabilities } from "./library-capabilities.js";
-import { waitForMinimumVisibleDuration } from "./operation-feedback.js";
+import {
+  DEFAULT_OPERATION_MIN_VISIBLE_MS,
+  runWithOperationFeedback,
+  waitForMinimumVisibleDuration,
+} from "./operation-feedback.js";
 
 const root = document.getElementById("app");
 const savedTheme = window.__HSL_INITIAL_THEME__ === "light" ? "light" : "dark";
@@ -649,8 +653,16 @@ function syncDialogFocus(state) {
 }
 
 async function refreshState() {
+  const startedAt = Date.now();
   const startedWithLibraryPreferenceRevision = libraryPreferenceUserRevision;
-  const data = await window.hslLauncher.getState();
+  let data;
+  try {
+    data = await window.hslLauncher.getState();
+  } catch (error) {
+    await waitForMinimumVisibleDuration({ startedAt });
+    throw error;
+  }
+  await waitForMinimumVisibleDuration({ startedAt });
   const current = store.getState();
   const allowLibraryPreferenceHydration = startedWithLibraryPreferenceRevision === libraryPreferenceUserRevision;
   const noticeLogs = (data.notices || [])
@@ -768,6 +780,22 @@ function applyConnectivityState(connectivityState) {
 function applyRankingCapabilitiesState(capabilitiesState) {
   if (!capabilitiesState || typeof capabilitiesState !== "object") return;
   store.setState({ rankingCapabilities: capabilitiesState });
+}
+
+function applyBackgroundLauncherState(payload) {
+  if (!payload?.state) return;
+  const sent = Number(payload.autoSubmit?.sent) || 0;
+  store.setState({
+    data: payload.state,
+    ...(sent > 0 ? {
+      logs: appendLog(store.getState().logs, {
+        details: [],
+        ok: true,
+        summary: `Se han enviado ${sent} puntuaciones pendientes.`,
+        title: "Sincronizaci\u00f3n autom\u00e1tica",
+      }),
+    } : {}),
+  });
 }
 
 async function openRankingWithoutGlobalBusy() {
@@ -1016,17 +1044,20 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
   }
 
   try {
-    const response = await fn();
-    window.clearTimeout(phaseTimer);
-
-    if (options.closingLabel) {
-      store.setState({ busyLabel: options.closingLabel });
-      await delay(options.closingDelayMs || 450);
-    }
-
-    await waitForMinimumVisibleDuration({
+    const response = await runWithOperationFeedback({
       minVisibleMs: options.minVisibleMs,
+      scope: options.scope || "transient",
       startedAt: busyStartedAt,
+      operation: async () => {
+        const value = await fn();
+        window.clearTimeout(phaseTimer);
+
+        if (options.closingLabel) {
+          store.setState({ busyLabel: options.closingLabel });
+          await delay(options.closingDelayMs || 450);
+        }
+        return value;
+      },
     });
 
     if (runId !== busyRunSequence) return;
@@ -1053,10 +1084,6 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
     store.setState(statePatch);
   } catch (error) {
     window.clearTimeout(phaseTimer);
-    await waitForMinimumVisibleDuration({
-      minVisibleMs: options.minVisibleMs,
-      startedAt: busyStartedAt,
-    });
 
     if (runId !== busyRunSequence) return;
 
@@ -1083,7 +1110,9 @@ async function submitLogin(form) {
   store.setState({ authError: null, busy: true, busyLabel: "Conectando" });
 
   try {
-    const response = await window.hslLauncher.login(email, password);
+    const response = await runWithOperationFeedback({
+      operation: () => window.hslLauncher.login(email, password),
+    });
 
     store.setState({
       authError: response.ok ? null : response.summary || "No he podido iniciar sesión.",
@@ -1126,7 +1155,9 @@ async function switchAccount(button) {
   store.setState({ busy: true, busyLabel: "Cambiando cuenta" });
 
   try {
-    const response = await window.hslLauncher.switchAccount(userId);
+    const response = await runWithOperationFeedback({
+      operation: () => window.hslLauncher.switchAccount(userId),
+    });
     const nextState = {
       busy: false,
       busyLabel: null,
@@ -1200,7 +1231,7 @@ async function activateLibraryPackWithPreload(packId) {
       return;
     }
 
-    await waitForMinimumVisibleDuration({ minVisibleMs: 600, startedAt: activationStartedAt });
+    await waitForMinimumVisibleDuration({ minVisibleMs: DEFAULT_OPERATION_MIN_VISIBLE_MS, startedAt: activationStartedAt });
 
     if (requestId !== libraryPackSelectionSequence) return;
 
@@ -1221,7 +1252,7 @@ async function activateLibraryPackWithPreload(packId) {
       return;
     }
 
-    await waitForMinimumVisibleDuration({ minVisibleMs: 600, startedAt: activationStartedAt });
+    await waitForMinimumVisibleDuration({ minVisibleMs: DEFAULT_OPERATION_MIN_VISIBLE_MS, startedAt: activationStartedAt });
 
     if (requestId !== libraryPackSelectionSequence) return;
 
@@ -1473,12 +1504,13 @@ function bindActions() {
     }
 
     if (action === "open-pack") {
-      runAction(action, "Abriendo pack", COPY.actions.openPack, () => window.hslLauncher.openPack());
+      runAction(action, "Abriendo pack", COPY.actions.openPack, () => window.hslLauncher.openPack(), { scope: "interactive" });
     }
 
     if (action === "choose-pack-directory") {
       runAction(action, "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
         promptForRejectedLibraryRoot: true,
+        scope: "interactive",
       });
     }
 
@@ -1486,6 +1518,7 @@ function bindActions() {
       store.setState({ activeDialog: null });
       runAction("choose-pack-directory", "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
         promptForRejectedLibraryRoot: true,
+        scope: "interactive",
       });
     }
 
@@ -1493,6 +1526,7 @@ function bindActions() {
       store.setState({ activeDialog: null });
       runAction("choose-pack-directory", "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
         promptForRejectedLibraryRoot: true,
+        scope: "interactive",
       });
     }
 
@@ -1515,30 +1549,29 @@ function bindActions() {
 
     if (action === "import-pack-zip") {
       store.setState({ activeDialog: null });
-      runAction("import-pack", "Eligiendo ZIP", "Importar pack", () => window.hslLauncher.importPackZip());
+      runAction("import-pack", "Eligiendo ZIP", "Importar pack", () => window.hslLauncher.importPackZip(), { scope: "interactive" });
     }
 
     if (action === "import-pack-folder") {
       store.setState({ activeDialog: null });
-      runAction("import-pack", "Eligiendo carpeta", "Importar pack", () => window.hslLauncher.importPackFolder());
+      runAction("import-pack", "Eligiendo carpeta", "Importar pack", () => window.hslLauncher.importPackFolder(), { scope: "interactive" });
     }
 
     if (action === "choose-shared-mame-runtime") {
-      runAction(action, "Eligiendo MAME", "Elegir mame.exe", () => window.hslLauncher.chooseSharedMameRuntime());
+      runAction(action, "Eligiendo MAME", "Elegir mame.exe", () => window.hslLauncher.chooseSharedMameRuntime(), { scope: "interactive" });
     }
 
     if (action === "open-pack-directory") {
-      runAction(action, "Abriendo directorio", "Abrir directorio", () => window.hslLauncher.openPackDirectory());
+      runAction(action, "Abriendo directorio", "Abrir directorio", () => window.hslLauncher.openPackDirectory(), { scope: "external" });
     }
 
     if (action === "open-shared-mame-runtime") {
-      runAction(action, "Abriendo MAME", "Abrir carpeta MAME", () => window.hslLauncher.openSharedMameRuntime());
+      runAction(action, "Abriendo MAME", "Abrir carpeta MAME", () => window.hslLauncher.openSharedMameRuntime(), { scope: "external" });
     }
 
     if (action === "rescan-pack-directory") {
       resetUnavailableDirectoryPrompt(store.getState().data);
       runAction(action, "Reescaneando", "Reescanear", () => window.hslLauncher.rescanPackDirectory(), {
-        minVisibleMs: 600,
         promptForUnavailableDirectory: true,
       });
     }
@@ -1549,11 +1582,11 @@ function bindActions() {
     }
 
     if (action === "open-membership-url") {
-      runAction(action, "Abriendo web", "Abrir temporada en la web", () => window.hslLauncher.openMembershipUrl());
+      runAction(action, "Abriendo web", "Abrir temporada en la web", () => window.hslLauncher.openMembershipUrl(), { scope: "external" });
     }
 
     if (action === "open-manual") {
-      runAction(action, "Abriendo manual", "Ver manual", () => window.hslLauncher.openManual());
+      runAction(action, "Abriendo manual", "Ver manual", () => window.hslLauncher.openManual(), { scope: "external" });
     }
 
     if (action === "open-ranking") {
@@ -1570,7 +1603,7 @@ function bindActions() {
           ok,
           summary: ok ? "Conexi\u00f3n con High Score League confirmada." : "No se pudo conectar con High Score League.",
         };
-      }, { minVisibleMs: 600 });
+      });
     }
 
     if (action === "check-membership") {
@@ -1578,13 +1611,14 @@ function bindActions() {
     }
 
     if (action === "diagnose") {
-      runAction(action, "Diagnosticando", COPY.actions.diagnose, () => window.hslLauncher.diagnose());
+      runAction(action, "Creando diagn\u00f3stico", COPY.actions.diagnose, () => window.hslLauncher.diagnose());
     }
 
     if (action === "play") {
       runAction(action, "Abriendo competición", COPY.actions.play, () => window.hslLauncher.playCompetition(), {
         closingLabel: "Cerrando competición",
         runningLabel: "Competición en curso",
+        scope: "external",
       });
     }
 
@@ -1592,6 +1626,7 @@ function bindActions() {
       runAction(action, "Abriendo práctica", COPY.actions.practice, () => window.hslLauncher.practice(), {
         closingLabel: "Cerrando práctica",
         runningLabel: "Práctica en curso",
+        scope: "external",
       });
     }
 
@@ -1637,13 +1672,30 @@ window.addEventListener("keydown", (event) => {
     store.setState({ ...closeAccountMenuState(), activeDialog: null, activeOverlay: null });
   }
 });
-window.addEventListener("offline", () => {
+function handleRendererOffline() {
   window.hslLauncher.requestConnectivityRefresh?.("renderer-offline");
-});
-window.addEventListener("online", () => {
+}
+
+function handleRendererOnline() {
   window.hslLauncher.requestConnectivityRefresh?.("renderer-online");
-});
+}
+
+function handleConnectionChange() {
+  window.hslLauncher.requestConnectivityRefresh?.("connection-change");
+}
+
+function cleanupConnectivitySignals() {
+  window.removeEventListener("offline", handleRendererOffline);
+  window.removeEventListener("online", handleRendererOnline);
+  navigator.connection?.removeEventListener?.("change", handleConnectionChange);
+}
+
+window.addEventListener("offline", handleRendererOffline);
+window.addEventListener("online", handleRendererOnline);
+navigator.connection?.addEventListener?.("change", handleConnectionChange);
+window.addEventListener("beforeunload", cleanupConnectivitySignals, { once: true });
 window.hslLauncher.onConnectivityState?.(applyConnectivityState);
+window.hslLauncher.onLauncherState?.(applyBackgroundLauncherState);
 window.hslLauncher.onRankingCapabilitiesState?.(applyRankingCapabilitiesState);
 window.hslLauncher.getConnectivityState?.().then(applyConnectivityState).catch(() => {});
 window.hslLauncher.getRankingCapabilitiesState?.().then(applyRankingCapabilitiesState).catch(() => {});

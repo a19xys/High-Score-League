@@ -3,6 +3,7 @@ const path = require("node:path");
 const {
   clearActiveAccount,
   deleteRememberedSession,
+  getRememberedSessionPath,
   listSavedSessionUserIds,
   readKnownAccounts,
   readRememberedSession,
@@ -58,7 +59,13 @@ const { writeSharedMameRuntime } = require("../src/shared-mame-runtime");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
 const { submitAll } = require("../src/submission-service");
 const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
-const { applyScopedQueue, ensureScopedQueue } = require("../src/scoped-queue");
+const {
+  applyScopedQueue,
+  buildScopedSubmitConfig,
+  derivePlayerKey,
+  discoverPlayerPendingScopes,
+  ensureScopedQueue,
+} = require("../src/scoped-queue");
 const {
   checkSeasonMembership,
   shouldBlockCompetition,
@@ -72,6 +79,20 @@ let recentPackNotices = [];
 let autoSyncInProgress = false;
 let manualSyncInProgress = false;
 let autoSyncState = emptyAutoSyncState();
+let pendingAutoSubmitEpoch = 0;
+let pendingAutoSubmitState = {
+  connectedGeneration: null,
+  failed: 0,
+  inFlight: false,
+  lastRunAt: null,
+  pendingFound: 0,
+  preserved: 0,
+  scopes: 0,
+  sent: 0,
+  skippedScopes: 0,
+  trigger: null,
+  user: null,
+};
 let remoteDiagnosticsProvider = null;
 const libraryOrderModule = import("./shared/library-order.mjs");
 
@@ -93,6 +114,15 @@ function getPackPluginName(pack) {
 
 function setRemoteDiagnosticsProvider(provider) {
   remoteDiagnosticsProvider = typeof provider === "function" ? provider : null;
+}
+
+function getPendingAutoSubmitDiagnostics() {
+  return { ...pendingAutoSubmitState };
+}
+
+function invalidatePendingAutoSubmit(reason = "context-change") {
+  pendingAutoSubmitEpoch += 1;
+  pendingAutoSubmitState = { ...pendingAutoSubmitState, cancelReason: reason };
 }
 
 function deriveOpenedPackConfig(baseConfig, pack) {
@@ -990,10 +1020,141 @@ async function runAutoSyncIfEligible(context, options = {}) {
   }
 }
 
+async function runPendingAutoSubmit(options = {}) {
+  const now = options.now || new Date().toISOString();
+  if (autoSyncInProgress || manualSyncInProgress) return { attempted: false, reason: "sync-in-progress" };
+  const baseConfig = options.config || loadRuntimeConfig();
+  const session = await (options.getAuthStateImpl || getAuthState)(baseConfig);
+  const playerKey = derivePlayerKey(session);
+  if (!session.hasSession || !playerKey) return { attempted: false, reason: "no-session" };
+
+  const epoch = pendingAutoSubmitEpoch;
+  const discovery = await (options.discoverScopesImpl || discoverPlayerPendingScopes)(baseConfig, session);
+  const sessionFileAbs = (options.getSessionPathImpl || getRememberedSessionPath)(baseConfig, session);
+  const totalPending = discovery.records.reduce((sum, item) => sum + item.pendingCount, 0);
+  pendingAutoSubmitState = {
+    connectedGeneration: options.connectedGeneration ?? null,
+    failed: 0,
+    inFlight: discovery.records.length > 0,
+    lastRunAt: now,
+    pendingFound: totalPending,
+    preserved: totalPending,
+    scopes: discovery.records.length,
+    sent: 0,
+    skippedScopes: discovery.skipped.length,
+    trigger: options.trigger || "unknown",
+    user: playerKey,
+  };
+  if (discovery.records.length === 0) return { attempted: false, discovery, reason: "no-pending" };
+
+  autoSyncInProgress = true;
+  autoSyncState = emptyAutoSyncState({
+    lastAttemptAt: now,
+    message: "Subiendo puntuaciones pendientes...",
+    pendingBefore: totalPending,
+    status: "syncing",
+  });
+  let sent = 0;
+  let failed = 0;
+  let preserved = totalPending;
+  let transportFailure = false;
+  let authFailure = false;
+  let processedScopes = 0;
+  const stillCurrent = () => epoch === pendingAutoSubmitEpoch && options.shouldContinue?.() !== false;
+
+  try {
+    for (const record of discovery.records) {
+      if (!stillCurrent()) break;
+      const config = buildScopedSubmitConfig(baseConfig, record, { sessionFileAbs });
+      const membership = await (options.checkMembershipImpl || checkSeasonMembership)(config, session);
+      if (!stillCurrent()) break;
+      if (membership.status === "unknown" && !membership.response && membership.request) {
+        transportFailure = true;
+        break;
+      }
+      if (["no_session", "unauthenticated"].includes(membership.status)) {
+        authFailure = true;
+        break;
+      }
+      if (membership.status !== "member" || membership.canSubmit !== true) continue;
+
+      const beforeQueue = await (options.getQueueStateImpl || getQueueState)(config);
+      let scopeTransportFailure = false;
+      await captureConsoleAsync(() => (options.submitAllImpl || submitAll)(config, {
+        onResult(result) {
+          if (result.action === "network_error") scopeTransportFailure = true;
+          if (result.action === "auth_required") authFailure = true;
+        },
+        shouldContinue: stillCurrent,
+        stopOnTransportFailure: true,
+      }));
+      const afterQueue = await (options.getQueueStateImpl || getQueueState)(config);
+      sent += Math.max(0, afterQueue.totals.sent - beforeQueue.totals.sent);
+      failed += Math.max(0, afterQueue.totals.failed - beforeQueue.totals.failed);
+      preserved -= Math.max(0, beforeQueue.totals.pending - afterQueue.totals.pending);
+      processedScopes += 1;
+      if (scopeTransportFailure) {
+        transportFailure = true;
+        break;
+      }
+      if (authFailure) break;
+    }
+  } finally {
+    autoSyncInProgress = false;
+    const pendingAfter = Math.max(0, preserved);
+    autoSyncState = emptyAutoSyncState({
+      failedCount: failed,
+      lastAttemptAt: now,
+      ...(sent > 0 ? { lastSuccessAt: now } : {}),
+      message: sent > 0
+        ? `Se han enviado ${sent} puntuaciones pendientes.`
+        : "Las puntuaciones pendientes se conservan para el proximo intento.",
+      pendingAfter,
+      pendingBefore: totalPending,
+      reason: transportFailure ? "transport" : authFailure ? "auth_required" : failed > 0 ? "failed_items" : null,
+      sentCount: sent,
+      status: transportFailure || authFailure ? "failed" : failed > 0 ? "partial_failed" : sent > 0 ? "synced" : "idle",
+    });
+    pendingAutoSubmitState = {
+      ...pendingAutoSubmitState,
+      failed,
+      inFlight: false,
+      preserved: pendingAfter,
+      processedScopes,
+      sent,
+    };
+  }
+
+  return {
+    attempted: processedScopes > 0,
+    authFailure,
+    diagnostics: getPendingAutoSubmitDiagnostics(),
+    failed,
+    ok: !transportFailure && failed === 0,
+    preserved: Math.max(0, preserved),
+    sent,
+    transportFailure,
+  };
+}
+
 function resetAutoSyncStateForTests() {
   autoSyncInProgress = false;
   manualSyncInProgress = false;
   autoSyncState = emptyAutoSyncState();
+  pendingAutoSubmitEpoch = 0;
+  pendingAutoSubmitState = {
+    connectedGeneration: null,
+    failed: 0,
+    inFlight: false,
+    lastRunAt: null,
+    pendingFound: 0,
+    preserved: 0,
+    scopes: 0,
+    sent: 0,
+    skippedScopes: 0,
+    trigger: null,
+    user: null,
+  };
 }
 
 async function listPendingFileSnapshot(dir) {
@@ -1326,7 +1487,7 @@ async function recheckSeasonMembership() {
     lines: ["Comprobacion de temporada actualizada."],
     ok: true,
     summary: "Comprobacion de temporada actualizada.",
-    state: await getLauncherState({ attemptAutoSync: true }),
+    state: await getLauncherState(),
   };
 }
 
@@ -1394,6 +1555,11 @@ async function runDiagnose(options = {}) {
       message: "capacidades remotas de ranking",
       detail: remoteDiagnostics.ranking || null,
     }];
+    report.sections.autoSubmit = [{
+      level: remoteDiagnostics.autoSubmit?.failed > 0 ? "WARN" : "INFO",
+      message: "autoenvio de puntuaciones pendientes",
+      detail: remoteDiagnostics.autoSubmit || null,
+    }];
 
     if (connectivityEntry.level === "WARN") {
       report.warnings.push(connectivityEntry);
@@ -1432,6 +1598,7 @@ async function runDiagnose(options = {}) {
       state: state && remoteDiagnostics
         ? {
             ...state,
+            autoSubmitDiagnostics: remoteDiagnostics.autoSubmit,
             connectivity: remoteDiagnostics.connectivity,
             rankingCapabilities: remoteDiagnostics.ranking,
           }
@@ -1580,7 +1747,7 @@ async function playCompetition() {
     ],
     ok: exitCode === 0,
     result: captured.result || null,
-    state: await getLauncherState({ attemptAutoSync: true }),
+    state: await getLauncherState(),
   };
 }
 
@@ -1749,7 +1916,7 @@ async function restoreFailedSubmission(filename) {
       ok: true,
       restored: result,
       summary: "Puntuacion restaurada a pendientes.",
-      state: await getLauncherState({ attemptAutoSync: true }),
+      state: await getLauncherState(),
     };
   } catch (error) {
     return {
@@ -1809,7 +1976,7 @@ async function loginWithPassword(credentials = {}) {
     lines: [result.message],
     ok: result.ok,
     summary: result.message,
-    state: await getLauncherState({ attemptAutoSync: result.ok }),
+    state: await getLauncherState(),
   };
 }
 
@@ -1889,7 +2056,7 @@ async function switchKnownAccountFromGui(userId) {
       ],
       ok: true,
       summary: "Cuenta cambiada.",
-      state: await getLauncherState({ attemptAutoSync: true }),
+      state: await getLauncherState(),
     };
   } catch (error) {
     await deleteRememberedSession(config, account).catch(() => null);
@@ -2007,7 +2174,6 @@ async function activatePackDirectory(packDir, options = {}) {
     summary: options.summary || "Pack abierto correctamente.",
     state: options.includeState === false ? null : await getLauncherState({
       ...stateOptionsForAction(options),
-      attemptAutoSync: true,
     }),
   };
 }
@@ -2445,10 +2611,12 @@ module.exports = {
   deriveOpenedPackConfig,
   eventResultToQueueItem,
   getAuthStateForGui,
+  getPendingAutoSubmitDiagnostics,
   getRemoteBootstrapState,
   getLauncherState,
   importPackFromFolderForGui,
   importPackFromZipForGui,
+  invalidatePendingAutoSubmit,
   loginWithPassword,
   listPendingFileSnapshot,
   logoutSession,
@@ -2468,6 +2636,7 @@ module.exports = {
   resetAutoSyncStateForTests,
   setRemoteDiagnosticsProvider,
   runAutoSyncIfEligible,
+  runPendingAutoSubmit,
   runDiagnose,
   setLibraryPreferencesFromGui,
   submitAllPending,

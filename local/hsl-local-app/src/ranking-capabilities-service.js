@@ -2,6 +2,12 @@ const {
   isStableConnected,
   normalizeWebBaseUrl,
 } = require("./connectivity-service");
+const {
+  deploymentFingerprintsMatch,
+  deploymentKey,
+  readHealthDeployment,
+  readRankingDeployment,
+} = require("./deployment-fingerprint");
 
 const RANKING_CAPABILITIES_PATH = "/api/launcher/ranking-capabilities";
 const RANKING_CONTRACT_VERSION = 1;
@@ -61,7 +67,11 @@ function createRankingCapabilitiesService(options = {}) {
   let refreshTimer = null;
   let disposed = false;
   let lastRequest = {
+    build: "unknown",
     checkedAt: null,
+    contractVersion: null,
+    deploymentMatchesHealth: null,
+    environment: "unknown",
     errorCode: null,
     httpStatus: null,
     reason: "not-checked",
@@ -76,7 +86,7 @@ function createRankingCapabilitiesService(options = {}) {
   }
 
   function cacheKey(weekId) {
-    return `${context.webBaseUrl || "missing"}|${weekId}`;
+    return `${context.webBaseUrl || "missing"}|${deploymentKey(connectivityState().deployment)}|${weekId}`;
   }
 
   function entryFor(weekId) {
@@ -107,6 +117,8 @@ function createRankingCapabilitiesService(options = {}) {
       checkedAt: cached?.checkedAt || null,
       expiresAt: cached?.expiresAt || null,
       contractVersion: RANKING_CONTRACT_VERSION,
+      deployment: { ...(connectivityState().deployment || {}) },
+      deploymentGeneration: connectivityState().deploymentGeneration || 0,
     };
   }
 
@@ -194,14 +206,24 @@ function createRankingCapabilitiesService(options = {}) {
     return batches;
   }
 
-  function validateBatchResponse(payload, requests, webBaseUrl) {
+  function validateBatchResponse(payload, requests, webBaseUrl, expectedDeployment) {
     if (!payload || payload.version !== RANKING_CONTRACT_VERSION || !Array.isArray(payload.results)) {
       throw Object.assign(new Error("Invalid ranking response"), { reason: "invalid-response" });
     }
 
+    const responseDeployment = readRankingDeployment(payload);
+    if (!deploymentFingerprintsMatch(expectedDeployment, responseDeployment)) {
+      throw Object.assign(new Error("Ranking deployment differs from health"), {
+        reason: "deployment-mismatch",
+        responseDeployment,
+      });
+    }
+
     const byRequestKey = new Map(payload.results.map((item) => [item?.requestKey, item]));
 
-    return requests.map((request) => {
+    return {
+      deployment: responseDeployment,
+      results: requests.map((request) => {
       const result = byRequestKey.get(request.requestKey);
 
       if (!result || !["available", "unavailable"].includes(result.status)) {
@@ -220,7 +242,8 @@ function createRankingCapabilitiesService(options = {}) {
         reason: typeof result.reason === "string" ? result.reason : "server-result",
         url,
       };
-    });
+      }),
+    };
   }
 
   async function safeServiceErrorCode(response) {
@@ -255,6 +278,8 @@ function createRankingCapabilitiesService(options = {}) {
     const requestGeneration = context.generation;
     const requestBaseUrl = context.webBaseUrl;
     const requestReachabilityGeneration = connectivityState().reachabilityGeneration;
+    const requestDeploymentGeneration = connectivityState().deploymentGeneration || 0;
+    const requestDeployment = { ...(connectivityState().deployment || {}) };
     const controller = new AbortController();
     activeController = controller;
     pendingIds = new Set(weekIds);
@@ -281,12 +306,25 @@ function createRankingCapabilitiesService(options = {}) {
           });
 
           options.onReachable?.("ranking-capabilities-response");
+          const responseHeaderDeployment = readHealthDeployment(response);
+          const headersMatchHealth = deploymentFingerprintsMatch(requestDeployment, responseHeaderDeployment);
           lastRequest = {
+            build: responseHeaderDeployment.build,
             checkedAt: new Date(nowImpl()).toISOString(),
+            contractVersion: responseHeaderDeployment.apiVersion,
+            deploymentMatchesHealth: headersMatchHealth,
+            environment: responseHeaderDeployment.environment,
             errorCode: null,
             httpStatus: response.status,
             reason: response.ok ? null : `http-${response.status}`,
           };
+
+          if (!headersMatchHealth) {
+            throw Object.assign(new Error("Ranking headers differ from health"), {
+              reason: "deployment-mismatch",
+              responseDeployment: responseHeaderDeployment,
+            });
+          }
 
           if (!response.ok) {
             const errorCode = await safeServiceErrorCode(response);
@@ -298,11 +336,26 @@ function createRankingCapabilitiesService(options = {}) {
           }
 
           const payload = await response.json();
-          allResults.push(...validateBatchResponse(payload, requests, requestBaseUrl));
+          const validated = validateBatchResponse(payload, requests, requestBaseUrl, requestDeployment);
+          if (!deploymentFingerprintsMatch(responseHeaderDeployment, validated.deployment)) {
+            throw Object.assign(new Error("Ranking body differs from response headers"), {
+              reason: "deployment-mismatch",
+              responseDeployment: validated.deployment,
+            });
+          }
+          lastRequest = {
+            ...lastRequest,
+            build: validated.deployment.build,
+            contractVersion: validated.deployment.apiVersion,
+            deploymentMatchesHealth: true,
+            environment: validated.deployment.environment,
+          };
+          allResults.push(...validated.results);
         }
 
         if (disposed || requestGeneration !== context.generation || requestBaseUrl !== context.webBaseUrl ||
-            requestReachabilityGeneration !== connectivityState().reachabilityGeneration || !canQuery()) {
+            requestReachabilityGeneration !== connectivityState().reachabilityGeneration ||
+            requestDeploymentGeneration !== (connectivityState().deploymentGeneration || 0) || !canQuery()) {
           return snapshot();
         }
 
@@ -311,7 +364,8 @@ function createRankingCapabilitiesService(options = {}) {
         }
 
       } catch (error) {
-        const connectivityUnchanged = requestReachabilityGeneration === connectivityState().reachabilityGeneration;
+        const connectivityUnchanged = requestReachabilityGeneration === connectivityState().reachabilityGeneration &&
+          requestDeploymentGeneration === (connectivityState().deploymentGeneration || 0);
 
         if (!disposed && requestGeneration === context.generation && requestBaseUrl === context.webBaseUrl && connectivityUnchanged) {
           for (const weekId of weekIds) {
@@ -320,8 +374,19 @@ function createRankingCapabilitiesService(options = {}) {
 
           const reason = String(error?.reason || "temporary-failure");
 
+          if (reason === "deployment-mismatch") {
+            lastRequest = {
+              ...lastRequest,
+              build: error?.responseDeployment?.build || "unknown",
+              contractVersion: error?.responseDeployment?.apiVersion || null,
+              deploymentMatchesHealth: false,
+              environment: error?.responseDeployment?.environment || "unknown",
+            };
+          }
+
           if (!reason.startsWith("http-") || !lastRequest.checkedAt) {
             lastRequest = {
+              ...lastRequest,
               checkedAt: new Date(nowImpl()).toISOString(),
               errorCode: error?.errorCode || null,
               httpStatus: reason === "temporary-failure" || controller.signal.aborted ? null : lastRequest.httpStatus,

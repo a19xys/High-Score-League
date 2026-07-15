@@ -178,14 +178,117 @@ function applyScopedQueue(config, scope) {
   };
 }
 
+function validateScopedMeta(meta, expected = {}) {
+  const pack = meta?.pack || {};
+  const player = meta?.player || {};
+  if (meta?.schemaVersion !== 1) return { ok: false, reason: "unsupported-meta-contract" };
+  if (!expected.playerKey || player.playerKey !== expected.playerKey) return { ok: false, reason: "player-mismatch" };
+  if (expected.userId && player.userId && player.userId !== expected.userId) return { ok: false, reason: "user-mismatch" };
+  if (!expected.packKey || pack.packKey !== expected.packKey) return { ok: false, reason: "pack-mismatch" };
+  if (typeof pack.weekId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(pack.weekId)) {
+    return { ok: false, reason: "invalid-week" };
+  }
+  try {
+    const url = new URL(String(pack.webBaseUrl || ""));
+    if (!["http:", "https:"].includes(url.protocol)) return { ok: false, reason: "invalid-origin" };
+  } catch {
+    return { ok: false, reason: "invalid-origin" };
+  }
+  return { ok: true, reason: null };
+}
+
+function buildScopedSubmitConfig(baseConfig, scopeRecord, options = {}) {
+  const { meta, scope } = scopeRecord;
+  return {
+    ...baseConfig,
+    defaultWeekId: meta.pack.weekId,
+    eventsBaseDirAbs: scope.eventsRoot,
+    eventsFailedDirAbs: scope.scopedFailedDir,
+    eventsPendingDirAbs: scope.scopedPendingDir,
+    eventsSentDirAbs: scope.scopedSentDir,
+    eventsSource: "scoped-user-pack",
+    pack: {
+      gameId: meta.pack.gameId || null,
+      packId: meta.pack.packId || null,
+      packRoot: meta.pack.packDir || null,
+      rom: meta.pack.rom || null,
+      webBaseUrl: meta.pack.webBaseUrl,
+      weekId: meta.pack.weekId,
+    },
+    scopedQueue: scope,
+    sessionFileAbs: options.sessionFileAbs || baseConfig.sessionFileAbs,
+    webBaseUrl: meta.pack.webBaseUrl,
+  };
+}
+
+async function discoverPlayerPendingScopes(config = {}, session = {}) {
+  const playerKey = derivePlayerKey(session);
+  const records = [];
+  const skipped = [];
+  if (!playerKey || !config.userDataDir) return { playerKey, records, skipped: [{ reason: "missing-player" }] };
+  const packsRoot = path.join(config.userDataDir, "players", playerKey, "packs");
+  let entries;
+  try {
+    entries = await fsp.readdir(packsRoot, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") return { playerKey, records, skipped };
+    return { playerKey, records, skipped: [{ reason: "packs-unreadable" }] };
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) {
+      skipped.push({ packKey: entry.name, reason: "not-directory" });
+      continue;
+    }
+    const scopedQueueRoot = path.join(packsRoot, entry.name);
+    const eventsRoot = path.join(scopedQueueRoot, "events");
+    const scope = {
+      eventsRoot,
+      packKey: entry.name,
+      playerKey,
+      scopedFailedDir: path.join(eventsRoot, "failed"),
+      scopedPendingDir: path.join(eventsRoot, "pending"),
+      scopedQueueRoot,
+      scopedSentDir: path.join(eventsRoot, "sent"),
+    };
+    let meta;
+    try {
+      const raw = await fsp.readFile(path.join(scopedQueueRoot, "meta.json"), "utf8");
+      if (raw.length > 64 * 1024) throw new Error("meta-too-large");
+      meta = JSON.parse(raw);
+    } catch {
+      skipped.push({ packKey: entry.name, reason: "invalid-meta" });
+      continue;
+    }
+    const validation = validateScopedMeta(meta, { packKey: entry.name, playerKey, userId: session.userId });
+    if (!validation.ok) {
+      skipped.push({ packKey: entry.name, reason: validation.reason });
+      continue;
+    }
+    let pendingCount = 0;
+    try {
+      const pendingEntries = await fsp.readdir(scope.scopedPendingDir, { withFileTypes: true });
+      pendingCount = pendingEntries.filter((item) => item.isFile() && item.name.toLowerCase().endsWith(".json")).length;
+    } catch (error) {
+      if (error?.code !== "ENOENT") skipped.push({ packKey: entry.name, reason: "pending-unreadable" });
+      continue;
+    }
+    if (pendingCount > 0) records.push({ meta, pendingCount, scope });
+  }
+  return { playerKey, records, skipped };
+}
+
 module.exports = {
   applyScopedQueue,
+  buildScopedSubmitConfig,
   buildScopedMeta,
   derivePackKey,
   derivePlayerKey,
+  discoverPlayerPendingScopes,
   ensureScopedQueue,
   getPackIdentity,
   hashPart,
   resolveScopedQueue,
   sanitizeKeyPart,
+  validateScopedMeta,
 };

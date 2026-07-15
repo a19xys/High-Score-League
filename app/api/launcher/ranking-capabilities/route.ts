@@ -1,9 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import {
   buildLauncherRankingResults,
   LAUNCHER_RANKING_CONTRACT_VERSION,
   validateLauncherRankingRequest,
+  validLauncherRankingDatabaseWeekId,
 } from "@/lib/launcher-ranking-capabilities";
+import { getLauncherDeploymentFingerprint, getLauncherDeploymentHeaders } from "@/lib/launcher-deployment";
+import { getSafeRankingProviderDiagnostic } from "@/lib/launcher-ranking-diagnostics";
 import { getDerivedWeekStatus } from "@/lib/week-status";
 import { loadLauncherRankingSource } from "@/lib/launcher-ranking-source";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -18,7 +22,10 @@ const responseHeaders = {
 };
 
 function json(body: Record<string, unknown>, status = 200) {
-  return NextResponse.json(body, { status, headers: responseHeaders });
+  return NextResponse.json(body, {
+    status,
+    headers: { ...responseHeaders, ...getLauncherDeploymentHeaders() },
+  });
 }
 
 type AdminClient = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
@@ -43,6 +50,8 @@ async function handleLauncherRankingCapabilities(
   request: NextRequest,
   dependencies: HandlerDependencies = {},
 ) {
+  const deployment = getLauncherDeploymentFingerprint();
+  const requestId = randomUUID();
   let payload: unknown;
   const contentLength = Number(request.headers.get("content-length") || 0);
 
@@ -71,6 +80,8 @@ async function handleLauncherRankingCapabilities(
   if (validated.requests.length === 0) {
     return json({
       version: LAUNCHER_RANKING_CONTRACT_VERSION,
+      build: deployment.build,
+      environment: deployment.environment,
       generatedAt: (dependencies.now?.() || new Date()).toISOString(),
       results: [],
     });
@@ -86,13 +97,44 @@ async function handleLauncherRankingCapabilities(
     }, 503);
   }
 
-  const weekIds = [...new Set(validated.requests.map((item) => item.weekId))];
+  const weekIds = [...new Set(validated.requests.map((item) => item.weekId))]
+    .filter(validLauncherRankingDatabaseWeekId);
+
+  if (weekIds.length === 0) {
+    return json({
+      version: LAUNCHER_RANKING_CONTRACT_VERSION,
+      build: deployment.build,
+      environment: deployment.environment,
+      generatedAt: (dependencies.now?.() || new Date()).toISOString(),
+      results: buildLauncherRankingResults({
+        requests: validated.requests,
+        weeks: [],
+        seasons: [],
+        origin: request.nextUrl.origin,
+      }),
+    });
+  }
+
   const source = await loadLauncherRankingSource<RankingSourceWeek, Pick<SeasonRow, "id" | "status">>({
     weekIds,
     loadRequestedWeeks: (ids) => supabase.from("weeks").select(WEEK_COLUMNS).in("id", ids),
     loadSeasons: (ids) => supabase.from("seasons").select("id,status").in("id", ids),
     loadSeasonWeeks: (ids) => supabase.from("weeks").select(WEEK_COLUMNS).in("season_id", ids),
     deriveStatus: (week) => getDerivedWeekStatus(week),
+    onQueryFailure: ({ error, operation, stage }) => {
+      const publicCode = stage === "weeks" ? "RANKING_WEEKS_QUERY_FAILED" : "RANKING_CONTEXT_QUERY_FAILED";
+      console.error(JSON.stringify({
+        event: "launcher-ranking-query-failed",
+        requestId,
+        stage,
+        operation,
+        weekCount: weekIds.length,
+        build: deployment.build,
+        environment: deployment.environment,
+        timestamp: new Date().toISOString(),
+        ...getSafeRankingProviderDiagnostic(error, publicCode),
+      }));
+    },
   });
 
   if (!source.ok) {
@@ -117,6 +159,8 @@ async function handleLauncherRankingCapabilities(
 
   return json({
     version: LAUNCHER_RANKING_CONTRACT_VERSION,
+    build: deployment.build,
+    environment: deployment.environment,
     generatedAt: (dependencies.now?.() || new Date()).toISOString(),
     results,
   });

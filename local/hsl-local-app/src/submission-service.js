@@ -211,7 +211,7 @@ async function submitOne(config, filename) {
   }
 }
 
-async function submitAll(config) {
+async function submitAll(config, options = {}) {
   printHeader(config);
 
   await assertDirExists(config.eventsPendingDirAbs, "pending");
@@ -235,6 +235,11 @@ async function submitAll(config) {
   let skippedRecent = 0;
 
   for (const filename of files) {
+    if (options.shouldContinue && !options.shouldContinue()) {
+      pending += 1;
+      console.log("Envio detenido por cambio de contexto.");
+      break;
+    }
     const sourcePath = path.join(config.eventsPendingDirAbs, filename);
     const freshness = await getEventFileFreshness(sourcePath, {
       thresholdMs: getRecentThresholdMs(config),
@@ -251,6 +256,7 @@ async function submitAll(config) {
     }
 
     const result = await submitPendingFile(config, filename);
+    options.onResult?.(result);
     printSubmitResult(result);
 
     if (result.ok) {
@@ -263,6 +269,10 @@ async function submitAll(config) {
 
     if (result.action === "auth_required") {
       console.log("Se detiene submit-all porque falta autenticación válida.");
+      break;
+    }
+    if (options.stopOnTransportFailure && result.action === "network_error") {
+      console.log("Se detiene submit-all por perdida de conectividad.");
       break;
     }
   }

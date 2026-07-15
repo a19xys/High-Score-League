@@ -3,6 +3,7 @@ export const LAUNCHER_RANKING_BATCH_LIMIT = 100;
 export const LAUNCHER_RANKING_ID_MAX_LENGTH = 128;
 
 const identifierPattern = /^[A-Za-z0-9_-]+$/;
+const databaseWeekIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type LauncherRankingRequest = {
   requestKey: string;
@@ -41,6 +42,10 @@ export function validLauncherRankingIdentifier(value: unknown): value is string 
     value.length > 0 &&
     value.length <= LAUNCHER_RANKING_ID_MAX_LENGTH &&
     identifierPattern.test(value);
+}
+
+export function validLauncherRankingDatabaseWeekId(value: unknown): value is string {
+  return typeof value === "string" && databaseWeekIdPattern.test(value);
 }
 
 export function validateLauncherRankingRequest(payload: unknown):

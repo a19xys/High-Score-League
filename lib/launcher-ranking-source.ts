@@ -14,6 +14,12 @@ type QueryResult<T> = {
   error: unknown;
 };
 
+type QueryFailure = {
+  error: unknown;
+  operation: "load-requested-weeks" | "load-seasons" | "load-season-weeks";
+  stage: "weeks" | "context";
+};
+
 export async function loadLauncherRankingSource<
   TWeek extends SourceWeek,
   TSeason extends SourceSeason,
@@ -23,10 +29,16 @@ export async function loadLauncherRankingSource<
   loadSeasons: (seasonIds: string[]) => PromiseLike<QueryResult<TSeason>>;
   loadSeasonWeeks: (seasonIds: string[]) => PromiseLike<QueryResult<TWeek>>;
   deriveStatus: (week: TWeek) => string;
+  onQueryFailure?: (failure: QueryFailure) => void;
 }) {
   const requested = await options.loadRequestedWeeks(options.weekIds);
 
   if (requested.error) {
+    options.onQueryFailure?.({
+      error: requested.error,
+      operation: "load-requested-weeks",
+      stage: "weeks",
+    });
     return { ok: false as const, code: "RANKING_WEEKS_QUERY_FAILED" as const };
   }
 
@@ -48,6 +60,12 @@ export async function loadLauncherRankingSource<
   ]);
 
   if (seasonResult.error || seasonWeekResult.error) {
+    if (seasonResult.error) {
+      options.onQueryFailure?.({ error: seasonResult.error, operation: "load-seasons", stage: "context" });
+    }
+    if (seasonWeekResult.error) {
+      options.onQueryFailure?.({ error: seasonWeekResult.error, operation: "load-season-weeks", stage: "context" });
+    }
     return { ok: false as const, code: "RANKING_CONTEXT_QUERY_FAILED" as const };
   }
 

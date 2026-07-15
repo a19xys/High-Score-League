@@ -190,6 +190,7 @@ function buildDiagnosticPayload(config, report, context = {}, options = {}) {
       requiresSharedMameRuntime: Boolean(config.requiresSharedMameRuntime),
     },
     bridge: state?.bridge || null,
+    autoSubmit: context.remoteDiagnostics?.autoSubmit || state?.autoSubmitDiagnostics || null,
     connectivity: context.remoteDiagnostics?.connectivity || state?.connectivity || null,
     rankingCapabilities: context.remoteDiagnostics?.ranking || state?.rankingCapabilities || null,
     diagnose: {

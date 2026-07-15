@@ -132,9 +132,9 @@ const BUSY_CONTENT_BY_LABEL = Object.freeze({
     variant: "working",
   },
 
-  "Diagnosticando": {
-    title: "Diagnosticando...",
-    hint: "Revisando el estado del launcher.",
+  "Creando diagn\u00f3stico": {
+    title: "Creando diagn\u00f3stico...",
+    hint: "Recopilando el estado del launcher.",
     variant: "working",
   },
 

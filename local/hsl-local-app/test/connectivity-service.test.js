@@ -31,7 +31,19 @@ function harness(overrides = {}) {
     clearTimeout: (id) => timers.delete(id),
     fetchImpl: async (url, init) => {
       calls.push({ url, init });
-      return fetchImpl(url, init);
+      const response = await fetchImpl(url, init);
+      return {
+        ...response,
+        headers: response.headers || {
+          get(name) {
+            return {
+              "x-hsl-build": "test-build",
+              "x-hsl-environment": "development",
+              "x-hsl-launcher-api-version": "1",
+            }[String(name).toLowerCase()] || null;
+          },
+        },
+      };
     },
     config: {
       connectedIntervalMs: 300_000,
@@ -229,4 +241,76 @@ test("changing webBaseUrl invalidates the old origin and probes silently", async
   await h.service.setWebBaseUrl("https://other.example/path");
   assert.equal(h.service.getDiagnostics().healthEndpoint, "https://other.example/api/launcher/health");
   assert.equal(h.service.getState().reachability, "connected");
+});
+
+test("strong negative signals settle offline immediately and abort stale probes", async () => {
+  let resolveFetch;
+  const h = harness({
+    fetchImpl: (url) => new Promise((resolve) => { resolveFetch = () => resolve({ status: 204, url }); }),
+  });
+  const startup = h.service.start();
+  h.service.signalOffline("renderer-offline", "system-offline");
+  assert.equal(h.service.getState().reachability, "offline");
+  assert.equal(h.service.getState().source, "renderer-offline");
+  resolveFetch();
+  await startup;
+  assert.equal(h.service.getState().reachability, "offline");
+});
+
+test("positive recovery signals debounce and share one probe", async () => {
+  const h = harness({ fetchImpl: async () => { throw new Error("down"); } });
+  await h.service.start();
+  h.setFetch(async (url) => ({ status: 204, url }));
+  const first = h.service.signalPossibleRecovery("renderer-online");
+  const second = h.service.signalPossibleRecovery("connection-change");
+  assert.equal(first, second);
+  assert.equal(h.calls.length, 1);
+  const debounce = [...h.timers.values()].find((entry) => entry.delay === 150);
+  assert.ok(debounce);
+  debounce.callback();
+  await first;
+  assert.equal(h.calls.length, 2);
+  assert.equal(h.service.getState().reachability, "connected");
+});
+
+test("an isolated heartbeat failure gets one immediate confirmation", async () => {
+  const h = harness();
+  await h.service.start();
+  let attempts = 0;
+  h.setFetch(async (url) => {
+    attempts += 1;
+    if (attempts === 1) throw new Error("brief interruption");
+    return { status: 204, url };
+  });
+  const heartbeat = [...h.timers.values()].find((entry) => entry.delay === 300_000);
+  assert.ok(heartbeat);
+  heartbeat.callback();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(attempts, 2);
+  assert.equal(h.service.getState().reachability, "connected");
+  assert.equal(h.service.getState().source, "heartbeat-confirmation");
+  assert.equal(h.service.getState().heartbeat.confirmationPending, false);
+});
+
+test("heartbeat adapts to window activity and stops while suspended", async () => {
+  const h = harness();
+  await h.service.start();
+  assert.ok([...h.timers.values()].some((entry) => entry.delay === 300_000));
+  h.service.setActivity("background", "blur");
+  assert.ok([...h.timers.values()].some((entry) => entry.delay === 240_000));
+  h.service.setActivity("suspended", "suspend");
+  assert.equal(h.timers.size, 0);
+  h.service.setActivity("active", "resume");
+  assert.ok([...h.timers.values()].some((entry) => entry.delay === 300_000));
+});
+
+test("health deployment fingerprint is captured and versioned", async () => {
+  const h = harness();
+  await h.service.start();
+  assert.deepEqual(h.service.getState().deployment, {
+    apiVersion: 1,
+    build: "test-build",
+    environment: "development",
+  });
+  assert.equal(h.service.getState().deploymentGeneration, 1);
 });

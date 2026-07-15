@@ -11,11 +11,25 @@ let rankingCapabilities = null;
 let activeRankingWeekId = null;
 let removeConnectivityListener = null;
 let removeRankingListener = null;
+let previousReachability = "unknown";
+let activeUserId = null;
+let lastAutoSubmitKey = null;
+let autoSubmitChain = Promise.resolve();
 const CONNECTIVITY_REFRESH_REASONS = new Set([
   "manual",
+  "connection-change",
   "renderer-offline",
   "renderer-online",
 ]);
+
+function handlePowerSuspend() {
+  connectivity?.setActivity("suspended", "suspend");
+}
+
+function handlePowerResume() {
+  connectivity?.setActivity("active", "resume");
+  connectivity?.signalPossibleRecovery("resume").catch(() => {});
+}
 
 function sendRendererEvent(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -23,9 +37,45 @@ function sendRendererEvent(channel, payload) {
   }
 }
 
+function schedulePendingAutoSubmit(trigger) {
+  const connection = connectivity?.getState();
+  if (connection?.reachability !== "connected" || !activeUserId) return;
+  const connectedGeneration = connection.reachabilityGeneration;
+  const scheduledUserId = activeUserId;
+  const key = `${connectedGeneration}:${scheduledUserId}`;
+  if (key === lastAutoSubmitKey) return;
+  lastAutoSubmitKey = key;
+  autoSubmitChain = autoSubmitChain.catch(() => {}).then(async () => {
+    const current = connectivity?.getState();
+    if (current?.reachability !== "connected" || current.reachabilityGeneration !== connectedGeneration ||
+        activeUserId !== scheduledUserId) return;
+    const result = await service.runPendingAutoSubmit({
+      connectedGeneration,
+      shouldContinue: () => {
+        const latest = connectivity?.getState();
+        return latest?.reachability === "connected" &&
+          latest.reachabilityGeneration === connectedGeneration && activeUserId === scheduledUserId;
+      },
+      trigger,
+    });
+    if (result?.transportFailure) connectivity?.signalOffline("auto-submit-transport", "transport");
+    if (activeUserId === scheduledUserId) {
+      const state = await service.getLauncherState({ deferRemoteMembership: true });
+      sendRendererEvent("launcher:state", { autoSubmit: result, state });
+    }
+  });
+}
+
 function syncRemoteContext(state) {
   if (!state || !connectivity || !rankingCapabilities) return state;
   const webBaseUrl = state.bridge?.webBaseUrl || null;
+  const nextUserId = state.session?.hasSession ? state.session.userId || null : null;
+  if (nextUserId !== activeUserId) {
+    service.invalidatePendingAutoSubmit("account-change");
+    activeUserId = nextUserId;
+    lastAutoSubmitKey = null;
+    schedulePendingAutoSubmit("account-change");
+  }
   activeRankingWeekId = state.game?.weekId || null;
   connectivity.setWebBaseUrl(webBaseUrl).catch(() => {});
   rankingCapabilities.updateContext({
@@ -43,9 +93,7 @@ function syncRemoteContext(state) {
   if (membershipSignal === "reachable") {
     connectivity.markReachable("membership-response");
   } else if (membershipSignal === "transport-failure") {
-    connectivity.refresh("membership-transport", {
-      maxAgeMs: connectivity.config.focusStaleMs,
-    }).catch(() => {});
+    connectivity.signalOffline("membership-transport", "transport");
   }
 
   return state;
@@ -68,17 +116,21 @@ function initializeRemoteServices() {
     fetchImpl: (url, init) => net.fetch(url, init),
     getConnectivityState: () => connectivity.getState(),
     onReachable: (source) => connectivity.markReachable(source),
-    onTransportFailure: (source) => connectivity.refresh(source, { force: true, phase: "background" }),
+    onTransportFailure: (source) => connectivity.signalOffline(source, "transport"),
   });
   service.setRemoteDiagnosticsProvider(() => ({
+    autoSubmit: service.getPendingAutoSubmitDiagnostics(),
     connectivity: connectivity.getDiagnostics(),
     ranking: rankingCapabilities.getDiagnostics(activeRankingWeekId),
   }));
   removeConnectivityListener = connectivity.subscribe((state) => {
     sendRendererEvent("launcher:connectivity-state", state);
 
+    const becameConnected = state.reachability === "connected" && previousReachability !== "connected";
+    previousReachability = state.reachability;
     if (isStableConnected(state)) {
       rankingCapabilities.refresh("connectivity-restored").catch(() => {});
+      if (becameConnected) schedulePendingAutoSubmit(state.source === "startup" ? "startup" : "connectivity-restored");
     } else {
       sendRendererEvent("launcher:ranking-capabilities-state", rankingCapabilities.getState());
     }
@@ -89,6 +141,7 @@ function initializeRemoteServices() {
 }
 
 function stopRemoteServices() {
+  service.invalidatePendingAutoSubmit("shutdown");
   removeConnectivityListener?.();
   removeRankingListener?.();
   removeConnectivityListener = null;
@@ -134,10 +187,15 @@ function createMainWindow() {
   });
 
   mainWindow.on("focus", () => {
+    connectivity?.setActivity("active", "focus");
     connectivity?.refresh("focus", {
       maxAgeMs: connectivity.config.focusStaleMs,
       phase: "background",
     }).catch(() => {});
+  });
+
+  mainWindow.on("blur", () => {
+    connectivity?.setActivity("background", "blur");
   });
 
   mainWindow.on("closed", () => {
@@ -185,21 +243,23 @@ async function showImportFolderDialog(event) {
 }
 
 function registerIpc() {
-  ipcMain.handle("launcher:get-state", () => withRemoteContext(service.getLauncherState({ attemptAutoSync: true })));
+  ipcMain.handle("launcher:get-state", () => withRemoteContext(service.getLauncherState()));
   ipcMain.handle("launcher:get-connectivity-state", () => connectivity.getState());
   ipcMain.handle("launcher:request-connectivity-refresh", (_event, reason) => {
     const safeReason = CONNECTIVITY_REFRESH_REASONS.has(reason) ? reason : "manual";
-    const phase = safeReason === "manual"
-      ? "manual"
-      : safeReason === "renderer-online"
-        ? "retry"
-        : "background";
-    return connectivity.refresh(safeReason, { force: true, phase });
+    if (safeReason === "renderer-offline") {
+      return connectivity.signalOffline(safeReason, "system-offline");
+    }
+    if (["renderer-online", "connection-change"].includes(safeReason)) {
+      return connectivity.signalPossibleRecovery(safeReason);
+    }
+    return connectivity.refresh(safeReason, { force: true, phase: "manual" });
   });
   ipcMain.handle("launcher:get-ranking-capabilities-state", () => rankingCapabilities.getState());
   ipcMain.handle("launcher:request-ranking-capabilities-refresh", () => rankingCapabilities.refresh("renderer-request"));
   ipcMain.handle("launcher:get-auth-state", () => service.getAuthStateForGui());
   ipcMain.handle("launcher:login", async (_event, credentials) => {
+    service.invalidatePendingAutoSubmit("login");
     await prepareRemoteAction("login");
     return withRemoteContext(service.loginWithPassword(credentials));
   });
@@ -262,8 +322,14 @@ function registerIpc() {
   ipcMain.handle("launcher:rescan-pack-directory", () => withRemoteContext(service.rescanPackDirectory()));
   ipcMain.handle("launcher:set-library-preferences", (_event, patch) => service.setLibraryPreferencesFromGui(patch));
   ipcMain.handle("launcher:toggle-library-favorite", (_event, packKey) => service.toggleLibraryFavoriteFromGui(packKey));
-  ipcMain.handle("launcher:remove-known-account", (_event, userId) => service.removeKnownAccountFromGui(userId));
-  ipcMain.handle("launcher:switch-account", (_event, userId) => service.switchKnownAccountFromGui(userId));
+  ipcMain.handle("launcher:remove-known-account", (_event, userId) => {
+    service.invalidatePendingAutoSubmit("remove-account");
+    return withRemoteContext(service.removeKnownAccountFromGui(userId));
+  });
+  ipcMain.handle("launcher:switch-account", (_event, userId) => {
+    service.invalidatePendingAutoSubmit("switch-account");
+    return withRemoteContext(service.switchKnownAccountFromGui(userId));
+  });
   ipcMain.handle("launcher:use-library-pack", (_event, packId) => withRemoteContext(service.activateLibraryPack(packId, {
     deferRemoteMembership: true,
   })));
@@ -363,7 +429,10 @@ function registerIpc() {
   });
   ipcMain.handle("launcher:restore-failed", (_event, filename) => service.restoreFailedSubmission(filename));
   ipcMain.handle("launcher:sync-plugin", () => service.syncPlugin());
-  ipcMain.handle("launcher:logout", () => service.logoutSession());
+  ipcMain.handle("launcher:logout", () => {
+    service.invalidatePendingAutoSubmit("logout");
+    return withRemoteContext(service.logoutSession());
+  });
 }
 
 app.whenReady().then(() => {
@@ -371,9 +440,8 @@ app.whenReady().then(() => {
   registerIpc();
   connectivity.start("startup").catch(() => {});
   createMainWindow();
-  powerMonitor.on("resume", () => {
-    connectivity.refresh("resume", { force: true, phase: "background" }).catch(() => {});
-  });
+  powerMonitor.on("suspend", handlePowerSuspend);
+  powerMonitor.on("resume", handlePowerResume);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -383,7 +451,8 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", () => {
-  powerMonitor.removeAllListeners("resume");
+  powerMonitor.removeListener("suspend", handlePowerSuspend);
+  powerMonitor.removeListener("resume", handlePowerResume);
   stopRemoteServices();
 });
 

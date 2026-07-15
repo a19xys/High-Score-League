@@ -9,7 +9,16 @@ import {
   LAUNCHER_RANKING_BATCH_LIMIT,
   resolvePublicRankingCapability,
   validateLauncherRankingRequest,
+  validLauncherRankingDatabaseWeekId,
 } from "../lib/launcher-ranking-capabilities.ts";
+import {
+  getLauncherDeploymentFingerprint,
+  LAUNCHER_API_VERSION,
+} from "../lib/launcher-deployment.js";
+import {
+  classifyRankingBackendError,
+  getSafeRankingProviderDiagnostic,
+} from "../lib/launcher-ranking-diagnostics.ts";
 import { loadLauncherRankingSource } from "../lib/launcher-ranking-source.ts";
 import { getSupabaseAdminConfiguration } from "../lib/supabase/admin.ts";
 
@@ -29,8 +38,25 @@ test("launcher health is an unauthenticated empty 204 with no-store", async () =
   assert.equal(response.status, 204);
   assert.equal(await response.text(), "");
   assert.match(response.headers.get("cache-control") || "", /no-store/);
+  assert.equal(response.headers.get("x-hsl-launcher-api-version"), String(LAUNCHER_API_VERSION));
+  assert.ok(response.headers.get("x-hsl-build"));
+  assert.ok(response.headers.get("x-hsl-environment"));
   assert.doesNotMatch(source, /auth|getUser|cookie|Supabase/i);
   assert.doesNotMatch(source, /export\s+(async\s+)?function\s+(POST|PUT|PATCH|DELETE)/);
+});
+
+test("deployment fingerprint exposes only normalized non-sensitive identity", () => {
+  assert.deepEqual(getLauncherDeploymentFingerprint({
+    NODE_ENV: "production",
+    SUPABASE_SERVICE_ROLE_KEY: "must-not-leak",
+    VERCEL_ENV: "production",
+    VERCEL_GIT_COMMIT_SHA: "4aa31df04411dfeeffd0e5b2e536c91c0f87172a",
+  }), {
+    apiVersion: 1,
+    build: "4aa31df04411",
+    environment: "production",
+  });
+  assert.equal(JSON.stringify(getLauncherDeploymentFingerprint({})).includes("SUPABASE"), false);
 });
 
 test("validates versioned batches and duplicate request keys", () => {
@@ -62,6 +88,8 @@ test("validates versioned batches and duplicate request keys", () => {
     version: 1,
     requests: [{ requestKey: "bad key", weekId: "week-1" }],
   }).ok, false);
+  assert.equal(validLauncherRankingDatabaseWeekId("11111111-1111-4111-8111-111111111111"), true);
+  assert.equal(validLauncherRankingDatabaseWeekId("launcher-api-check-missing-week"), false);
 });
 
 test("public capability matches week visibility without requiring scores", () => {
@@ -156,14 +184,18 @@ test("ranking source batches queries and returns sanitized failure codes", async
   assert.deepEqual(calls, ["weeks", "seasons", "season-weeks"]);
   assert.equal(source.ok && source.activeWeekNumbers.get("season-1"), 1);
 
+  const failures: Array<{ stage: string; operation: string; error: unknown }> = [];
   const failedWeeks = await loadLauncherRankingSource({
     weekIds: ["week-1"],
     loadRequestedWeeks: async () => ({ data: null, error: new Error("private database detail") }),
     loadSeasons: async () => ({ data: [], error: null }),
     loadSeasonWeeks: async () => ({ data: [], error: null }),
     deriveStatus: () => "active",
+    onQueryFailure: (failure) => failures.push(failure),
   });
   assert.deepEqual(failedWeeks, { ok: false, code: "RANKING_WEEKS_QUERY_FAILED" });
+  assert.equal(failures[0].stage, "weeks");
+  assert.equal(failures[0].operation, "load-requested-weeks");
 
   const failedContext = await loadLauncherRankingSource({
     weekIds: ["week-1"],
@@ -173,6 +205,24 @@ test("ranking source batches queries and returns sanitized failure codes", async
     deriveStatus: () => "active",
   });
   assert.deepEqual(failedContext, { ok: false, code: "RANKING_CONTEXT_QUERY_FAILED" });
+});
+
+test("backend diagnostics classify provider failures without leaking credentials", () => {
+  assert.equal(classifyRankingBackendError({ code: "PGRST301", message: "invalid JWT" }, "RANKING_WEEKS_QUERY_FAILED"),
+    "RANKING_BACKEND_AUTH_FAILED");
+  assert.equal(classifyRankingBackendError({ code: "42703", message: "column does not exist" }, "RANKING_WEEKS_QUERY_FAILED"),
+    "RANKING_SCHEMA_MISMATCH");
+  assert.equal(classifyRankingBackendError({ message: "TypeError: fetch failed ENOTFOUND" }, "RANKING_WEEKS_QUERY_FAILED"),
+    "RANKING_BACKEND_TRANSPORT_FAILED");
+
+  const diagnostic = getSafeRankingProviderDiagnostic({
+    code: "22P02",
+    details: "Bearer secret-token",
+    hint: "service_role=secret-value",
+    message: "invalid input syntax for type uuid",
+  }, "RANKING_WEEKS_QUERY_FAILED");
+  assert.equal(diagnostic.classification, "RANKING_WEEKS_QUERY_FAILED");
+  assert.doesNotMatch(JSON.stringify(diagnostic), /secret-token|secret-value/);
 });
 
 test("admin configuration reports missing server variables without exposing values", () => {
@@ -216,5 +266,7 @@ test("page and endpoint consume the same public ranking helper", async () => {
   assert.match(endpoint, /MAX_REQUEST_BYTES/);
   assert.match(endpoint, /RANKING_SERVICE_NOT_CONFIGURED/);
   assert.match(endpoint, /source\.code/);
+  assert.match(endpoint, /validLauncherRankingDatabaseWeekId/);
+  assert.match(endpoint, /launcher-ranking-query-failed/);
   assert.doesNotMatch(endpoint, /Authorization|request\.cookies|rankingUrl/);
 });

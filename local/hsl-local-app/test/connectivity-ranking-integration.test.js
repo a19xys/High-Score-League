@@ -72,6 +72,8 @@ test("renderer only signals network changes and never confirms connected", async
   assert.match(app, /connectivity: null/);
   assert.match(app, /requestConnectivityRefresh\?\.\("renderer-offline"\)/);
   assert.match(app, /requestConnectivityRefresh\?\.\("renderer-online"\)/);
+  assert.match(app, /navigator\.connection\?\.addEventListener/);
+  assert.match(app, /navigator\.connection\?\.removeEventListener/);
   assert.doesNotMatch(app, /navigator\.onLine/);
   assert.doesNotMatch(app, /setTimeout\(\(\) => store\.setState\(\{ connectionStatus: "connected"/);
   assert.match(app, /openRankingWithoutGlobalBusy/);
@@ -93,14 +95,16 @@ test("IPC is narrow, subscribable and exposes no arbitrary fetch", async () => {
   }
 
   assert.match(main, /powerMonitor\.on\("resume"/);
+  assert.match(main, /powerMonitor\.on\("suspend"/);
   assert.match(main, /mainWindow\.on\("focus"/);
+  assert.match(main, /mainWindow\.on\("blur"/);
   assert.match(preload, /onConnectivityState/);
   assert.match(preload, /onRankingCapabilitiesState/);
   assert.doesNotMatch(preload, /fetch\s*:/);
   assert.doesNotMatch(preload, /request\(url|arbitrary|ipcRenderer\.invoke\([^,]+,\s*url/);
 });
 
-test("header reserves a stable accessible refresh slot and manual feedback", async () => {
+test("header shows only stable states with natural width and accessible refresh", async () => {
   const [header, styles, app, busyOverlay] = await Promise.all([
     fsp.readFile(path.join(rendererRoot, "components", "header.js"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
@@ -108,16 +112,37 @@ test("header reserves a stable accessible refresh slot and manual feedback", asy
     fsp.readFile(path.join(rendererRoot, "components", "busy-overlay.js"), "utf8"),
   ]);
 
-  assert.match(header, /Reconectando/);
+  const connectionBlock = header.slice(header.indexOf("const headerStatus"), header.indexOf("const connectionChip"));
+  assert.doesNotMatch(connectionBlock, /Conectando|Reconectando/);
   assert.match(header, /data-action="refresh-connectivity"/);
   assert.match(header, /aria-label="Comprobar conexi\\u00f3n"/);
-  assert.match(header, /connection-refresh-placeholder/);
+  assert.match(header, /aria-disabled=/);
+  assert.doesNotMatch(header, /connection-refresh-placeholder/);
   assert.doesNotMatch(header, /<button[^>]*connection-chip/);
-  assert.match(styles, /\.connection-chip[\s\S]*inline-size: 174px/);
+  assert.match(styles, /\.connection-chip\s*\{[\s\S]*?display: inline-flex/);
+  assert.doesNotMatch(styles, /174px/);
   assert.match(styles, /\.connection-label[\s\S]*white-space: nowrap/);
   assert.match(styles, /\.connection-refresh-button:focus-visible/);
-  assert.match(app, /refresh-connectivity[\s\S]*minVisibleMs: 600/);
+  assert.match(app, /refresh-connectivity/);
+  assert.match(app, /runWithOperationFeedback/);
+  assert.match(app, /DEFAULT_OPERATION_MIN_VISIBLE_MS/);
   assert.match(busyOverlay, /Comprobando conexi\\u00f3n\.\.\./);
+});
+
+test("header selector hides unknown and ignores transient probe phases", async () => {
+  const { deriveConnectivityHeaderState } = await import(
+    pathToFileURL(path.join(rendererRoot, "connectivity-header-state.js")).href
+  );
+
+  assert.equal(deriveConnectivityHeaderState({ reachability: "unknown" }), "hidden");
+  assert.equal(deriveConnectivityHeaderState({
+    reachability: "connected",
+    probe: { phase: "manual", inFlight: true },
+  }), "connected");
+  assert.equal(deriveConnectivityHeaderState({
+    reachability: "offline",
+    probe: { phase: "retry", inFlight: true },
+  }), "offline");
 });
 
 test("pack activation preserves the previous snapshot and uses shared minimum feedback", async () => {
@@ -128,7 +153,7 @@ test("pack activation preserves the previous snapshot and uses shared minimum fe
   ]);
 
   const activationBlock = app.slice(app.indexOf("async function activateLibraryPackWithPreload"), app.indexOf("function bindActions"));
-  assert.match(activationBlock, /waitForMinimumVisibleDuration\(\{ minVisibleMs: 600/);
+  assert.match(activationBlock, /waitForMinimumVisibleDuration\(\{ minVisibleMs: DEFAULT_OPERATION_MIN_VISIBLE_MS/);
   assert.doesNotMatch(activationBlock, /data:\s*null|game:\s*null|activePack:\s*null/);
   assert.doesNotMatch(app, /neutralizeActivePackData|neutralizeActivePack/);
   assert.match(activationBlock, /refreshRemoteStateAfterPackActivation/);

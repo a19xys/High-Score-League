@@ -911,13 +911,9 @@ button:disabled {
 }
 
 .connection-chip {
-  display: inline-grid;
-  grid-template-columns: 8px minmax(0, 1fr) 26px;
+  display: inline-flex;
   align-items: center;
   gap: 7px;
-  inline-size: 174px;
-  min-inline-size: 174px;
-  max-inline-size: 174px;
   padding-inline: 11px;
   color: var(--text-muted);
   font-size: 12px;
@@ -929,14 +925,6 @@ button:disabled {
   overflow: hidden;
   text-overflow: clip;
   white-space: nowrap;
-}
-
-.connection-refresh-slot,
-.connection-refresh-placeholder {
-  display: inline-grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
 }
 
 .connection-refresh-button {
@@ -954,6 +942,11 @@ button:disabled {
 
 .connection-refresh-button:hover {
   background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.connection-refresh-button:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .connection-refresh-button:focus-visible {
@@ -979,10 +972,6 @@ button:disabled {
 
 .connection-chip--offline {
   color: var(--error);
-}
-
-.connection-chip--reconnecting {
-  color: var(--warn);
 }
 
 .known-accounts span {

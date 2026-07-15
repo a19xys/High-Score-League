@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   openManual: invoke("launcher:open-manual"),
   onBusyPhase: (callback) => onEvent("launcher:busy-phase", callback),
   onConnectivityState: (callback) => onEvent("launcher:connectivity-state", callback),
+  onLauncherState: (callback) => onEvent("launcher:state", callback),
   onRankingCapabilitiesState: (callback) => onEvent("launcher:ranking-capabilities-state", callback),
   playCompetition: invoke("launcher:play-competition"),
   practice: invoke("launcher:practice"),
