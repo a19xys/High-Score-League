@@ -176,6 +176,7 @@ function initializeRemoteServices() {
     },
   });
   pendingAutoSubmitCoordinator = createPendingAutoSubmitCoordinator({
+    autoScheduleSessionRetry: true,
     inspect: () => service.getPendingAutoSubmitContexts({
       activeUserId,
       connection: connectivity.getState(),

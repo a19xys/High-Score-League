@@ -1,6 +1,7 @@
 const { createHash } = require("node:crypto");
 
 const RETRY_BACKOFF_MS = [30000, 60000, 120000, 300000, 900000];
+const SESSION_RETRY_FALLBACK_MS = 30000;
 
 function derivePendingAutoSubmitReadiness(context = {}) {
   if (context.connection?.reachability !== "connected") return { ready: false, reason: "offline" };
@@ -30,11 +31,17 @@ function createPendingAutoSubmitCoordinator(options = {}) {
   let cooldownKey = null;
   let nextEligibleAtMs = null;
   let retryAttempt = 0;
+  let sessionDeferredKey = null;
+  let sessionNextEligibleAtMs = null;
+  let sessionRetryTimer = null;
+  let sessionRetryTimerAtMs = null;
   let observedGuardKey = null;
   let lastExecutionGeneration = null;
   let epoch = 0;
   const nowMs = () => (options.now || Date.now)();
   const nowIso = () => new Date(nowMs()).toISOString();
+  const clearTimeoutImpl = options.clearTimeoutImpl || clearTimeout;
+  const setTimeoutImpl = options.setTimeoutImpl || setTimeout;
   let diagnostics = {
     authBlockPreservedAcrossConnectivity: false,
     authBlocked: false,
@@ -51,17 +58,84 @@ function createPendingAutoSubmitCoordinator(options = {}) {
     readiness: "unknown",
     retryAttempt: 0,
     scheduledAt: null,
+    sessionDeferred: false,
+    sessionNextEligibleAt: null,
+    sessionRetryScheduled: false,
     startedAt: null,
     status: "idle",
     trigger: null,
   };
 
+  function clearSessionRetryTimer() {
+    if (sessionRetryTimer !== null) clearTimeoutImpl(sessionRetryTimer);
+    sessionRetryTimer = null;
+    sessionRetryTimerAtMs = null;
+  }
+
+  function clearSessionDeferral() {
+    clearSessionRetryTimer();
+    sessionDeferredKey = null;
+    sessionNextEligibleAtMs = null;
+    diagnostics = {
+      ...diagnostics,
+      sessionDeferred: false,
+      sessionNextEligibleAt: null,
+      sessionRetryScheduled: false,
+    };
+  }
+
+  function sessionRetryDelay(value) {
+    const delayMs = Number(value);
+    if (!Number.isFinite(delayMs) || delayMs <= 0) return SESSION_RETRY_FALLBACK_MS;
+    return Math.min(Math.round(delayMs), 0x7fffffff);
+  }
+
+  function scheduleSessionRetry() {
+    if (options.autoScheduleSessionRetry !== true || !sessionDeferredKey || sessionNextEligibleAtMs === null) return;
+    if (sessionRetryTimer !== null && sessionRetryTimerAtMs === sessionNextEligibleAtMs) return;
+    clearSessionRetryTimer();
+    const expectedKey = sessionDeferredKey;
+    const expectedAtMs = sessionNextEligibleAtMs;
+    sessionRetryTimerAtMs = expectedAtMs;
+    sessionRetryTimer = setTimeoutImpl(() => {
+      sessionRetryTimer = null;
+      sessionRetryTimerAtMs = null;
+      if (sessionDeferredKey !== expectedKey || sessionNextEligibleAtMs !== expectedAtMs) return;
+      request("session-retry").catch(() => {});
+    }, Math.max(0, expectedAtMs - nowMs()));
+    sessionRetryTimer?.unref?.();
+    diagnostics = { ...diagnostics, sessionRetryScheduled: true };
+  }
+
+  function armSessionDeferral(guardKey, result) {
+    const delayMs = sessionRetryDelay(result.retryAfterMs);
+    clearSessionRetryTimer();
+    sessionDeferredKey = guardKey;
+    sessionNextEligibleAtMs = nowMs() + delayMs;
+    cooldownKey = null;
+    nextEligibleAtMs = null;
+    retryAttempt = 0;
+    setDeferred(result.reason || "session-deferred", {
+      authBlocked: false,
+      cooldownAttempt: 0,
+      nextEligibleAt: null,
+      retryAttempt: 0,
+      sessionDeferred: true,
+      sessionNextEligibleAt: new Date(sessionNextEligibleAtMs).toISOString(),
+      sessionRetryScheduled: false,
+    });
+    scheduleSessionRetry();
+  }
+
   function clearGuards(reason) {
+    clearSessionRetryTimer();
     terminalKey = null;
     authBlockedKey = null;
     cooldownKey = null;
     nextEligibleAtMs = null;
     retryAttempt = 0;
+    sessionDeferredKey = null;
+    sessionNextEligibleAtMs = null;
     diagnostics = {
       ...diagnostics,
       authBlockPreservedAcrossConnectivity: false,
@@ -72,6 +146,9 @@ function createPendingAutoSubmitCoordinator(options = {}) {
       lastTerminalKey: null,
       nextEligibleAt: null,
       retryAttempt: 0,
+      sessionDeferred: false,
+      sessionNextEligibleAt: null,
+      sessionRetryScheduled: false,
     };
   }
 
@@ -134,6 +211,29 @@ function createPendingAutoSubmitCoordinator(options = {}) {
       setDeferred("cooldown", { nextEligibleAt: new Date(nextEligibleAtMs).toISOString() });
       return { attempted: false, guardKey: safeGuardKey, reason: "cooldown", retryAfterMs, retryable: true, status: "deferred", terminal: false };
     }
+    if (guardKey === sessionDeferredKey && sessionNextEligibleAtMs !== null) {
+      const retryAfterMs = Math.max(0, sessionNextEligibleAtMs - nowMs());
+      if (retryAfterMs > 0) {
+        setDeferred("session-refresh-wait", {
+          authBlocked: false,
+          nextEligibleAt: null,
+          retryAttempt: 0,
+          sessionDeferred: true,
+          sessionNextEligibleAt: new Date(sessionNextEligibleAtMs).toISOString(),
+        });
+        scheduleSessionRetry();
+        return {
+          attempted: false,
+          guardKey: safeGuardKey,
+          reason: "session-refresh-wait",
+          retryAfterMs,
+          sessionDeferred: true,
+          status: "deferred",
+          terminal: false,
+        };
+      }
+      clearSessionDeferral();
+    }
 
     diagnostics = {
       ...diagnostics,
@@ -157,11 +257,11 @@ function createPendingAutoSubmitCoordinator(options = {}) {
     }
 
     if (result.authFailure) {
+      clearSessionDeferral();
       authBlockedKey = guardKey;
       setDeferred(result.reason || "auth-required", { authBlocked: true });
-    } else if (result.sessionDeferred) {
-      setDeferred(result.reason || "session-deferred", { authBlocked: false });
-    } else if (result.retryable || result.transportFailure || result.status === "deferred") {
+    } else if (result.retryable || result.transportFailure || (result.status === "deferred" && !result.sessionDeferred)) {
+      clearSessionDeferral();
       const backoffMs = RETRY_BACKOFF_MS[Math.min(retryAttempt, RETRY_BACKOFF_MS.length - 1)];
       retryAttempt += 1;
       const effectiveDelay = Math.max(backoffMs, Number(result.retryAfterMs) || 0);
@@ -171,7 +271,10 @@ function createPendingAutoSubmitCoordinator(options = {}) {
         cooldownAttempt: retryAttempt,
         nextEligibleAt: new Date(nextEligibleAtMs).toISOString(),
       });
+    } else if (result.sessionDeferred) {
+      armSessionDeferral(guardKey, result);
     } else if (result.terminal === true) {
+      clearSessionDeferral();
       terminalKey = guardKey;
       retryAttempt = 0;
       cooldownKey = null;
@@ -187,6 +290,7 @@ function createPendingAutoSubmitCoordinator(options = {}) {
         status: result.status === "attention-required" ? "attention-required" : "completed",
       };
     } else {
+      clearSessionDeferral();
       setDeferred(result.reason || "non-terminal-result");
     }
 
@@ -194,22 +298,26 @@ function createPendingAutoSubmitCoordinator(options = {}) {
     return { ...result, guardKey: safeGuardKey, status: diagnostics.status };
   }
 
+  function request(trigger = "unknown") {
+    const requestEpoch = epoch;
+    chain = chain.catch(() => {}).then(() => execute(trigger, requestEpoch));
+    return chain;
+  }
+
   return {
     cancelCurrentRun(reason = "cancelled") {
       epoch += 1;
+      clearSessionRetryTimer();
       diagnostics = {
         ...diagnostics,
         deferReason: reason,
         lastRunCancellationReason: reason,
+        sessionRetryScheduled: false,
         status: "cancelled",
       };
     },
     getDiagnostics: () => ({ ...diagnostics }),
-    request(trigger = "unknown") {
-      const requestEpoch = epoch;
-      chain = chain.catch(() => {}).then(() => execute(trigger, requestEpoch));
-      return chain;
-    },
+    request,
     resetGuards(reason = "explicit-reset") {
       clearGuards(reason);
     },
@@ -218,6 +326,7 @@ function createPendingAutoSubmitCoordinator(options = {}) {
 
 module.exports = {
   RETRY_BACKOFF_MS,
+  SESSION_RETRY_FALLBACK_MS,
   createPendingAutoSubmitCoordinator,
   derivePendingAutoSubmitReadiness,
   diagnosticGuardKey,

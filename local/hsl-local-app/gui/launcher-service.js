@@ -183,6 +183,16 @@ function getPendingAutoSubmitDiagnostics() {
   return { ...pendingAutoSubmitState };
 }
 
+function earliestPositiveRetryAfterMs(current, candidate) {
+  const currentMs = Number(current);
+  const candidateMs = Number(candidate);
+  if (!Number.isFinite(candidateMs) || candidateMs <= 0) {
+    return Number.isFinite(currentMs) && currentMs > 0 ? currentMs : null;
+  }
+  if (!Number.isFinite(currentMs) || currentMs <= 0) return candidateMs;
+  return Math.min(currentMs, candidateMs);
+}
+
 async function getPendingAutoSubmitContext(options = {}) {
   const config = options.config || loadRuntimeConfig();
   const session = await getAuthState(config, { deferRemote: true });
@@ -212,6 +222,7 @@ async function getPendingAutoSubmitContexts(options = {}) {
   const totals = { invalidPending: 0, pending: 0, validPending: 0 };
   const sessionSummary = {
     loginRequiredPendingCount: 0,
+    retryAfterMs: null,
     sessionDeferredPendingCount: 0,
     unavailablePendingCount: 0,
   };
@@ -250,6 +261,10 @@ async function getPendingAutoSubmitContexts(options = {}) {
           sessionSummary.loginRequiredPendingCount += index.totals.pending;
         } else if (isSessionDeferred(resolved.sessionResult)) {
           sessionSummary.sessionDeferredPendingCount += index.totals.pending;
+          sessionSummary.retryAfterMs = earliestPositiveRetryAfterMs(
+            sessionSummary.retryAfterMs,
+            resolved.sessionResult.retryAfterMs,
+          );
         } else {
           sessionSummary.unavailablePendingCount += index.totals.pending;
         }
@@ -1301,6 +1316,7 @@ async function runPendingAutoSubmit(options = {}) {
   let cancelled = false;
   let retryable = false;
   let sessionDeferred = false;
+  let sessionRetryAfterMs = null;
   let retryAfterMs = null;
   let processedScopes = 0;
   const stillCurrent = () => !combinedSignal.signal.aborted && epoch === pendingAutoSubmitEpoch && options.shouldContinue?.() !== false;
@@ -1323,6 +1339,7 @@ async function runPendingAutoSubmit(options = {}) {
       }
       if (membership.authDeferred) {
         sessionDeferred = true;
+        sessionRetryAfterMs = earliestPositiveRetryAfterMs(sessionRetryAfterMs, membership.retryAfterMs);
         break;
       }
       const membershipRequestFailed = membership.status === "unknown" && !membership.response && membership.request;
@@ -1347,10 +1364,15 @@ async function runPendingAutoSubmit(options = {}) {
           if (["transport-failure", "timeout"].includes(result.outcome)) scopeTransportFailure = true;
           if (result.retryable) scopeRetryable = true;
           if (result.authRequired) authFailure = true;
-          if (result.sessionDeferred) sessionDeferred = true;
+          if (result.sessionDeferred) {
+            sessionDeferred = true;
+            sessionRetryAfterMs = earliestPositiveRetryAfterMs(sessionRetryAfterMs, result.retryAfterMs);
+          }
           if (result.outcome === "cancelled") cancelled = true;
           if (result.outcome === "attention-required") attentionRequired = true;
-          retryAfterMs = Math.max(Number(retryAfterMs) || 0, Number(result.retryAfterMs) || 0) || null;
+          if (!result.sessionDeferred) {
+            retryAfterMs = Math.max(Number(retryAfterMs) || 0, Number(result.retryAfterMs) || 0) || null;
+          }
         },
         signal: combinedSignal.signal,
         shouldContinue: stillCurrent,
@@ -1408,7 +1430,7 @@ async function runPendingAutoSubmit(options = {}) {
     preserved: Math.max(0, preserved),
     sent,
     reason: cancelled ? "cancelled" : transportFailure ? "transport" : retryable ? "retryable-http" : authFailure ? "auth-required" : sessionDeferred ? "session-deferred" : attentionRequired ? "attention-required" : null,
-    retryAfterMs,
+    retryAfterMs: retryable || transportFailure ? retryAfterMs : sessionDeferred ? sessionRetryAfterMs : retryAfterMs,
     retryable,
     sessionDeferred,
     terminal: !cancelled && !transportFailure && !retryable && !authFailure && !sessionDeferred,
@@ -1422,6 +1444,7 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
   const sessionSummary = contexts.sessionSummary || {};
   const sessionDeferredPendingCount = Number(sessionSummary.sessionDeferredPendingCount) || 0;
   const loginRequiredPendingCount = Number(sessionSummary.loginRequiredPendingCount) || 0;
+  let sessionRetryAfterMs = earliestPositiveRetryAfterMs(null, sessionSummary.retryAfterMs);
   const aggregate = {
     attempted: false,
     attentionRequired: false,
@@ -1467,7 +1490,12 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
     aggregate.sessionDeferred = aggregate.sessionDeferred || result.sessionDeferred === true;
     aggregate.cancelled = aggregate.cancelled || result.cancelled === true || result.status === "cancelled";
     aggregate.retryable = aggregate.retryable || result.retryable === true;
-    aggregate.retryAfterMs = Math.max(Number(aggregate.retryAfterMs) || 0, Number(result.retryAfterMs) || 0) || null;
+    if (result.sessionDeferred) {
+      sessionRetryAfterMs = earliestPositiveRetryAfterMs(sessionRetryAfterMs, result.retryAfterMs);
+    }
+    if (result.retryable || result.transportFailure) {
+      aggregate.retryAfterMs = Math.max(Number(aggregate.retryAfterMs) || 0, Number(result.retryAfterMs) || 0) || null;
+    }
     if (result.transportFailure || result.retryable || result.cancelled) {
       aggregate.transportFailure = aggregate.transportFailure || result.transportFailure === true;
       aggregate.status = "deferred";
@@ -1483,6 +1511,7 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
   } else if ((sessionDeferredPendingCount > 0 || aggregate.sessionDeferred) && !aggregate.cancelled && !aggregate.retryable && !aggregate.transportFailure) {
     aggregate.authDeferred = true;
     aggregate.reason = "session-deferred";
+    aggregate.retryAfterMs = sessionRetryAfterMs;
     aggregate.sessionDeferred = true;
     aggregate.status = "auth-deferred";
     aggregate.terminal = false;
