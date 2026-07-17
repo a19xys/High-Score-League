@@ -2095,12 +2095,13 @@ test("launcher service and renderer expose account switcher without tokens", asy
     "utf8",
   );
 
-  assert.match(service, /rememberSessionAccount/);
-  assert.match(service, /saveRememberedSession/);
+  assert.match(service, /sessionRepository\(baseConfig\)\.read/);
+  assert.match(service, /getAccountSessionRepository/);
+  assert.doesNotMatch(service, /saveRememberedSession|saveSession\(config/);
   assert.match(service, /switchKnownAccountFromGui/);
   assert.match(service, /toSafeAccountsState/);
   assert.match(service, /removeKnownAccountFromGui/);
-  assert.match(service, /removeKnownAccount\(config, session\.userId\)/);
+  assert.match(service, /removeKnownAccount\(config, session\.userId, \{ deleteSession: false \}\)/);
   assert.match(service, /logoutLocal\(config\)/);
   assert.match(header, /<strong>Cuentas<\/strong>/);
   assert.match(header, /data-action="switch-account"/);

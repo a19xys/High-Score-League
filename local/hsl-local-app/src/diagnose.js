@@ -1,14 +1,12 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
+const { getAuthState } = require("./auth");
 const { buildMameArgs, DEFAULT_PLUGIN_NAME } = require("./mame-launcher");
 const { getV2CaptureReadiness } = require("./mame-plugin-run");
 const { resolveScopedQueue } = require("./scoped-queue");
 const { readSharedMameRuntime } = require("./shared-mame-runtime");
 
-const REQUIRED_CONFIG_FIELDS = [
-  "sessionFile",
-  "clientVersion",
-];
+const REQUIRED_CONFIG_FIELDS = ["clientVersion"];
 
 const PACK_OR_DEV_FIELDS = ["webBaseUrl", "defaultWeekId"];
 const AUTH_CONFIG_FIELDS = ["supabaseUrl", "supabaseAnonKey"];
@@ -277,7 +275,7 @@ async function buildDiagnoseReport(config) {
 
   add(report, "runtime", "OK", `eventos resueltos desde ${config.eventsSource || "rutas finales"}`);
   add(report, "queues", "INFO", `cola activa clasificada como ${eventQueue.name}`);
-  add(report, "runtime", "OK", "sessionFile final", config.sessionFileAbs);
+  add(report, "runtime", "OK", "sesiones", "repositorio canonico por cuenta; ruta legacy reservada al migrador");
 
   if (sharedMameRuntime) {
     add(report, "runtime", sharedMameRuntime.configured ? "OK" : "INFO", sharedMameRuntime.configured
@@ -601,16 +599,24 @@ async function buildDiagnoseReport(config) {
     );
   }
 
-  const session = await readSessionSummary(config.sessionFileAbs);
+  const authState = await getAuthState(config, { deferRemote: true });
+  const session = {
+    email: authState.email,
+    exists: authState.hasSession,
+    hasSession: authState.hasSession,
+    sessionRevision: authState.sessionRevision,
+    userId: authState.userId,
+    validJson: !["corrupt", "recovery-required"].includes(authState.status),
+  };
 
   if (!session.exists) {
-    add(report, "session", "INFO", "No hay sesión local. Usa node app.js login <email> antes de submit.", config.sessionFileAbs);
+    add(report, "session", "INFO", "No hay sesion canonica. Usa node app.js login <email> antes de submit.");
   } else if (!session.validJson) {
-    add(report, "session", "WARN", `El archivo de sesión no se pudo leer como JSON: ${session.error}`, config.sessionFileAbs);
+    add(report, "session", "WARN", "La sesion canonica requiere recuperacion.");
   } else if (session.hasSession) {
-    add(report, "session", "OK", `sesión local encontrada para ${session.email || session.userId || "usuario desconocido"}`, config.sessionFileAbs);
+    add(report, "session", "OK", `sesion canonica encontrada; revision ${session.sessionRevision}`);
   } else {
-    add(report, "session", "WARN", "El archivo de sesión existe, pero no contiene session", config.sessionFileAbs);
+    add(report, "session", "WARN", "La cuenta activa no contiene una sesion canonica valida.");
   }
 
   if (!session.exists) {

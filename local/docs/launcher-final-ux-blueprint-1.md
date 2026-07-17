@@ -410,8 +410,12 @@ cerrar sesion o quitar una cuenta recordada no borra puntuaciones locales.
 Segundo soporte implementado en `LOCAL-ACCOUNT-SWITCHER-GUI-2`: la GUI guarda
 sesiones recordadas por cuenta bajo `userData/accounts/sessions/` para cambiar
 sin volver a introducir contrasena cuando la sesion local sigue siendo valida o
-refrescable. `session.json` sigue siendo la sesion activa compatible con el
-resto del launcher.
+refrescable.
+
+Contrato vigente desde `LOCAL-CANONICAL-ACCOUNT-SESSIONS-1`: esas sesiones son
+la unica autoridad por `userId`. La activa es solo `lastActiveUserId`, switch no
+copia tokens y GUI/CLI comparten repositorio y locks. `session.json` queda
+limitado a migracion legacy y se elimina despues de verificar el destino.
 
 ## Iconos y marca
 

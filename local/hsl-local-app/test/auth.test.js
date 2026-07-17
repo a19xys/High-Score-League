@@ -9,6 +9,7 @@ const {
   saveSession,
   signInWithPassword,
 } = require("../src/auth");
+const { canonicalSessionPath } = require("../src/account-session-repository");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-auth-test-"));
@@ -25,6 +26,7 @@ function createConfig(root, overrides = {}) {
     sessionFileAbs: path.join(root, "userData", "session.json"),
     supabaseAnonKey: "anon-key",
     supabaseUrl: "https://example.supabase.co",
+    userDataDir: path.join(root, "userData"),
     ...overrides,
   };
 }
@@ -64,7 +66,7 @@ test("signInWithPassword saves a valid Supabase session", async () => {
       }
     );
 
-    const raw = await fsp.readFile(config.sessionFileAbs, "utf8");
+    const raw = await fsp.readFile(canonicalSessionPath(config, "user-1"), "utf8");
 
     assert.equal(result.ok, true);
     assert.equal(result.session.email, "player@example.com");
@@ -72,6 +74,7 @@ test("signInWithPassword saves a valid Supabase session", async () => {
     assert.equal(JSON.stringify(result).includes("correct-password"), false);
     assert.doesNotMatch(raw, /access-token-secret|refresh-token-secret/);
     assert.match(raw, /"schemaVersion": 2/);
+    await assert.rejects(() => fsp.access(config.sessionFileAbs));
   });
 });
 
@@ -116,7 +119,7 @@ test("signInWithPassword does not save when Supabase omits the session", async (
   });
 });
 
-test("logoutLocal deletes only the local session file", async () => {
+test("logoutLocal deletes only the canonical session and leaves no legacy session", async () => {
   await withTempDir(async (dir) => {
     const config = createConfig(dir);
     await saveSession(config, validSession(), { id: "user-1", email: "player@example.com" });
@@ -125,6 +128,7 @@ test("logoutLocal deletes only the local session file", async () => {
 
     assert.equal(result.ok, true);
     assert.equal(result.session.hasSession, false);
+    await assert.rejects(() => fsp.access(canonicalSessionPath(config, "user-1")));
     await assert.rejects(() => fsp.readFile(config.sessionFileAbs, "utf8"));
   });
 });

@@ -171,7 +171,6 @@ function printHelp() {
   console.log("Cuenta:");
   console.log("  node app.js login [email]");
   console.log("  node app.js auth-status");
-  console.log("  node app.js auth-token");
   console.log("  node app.js logout");
   console.log("");
   console.log("Subida:");

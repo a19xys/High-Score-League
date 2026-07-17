@@ -3,10 +3,7 @@ const assert = require("node:assert/strict");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const {
-  rememberAccount,
-  saveRememberedSession,
-} = require("../src/account-store");
+const { createAccountSessionRepository } = require("../src/account-session-repository");
 const {
   getPendingAutoSubmitContexts,
   runPendingAutoSubmitForAccounts,
@@ -28,14 +25,20 @@ test("remembered inactive account keeps an independent eligible session", async 
   const userDataDir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-multi-account-"));
   const config = {
     eventsPendingDirAbs: path.join(userDataDir, "events", "pending"),
+    sessionFileAbs: path.join(userDataDir, "session.json"),
+    supabaseAnonKey: "anon-key",
+    supabaseUrl: "https://example.supabase.co",
     userDataDir,
     webBaseUrl: "https://hsl.example",
   };
   try {
-    await rememberAccount(config, { userId: "user-a", email: "a@example.com" });
-    await saveRememberedSession(config, stored("user-a"));
-    await rememberAccount(config, { userId: "user-b", email: "b@example.com" });
-    await saveRememberedSession(config, stored("user-b"));
+    const repository = createAccountSessionRepository({
+      config,
+      isExpiringSoon: () => false,
+      refreshProvider: async ({ storedSession }) => storedSession,
+    });
+    await repository.saveLogin(stored("user-a"), { setActive: false });
+    await repository.saveLogin(stored("user-b"));
     const result = await getPendingAutoSubmitContexts({
       activeUserId: "user-b",
       config,

@@ -24,6 +24,18 @@ test("resolveFromAppDir keeps absolute paths and resolves relative paths", async
   });
 });
 
+test("HSL_USER_DATA_DIR isolates GUI and CLI test profiles", async () => {
+  await withTempDir(async (dir) => {
+    const profile = path.join(dir, "isolated-profile");
+    const config = loadConfig(path.join(dir, "missing.json"), dir, {
+      environment: { HSL_USER_DATA_DIR: profile },
+    });
+    assert.equal(config.userDataDir, profile);
+    assert.equal(config.sessionFileAbs, path.join(profile, "session.json"));
+    assert.equal(config.eventsPendingDirAbs, path.join(profile, "events", "pending"));
+  });
+});
+
 test("loadConfig resolves explicit queue paths and legacy default session path", async () => {
   await withTempDir(async (dir) => {
     const configPath = path.join(dir, "config.json");

@@ -13,3 +13,8 @@ Esta politica evita dos coordinadores de cola, dos ciclos de health y carreras
 sobre las sesiones o ficheros scoped. Las pruebas unitarias cubren rechazo de
 secundaria y restauracion/foco de la primaria; la validacion GUI de prelaunch
 incluye lanzar una segunda instancia real.
+
+El lock de instancia GUI no sustituye la coordinacion con CLI. Cada refresh usa
+tambien un lock filesystem por `userId`; `known-accounts.json` usa otro lock
+independiente. Ambos tienen timeout, recuperacion stale conservadora y liberacion
+en `finally`.

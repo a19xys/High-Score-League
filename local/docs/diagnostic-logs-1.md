@@ -7,6 +7,12 @@ cola/sesion, intento de cooldown, `nextEligibleAt`, bloqueo de autenticacion y
 ultima clave terminal. Los resultados remotos usan motivos enumerados para
 HTTP reintentable, transporte, timeout y cancelacion.
 
+El bloque de sesiones canonicas agrega schema y migracion, recuentos de cuentas
+y sesiones, hashes del activo y de usuarios en vuelo, contadores de lock,
+refresh, deferred, revocacion, corrupcion y stale writes, mas revision,
+expiracion y `requiresLogin` por cuenta. No incluye email, tokens, cuerpos del
+proveedor ni rutas fisicas de credenciales.
+
 El sanitizer sigue excluyendo tokens, Authorization, cookies, cuerpos completos,
 HTML, IP y URLs devueltas por servidor. La causa tecnica se limita a estado
 HTTP, tipo/codigo de error y motivo de ciclo de vida permitido.

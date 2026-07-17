@@ -60,8 +60,8 @@ Documento específico: [`launcher-pack-open-1.md`](launcher-pack-open-1.md).
 
 - La seccion `Cuenta` permite iniciar sesion con email y contrasena desde la
   GUI.
-- El login usa Supabase Auth con la anon key configurada y guarda la sesion en
-  el mismo `userData/session.json` que usa la CLI.
+- El login usa Supabase Auth con la anon key configurada y guarda una unica
+  sesion canonica por cuenta compartida con la CLI.
 - El renderer no recibe `access_token`, `refresh_token` ni contrasena.
 - `Cerrar sesion` elimina solo la sesion local; no borra packs ni puntuaciones
   pendientes.
@@ -241,7 +241,8 @@ Documento especifico:
 
 - La GUI puede guardar una sesion local recordada por cuenta en
   `userData/accounts/sessions/<playerKey>.json`.
-- `session.json` sigue siendo la unica sesion activa compatible con CLI y GUI.
+- `lastActiveUserId` es el pointer activo; CLI y GUI leen la misma sesion
+  canonica y `session.json` queda limitado a migracion.
 - `Cambiar` activa la sesion recordada sin pedir contrasena si sigue siendo
   valida o refrescable.
 - Si la sesion recordada falta o caduca, se abre login con email prellenado.

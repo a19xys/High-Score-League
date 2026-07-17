@@ -13,7 +13,6 @@
     "restore": "node app.js restore",
     "login": "node app.js login",
     "auth-status": "node app.js auth-status",
-    "auth-token": "node app.js auth-token",
     "logout": "node app.js logout",
     "diagnose": "node app.js diagnose",
     "sync-plugin": "node app.js sync-plugin",

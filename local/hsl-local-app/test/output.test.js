@@ -24,6 +24,7 @@ test("printHelp groups the MVP CLI flow commands", () => {
   assert.match(output, /Juego:\n  node app\.js play <rom>\n  node app\.js practice <rom>/);
   assert.match(output, /Eventos:[\s\S]*node app\.js scan \[pending\|sent\|failed\]/);
   assert.match(output, /Cuenta:[\s\S]*node app\.js auth-status/);
+  assert.doesNotMatch(output, /auth-token/);
   assert.match(output, /Subida:\n  node app\.js submit <archivo\.json>\n  node app\.js submit-all/);
 });
 

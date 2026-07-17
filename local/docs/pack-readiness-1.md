@@ -170,9 +170,8 @@ el pack activo por fuerza.
 
 ## Relacion con el selector de cuenta
 
-`LOCAL-ACCOUNT-SWITCHER-GUI-2` permite recordar sesiones locales por cuenta,
-pero `session.json` sigue siendo la sesion activa. Readiness usa siempre esa
-sesion activa y el scope derivado de esa cuenta + pack. Al cerrar sesion,
+Cada cuenta tiene una sesion canonica y `lastActiveUserId` selecciona la activa.
+Readiness usa siempre esa sesion y el scope derivado de cuenta + pack. Al cerrar sesion,
 readiness puede dejar practica disponible si MAME y ROM estan listos, pero
 bloquea competicion y subida hasta activar o iniciar sesion con una cuenta.
 

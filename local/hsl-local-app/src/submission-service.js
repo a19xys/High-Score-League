@@ -1,5 +1,5 @@
 const path = require("path");
-const { assertAuthConfig, getValidStoredSession } = require("./auth");
+const { assertAuthConfig, resolveCanonicalSession } = require("./auth");
 const { assertDirExists, pathExists } = require("./file-utils");
 const {
   RECENT_EVENT_THRESHOLD_MS,
@@ -100,7 +100,7 @@ async function submitPendingFile(config, filename, options = {}) {
   let storedSession;
 
   try {
-    storedSession = await (options.getValidStoredSessionImpl || getValidStoredSession)(config);
+    storedSession = await (options.getValidStoredSessionImpl || resolveCanonicalSession)(config);
   } catch (error) {
     return withOutcome({
       action: "auth_required",

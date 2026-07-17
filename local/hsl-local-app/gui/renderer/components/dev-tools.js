@@ -207,7 +207,7 @@ export function renderDevTools(state) {
           </div>
           <div>
             <dt>Sesión</dt>
-            <dd>${escapeHtml(data?.session?.sessionFile || "sin archivo local")}</dd>
+            <dd>${escapeHtml(data?.session?.sessionRevision || "sin revision")}</dd>
           </div>
         </dl>
       </details>

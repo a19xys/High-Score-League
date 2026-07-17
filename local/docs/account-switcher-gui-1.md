@@ -78,13 +78,13 @@ No se guarda:
 
 Despues de un login correcto, la GUI:
 
-1. guarda la sesion activa en el `session.json` existente;
+1. guarda una unica sesion canonica en `accounts/sessions/<playerKey>.json`;
 2. anade o actualiza la cuenta en `known-accounts.json`;
 3. marca esa cuenta como `lastActiveUserId`;
 4. recalcula estado del launcher, scope, membership, readiness y auto-sync.
 
-No hay login real contra cuentas recordadas sin contrasena. Cambiar cuenta pide
-login de nuevo.
+El contrato posterior permite cambiar a una cuenta con sesion canonica valida
+sin copiar tokens; si requiere login, abre el flujo de credenciales.
 
 ## Cambiar cuenta
 

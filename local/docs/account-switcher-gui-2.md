@@ -20,20 +20,15 @@ Esta segunda version anade sesiones recordadas por cuenta.
 
 ## Modelo
 
-Se mantiene compatibilidad con el sistema actual:
-
-```text
-userData/session.json
-```
-
-Ese archivo sigue siendo la sesion activa real para CLI, GUI y codigo
-existente.
-
-Ademas, la GUI guarda sesiones recordadas por cuenta en:
+El modelo historico de dos copias fue sustituido por:
 
 ```text
 userData/accounts/sessions/<playerKey>.json
 ```
+
+Cada archivo es la unica sesion canonica de su `userId`. GUI y CLI comparten
+esa autoridad. La cuenta activa es `lastActiveUserId`; `session.json` solo es
+una fuente legacy que el migrador elimina tras verificar.
 
 `known-accounts.json` sigue siendo solo presentacion:
 
@@ -52,7 +47,7 @@ Cuenta conocida:
 Sesion recordada:
 
 - permite cambiar sin contrasena;
-- contiene la misma estructura de sesion que `session.json`;
+- contiene el payload canonico protegido y su `sessionRevision`;
 - vive en un archivo separado por `playerKey`;
 - no se envia al renderer;
 - no se imprime en logs.
@@ -61,10 +56,8 @@ Sesion recordada:
 
 No se guardan contrasenas.
 
-Los tokens de sesiones recordadas se guardan bajo el mismo modelo de confianza
-que el `session.json` existente en `userData`. No se implementa cifrado propio
-ni `safeStorage` en esta fase para no introducir una capa parcial dificil de
-probar desde CLI/tests.
+Los tokens se guardan con el envelope de `secure-session-storage`. GUI y CLI
+usan Electron `safeStorage` compatible y nunca exponen el payload al renderer.
 
 El renderer solo recibe:
 
@@ -88,11 +81,10 @@ No recibe `access_token`, `refresh_token`, `Authorization`, contrasena,
 
 Tras login correcto:
 
-1. se guarda `session.json` como antes;
-2. se guarda o actualiza `accounts/sessions/<playerKey>.json`;
-3. se actualiza `known-accounts.json`;
-4. se marca la cuenta como activa;
-5. se recalcula estado, scope, membership, readiness y auto-sync.
+1. se guarda o actualiza `accounts/sessions/<playerKey>.json` una sola vez;
+2. se actualiza `known-accounts.json`;
+3. se marca la cuenta como activa;
+4. se recalcula estado, scope, membership, readiness y auto-sync.
 
 ## Cambiar cuenta
 
@@ -100,11 +92,11 @@ En el menu compacto, la fila completa de una cuenta no activa cambia a esa
 cuenta:
 
 1. la GUI pide al proceso principal activar esa cuenta;
-2. el proceso principal busca su sesion recordada;
-3. si existe y es valida, la escribe como `session.json`;
-4. si esta cerca de caducar, intenta refrescar con Supabase;
-5. si el refresh funciona, actualiza la sesion recordada y activa;
-6. si falta o falla, borra el acceso rapido y abre login con email prellenado.
+2. el proceso principal resuelve su sesion canonica;
+3. si existe y es valida, cambia solo `lastActiveUserId`;
+4. si esta cerca de caducar y hay conectividad confirmada, el repositorio la renueva;
+5. si el refresh funciona, incrementa la revision canonica;
+6. si falta o esta revocada, conserva metadata segura y abre login.
 
 Mensaje esperado si falla:
 
@@ -120,8 +112,8 @@ conocida y su sesion recordada.
 ## Cerrar sesion
 
 Desde `LOCAL-LAUNCHER-ACCOUNT-MENU-POLISH-1`, `Cerrar sesion` en el menu
-compacto cierra la sesion activa `session.json` y olvida esa cuenta en este
-launcher. Si habia una sesion recordada para esa cuenta, tambien se elimina.
+compacto elimina la sesion canonica de la cuenta activa y la olvida en este
+launcher.
 
 No elimina:
 
@@ -150,12 +142,12 @@ No elimina:
 - logs;
 - metadata.
 
-Si la cuenta es la activa, tambien se cierra `session.json`. Ya no se exige
+Si la cuenta es la activa, tambien se limpia el pointer. Ya no se exige
 cerrar sesion antes de olvidarla.
 
 ## Colas scoped
 
-Al cambiar cuenta, `session.json` cambia y `getLauncherState()` recalcula:
+Al cambiar cuenta, cambia el pointer y `getLauncherState()` recalcula:
 
 - `playerKey`;
 - `packKey`;

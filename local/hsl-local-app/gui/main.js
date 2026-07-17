@@ -17,6 +17,8 @@ const {
 } = require("./security-policy");
 const { installSingleInstancePolicy } = require("./single-instance");
 
+if (process.env.HSL_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.HSL_USER_DATA_DIR));
+
 if (process.env.HSL_ELECTRON_VERBOSE_LOGGING === "1") {
   app.commandLine.appendSwitch("enable-logging");
   app.commandLine.appendSwitch("log-level", "0");
@@ -61,6 +63,7 @@ const CONNECTIVITY_REFRESH_REASONS = new Set([
 
 function handlePowerSuspend() {
   productOperationsController.abort("suspend");
+  service.cancelAccountSessionOperations(null, "suspend");
   service.cancelPendingAutoSubmit("suspend");
   pendingAutoSubmitCoordinator?.cancelCurrentRun("suspend");
   topologyMonitor?.stop();
@@ -255,6 +258,7 @@ function initializeSecureSessionStorage() {
 
 function stopRemoteServices() {
   productOperationsController.abort("shutdown");
+  service.shutdownAccountSessions();
   service.cancelPendingAutoSubmit("shutdown");
   pendingAutoSubmitCoordinator?.cancelCurrentRun("shutdown");
   removeConnectivityListener?.();
@@ -495,7 +499,9 @@ function registerIpc() {
   });
   ipcMain.handle("launcher:switch-account", (_event, userId) => {
     service.invalidateInteractiveRemoteOperations("switch-account");
-    return withRemoteContext(service.switchKnownAccountFromGui(userId));
+    return withRemoteContext(service.switchKnownAccountFromGui(userId, {
+      connected: isCommittedConnected(connectivity?.getState()),
+    }));
   });
   ipcMain.handle("launcher:use-library-pack", (_event, packId) => {
     service.invalidateInteractiveRemoteOperations("account-change");

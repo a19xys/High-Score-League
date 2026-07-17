@@ -24,3 +24,11 @@ Checklist Supabase Auth pendiente de verificacion manual:
 - Refresh token rotation activa conforme a la politica del proyecto.
 
 El panel remoto no se verifico en esta sesion y no se afirma lo contrario.
+
+## Autoridad canonica
+
+Cada cuenta usa ahora un unico envelope en `accounts/sessions/<playerKey>.json`;
+`lastActiveUserId` es solo un pointer. Lectura y renovacion pasan por el
+repositorio canonico, con single-flight y lock interproceso por usuario.
+`session.json` solo es entrada legacy del migrador y se elimina tras verificar
+el destino. Vease `canonical-account-sessions-1.md`.

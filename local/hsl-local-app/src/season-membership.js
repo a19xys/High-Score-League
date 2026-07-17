@@ -1,4 +1,4 @@
-const { getValidStoredSession } = require("./auth");
+const { resolveCanonicalSession } = require("./auth");
 const { normalizeWebBaseUrl, parseResponseText } = require("./submission-http");
 const { executeRemoteRequest } = require("./remote-request");
 const { parseRetryAfter, RETRYABLE_HTTP_STATUSES } = require("./submission-outcome");
@@ -297,7 +297,7 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
   let storedSession;
 
   try {
-    storedSession = options.storedSession || await getValidStoredSession(config);
+    storedSession = options.storedSession || await resolveCanonicalSession(config);
   } catch (error) {
     return baseState({
       joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),

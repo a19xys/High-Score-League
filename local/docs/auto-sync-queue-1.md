@@ -119,6 +119,12 @@ Los detalles tecnicos muestran estado, motivo, ultimo intento, ultimo exito y
 contadores `pending` antes/despues. No muestran tokens, password, cabeceras de
 autorizacion ni `session.json`.
 
+Cada contexto obtiene su sesion exclusivamente del repositorio canonico. Una
+cuenta inactiva valida conserva autoenvio; una cuenta eliminada desaparece del
+indice y no resucita por un touch tardio. Un refresh aceptado incrementa
+`sessionRevision` y forma el nuevo guardKey natural, sin `resetGuards()` ni
+cambios en cooldown o autoridad de conectividad.
+
 `LOCAL-PACK-READINESS-1` consume este estado para resumir si el pack esta listo
 para practicar, competir y sincronizar. Ese resumen no cambia la elegibilidad
 ni dispara subidas nuevas; solo presenta la misma informacion en una capa mas

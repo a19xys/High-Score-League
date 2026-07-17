@@ -82,8 +82,18 @@ async function writeStoredSession(filePath, storedSession, options = {}) {
   if (options.expectedUserId && options.expectedUserId !== userId) {
     throw Object.assign(new Error("La identidad de sesion no coincide con su cuenta."), { code: "SESSION_IDENTITY_MISMATCH" });
   }
-  const previous = await readRaw(filePath).catch(() => null);
-  const revision = Number(previous?.revision) > 0 ? Number(previous.revision) + 1 : 1;
+  const previous = await readRaw(filePath);
+  const previousRevision = Number(previous?.revision) > 0 ? Number(previous.revision) : 0;
+  if (options.expectedRevision !== undefined && Number(options.expectedRevision) !== previousRevision) {
+    throw Object.assign(new Error("La revision de sesion ha cambiado."), {
+      code: "SESSION_STALE_WRITE",
+      currentRevision: previousRevision,
+    });
+  }
+  const revision = options.revision === undefined ? previousRevision + 1 : Number(options.revision);
+  if (!Number.isInteger(revision) || revision <= previousRevision) {
+    throw Object.assign(new Error("La nueva revision de sesion no es monotona."), { code: "SESSION_REVISION_INVALID" });
+  }
   const envelope = {
     encryptedPayload: encodePayload(storedSession),
     playerKey: options.playerKey || null,
@@ -93,10 +103,17 @@ async function writeStoredSession(filePath, storedSession, options = {}) {
     schemaVersion: 2,
     userId,
   };
-  await atomicWriteJson(filePath, envelope);
-  const verified = await readStoredSession(filePath, { migrate: false });
-  if (verified.storedSession?.user?.id !== userId) {
-    throw Object.assign(new Error("No se pudo verificar la sesion persistida."), { code: "SESSION_STORAGE_VERIFY_FAILED" });
+  const atomicWriteImpl = options.atomicWriteImpl || atomicWriteJson;
+  try {
+    await atomicWriteImpl(filePath, envelope);
+    const verified = await readStoredSession(filePath, { migrate: false });
+    if (verified.storedSession?.user?.id !== userId || verified.revision !== revision) {
+      throw Object.assign(new Error("No se pudo verificar la sesion persistida."), { code: "SESSION_STORAGE_VERIFY_FAILED" });
+    }
+  } catch (error) {
+    if (previous) await atomicWriteJson(filePath, previous).catch(() => {});
+    else await fsp.unlink(filePath).catch(() => {});
+    throw error;
   }
   return { envelope, filePath, storage: getSessionStorageDiagnostics() };
 }

@@ -8,7 +8,8 @@
 | Respuesta stale | P1 | Mitigado | generaciones y abort al cambiar topologia |
 | Mezcla multi-cuenta | P0 | Cerrado | player/meta/sesion congelada/epoch |
 | Autoenvio duplicado | P1 | Mitigado | guard usuario+cola+sesion; generacion solo de ejecucion; idempotencia |
-| Refresh concurrente por cuenta | P0 | Cerrado | single-flight por userId y revision monotona |
+| Refresh concurrente por cuenta | P0 | Cerrado | repositorio canonico, single-flight y lock interproceso por userId |
+| Sesiones activa/recordada divergentes | P0 | Cerrado | una sesion por userId; activo como pointer; migracion verificable |
 | Token local legible | P0 | Mitigado | safeStorage, envelope v2 y migracion verificada |
 | Linux sin keyring real | P1 | Aceptado | archivo 0600 y warning de backend degradado |
 | Configuracion remota Supabase incompatible | P1 | Pendiente | checklist manual; panel no verificado en esta sesion |

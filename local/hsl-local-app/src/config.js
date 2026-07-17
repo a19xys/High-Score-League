@@ -39,7 +39,7 @@ function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR, options = {}) {
     hslOrigin,
     remoteConfiguration,
     sessionFile,
-    userDataDir: config.userDataDir || "auto",
+    userDataDir: environment.HSL_USER_DATA_DIR || config.userDataDir || "auto",
     webBaseUrl: hslOrigin,
   };
   const runtimePaths = resolveRuntimePaths(mergedConfig, pack, { appDir });

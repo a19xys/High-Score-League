@@ -1,15 +1,17 @@
-const { authStatus, authToken, login, logout } = require("./auth");
+const { authStatus, login, logout } = require("./auth");
 const { loadConfig } = require("./config");
 const { diagnose } = require("./diagnose");
 const { scanBox, showOne, watchPending } = require("./event-files");
 const { markFailed, markSent, restoreToPending } = require("./file-queue");
 const { launchMame } = require("./mame-launcher");
 const { printHelp } = require("./output");
+const { configureCliSessionProtection } = require("./platform-session-protection");
 const { syncPluginCommand } = require("./dev-sync-plugin");
 const { submitAll, submitOne } = require("./submission-service");
 
 async function runCli(argv = process.argv) {
   const config = loadConfig();
+  configureCliSessionProtection(config);
   const command = argv[2] || "scan";
 
   if (command === "scan") {
@@ -50,11 +52,6 @@ async function runCli(argv = process.argv) {
 
   if (command === "auth-status") {
     await authStatus(config);
-    return;
-  }
-
-  if (command === "auth-token") {
-    await authToken(config);
     return;
   }
 

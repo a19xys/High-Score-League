@@ -6,9 +6,10 @@ Login y logout visual minimo para la GUI local.
 
 - Iniciar sesion desde el panel `Cuenta` de la GUI Electron.
 - Usar email y contrasena contra Supabase Auth con la anon key configurada.
-- Guardar la sesion en el mismo `userData/session.json` que usa la CLI.
+- Guardar una unica sesion canonica por `userId` compartida con la CLI.
 - Cerrar sesion desde la GUI eliminando solo la sesion local.
-- Mantener la CLI existente: `login`, `auth-status`, `auth-token` y `logout`.
+- Mantener la CLI `login`, `auth-status` y `logout`; `auth-token` se retiro por
+  no tener consumidores y por ampliar innecesariamente la superficie sensible.
 
 ## Seguridad
 
@@ -48,9 +49,10 @@ Cerrar sesion
 
 ## Logout
 
-Cerrar sesion elimina `userData/session.json` mediante el mismo mecanismo local
-que la CLI. No borra packs, `recent.json`, eventos `pending`, `sent`, `failed`,
-logs ni preferencias.
+Cerrar sesion elimina el envelope canonico de la cuenta activa y su metadata
+mediante el mismo repositorio que la CLI. `session.json` solo puede ser una
+fuente legacy pendiente de migracion. Logout no borra packs, `recent.json`,
+eventos `pending`, `sent`, `failed`, favoritos, logs ni preferencias.
 
 ## Subidas
 

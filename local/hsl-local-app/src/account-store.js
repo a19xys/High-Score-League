@@ -1,7 +1,9 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
-const { derivePlayerKey } = require("./scoped-queue");
-const { readStoredSession, writeStoredSession } = require("./secure-session-storage");
+const { acquireFileLock } = require("./file-lock");
+const { atomicWriteJson } = require("./secure-session-storage");
+
+const mutationChains = new Map();
 
 function getKnownAccountsPath(config = {}) {
   if (!config.userDataDir) {
@@ -11,33 +13,17 @@ function getKnownAccountsPath(config = {}) {
   return path.join(config.userDataDir, "accounts", "known-accounts.json");
 }
 
-function getAccountSessionsDir(config = {}) {
-  if (!config.userDataDir) {
-    throw new Error("config.userDataDir es obligatorio para recordar sesiones.");
-  }
-
-  return path.join(config.userDataDir, "accounts", "sessions");
-}
-
-function getRememberedSessionPath(config = {}, accountOrSession = {}) {
-  const playerKey = derivePlayerKey({
-    email: accountOrSession.email || accountOrSession.user?.email,
-    hasSession: true,
-    userId: accountOrSession.userId || accountOrSession.id || accountOrSession.user?.id,
-  });
-
-  if (!playerKey) {
-    throw new Error("No se pudo derivar playerKey para la sesion recordada.");
-  }
-
-  return path.join(getAccountSessionsDir(config), `${playerKey}.json`);
+function getKnownAccountsLockPath(config = {}) {
+  return path.join(config.userDataDir, "accounts", "locks", "known-accounts.lock");
 }
 
 function emptyStore(warnings = []) {
   return {
     accounts: [],
+    corrupt: false,
     lastActiveUserId: null,
-    schemaVersion: 1,
+    revision: 0,
+    schemaVersion: 2,
     updatedAt: null,
     warnings,
   };
@@ -80,6 +66,8 @@ function sanitizeAccount(input = {}, now = new Date().toISOString()) {
     email,
     initials,
     lastUsedAt: sanitizeString(input.lastUsedAt) || now,
+    requiresLogin: input.requiresLogin === true,
+    sessionRevision: Math.max(0, Number(input.sessionRevision) || 0),
     userId,
   };
 }
@@ -115,8 +103,10 @@ function normalizeStore(raw, warnings = []) {
 
   return {
     accounts: uniqueAccounts,
+    corrupt: false,
     lastActiveUserId: sanitizeString(raw?.lastActiveUserId),
-    schemaVersion: 1,
+    revision: Math.max(0, Number(raw?.revision) || 0),
+    schemaVersion: 2,
     updatedAt: sanitizeString(raw?.updatedAt),
     warnings,
   };
@@ -141,29 +131,65 @@ async function readKnownAccounts(config = {}) {
 
     return {
       ...emptyStore([`No se pudo leer known-accounts.json: ${error.message}`]),
+      corrupt: true,
       filePath,
     };
   }
 }
 
-async function writeKnownAccounts(config = {}, store, options = {}) {
+async function writeKnownAccountsUnlocked(config = {}, store, options = {}) {
   const filePath = getKnownAccountsPath(config);
   const updatedAt = options.now || new Date().toISOString();
   const data = {
     accounts: store.accounts || [],
     lastActiveUserId: store.lastActiveUserId || null,
-    schemaVersion: 1,
+    revision: Number(store.revision) || 1,
+    schemaVersion: 2,
     updatedAt,
   };
 
-  await fsp.mkdir(path.dirname(filePath), { recursive: true });
-  await fsp.writeFile(filePath, JSON.stringify(data, null, 2), "utf8");
+  await atomicWriteJson(filePath, data);
 
   return {
     ...data,
     filePath,
     warnings: [],
   };
+}
+
+function serializeMutation(filePath, operation) {
+  const previous = mutationChains.get(filePath) || Promise.resolve();
+  const current = previous.catch(() => {}).then(operation);
+  mutationChains.set(filePath, current);
+  return current.finally(() => {
+    if (mutationChains.get(filePath) === current) mutationChains.delete(filePath);
+  });
+}
+
+async function mutateKnownAccounts(config = {}, mutator, options = {}) {
+  const filePath = getKnownAccountsPath(config);
+  return serializeMutation(filePath, async () => {
+    const lock = await acquireFileLock(getKnownAccountsLockPath(config), {
+      purpose: "known-accounts",
+      staleAfterMs: options.staleAfterMs,
+      timeoutMs: options.lockTimeoutMs,
+    });
+    try {
+      const current = await readKnownAccounts(config);
+      if (current.corrupt) {
+        throw Object.assign(new Error("known-accounts.json esta corrupto; no se sobrescribe."), { code: "KNOWN_ACCOUNTS_CORRUPT" });
+      }
+      const proposed = await mutator(current);
+      if (!proposed) return current;
+      return writeKnownAccountsUnlocked(config, {
+        accounts: proposed.accounts || [],
+        lastActiveUserId: proposed.lastActiveUserId || null,
+        revision: current.revision + 1,
+      }, options);
+    } finally {
+      await lock.release();
+    }
+  });
 }
 
 async function rememberAccount(config = {}, accountInput = {}, options = {}) {
@@ -174,184 +200,95 @@ async function rememberAccount(config = {}, accountInput = {}, options = {}) {
     return readKnownAccounts(config);
   }
 
-  const current = await readKnownAccounts(config);
-  const existing = current.accounts.find((item) => item.userId === account.userId);
-  const accounts = current.accounts.filter((item) => item.userId !== account.userId);
-
-  accounts.unshift({
-    ...existing,
-    ...account,
-    addedAt: existing?.addedAt || account.addedAt,
-    lastUsedAt: now,
-  });
-
-  return writeKnownAccounts(config, {
-    accounts,
-    lastActiveUserId: account.userId,
-  }, { now });
+  return mutateKnownAccounts(config, (current) => {
+    const existing = current.accounts.find((item) => item.userId === account.userId);
+    const accounts = current.accounts.filter((item) => item.userId !== account.userId);
+    accounts.unshift({
+      ...existing,
+      ...account,
+      addedAt: existing?.addedAt || account.addedAt,
+      lastUsedAt: now,
+      requiresLogin: options.requiresLogin ?? existing?.requiresLogin ?? false,
+      sessionRevision: options.sessionRevision ?? existing?.sessionRevision ?? 0,
+    });
+    return { accounts, lastActiveUserId: options.setActive === false ? current.lastActiveUserId : account.userId };
+  }, { ...options, now });
 }
 
 async function rememberSessionAccount(config = {}, session = {}, options = {}) {
   const now = options.now || new Date().toISOString();
   const account = accountFromSession(session, now);
 
-  if (!account) {
-    return readKnownAccounts(config);
-  }
-
-  const current = await readKnownAccounts(config);
-  const exists = current.accounts.some((item) => item.userId === account.userId);
-  const activeMatches = current.lastActiveUserId === account.userId;
-
-  if (exists && activeMatches && options.touch !== true) {
-    return current;
-  }
-
-  return rememberAccount(config, account, { now });
-}
-
-async function saveRememberedSession(config = {}, storedSession = {}) {
-  const filePath = getRememberedSessionPath(config, storedSession);
-  const playerKey = derivePlayerKey({
-    email: storedSession.user?.email,
-    hasSession: true,
-    userId: storedSession.user?.id,
-  });
-  const written = await writeStoredSession(filePath, storedSession, {
-    expectedUserId: storedSession.user?.id,
-    playerKey,
-  });
-
-  return {
-    filePath,
-    ok: true,
-    revision: written.envelope.revision,
-    storage: written.storage,
-  };
-}
-
-async function readRememberedSession(config = {}, account = {}) {
-  const filePath = getRememberedSessionPath(config, account);
-
-  try {
-    const stored = await readStoredSession(filePath);
+  if (!account) return readKnownAccounts(config);
+  return mutateKnownAccounts(config, (current) => {
+    const existing = current.accounts.find((item) => item.userId === account.userId);
+    if (!existing) return null;
+    if (current.lastActiveUserId === account.userId && options.touch !== true) return null;
     return {
-      filePath,
-      ok: Boolean(stored.storedSession),
-      revision: stored.revision,
-      session: stored.storedSession,
-      status: stored.status,
-      storage: stored.storage,
+      accounts: current.accounts.map((item) => item.userId === account.userId ? {
+        ...item,
+        email: account.email || item.email,
+        lastUsedAt: now,
+      } : item),
+      lastActiveUserId: account.userId,
     };
-  } catch (error) {
-    return {
-      error: error.code === "ENOENT" ? null : error.message,
-      filePath,
-      ok: false,
-      session: null,
-      status: error.code === "ENOENT" ? "missing" : "invalid",
-    };
-  }
-}
-
-async function deleteRememberedSession(config = {}, account = {}) {
-  const filePath = getRememberedSessionPath(config, account);
-
-  try {
-    await fsp.unlink(filePath);
-    return {
-      deleted: true,
-      filePath,
-    };
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return {
-        deleted: false,
-        filePath,
-      };
-    }
-
-    throw error;
-  }
-}
-
-async function listSavedSessionUserIds(config = {}, accounts = []) {
-  const saved = new Set();
-
-  for (const account of accounts) {
-    try {
-      const result = await readRememberedSession(config, account);
-
-      if (result.ok) {
-        saved.add(account.userId);
-      }
-    } catch {
-      // Ignore malformed account rows for renderer state.
-    }
-  }
-
-  return saved;
-}
-
-async function migrateRememberedSessions(config = {}, accounts = []) {
-  const results = [];
-
-  for (const account of accounts) {
-    const result = await readRememberedSession(config, account);
-    results.push({
-      migrated: result.ok && result.status === "valid",
-      status: result.status,
-      userId: account.userId,
-    });
-  }
-
-  return results;
+  }, { ...options, now });
 }
 
 async function clearActiveAccount(config = {}, options = {}) {
-  const current = await readKnownAccounts(config);
-  return writeKnownAccounts(config, {
-    accounts: current.accounts,
-    lastActiveUserId: null,
+  return mutateKnownAccounts(config, (current) => ({ accounts: current.accounts, lastActiveUserId: null }), options);
+}
+
+async function setActiveAccount(config = {}, userId, options = {}) {
+  const safeUserId = sanitizeString(userId);
+  return mutateKnownAccounts(config, (current) => {
+    if (!safeUserId || !current.accounts.some((account) => account.userId === safeUserId)) {
+      throw Object.assign(new Error("La cuenta activa no existe."), { code: "ACCOUNT_NOT_FOUND" });
+    }
+    return { accounts: current.accounts, lastActiveUserId: safeUserId };
   }, options);
+}
+
+async function markAccountRequiresLogin(config = {}, userId, details = {}, options = {}) {
+  const safeUserId = sanitizeString(userId);
+  return mutateKnownAccounts(config, (current) => ({
+    accounts: current.accounts.map((account) => account.userId === safeUserId ? {
+      ...account,
+      requiresLogin: true,
+      sessionRevision: Math.max(Number(account.sessionRevision) || 0, Number(details.sessionRevision) || 0),
+    } : account),
+    lastActiveUserId: current.lastActiveUserId,
+  }), options);
 }
 
 async function removeKnownAccount(config = {}, userId, options = {}) {
-  const current = await readKnownAccounts(config);
   const safeUserId = sanitizeString(userId);
 
   if (!safeUserId) {
-    return {
-      ...current,
-      removed: false,
-    };
+    return { ...(await readKnownAccounts(config)), removed: false };
   }
-
-  const accounts = current.accounts.filter((account) => account.userId !== safeUserId);
-  const removed = accounts.length !== current.accounts.length;
-  const lastActiveUserId = current.lastActiveUserId === safeUserId ? null : current.lastActiveUserId;
-  await deleteRememberedSession(config, { userId: safeUserId }).catch(() => null);
-
-  const next = await writeKnownAccounts(config, {
-    accounts,
-    lastActiveUserId,
+  let removed = false;
+  const next = await mutateKnownAccounts(config, (current) => {
+    const accounts = current.accounts.filter((account) => account.userId !== safeUserId);
+    removed = accounts.length !== current.accounts.length;
+    return {
+      accounts,
+      lastActiveUserId: current.lastActiveUserId === safeUserId ? null : current.lastActiveUserId,
+    };
   }, options);
-
-  return {
-    ...next,
-    removed,
-  };
+  return { ...next, removed };
 }
 
 function toSafeAccountsState(store = emptyStore(), session = {}, options = {}) {
-  const activeUserId = session?.hasSession ? session.userId || null : null;
-  const activeEmail = session?.hasSession ? session.email || null : null;
+  const activeUserId = store.lastActiveUserId || null;
+  const activeAccount = store.accounts.find((account) => account.userId === activeUserId);
+  const activeEmail = activeAccount?.email || (session?.hasSession ? session.email || null : null);
   const savedSessionUserIds = options.savedSessionUserIds || new Set();
   const sessionStatuses = options.sessionStatuses || new Map();
   const accounts = store.accounts.map((account) => {
     const sessionState = sessionStatuses.get(account.userId) || null;
-    const requiresLogin = Number(sessionState?.pendingCount) > 0
-      && ["corrupt", "revoked", "unavailable"].includes(sessionState?.status);
+    const requiresLogin = account.requiresLogin === true || (Number(sessionState?.pendingCount) > 0
+      && ["corrupt", "revoked", "unavailable"].includes(sessionState?.status));
 
     return {
       avatarUrl: account.avatarUrl,
@@ -383,18 +320,15 @@ function toSafeAccountsState(store = emptyStore(), session = {}, options = {}) {
 module.exports = {
   accountFromSession,
   clearActiveAccount,
-  deleteRememberedSession,
-  getAccountSessionsDir,
   getKnownAccountsPath,
-  getRememberedSessionPath,
-  listSavedSessionUserIds,
-  migrateRememberedSessions,
+  getKnownAccountsLockPath,
+  markAccountRequiresLogin,
+  mutateKnownAccounts,
   readKnownAccounts,
-  readRememberedSession,
   rememberAccount,
   rememberSessionAccount,
   removeKnownAccount,
   safeInitials,
-  saveRememberedSession,
+  setActiveAccount,
   toSafeAccountsState,
 };

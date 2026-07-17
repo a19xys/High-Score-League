@@ -376,7 +376,8 @@ test("diagnose session summary does not expose tokens", async () => {
     const report = await buildDiagnoseReport(config);
     const serialized = JSON.stringify(report);
 
-    assert.ok(hasEntry(report.sections.session, "OK", /test@example\.com/));
+    assert.ok(hasEntry(report.sections.session, "OK", /revision/));
+    assert.equal(serialized.includes("test@example.com"), false);
     assert.equal(serialized.includes("secret-access-token"), false);
     assert.equal(serialized.includes("secret-refresh-token"), false);
   });

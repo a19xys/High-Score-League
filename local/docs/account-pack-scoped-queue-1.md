@@ -116,9 +116,9 @@ la sesion activa sigue siendo una sola. Al cambiar cuenta, el usuario inicia
 sesion de nuevo y la GUI recalcula `playerKey`, `packKey` y la cola visible.
 
 `LOCAL-ACCOUNT-SWITCHER-GUI-2` permite que cada cuenta tenga una sesion local
-recordada en `userData/accounts/sessions/<playerKey>.json`. Al cambiar cuenta,
-esa sesion se convierte en el `session.json` activo y la cola visible vuelve a
-derivarse de la cuenta activa + pack activo.
+canonica en `userData/accounts/sessions/<playerKey>.json`. Al cambiar cuenta,
+solo cambia `lastActiveUserId` y la cola visible vuelve a derivarse de la cuenta
+activa + pack activo.
 
 Cerrar sesion o quitar una cuenta recordada no borra `userData/players/...` ni
 mueve puntuaciones entre cuentas. Quitar cuenta solo elimina la entrada

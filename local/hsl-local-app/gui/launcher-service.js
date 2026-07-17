@@ -2,14 +2,8 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const {
   clearActiveAccount,
-  getRememberedSessionPath,
-  listSavedSessionUserIds,
-  migrateRememberedSessions,
   readKnownAccounts,
-  readRememberedSession,
-  rememberSessionAccount,
   removeKnownAccount,
-  saveRememberedSession,
   toSafeAccountsState,
 } = require("../src/account-store");
 const { loadConfig } = require("../src/config");
@@ -21,12 +15,11 @@ const {
   summarizeAutoSyncAttempt,
 } = require("../src/auto-sync");
 const {
+  getAccountSessionRepository,
   getAuthState,
   isSessionExpiringSoon,
   logoutLocal,
   readSession,
-  refreshStoredSession,
-  saveSession,
   signInWithPassword,
 } = require("../src/auth");
 const { buildDiagnoseReport } = require("../src/diagnose");
@@ -60,7 +53,6 @@ const { writeSharedMameRuntime } = require("../src/shared-mame-runtime");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
 const { submitAll } = require("../src/submission-service");
 const { combineAbortSignals } = require("../src/remote-request");
-const { createAccountSessionCoordinator } = require("../src/account-session-coordinator");
 const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
 const {
   applyScopedQueue,
@@ -101,15 +93,43 @@ let pendingAutoSubmitState = {
 let remoteDiagnosticsProvider = null;
 let remoteOperationSignalProvider = null;
 const libraryOrderModule = import("./shared/library-order.mjs");
-const accountSessionCoordinator = createAccountSessionCoordinator({
-  hashUserId: (userId) => `user_${hashPart(userId, 12)}`,
-  isExpiringSoon: isSessionExpiringSoon,
-  readSession: readRememberedSession,
-  refreshSession: ({ config, filePath, storedSession }) => refreshStoredSession({
-    ...config,
-    sessionFileAbs: filePath,
-  }, storedSession),
-});
+const accountSessionStates = new Map();
+
+function sessionRepository(config = loadRuntimeConfig()) {
+  return getAccountSessionRepository(config);
+}
+
+const accountSessionCoordinator = {
+  async resolve(account, config, options = {}) {
+    const result = await sessionRepository(config).resolve(account.userId, {
+      connected: options.connected === true,
+      force: options.force === true,
+    });
+    const status = result.status === "valid" ? "valid"
+      : result.status === "corrupt" ? "corrupt"
+      : result.status === "revoked" ? "revoked"
+      : result.storedSession ? "deferred-offline" : "unavailable";
+    const state = {
+      accessTokenExpiresAt: result.storedSession?.session?.expires_at || null,
+      active: options.active === true,
+      pendingCount: accountSessionStates.get(account.userId)?.pendingCount || 0,
+      sessionRevision: Number(result.sessionRevision) || 0,
+      status,
+      userHash: `user_${hashPart(account.userId, 12)}`,
+    };
+    accountSessionStates.set(account.userId, state);
+    return { remembered: result, sessionRevision: state.sessionRevision, status, storedSession: result.storedSession };
+  },
+  getDiagnostics() { return [...accountSessionStates.values()].map((state) => ({ ...state })); },
+  getState(userId) { return accountSessionStates.get(userId) || null; },
+  setPendingCount(userId, pendingCount) {
+    const state = accountSessionStates.get(userId);
+    if (!state) return null;
+    const next = { ...state, pendingCount: Math.max(0, Number(pendingCount) || 0) };
+    accountSessionStates.set(userId, next);
+    return next;
+  },
+};
 
 function loadRuntimeConfig() {
   return loadConfig();
@@ -207,6 +227,7 @@ async function getPendingAutoSubmitContexts(options = {}) {
       playerKey: index.playerKey,
       session: accountSession,
       sessionRevision: item.sessionRevision,
+      storedSession: resolved.storedSession,
       userId: account.userId,
       webBaseUrl: config.webBaseUrl || null,
     });
@@ -727,7 +748,7 @@ async function resolveRememberedPack(config) {
 
 async function ensureRememberedPackLoaded() {
   const config = loadRuntimeConfig();
-  const session = await getAuthState(config);
+  const session = await getAuthState(config, { deferRemote: true });
   const [library, preferences] = await Promise.all([
     scanPackLibrary(config),
     readLibraryPreferences(config, session),
@@ -939,7 +960,7 @@ async function getScopedGuiConfig(baseConfig, session) {
 async function getLauncherContext(options = {}) {
   const runtimeConfig = options.config || loadRuntimeConfig();
   const session = await getAuthState(runtimeConfig, {
-    deferRemote: options.deferRemoteMembership === true,
+    deferRemote: options.connected !== true,
   });
   const [library, libraryPreferences] = await Promise.all([
     scanPackLibrary(runtimeConfig),
@@ -949,9 +970,7 @@ async function getLauncherContext(options = {}) {
   const baseConfig = selection.activeInstanceKey
     ? getEffectiveConfig(runtimeConfig)
     : deriveNoActivePackConfig(runtimeConfig);
-  const accountsStore = session.hasSession
-    ? await rememberSessionAccount(baseConfig, session)
-    : await readKnownAccounts(baseConfig);
+  const accountsStore = await readKnownAccounts(baseConfig);
   const membershipSignal = combineAbortSignals([
     options.signal,
     getRemoteOperationSignal(),
@@ -1005,11 +1024,20 @@ async function stateFromContext(context) {
     scope: scoped.scope,
     session,
   }, autoSyncState);
-  const savedSessionUserIds = await listSavedSessionUserIds(baseConfig, accountsStore.accounts);
-  const sessionStatuses = new Map(accountsStore.accounts.map((account) => [
+  const canonicalStates = await Promise.all(accountsStore.accounts.map(async (account) => [
     account.userId,
-    accountSessionCoordinator.getState(account.userId),
+    await sessionRepository(baseConfig).read(account.userId),
   ]));
+  const savedSessionUserIds = new Set(canonicalStates.filter(([, result]) => result.ok).map(([userId]) => userId));
+  const sessionStatuses = new Map(canonicalStates.map(([userId, result]) => {
+    const observed = accountSessionCoordinator.getState(userId);
+    return [userId, {
+      ...observed,
+      pendingCount: observed?.pendingCount || 0,
+      sessionRevision: Number(result.sessionRevision) || Number(observed?.sessionRevision) || 0,
+      status: result.status,
+    }];
+  }));
   const libraryFavorites = await (session.hasSession
       ? readLibraryFavorites(baseConfig, session)
       : Promise.resolve({
@@ -1194,7 +1222,7 @@ async function runPendingAutoSubmit(options = {}) {
     pendingAutoSubmitController.signal,
   ]);
   const discovery = options.index || await (options.discoverScopesImpl || discoverPlayerPendingScopes)(baseConfig, session);
-  const sessionFileAbs = (options.getSessionPathImpl || getRememberedSessionPath)(baseConfig, session);
+  const storedSession = options.storedSession || null;
   const totalPending = discovery.records.reduce((sum, item) => sum + item.pendingCount, 0);
   pendingAutoSubmitState = {
     connectedGeneration: options.connectedGeneration ?? null,
@@ -1238,9 +1266,10 @@ async function runPendingAutoSubmit(options = {}) {
   try {
     for (const record of discovery.records) {
       if (!stillCurrent()) break;
-      const config = buildScopedSubmitConfig(baseConfig, record, { sessionFileAbs });
+      const config = buildScopedSubmitConfig(baseConfig, record);
       const membership = await (options.checkMembershipImpl || checkSeasonMembership)(config, session, {
         signal: combinedSignal.signal,
+        storedSession,
       });
       if (!stillCurrent()) {
         cancelled = true;
@@ -1267,6 +1296,7 @@ async function runPendingAutoSubmit(options = {}) {
       let scopeTransportFailure = false;
       let scopeRetryable = false;
       await captureConsoleAsync(() => (options.submitAllImpl || submitAll)(config, {
+        getValidStoredSessionImpl: storedSession ? async () => storedSession : undefined,
         onResult(result) {
           if (["transport-failure", "timeout"].includes(result.outcome)) scopeTransportFailure = true;
           if (result.retryable) scopeRetryable = true;
@@ -1367,6 +1397,7 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
       connectedGeneration: options.connectedGeneration,
       index: context.index,
       session: context.session,
+      storedSession: context.storedSession,
       shouldContinue: options.shouldContinue,
       trigger: options.trigger,
     });
@@ -1397,13 +1428,25 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
 }
 
 function getAccountSessionDiagnostics() {
-  return accountSessionCoordinator.getDiagnostics();
+  return {
+    accounts: accountSessionCoordinator.getDiagnostics(),
+    repository: sessionRepository(loadRuntimeConfig()).getDiagnosticsSnapshot(),
+  };
 }
 
 async function migrateRememberedSessionsForGui() {
   const config = loadRuntimeConfig();
-  const accountsStore = await readKnownAccounts(config);
-  return migrateRememberedSessions(config, accountsStore.accounts);
+  return sessionRepository(config).migrateLegacy();
+}
+
+function cancelAccountSessionOperations(userId, reason = "cancelled") {
+  const repository = sessionRepository(loadRuntimeConfig());
+  if (userId) repository.cancelUserOperations(userId, reason);
+  else repository.cancelAllOperations(reason);
+}
+
+function shutdownAccountSessions() {
+  sessionRepository(loadRuntimeConfig()).shutdown();
 }
 
 function resetAutoSyncStateForTests() {
@@ -1491,7 +1534,7 @@ async function getSessionState(config) {
         email: null,
         hasSession: false,
         message: "No hay sesión local. Usa npm run login -- <email> en CLI.",
-        sessionFile: config.sessionFileAbs,
+        sessionRevision: 0,
         status: "missing",
       };
     }
@@ -1503,7 +1546,7 @@ async function getSessionState(config) {
       expiresAt: storedSession.session?.expires_at || null,
       hasSession: true,
       message: expiringSoon ? "Sesión local encontrada, pero expira pronto." : "Sesión local encontrada.",
-      sessionFile: config.sessionFileAbs,
+      sessionRevision: Number(storedSession.sessionRevision) || 0,
       status: expiringSoon ? "warning" : "ok",
       userId: storedSession.user?.id || null,
     };
@@ -1513,7 +1556,7 @@ async function getSessionState(config) {
       error: normalizeMessage(error),
       hasSession: false,
       message: "No se pudo leer la sesión local.",
-      sessionFile: config.sessionFileAbs,
+      sessionRevision: 0,
       status: "error",
     };
   }
@@ -2085,7 +2128,7 @@ async function playPractice() {
 async function restoreFailedSubmission(filename) {
   await ensureRememberedPackLoaded();
   const baseConfig = getEffectiveConfig();
-  const session = await getAuthState(baseConfig);
+  const session = await getAuthState(baseConfig, { deferRemote: true });
 
   if (!session.hasSession) {
     return {
@@ -2170,12 +2213,6 @@ async function loginWithPassword(credentials = {}) {
     password: credentials.password,
   });
 
-  if (result.ok) {
-    const storedSession = await readSession(config);
-    await saveRememberedSession(config, storedSession);
-    await rememberSessionAccount(config, result.session, { touch: true });
-  }
-
   return {
     action: "login",
     lines: [result.message],
@@ -2188,11 +2225,11 @@ async function loginWithPassword(credentials = {}) {
 async function logoutSession() {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
-  const session = await getAuthState(config);
+  const session = await getAuthState(config, { deferRemote: true });
   const result = await logoutLocal(config);
 
   if (session.hasSession && session.userId) {
-    await removeKnownAccount(config, session.userId);
+    await removeKnownAccount(config, session.userId, { deleteSession: false });
   } else {
     await clearActiveAccount(config);
   }
@@ -2206,7 +2243,7 @@ async function logoutSession() {
   };
 }
 
-async function switchKnownAccountFromGui(userId) {
+async function switchKnownAccountFromGui(userId, options = {}) {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
   const accounts = await readKnownAccounts(config);
@@ -2224,7 +2261,7 @@ async function switchKnownAccountFromGui(userId) {
 
   const resolved = await accountSessionCoordinator.resolve(account, config, {
     active: true,
-    connected: true,
+    connected: options.connected === true,
   });
 
   if (["unavailable", "corrupt", "revoked"].includes(resolved.status) || !resolved.storedSession) {
@@ -2239,20 +2276,13 @@ async function switchKnownAccountFromGui(userId) {
     };
   }
 
-  const storedSession = resolved.storedSession;
-
   try {
-    await saveSession(config, storedSession.session, storedSession.user);
-    await rememberSessionAccount(config, {
-      email: storedSession.user?.email || account.email,
-      hasSession: true,
-      userId: storedSession.user?.id || account.userId,
-    }, { touch: true });
+    await sessionRepository(config).setActive(account.userId);
 
     return {
       action: "switch-account",
       lines: [
-        `Cuenta activa: ${storedSession.user?.email || account.email || account.userId}.`,
+        `Cuenta activa: ${resolved.storedSession.user?.email || account.email || account.userId}.`,
         "Cambiar cuenta no mezcla puntuaciones locales.",
       ],
       ok: true,
@@ -2278,11 +2308,12 @@ async function switchKnownAccountFromGui(userId) {
 async function removeKnownAccountFromGui(userId) {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
-  const session = await getAuthState(config);
+  const session = await getAuthState(config, { deferRemote: true });
+  sessionRepository(config).cancelUserOperations(userId, "remove-account");
+  await sessionRepository(config).remove(userId, { reason: "remove-account" });
+  const result = await removeKnownAccount(config, userId, { deleteSession: false });
 
   if (session.hasSession && session.userId === userId) {
-    await logoutLocal(config);
-    const result = await removeKnownAccount(config, userId);
 
     return {
       action: "remove-known-account",
@@ -2293,7 +2324,6 @@ async function removeKnownAccountFromGui(userId) {
     };
   }
 
-  const result = await removeKnownAccount(config, userId);
   const summary = result.removed
     ? "Cuenta olvidada en este dispositivo. Las puntuaciones locales no se han borrado."
     : "No se encontró esa cuenta recordada.";
@@ -2309,7 +2339,7 @@ async function removeKnownAccountFromGui(userId) {
 
 async function getAuthStateForGui() {
   await ensureRememberedPackLoaded();
-  return getAuthState(getEffectiveConfig());
+  return getAuthState(getEffectiveConfig(), { deferRemote: true });
 }
 
 async function cancelOpenPack() {
@@ -2675,7 +2705,7 @@ async function setLibraryPreferencesFromGui(patch = {}, options = {}) {
   }
 
   const config = options.config || loadRuntimeConfig();
-  const session = options.session || await getAuthState(config);
+  const session = options.session || await getAuthState(config, { deferRemote: true });
   const preferences = await writeLibraryPreferences(config, session, patch, options);
 
   return {
@@ -2693,7 +2723,7 @@ async function toggleLibraryFavoriteFromGui(packKey, options = {}) {
   }
 
   const config = options.config || loadRuntimeConfig();
-  const session = options.session || await getAuthState(config);
+  const session = options.session || await getAuthState(config, { deferRemote: true });
 
   if (!session.hasSession) {
     return {
@@ -2800,6 +2830,7 @@ module.exports = {
   adoptNewStagingEvents,
   activateLibraryPack,
   activatePackDirectory,
+  cancelAccountSessionOperations,
   cancelChoosePackDirectory,
   cancelChooseSharedMameRuntime,
   cancelImportPack,
@@ -2840,6 +2871,7 @@ module.exports = {
   resetAutoSyncStateForTests,
   setRemoteDiagnosticsProvider,
   setRemoteOperationSignalProvider,
+  shutdownAccountSessions,
   runAutoSyncIfEligible,
   runPendingAutoSubmit,
   runPendingAutoSubmitForAccounts,

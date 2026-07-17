@@ -42,7 +42,7 @@ Cancelacion, transporte, timeout y HTTP reintentable nunca la consumen.
 ## Multi-cuenta
 
 Las cuentas se procesan secuencialmente y cada scope conserva su identidad y
-sesion. Un 401 en una cuenta no impide probar la siguiente. Un fallo global de
+sesion canonica resuelta por el repositorio comun. Un 401 en una cuenta no impide probar la siguiente. Un fallo global de
 transporte, HTTP reintentable o cancelacion detiene el ciclo para evitar una
 tormenta. Los agregados propagan autenticacion, reintento, atencion, timeout,
 cancelacion y `Retry-After`; no pueden declarar exito si queda un resultado
