@@ -77,6 +77,12 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
           },
           cache: { available: 1, entries: 1, expired: 0, unavailable: 0, unknown: 0 },
         },
+        securityPolicy: {
+          browserSandbox: true,
+          delivery: "meta",
+          documentProtocol: "file:",
+          rendererConnectAllowed: false,
+        },
       },
       state: {
         bridge: {
@@ -141,6 +147,8 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.connectivity.probe.inFlight, false);
     assert.equal(saved.rankingCapabilities.active.status, "available");
     assert.equal(saved.rankingCapabilities.cache.entries, 1);
+    assert.equal(saved.securityPolicy.delivery, "meta");
+    assert.equal(saved.securityPolicy.rendererConnectAllowed, false);
     assert.equal(saved.session.hasSession, true);
     assert.match(saved.session.userId, /^user-1\.\.\./);
     assert.equal(/access_token|refresh_token|Authorization|secret-token|secret-access-token|secret-refresh-token/.test(raw), false);

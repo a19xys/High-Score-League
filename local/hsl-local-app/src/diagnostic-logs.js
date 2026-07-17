@@ -193,6 +193,7 @@ function buildDiagnosticPayload(config, report, context = {}, options = {}) {
     autoSubmit: context.remoteDiagnostics?.autoSubmit || state?.autoSubmitDiagnostics || null,
     connectivity: context.remoteDiagnostics?.connectivity || state?.connectivity || null,
     rankingCapabilities: context.remoteDiagnostics?.ranking || state?.rankingCapabilities || null,
+    securityPolicy: context.remoteDiagnostics?.securityPolicy || null,
     diagnose: {
       counts: countReportLevels(report),
       errors: report?.errors || [],

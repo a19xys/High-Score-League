@@ -1,4 +1,5 @@
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, safeStorage, shell } = require("electron");
 const service = require("./launcher-service");
 const { createConnectivityService, isCommittedConnected } = require("../src/connectivity-service");
@@ -9,6 +10,11 @@ const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-subm
 const { configureSessionProtection, getSessionStorageDiagnostics } = require("../src/secure-session-storage");
 const { deriveDeveloperToolsEnabled, runDeveloperOnlyOperation } = require("../src/developer-tools");
 const { deriveRemoteAvailability } = require("./shared/remote-availability");
+const {
+  createSecureWebPreferences,
+  getRendererSecuritySummary,
+  installRendererSecurity,
+} = require("./security-policy");
 
 if (process.env.HSL_ELECTRON_VERBOSE_LOGGING === "1") {
   app.commandLine.appendSwitch("enable-logging");
@@ -174,6 +180,7 @@ function initializeRemoteServices() {
     }),
   });
   service.setRemoteDiagnosticsProvider(() => ({
+    securityPolicy: getRendererSecuritySummary(),
     autoSubmit: {
       ...service.getPendingAutoSubmitDiagnostics(),
       coordinator: pendingAutoSubmitCoordinator.getDiagnostics(),
@@ -270,6 +277,7 @@ async function prepareRemoteAction(source) {
 }
 
 function createMainWindow() {
+  const rendererDocumentPath = path.join(__dirname, "renderer", "index.html");
   mainWindow = new BrowserWindow({
     width: 1240,
     height: 820,
@@ -278,14 +286,17 @@ function createMainWindow() {
     backgroundColor: "#0f172a",
     show: false,
     title: "High Score League Launcher",
-    webPreferences: {
+    webPreferences: createSecureWebPreferences({
+      developerToolsEnabled,
       preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
+    }),
   });
 
-  mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  installRendererSecurity(mainWindow.webContents, {
+    developerToolsEnabled,
+    expectedDocumentUrl: pathToFileURL(rendererDocumentPath).href,
+  });
+  mainWindow.loadFile(rendererDocumentPath);
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();

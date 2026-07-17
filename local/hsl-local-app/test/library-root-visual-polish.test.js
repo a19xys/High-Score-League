@@ -66,17 +66,18 @@ test("dialogos de raiz rechazada explican pack e interior y ofrecen sugerencia v
 });
 
 test("bootstrap de tema se ejecuta antes del CSS y app reutiliza el valor normalizado", async () => {
-  const [html, app, main] = await Promise.all([
+  const [html, bootstrap, app, main] = await Promise.all([
     fsp.readFile(path.join(rendererRoot, "index.html"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "theme-bootstrap.js"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "app.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "main.js"), "utf8"),
   ]);
 
   assert.doesNotMatch(html, /<html[^>]*data-theme="dark"/);
-  assert.ok(html.indexOf("window.__HSL_INITIAL_THEME__") < html.indexOf("styles/tokens.css"));
-  assert.match(html, /new Set\(\["light", "dark"\]\)/);
-  assert.match(html, /allowedThemes\.has\(storedTheme\) \? storedTheme : "dark"/);
-  assert.match(html, /document\.documentElement\.style\.colorScheme = initialTheme/);
+  assert.ok(html.indexOf("theme-bootstrap.js") < html.indexOf("styles/tokens.css"));
+  assert.match(bootstrap, /new Set\(\["light", "dark"\]\)/);
+  assert.match(bootstrap, /allowedThemes\.has\(storedTheme\) \? storedTheme : "dark"/);
+  assert.match(bootstrap, /document\.documentElement\.style\.colorScheme = initialTheme/);
   assert.doesNotMatch(html, /https?:\/\//);
   assert.match(app, /window\.__HSL_INITIAL_THEME__ === "light" \? "light" : "dark"/);
   assert.match(app, /classList\.remove\("theme-bootstrap"\)/);

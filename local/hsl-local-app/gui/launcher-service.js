@@ -1738,6 +1738,13 @@ async function runDiagnose(options = {}) {
   }
 
   if (remoteDiagnostics) {
+    if (remoteDiagnostics.securityPolicy) {
+      report.sections.securityPolicy = [{
+        level: "OK",
+        message: "politica de seguridad del renderer Electron",
+        detail: remoteDiagnostics.securityPolicy,
+      }];
+    }
     const connectivityStatus = remoteDiagnostics.connectivity?.displayStatus || "unknown";
     const connectivityEntry = {
       level: connectivityStatus === "connected" ? "OK" : connectivityStatus === "offline" ? "WARN" : "INFO",

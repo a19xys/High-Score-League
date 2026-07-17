@@ -1,25 +1,11 @@
 <!doctype html>
 <html lang="es">
   <head>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; script-src-elem 'self'; script-src-attr 'none'; style-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; img-src 'self' file:; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>High Score League Launcher</title>
-    <script>
-      (() => {
-        const allowedThemes = new Set(["light", "dark"]);
-        let storedTheme = null;
-
-        try {
-          storedTheme = localStorage.getItem("hsl-launcher-theme");
-        } catch {}
-
-        const initialTheme = allowedThemes.has(storedTheme) ? storedTheme : "dark";
-        document.documentElement.dataset.theme = initialTheme;
-        document.documentElement.style.colorScheme = initialTheme;
-        document.documentElement.classList.add("theme-bootstrap");
-        window.__HSL_INITIAL_THEME__ = initialTheme;
-      })();
-    </script>
+    <script src="./theme-bootstrap.js"></script>
     <link rel="stylesheet" href="./styles/tokens.css">
     <link rel="stylesheet" href="./styles/app.css">
   </head>

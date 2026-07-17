@@ -22,10 +22,13 @@
 | Warning DNS Chromium | P2 | Aceptado | no se analiza; vigilar contadores de health |
 | Desconexion/reconexion fisica | P1 | Codigo cubierto | QA Ethernet/foco/minimizado pendiente |
 | Secretos o IP en diagnostico | P0 | Cerrado | hash y agregados; sanitizer existente |
+| Renderer sin CSP | P0 | Cerrado | CSP meta restrictiva, sin inline/eval/red directa |
+| Documento Electron en file:// | P1 | Pendiente auditoria | CSP meta aplicada; evaluar protocolo personalizado |
 
 No queda P0 abierto. No se declara cerrada la validacion fisica hasta medir
 desconexion y recuperacion con foco, sin foco y minimizado sobre hardware real.
 
-Backlog deliberadamente fuera de alcance: CSP; overlay y densidad visual de la
-tarea 2; readiness, imagenes y tema inicial de la tarea 3. La comprobacion
+Backlog deliberadamente fuera de alcance: protocolo personalizado Electron;
+overlay y densidad visual de la tarea 2; readiness, imagenes y tema inicial de
+la tarea 3. La comprobacion
 fisica prolongada de mas de diez minutos y Ethernet sigue siendo QA manual.

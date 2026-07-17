@@ -566,6 +566,14 @@ Or from `local/hsl-local-app`:
 npm run gui
 ```
 
+The Electron renderer uses a restrictive CSP delivered by `index.html`, an
+explicit sandboxed `BrowserWindow`, denied web permissions, and blocked
+navigation/new windows. Remote HSL operations remain in main through narrow
+preload IPC methods; the renderer has `connect-src 'none'`. See
+`local/docs/electron-csp-policy-1.md` and
+`local/docs/electron-renderer-security-boundary-1.md` before changing renderer
+resources or security preferences.
+
 The GUI uses the same effective local config as the CLI. It can run
 `diagnose`, competition `play`, `practice`, `submit-all`, local login/logout,
 and development-only `sync-plugin`. The account panel signs in with email and

@@ -235,7 +235,7 @@ export function renderBusyOverlay(state) {
     <div class="busy-overlay busy-overlay--${escapeHtml(content.variant)}" role="status" aria-live="polite" aria-busy="true" aria-label="${escapeHtml(label)}">
       <div class="busy-overlay__panel">
         <div class="busy-overlay__media">
-          <img class="busy-overlay__image" src="./assets/loading.gif" alt="Cargando" loading="eager" onerror="this.hidden = true; this.nextElementSibling.hidden = false">
+          <img class="busy-overlay__image" data-hsl-loading-image src="./assets/loading.gif" alt="Cargando" loading="eager">
           <span class="busy-overlay__spinner" aria-hidden="true" hidden></span>
         </div>
         <p class="busy-overlay__message">${escapeHtml(content.title)}</p>

@@ -50,24 +50,24 @@ export const ICONS = Object.freeze({
 
 const ICON_ROOT = "./assets/icons/";
 const ICON_MASK_ROOT = "../assets/icons/";
-const iconLoadState = globalThis.__hslIconLoadState || {
+const iconLoadState = {
   loaded: new Set(),
   missing: new Set(),
 };
 
-globalThis.__hslIconLoadState = iconLoadState;
-globalThis.__hslMarkIconLoaded = (name, image) => {
+export function markIconLoaded(name, image) {
   iconLoadState.missing.delete(name);
   iconLoadState.loaded.add(name);
   image.parentElement.classList.remove("ui-icon--missing");
   image.parentElement.classList.add("ui-icon--loaded");
-};
-globalThis.__hslMarkIconMissing = (name, image) => {
+}
+
+export function markIconMissing(name, image) {
   iconLoadState.loaded.delete(name);
   iconLoadState.missing.add(name);
   image.parentElement.classList.remove("ui-icon--loaded");
   image.parentElement.classList.add("ui-icon--missing");
-};
+}
 
 function iconMeta(name) {
   return ICONS[name] || ICONS.info;
@@ -102,7 +102,7 @@ export function renderIcon(name, options = {}) {
   return `
     <span class="ui-icon ui-icon--${escapeHtml(id)}${loadClass}${size}${className}" data-icon="${escapeHtml(id)}" style="--icon-url: url('${escapeHtml(maskSrc)}')" ${aria}>
       <span class="ui-icon__glyph"></span>
-      <img class="ui-icon__img" src="${escapeHtml(src)}" alt="" loading="lazy" onload="window.__hslMarkIconLoaded('${escapeHtml(id)}', this)" onerror="window.__hslMarkIconMissing('${escapeHtml(id)}', this)">
+      <img class="ui-icon__img" data-hsl-icon-image src="${escapeHtml(src)}" alt="" loading="lazy">
       <span class="ui-icon__fallback">${escapeHtml(fallback)}</span>
     </span>
   `;

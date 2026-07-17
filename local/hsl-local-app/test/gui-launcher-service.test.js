@@ -2036,13 +2036,13 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
   assert.match(icon, /ui-icon__img/);
   assert.match(icon, /ui-icon__fallback/);
   assert.match(icon, /loading="lazy"/);
-  assert.match(icon, /const iconLoadState = globalThis\.__hslIconLoadState/);
-  assert.match(icon, /globalThis\.__hslMarkIconLoaded/);
-  assert.match(icon, /globalThis\.__hslMarkIconMissing/);
+  assert.match(icon, /const iconLoadState = \{/);
+  assert.match(icon, /export function markIconLoaded/);
+  assert.match(icon, /export function markIconMissing/);
   assert.match(icon, /iconLoadState\.loaded\.has\(id\)/);
   assert.match(icon, /iconLoadState\.missing\.has\(id\)/);
-  assert.match(icon, /onload="window\.__hslMarkIconLoaded\('\$\{escapeHtml\(id\)\}', this\)"/);
-  assert.match(icon, /onerror="window\.__hslMarkIconMissing\('\$\{escapeHtml\(id\)\}', this\)"/);
+  assert.match(icon, /data-hsl-icon-image/);
+  assert.doesNotMatch(icon, /\sonload=|\sonerror=/);
   assert.equal(/ui-icon--pending/.test(icon + styles), false);
   assert.match(icon, /escapeHtml\(fallback\)/);
   assert.equal(/https?:\/\//.test(icon), false);

@@ -5,7 +5,7 @@ import { renderBusyOverlay } from "./components/busy-overlay.js";
 import { renderDevTools } from "./components/dev-tools.js";
 import { renderGamePanel } from "./components/game-panel.js";
 import { renderHeader } from "./components/header.js";
-import { renderIcon } from "./components/icon.js";
+import { markIconLoaded, markIconMissing, renderIcon } from "./components/icon.js";
 import { renderLibraryPanel } from "./components/library-panel.js";
 import { renderLogPanel } from "./components/log-panel.js";
 import { renderActivityDrawer } from "./components/queue-panel.js";
@@ -1305,7 +1305,19 @@ async function activateLibraryPackWithPreload(packId) {
 }
 
 function bindActions() {
+  root.addEventListener("load", (event) => {
+    const image = event.target instanceof Element ? event.target.closest("[data-hsl-icon-image]") : null;
+    if (image) markIconLoaded(image.closest("[data-icon]")?.dataset.icon || "info", image);
+  }, true);
+
   root.addEventListener("error", (event) => {
+    const iconImage = event.target instanceof Element ? event.target.closest("[data-hsl-icon-image]") : null;
+    if (iconImage) markIconMissing(iconImage.closest("[data-icon]")?.dataset.icon || "info", iconImage);
+    const loadingImage = event.target instanceof Element ? event.target.closest("[data-hsl-loading-image]") : null;
+    if (loadingImage) {
+      loadingImage.hidden = true;
+      if (loadingImage.nextElementSibling) loadingImage.nextElementSibling.hidden = false;
+    }
     const hero = event.target instanceof Element ? event.target.closest("[data-hsl-fallback-hero]") : null;
 
     if (hero) {
