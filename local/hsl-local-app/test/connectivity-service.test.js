@@ -16,7 +16,9 @@ function harness(overrides = {}) {
   const calls = [];
   let netChecks = 0;
   const service = createConnectivityService({
-    webBaseUrl: "https://hsl.example/base?secret=no",
+    webBaseUrl: Object.prototype.hasOwnProperty.call(overrides, "webBaseUrl")
+      ? overrides.webBaseUrl
+      : "https://hsl.example/base?secret=no",
     now: () => now,
     netIsOnline: () => {
       netChecks += 1;
@@ -116,6 +118,20 @@ test("startup is connecting only in flight and settles connected or offline", as
   assert.equal(failed.service.getState().reachability, "offline");
   assert.equal(failed.service.getState().displayStatus, "offline");
   assert.equal(failed.service.getState().probe.inFlight, false);
+});
+
+test("missing or invalid origins stay unknown and never start probes", async () => {
+  for (const webBaseUrl of [null, undefined, "not-an-origin"]) {
+    const h = harness({ webBaseUrl });
+    await h.service.start();
+    h.service.signalOffline("topology-change", "system-offline");
+    assert.equal(h.service.getState().reachability, "unknown");
+    assert.equal(h.service.getState().displayStatus, "unknown");
+    assert.equal(h.service.getState().reason, "missing-hsl-origin");
+    assert.equal(h.calls.length, 0);
+    assert.equal(h.netChecks, 0);
+    assert.equal(h.timers.size, 0);
+  }
 });
 
 test("net false is immediately offline and net true never confirms connected", async () => {

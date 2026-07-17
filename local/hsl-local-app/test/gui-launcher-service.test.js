@@ -2496,14 +2496,14 @@ test("deriveOpenedPackConfig resolves MAME and plugin queue from the opened pack
   });
 });
 
-test("pack webBaseUrl never overrides the trusted launcher origin", async () => {
+test("pack webBaseUrl is audited and never overrides the trusted launcher origin", async () => {
   await withTempDir(async (dir) => {
     const baseConfig = {
       globalWebBaseUrl: "https://hsl.example",
       userDataDir: path.join(dir, "userData"),
       webBaseUrl: "https://hsl.example",
     };
-    for (const declared of [undefined, "https://hsl.example/path", "https://foreign.example", "not-a-url"]) {
+    for (const declared of [undefined, "https://hsl.example/path", "https://foreign.example", "not-a-url", "https://hsl.example?source=pack", "https://user:secret@hsl.example"]) {
       const pack = {
         ...validPack(),
         packPath: path.join(dir, "pack.json"),
@@ -2514,7 +2514,7 @@ test("pack webBaseUrl never overrides the trusted launcher origin", async () => 
       assert.equal(config.webBaseUrl, "https://hsl.example");
       assert.equal(config.pack.webBaseUrl, "https://hsl.example");
       assert.equal(config.pack.declaredWebBaseUrl, declared || null);
-      if (declared && !declared.startsWith("https://hsl.example")) {
+      if (declared && declared !== "https://hsl.example/path") {
         assert.ok(config.pack.metadataWarnings.length > 0);
       }
     }
@@ -3381,10 +3381,12 @@ test("openPackRanking abre fallback web de weekId", async () => {
   const opened = [];
   const result = await openPackRanking({
     config: {
+      hslOrigin: "https://high-score-league.example",
       pack: {
-        webBaseUrl: "https://high-score-league.example",
+        webBaseUrl: "https://foreign-pack.example",
         weekId: "week-1",
       },
+      webBaseUrl: "https://high-score-league.example",
     },
     includeState: false,
     openExternalImpl: async (url) => {

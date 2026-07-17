@@ -13,6 +13,7 @@ const {
   toSafeAccountsState,
 } = require("../src/account-store");
 const { loadConfig } = require("../src/config");
+const { normalizeHslOrigin } = require("../src/hsl-origin");
 const {
   emptyAutoSyncState,
   getAutoSyncDisplayState,
@@ -116,8 +117,10 @@ function getRemoteBootstrapState() {
   const config = loadRuntimeConfig();
 
   return {
-    originSource: "config.webBaseUrl",
-    webBaseUrl: config.globalWebBaseUrl || null,
+    hslOrigin: config.hslOrigin || null,
+    originSource: config.remoteConfiguration?.source || "none",
+    remoteConfiguration: config.remoteConfiguration,
+    webBaseUrl: config.hslOrigin || null,
   };
 }
 
@@ -222,17 +225,18 @@ function invalidatePendingAutoSubmit(reason = "context-change") {
 }
 
 function deriveOpenedPackConfig(baseConfig, pack) {
-  const trustedWebBaseUrl = baseConfig.globalWebBaseUrl !== undefined
-    ? baseConfig.globalWebBaseUrl
-    : baseConfig.webBaseUrl || null;
+  const trustedWebBaseUrl = baseConfig.hslOrigin !== undefined
+    ? baseConfig.hslOrigin
+    : baseConfig.globalWebBaseUrl !== undefined
+      ? baseConfig.globalWebBaseUrl
+      : baseConfig.webBaseUrl || null;
   const declaredWebBaseUrl = pack.webBaseUrl || null;
   let originWarning = null;
-  try {
-    if (declaredWebBaseUrl && trustedWebBaseUrl && new URL(declaredWebBaseUrl).origin !== new URL(trustedWebBaseUrl).origin) {
-      originWarning = "El webBaseUrl del pack no coincide con el origen HSL del launcher y se ha ignorado.";
-    }
-  } catch {
-    if (declaredWebBaseUrl) originWarning = "El webBaseUrl del pack no es un origen valido y se ha ignorado.";
+  const declaredOrigin = declaredWebBaseUrl ? normalizeHslOrigin(declaredWebBaseUrl) : null;
+  if (declaredWebBaseUrl && !declaredOrigin) {
+    originWarning = "El webBaseUrl del pack no es un origen valido y se ha ignorado.";
+  } else if (declaredOrigin && trustedWebBaseUrl && declaredOrigin !== normalizeHslOrigin(trustedWebBaseUrl)) {
+    originWarning = "El webBaseUrl del pack no coincide con el origen HSL del launcher y se ha ignorado.";
   }
   const normalizedPack = {
     ...pack,
@@ -1048,6 +1052,12 @@ async function stateFromContext(context) {
     notices: recentPackNotices,
     queue,
     readiness,
+    remoteConfiguration: baseConfig.remoteConfiguration || config.remoteConfiguration || {
+      hslOrigin: config.hslOrigin || null,
+      message: "El launcher no tiene un origen HSL configurado.",
+      source: "none",
+      status: config.hslOrigin ? "configured" : "missing",
+    },
     runtime: config.sharedMameRuntime || baseConfig.sharedMameRuntime || null,
     scope: scoped.scope
       ? {
@@ -1430,7 +1440,7 @@ function getGameState(config, activePack) {
   const manual = resolvePackManual(config.pack);
   const ranking = resolvePackRanking({
     ...(config.pack || {}),
-    webBaseUrl: config.pack?.webBaseUrl || config.webBaseUrl,
+    webBaseUrl: config.hslOrigin || config.webBaseUrl,
     weekId: config.pack?.weekId || config.defaultWeekId,
   }, config.webBaseUrl);
   const errors = [
@@ -1546,7 +1556,8 @@ async function openPackManual(options = {}) {
 async function openPackRanking(options = {}) {
   await ensureRememberedPackLoaded();
   const config = options.config || getEffectiveConfig();
-  const target = resolvePackRanking(config.pack, config.webBaseUrl);
+  const hslOrigin = config.hslOrigin || config.webBaseUrl;
+  const target = resolvePackRanking({ ...(config.pack || {}), webBaseUrl: hslOrigin }, hslOrigin);
   const result = await openPackContent(target, {
     ...options,
     externalLine: "Ranking abierto en High Score League.",
@@ -1714,9 +1725,20 @@ async function runDiagnose(options = {}) {
   const state = options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config));
   const remoteDiagnostics = remoteDiagnosticsProvider?.() || null;
   const directory = state?.library?.directory;
+  const remoteConfig = state?.remoteConfiguration || config.remoteConfiguration || null;
+
+  if (remoteConfig) {
+    const remoteConfigurationEntry = {
+      level: remoteConfig.status === "configured" ? "OK" : "WARN",
+      message: `configuracion remota HSL: ${remoteConfig.status}`,
+      detail: remoteConfig,
+    };
+    report.sections.remoteConfiguration = [remoteConfigurationEntry];
+    if (remoteConfigurationEntry.level === "WARN") report.warnings.push(remoteConfigurationEntry);
+  }
 
   if (remoteDiagnostics) {
-    const connectivityStatus = remoteDiagnostics.connectivity?.displayStatus || "offline";
+    const connectivityStatus = remoteDiagnostics.connectivity?.displayStatus || "unknown";
     const connectivityEntry = {
       level: connectivityStatus === "connected" ? "OK" : connectivityStatus === "offline" ? "WARN" : "INFO",
       message: `conectividad HSL: ${connectivityStatus}`,

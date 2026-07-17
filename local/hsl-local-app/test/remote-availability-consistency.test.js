@@ -66,10 +66,11 @@ test("main owns one global origin and never derives health from launcher state",
   ]);
   const syncBlock = main.slice(main.indexOf("function syncRemoteContext"), main.indexOf("async function withRemoteContext"));
   assert.doesNotMatch(syncBlock, /setWebBaseUrl|state\.bridge/);
-  assert.match(syncBlock, /webBaseUrl: trustedGlobalOrigin/);
-  assert.match(main, /trustedGlobalOrigin = bootstrap\.webBaseUrl/);
-  assert.match(service, /webBaseUrl: config\.globalWebBaseUrl \|\| null/);
-  assert.match(config, /globalWebBaseUrl: config\.webBaseUrl \|\| null/);
+  assert.match(syncBlock, /webBaseUrl: trustedHslOrigin/);
+  assert.match(main, /trustedHslOrigin = bootstrap\.hslOrigin/);
+  assert.match(service, /hslOrigin: config\.hslOrigin \|\| null/);
+  assert.match(config, /hslOrigin,/);
+  assert.doesNotMatch(config, /webBaseUrl: config\.webBaseUrl \|\| pack/);
 });
 
 test("main audits stable versus committed connectivity without changing the internal helper", async () => {
@@ -83,14 +84,15 @@ test("main audits stable versus committed connectivity without changing the inte
   assert.match(connectivityState, /function isCommittedConnected/);
 });
 
-test("development ranking refresh is gated by the existing development bridge", async () => {
+test("administrative IPC and controls use developerToolsEnabled instead of devBridge", async () => {
   const [main, devTools] = await Promise.all([
     fsp.readFile(path.join(appRoot, "gui", "main.js"), "utf8"),
     fsp.readFile(path.join(appRoot, "gui", "renderer", "components", "dev-tools.js"), "utf8"),
   ]);
   const handler = main.slice(main.indexOf('ipcMain.handle("launcher:request-ranking-capabilities-refresh"'), main.indexOf('ipcMain.handle("launcher:get-auth-state"'));
-  assert.match(handler, /!state\.bridge\?\.devBridge/);
+  assert.match(handler, /runDeveloperOnlyOperation\(developerToolsEnabled/);
+  assert.doesNotMatch(handler, /devBridge/);
   assert.match(handler, /rankingCapabilities\.forceRefresh/);
-  assert.match(devTools, /data\?\.bridge\?\.devBridge/);
+  assert.match(devTools, /developerToolsEnabled/);
   assert.match(devTools, /Forzar comprobacion de rankings/);
 });

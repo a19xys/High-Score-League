@@ -108,7 +108,7 @@ function createConnectivityService(options = {}) {
     probe: idleProbe(),
     checkedAt: null,
     changedAt: nowIso(nowImpl),
-    reason: webBaseUrl ? "not-checked" : "missing-web-base-url",
+    reason: webBaseUrl ? "not-checked" : "missing-hsl-origin",
     source: "initial",
     latencyMs: null,
     nextRetryAt: null,
@@ -285,6 +285,17 @@ function createConnectivityService(options = {}) {
 
   function signalOffline(source = "strong-negative-signal", reason = "system-offline") {
     if (!started || disposed) return snapshot();
+    if (!webBaseUrl) {
+      return update({
+        reachability: "unknown",
+        probe: idleProbe(),
+        checkedAt: null,
+        reason: "missing-hsl-origin",
+        source,
+        nextRetryAt: null,
+        offlineSinceAt: null,
+      });
+    }
     clearSignalTimer();
     cancelInFlight();
     clearScheduled();
@@ -303,6 +314,7 @@ function createConnectivityService(options = {}) {
 
   function markReachable(source = "remote-response") {
     if (!started || disposed) return snapshot();
+    if (!webBaseUrl) return snapshot();
     if (!Boolean(netIsOnlineImpl())) return signalOffline(source, "system-offline");
     cancelInFlight();
     clearScheduled();
@@ -343,6 +355,22 @@ function createConnectivityService(options = {}) {
 
   function refresh(source = "background", refreshOptions = {}) {
     if (!started || disposed || activity === "suspended") return Promise.resolve(snapshot());
+    const endpoint = healthEndpoint(webBaseUrl);
+    if (!endpoint) {
+      clearSignalTimer();
+      cancelInFlight();
+      clearScheduled();
+      return Promise.resolve(update({
+        reachability: "unknown",
+        probe: idleProbe(),
+        checkedAt: null,
+        reason: "missing-hsl-origin",
+        source,
+        nextRetryAt: null,
+        netIsOnline: null,
+        offlineSinceAt: null,
+      }));
+    }
     if (!Boolean(netIsOnlineImpl())) return Promise.resolve(signalOffline(source, "system-offline"));
     if (inFlight && refreshOptions.supersede === true) cancelInFlight();
     if (inFlight) {
@@ -356,20 +384,6 @@ function createConnectivityService(options = {}) {
     }
     const maxAgeMs = Number.isFinite(refreshOptions.maxAgeMs) ? refreshOptions.maxAgeMs : config.focusStaleMs;
     if (!refreshOptions.force && isFresh(maxAgeMs)) return Promise.resolve(snapshot());
-    const endpoint = healthEndpoint(webBaseUrl);
-    if (!endpoint) {
-      clearScheduled();
-      const result = settleOffline({
-        checkedAt: nowIso(nowImpl),
-        reason: "missing-web-base-url",
-        source,
-        netIsOnline: true,
-        consecutiveFailures: state.consecutiveFailures + 1,
-      });
-      scheduleRecovery();
-      return Promise.resolve(result);
-    }
-
     clearScheduled();
     const requestGeneration = ++probeGeneration;
     const startedAtMs = nowImpl();
@@ -513,11 +527,11 @@ function createConnectivityService(options = {}) {
     cancelInFlight();
     clearScheduled();
     update({
-      reachability: "offline",
+      reachability: "unknown",
       probe: idleProbe(),
       deployment: { apiVersion: null, build: "unknown", environment: "unknown" },
       checkedAt: null,
-      reason: normalized ? "web-base-url-changed" : "missing-web-base-url",
+      reason: normalized ? "web-base-url-changed" : "missing-hsl-origin",
       source,
       latencyMs: null,
       nextRetryAt: null,

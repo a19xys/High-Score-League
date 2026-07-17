@@ -14,7 +14,9 @@ function deriveConnectivityDisplayState(state = {}) {
     }
   }
 
-  return reachability === "connected" ? "connected" : "offline";
+  if (reachability === "connected") return "connected";
+  if (reachability === "offline") return "offline";
+  return "unknown";
 }
 
 function isStableConnected(state = {}) {

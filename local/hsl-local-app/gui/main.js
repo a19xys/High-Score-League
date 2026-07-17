@@ -7,6 +7,7 @@ const { classifyMembershipConnectivitySignal } = require("../src/remote-connecti
 const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
 const { configureSessionProtection, getSessionStorageDiagnostics } = require("../src/secure-session-storage");
+const { deriveDeveloperToolsEnabled, runDeveloperOnlyOperation } = require("../src/developer-tools");
 const { deriveRemoteAvailability } = require("./shared/remote-availability");
 
 if (process.env.HSL_ELECTRON_VERBOSE_LOGGING === "1") {
@@ -30,8 +31,13 @@ let pendingAutoSubmitCoordinator = null;
 let connectivityRendererTiming = { appliedAt: null, emittedAt: null, receivedAt: null };
 let rankingRendererTiming = { appliedAt: null, receivedAt: null, stateSequence: 0 };
 let sessionMaintenanceTimer = null;
-let trustedGlobalOrigin = null;
-let trustedGlobalOriginSource = "config.webBaseUrl";
+const developerToolsEnabled = deriveDeveloperToolsEnabled({
+  environment: process.env,
+  isPackaged: app.isPackaged,
+});
+let trustedHslOrigin = null;
+let trustedHslOriginSource = "none";
+let remoteConfiguration = null;
 let lastLibraryRemoteContext = {
   connectivityUnaffected: true,
   directoryClassification: null,
@@ -67,6 +73,10 @@ function schedulePendingAutoSubmit(trigger) {
 }
 
 function syncRemoteContext(state) {
+  if (state) {
+    state.developerToolsEnabled = developerToolsEnabled;
+    state.remoteConfiguration = remoteConfiguration;
+  }
   if (!state || !connectivity || !rankingCapabilities) return state;
   const nextUserId = state.session?.hasSession ? state.session.userId || null : null;
   const accountChanged = nextUserId !== activeUserId;
@@ -84,7 +94,7 @@ function syncRemoteContext(state) {
   };
   rankingCapabilities.updateContext({
     packs: state.library?.packs || [],
-    webBaseUrl: trustedGlobalOrigin,
+    webBaseUrl: trustedHslOrigin,
   });
 
   if (isCommittedConnected(connectivity.getState())) {
@@ -113,12 +123,13 @@ async function withRemoteContext(promise) {
 
 function initializeRemoteServices() {
   const bootstrap = service.getRemoteBootstrapState();
-  trustedGlobalOrigin = bootstrap.webBaseUrl || null;
-  trustedGlobalOriginSource = bootstrap.originSource || "config.webBaseUrl";
+  trustedHslOrigin = bootstrap.hslOrigin || null;
+  trustedHslOriginSource = bootstrap.originSource || "none";
+  remoteConfiguration = bootstrap.remoteConfiguration || null;
   connectivity = createConnectivityService({
     fetchImpl: (url, init) => net.fetch(url, init),
     netIsOnline: () => net.isOnline(),
-    webBaseUrl: bootstrap.webBaseUrl,
+    webBaseUrl: trustedHslOrigin,
   });
   rankingCapabilities = createRankingCapabilitiesService({
     fetchImpl: (url, init) => net.fetch(url, init),
@@ -148,6 +159,7 @@ function initializeRemoteServices() {
     async onResult(result, context) {
       if (result?.transportFailure) connectivity.signalOffline("auto-submit-transport", "transport");
       const state = await service.getLauncherState({ deferRemoteMembership: true });
+      syncRemoteContext(state);
       sendRendererEvent("launcher:state", { autoSubmit: result, state });
     },
     run: (context) => service.runPendingAutoSubmitForAccounts({
@@ -173,10 +185,11 @@ function initializeRemoteServices() {
       committedReachability: connectivity.getState().reachability,
       lastCommittedAt,
       probePhase: connectivity.getState().probe?.phase || "idle",
-      originSource: trustedGlobalOriginSource,
+      originSource: trustedHslOriginSource,
+      remoteConfiguration,
       remoteAvailability: deriveRemoteAvailability(connectivity.getState()),
       remoteAvailabilityGeneration: deriveRemoteAvailability(connectivity.getState()).generation,
-      trustedGlobalOrigin,
+      trustedHslOrigin,
       renderer: connectivityRendererTiming,
       topology: topologyMonitor.getDiagnostics(),
       window: {
@@ -367,8 +380,9 @@ function registerIpc() {
   });
   ipcMain.handle("launcher:get-ranking-capabilities-state", () => rankingCapabilities.getState());
   ipcMain.handle("launcher:request-ranking-capabilities-refresh", async () => {
-    const state = await service.getLauncherState({ deferRemoteMembership: true });
-    if (!state.bridge?.devBridge) {
+    const guarded = await runDeveloperOnlyOperation(developerToolsEnabled, () => rankingCapabilities.forceRefresh());
+    const state = syncRemoteContext(await service.getLauncherState({ deferRemoteMembership: true }));
+    if (!guarded.allowed) {
       return {
         action: "force-ranking-refresh",
         lines: ["La comprobacion forzada de rankings solo esta disponible en desarrollo."],
@@ -377,7 +391,6 @@ function registerIpc() {
         summary: "Accion disponible solo en desarrollo.",
       };
     }
-    await rankingCapabilities.forceRefresh();
     const summary = rankingCapabilities.getDiagnostics(activeRankingWeekId);
     return {
       action: "force-ranking-refresh",
@@ -469,7 +482,7 @@ function registerIpc() {
   })));
   ipcMain.handle("launcher:open-membership-url", async () => {
     const state = await service.getLauncherState();
-    const url = state.membership?.joinUrl || state.bridge?.webBaseUrl;
+    const url = state.membership?.joinUrl || trustedHslOrigin;
 
     if (!url || !/^https?:\/\//i.test(url)) {
       return {
@@ -499,7 +512,7 @@ function registerIpc() {
     const state = await service.getLauncherState();
     syncRemoteContext(state);
     const weekId = state.game?.weekId || null;
-    const webBaseUrl = trustedGlobalOrigin;
+    const webBaseUrl = trustedHslOrigin;
 
     if (!weekId) {
       return {
@@ -546,13 +559,25 @@ function registerIpc() {
   ipcMain.handle("launcher:play-competition", () => withRemoteContext(service.playCompetition()));
   ipcMain.handle("launcher:practice", () => service.playPractice());
   ipcMain.handle("launcher:force-account-sync", async () => {
-    pendingAutoSubmitCoordinator.invalidate("development-force");
-    const result = await pendingAutoSubmitCoordinator.request("development-force");
+    const guarded = await runDeveloperOnlyOperation(developerToolsEnabled, async () => {
+      pendingAutoSubmitCoordinator.invalidate("development-force");
+      return pendingAutoSubmitCoordinator.request("development-force");
+    });
+    if (!guarded.allowed) {
+      return {
+        action: "force-account-sync",
+        lines: ["La sincronizacion forzada de cuentas solo esta disponible en desarrollo."],
+        ok: false,
+        state: syncRemoteContext(await service.getLauncherState({ deferRemoteMembership: true })),
+        summary: "Accion disponible solo en desarrollo.",
+      };
+    }
+    const result = guarded.value;
     return {
       action: "force-account-sync",
       lines: [`Cuentas procesadas: ${Number(result?.processedAccounts) || 0}.`],
       ok: result?.status !== "deferred",
-      state: await service.getLauncherState({ deferRemoteMembership: true }),
+      state: syncRemoteContext(await service.getLauncherState({ deferRemoteMembership: true })),
       summary: result?.status === "deferred" ? "La sincronizacion queda pendiente." : "Sincronizacion de cuentas completada.",
     };
   });

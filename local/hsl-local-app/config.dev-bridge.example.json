@@ -9,7 +9,7 @@
     "pluginName": "hsl-score"
   },
 
-  "webBaseUrl": "https://high-score-league.vercel.app",
+  "hslOrigin": "https://high-score-league.vercel.app",
   "defaultWeekId": "PON_AQUI_EL_WEEK_ID",
 
   "supabaseUrl": "https://TU_PROYECTO.supabase.co",

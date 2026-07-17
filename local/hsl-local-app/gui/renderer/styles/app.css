@@ -975,6 +975,10 @@ button:disabled {
   color: var(--error);
 }
 
+.connection-chip--configuration {
+  color: var(--warning);
+}
+
 .known-accounts span {
   display: block;
   font-weight: 800;

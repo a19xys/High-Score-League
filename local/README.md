@@ -299,9 +299,12 @@ metadata:
 Set `supabaseUrl` and `supabaseAnonKey` for your environment. Use the Supabase
 anon key, never a `service_role` key.
 
-Fields such as `defaultWeekId`, `webBaseUrl`, and MAME paths belong to
-`pack.json` in the external-pack model. They may still appear in `config.json`
-for legacy development compatibility.
+`hslOrigin` belongs to the launcher and defaults to the compiled official
+origin. `HSL_ORIGIN` is the explicit development override. A global
+`webBaseUrl` is accepted temporarily as a deprecated alias, while
+`pack.webBaseUrl` is audited metadata and never changes the launcher's remote
+endpoint. Fields such as `defaultWeekId` and MAME paths still belong to
+`pack.json` in the external-pack model.
 
 ## Modo desarrollo: app desde repo + pack externo
 

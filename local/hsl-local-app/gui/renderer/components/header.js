@@ -195,9 +195,18 @@ export function renderHeader(state) {
     connected: ["Conectado", "connection-chip--connected"],
     offline: ["Desconectado", "connection-chip--offline"],
   }[headerStatus];
+  const remoteConfiguration = state.data?.remoteConfiguration;
+  const configurationProblem = ["missing", "invalid"].includes(remoteConfiguration?.status)
+    ? remoteConfiguration
+    : null;
   const manualProbeInFlight = state.connectivity?.probe?.phase === "manual" && state.connectivity?.probe?.inFlight;
   const silentBackground = state.connectivity?.probe?.phase === "background" && state.connectivity?.probe?.inFlight;
-  const connectionChip = connection ? `
+  const connectionChip = configurationProblem ? `
+        <div class="connection-chip connection-chip--configuration" data-remote-configuration-status="${escapeHtml(configurationProblem.status)}" title="${escapeHtml(configurationProblem.message)}">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span class="connection-label">${configurationProblem.status === "invalid" ? "Configuracion HSL invalida" : "HSL sin configurar"}</span>
+        </div>
+  ` : connection ? `
         <div class="connection-chip ${connection[1]}" data-connectivity-status="${headerStatus}">
           <span class="connection-dot" aria-hidden="true"></span>
           <span class="connection-label" aria-live="${silentBackground ? "off" : "polite"}" aria-atomic="true">${connection[0]}</span>

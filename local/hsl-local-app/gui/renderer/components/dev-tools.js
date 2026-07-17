@@ -47,6 +47,7 @@ function renderReadinessChecks(readiness) {
 
 export function renderDevTools(state) {
   const data = state.data;
+  const developerToolsEnabled = data?.developerToolsEnabled === true;
   const disabled = state.busy ? "disabled" : "";
   const syncDisabled = state.busy || !data?.bridge?.devBridge ? "disabled" : "";
   const metadataWarnings = data?.bridge?.packMetadataWarnings || data?.game?.metadataWarnings || [];
@@ -76,13 +77,13 @@ export function renderDevTools(state) {
       ? "modo desarrollo puente"
       : data?.bridge?.mode || "desconocido";
   const remoteAvailable = deriveRemoteAvailability(state.connectivity).available;
-  const forceAccountSync = data?.bridge?.devBridge
+  const forceAccountSync = developerToolsEnabled
     ? `<button class="tool-button" type="button" data-action="force-account-sync" ${disabled || !remoteAvailable ? "disabled" : ""}>
         Forzar sincronizacion de cuentas elegibles
         <small>Solo desarrollo</small>
       </button>`
     : "";
-  const forceRankingRefresh = data?.bridge?.devBridge
+  const forceRankingRefresh = developerToolsEnabled
     ? `<button class="tool-button" type="button" data-action="force-ranking-refresh" ${disabled || !remoteAvailable ? "disabled" : ""}>
         Forzar comprobacion de rankings
         <small>Solo desarrollo</small>
@@ -172,6 +173,10 @@ export function renderDevTools(state) {
           ${detailRow("Version MAME", runtime?.version)}
           ${detailRow("Runtime warnings", runtime?.warnings?.length ? runtime.warnings.join(" | ") : "sin warnings")}
           ${detailRow("Comprobación de temporada", membership?.status || "sin comprobación")}
+          ${detailRow("Configuracion remota", data?.remoteConfiguration?.status)}
+          ${detailRow("Origen HSL", data?.remoteConfiguration?.hslOrigin)}
+          ${detailRow("Fuente del origen HSL", data?.remoteConfiguration?.source)}
+          ${detailRow("Herramientas de desarrollo", developerToolsEnabled ? "activadas" : "desactivadas")}
           ${detailRow("URL consultada", membership?.request?.url)}
           ${detailRow("HTTP status", membership?.response?.httpStatus)}
           ${detailRow("Body status", membership?.response?.bodyStatus)}

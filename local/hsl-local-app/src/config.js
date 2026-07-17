@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { loadDefaultPack } = require("./pack");
+const { OFFICIAL_HSL_ORIGIN, resolveHslOrigin } = require("./hsl-origin");
 const { resolveRuntimePaths } = require("./runtime-paths");
 const { readSharedMameRuntime } = require("./shared-mame-runtime");
 
@@ -16,20 +17,30 @@ function resolveFromAppDir(value, appDir = APP_DIR) {
   return path.resolve(appDir, value);
 }
 
-function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR) {
+function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR, options = {}) {
   const configExists = fs.existsSync(configPath);
   const config = configExists ? JSON.parse(fs.readFileSync(configPath, "utf8")) : {};
   const packResult = loadDefaultPack(appDir, config.packPath);
   const pack = packResult.pack;
   const sessionFile = config.sessionFile || (configExists ? ".hsl-session.json" : "userData/session.json");
+  const environment = options.environment || process.env;
+  const remoteConfiguration = resolveHslOrigin({
+    configuredOrigin: config.hslOrigin,
+    environmentOrigin: environment.HSL_ORIGIN,
+    legacyWebBaseUrl: config.webBaseUrl,
+    officialOrigin: options.officialOrigin === undefined ? OFFICIAL_HSL_ORIGIN : options.officialOrigin,
+  });
+  const hslOrigin = remoteConfiguration.hslOrigin;
   const mergedConfig = {
     ...config,
     defaultWeekId: config.defaultWeekId || pack?.weekId,
     eventsBaseDir: config.eventsBaseDir,
-    globalWebBaseUrl: config.webBaseUrl || null,
+    globalWebBaseUrl: hslOrigin,
+    hslOrigin,
+    remoteConfiguration,
     sessionFile,
     userDataDir: config.userDataDir || "auto",
-    webBaseUrl: config.webBaseUrl || pack?.webBaseUrl,
+    webBaseUrl: hslOrigin,
   };
   const runtimePaths = resolveRuntimePaths(mergedConfig, pack, { appDir });
   const sharedMameRuntime = readSharedMameRuntime({

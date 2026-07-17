@@ -189,6 +189,29 @@ test("first header render tolerates null connectivity and keeps the chip hidden"
   assert.doesNotMatch(header, /connection-chip--connected|connection-chip--offline/);
 });
 
+test("remote configuration problems are explained without an offline chip", async () => {
+  const { renderHeader } = await import(
+    pathToFileURL(path.join(rendererRoot, "components", "header.js")).href
+  );
+  const header = renderHeader({
+    accountMenuOpen: false,
+    busy: false,
+    connectivity: { reachability: "unknown" },
+    data: {
+      remoteConfiguration: {
+        hslOrigin: null,
+        message: "El origen HSL configurado no es valido.",
+        source: "launcher-config",
+        status: "invalid",
+      },
+    },
+    theme: "dark",
+  });
+  assert.match(header, /data-remote-configuration-status="invalid"/);
+  assert.match(header, /Configuracion HSL invalida/);
+  assert.doesNotMatch(header, /data-connectivity-status="offline"|Desconectado/);
+});
+
 test("pack activation preserves the previous snapshot and uses shared minimum feedback", async () => {
   const [app, gamePanel, main] = await Promise.all([
     fsp.readFile(path.join(rendererRoot, "app.js"), "utf8"),
@@ -211,7 +234,7 @@ test("only a session-confirmed available capability reaches shell.openExternal",
   const rankingBlock = main.slice(main.indexOf('ipcMain.handle("launcher:open-ranking"'), main.indexOf('ipcMain.handle("launcher:check-membership"'));
 
   assert.doesNotMatch(rankingBlock, /connectivity\.refresh\("ranking-click"/);
-  assert.match(rankingBlock, /trustedGlobalOrigin/);
+  assert.match(rankingBlock, /trustedHslOrigin/);
   assert.match(rankingBlock, /deriveRemoteAvailability\(connectivity\.getState\(\)\)\.available/);
   assert.match(rankingBlock, /rankingCapabilities\.ensureCapability\(weekId\)/);
   assert.match(rankingBlock, /capability\.status !== "available"/);

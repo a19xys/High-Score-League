@@ -47,13 +47,48 @@ test("loadConfig resolves explicit queue paths and legacy default session path",
   });
 });
 
-test("loadConfig preserves a distinct trusted global HSL origin", async () => {
+test("loadConfig converts the legacy global URL to the canonical HSL origin", async () => {
   await withTempDir(async (dir) => {
     const configPath = path.join(dir, "config.json");
     await fsp.writeFile(configPath, JSON.stringify({ webBaseUrl: "https://hsl.example" }), "utf8");
-    const config = loadConfig(configPath, dir);
+    const config = loadConfig(configPath, dir, { environment: {} });
+    assert.equal(config.hslOrigin, "https://hsl.example");
     assert.equal(config.globalWebBaseUrl, "https://hsl.example");
     assert.equal(config.webBaseUrl, "https://hsl.example");
+    assert.equal(config.remoteConfiguration.source, "legacy-webBaseUrl");
+  });
+});
+
+test("loadConfig provides the official origin when no local config exists", async () => {
+  await withTempDir(async (dir) => {
+    const config = loadConfig(path.join(dir, "missing.json"), dir, { environment: {} });
+    assert.equal(config.hslOrigin, "https://high-score-league.vercel.app");
+    assert.equal(config.remoteConfiguration.status, "configured");
+    assert.equal(config.remoteConfiguration.source, "official-default");
+  });
+});
+
+test("loadConfig honors HSL_ORIGIN and reports invalid or missing configuration", async () => {
+  await withTempDir(async (dir) => {
+    const configPath = path.join(dir, "config.json");
+    await fsp.writeFile(configPath, JSON.stringify({ hslOrigin: "https://config.example" }), "utf8");
+    const overridden = loadConfig(configPath, dir, {
+      environment: { HSL_ORIGIN: "http://localhost:3000/path" },
+    });
+    assert.equal(overridden.hslOrigin, "http://localhost:3000");
+    assert.equal(overridden.remoteConfiguration.source, "environment");
+
+    await fsp.writeFile(configPath, JSON.stringify({ hslOrigin: "not-an-origin" }), "utf8");
+    const invalid = loadConfig(configPath, dir, { environment: {} });
+    assert.equal(invalid.hslOrigin, null);
+    assert.equal(invalid.remoteConfiguration.status, "invalid");
+
+    const missing = loadConfig(path.join(dir, "missing.json"), dir, {
+      environment: {},
+      officialOrigin: null,
+    });
+    assert.equal(missing.remoteConfiguration.status, "missing");
+    assert.equal(missing.webBaseUrl, null);
   });
 });
 
