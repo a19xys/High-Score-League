@@ -59,6 +59,7 @@ const { readRecentPackState, writeLastOpenedPack } = require("../src/recent-pack
 const { writeSharedMameRuntime } = require("../src/shared-mame-runtime");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
 const { submitAll } = require("../src/submission-service");
+const { combineAbortSignals } = require("../src/remote-request");
 const { createAccountSessionCoordinator } = require("../src/account-session-coordinator");
 const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
 const {
@@ -73,7 +74,6 @@ const {
 const {
   checkSeasonMembership,
   shouldBlockCompetition,
-  shouldBlockSubmit,
 } = require("../src/season-membership");
 
 let activeOpenedPack = null;
@@ -81,9 +81,10 @@ let activeLibraryIssue = null;
 let activeLibrarySelection = null;
 let recentPackNotices = [];
 let autoSyncInProgress = false;
-let manualSyncInProgress = false;
 let autoSyncState = emptyAutoSyncState();
+let interactiveRemoteController = new AbortController();
 let pendingAutoSubmitEpoch = 0;
+let pendingAutoSubmitController = new AbortController();
 let pendingAutoSubmitState = {
   connectedGeneration: null,
   failed: 0,
@@ -98,6 +99,7 @@ let pendingAutoSubmitState = {
   user: null,
 };
 let remoteDiagnosticsProvider = null;
+let remoteOperationSignalProvider = null;
 const libraryOrderModule = import("./shared/library-order.mjs");
 const accountSessionCoordinator = createAccountSessionCoordinator({
   hashUserId: (userId) => `user_${hashPart(userId, 12)}`,
@@ -130,6 +132,19 @@ function getPackPluginName(pack) {
 
 function setRemoteDiagnosticsProvider(provider) {
   remoteDiagnosticsProvider = typeof provider === "function" ? provider : null;
+}
+
+function setRemoteOperationSignalProvider(provider) {
+  remoteOperationSignalProvider = typeof provider === "function" ? provider : null;
+}
+
+function getRemoteOperationSignal() {
+  return remoteOperationSignalProvider?.() || null;
+}
+
+function invalidateInteractiveRemoteOperations(reason = "context-change") {
+  interactiveRemoteController.abort(reason);
+  interactiveRemoteController = new AbortController();
 }
 
 function getPendingAutoSubmitDiagnostics() {
@@ -221,6 +236,8 @@ async function getPendingAutoSubmitContexts(options = {}) {
 
 function invalidatePendingAutoSubmit(reason = "context-change") {
   pendingAutoSubmitEpoch += 1;
+  pendingAutoSubmitController.abort(reason);
+  pendingAutoSubmitController = new AbortController();
   pendingAutoSubmitState = { ...pendingAutoSubmitState, cancelReason: reason };
 }
 
@@ -935,9 +952,20 @@ async function getLauncherContext(options = {}) {
   const accountsStore = session.hasSession
     ? await rememberSessionAccount(baseConfig, session)
     : await readKnownAccounts(baseConfig);
-  const membership = await checkSeasonMembership(baseConfig, session, {
-    deferRemote: options.deferRemoteMembership === true,
-  });
+  const membershipSignal = combineAbortSignals([
+    options.signal,
+    getRemoteOperationSignal(),
+    interactiveRemoteController.signal,
+  ]);
+  let membership;
+  try {
+    membership = await checkSeasonMembership(baseConfig, session, {
+      deferRemote: options.deferRemoteMembership === true,
+      signal: membershipSignal.signal,
+    });
+  } finally {
+    membershipSignal.dispose();
+  }
   const scoped = await getScopedGuiConfig(baseConfig, session);
   const queue = scoped.scope
     ? await getQueueState(scoped.config)
@@ -1080,7 +1108,7 @@ async function stateFromContext(context) {
 
 async function runAutoSyncIfEligible(context, options = {}) {
   const eligibilityContext = {
-    autoSyncInProgress: autoSyncInProgress || manualSyncInProgress,
+    autoSyncInProgress,
     membership: context.membership,
     queue: context.queue,
     scope: context.scoped?.scope,
@@ -1153,13 +1181,18 @@ async function runAutoSyncIfEligible(context, options = {}) {
 
 async function runPendingAutoSubmit(options = {}) {
   const now = options.now || new Date().toISOString();
-  if (autoSyncInProgress || manualSyncInProgress) return { attempted: false, reason: "sync-in-progress", status: "deferred" };
+  if (autoSyncInProgress) return { attempted: false, reason: "sync-in-progress", retryable: true, status: "deferred", terminal: false };
   const baseConfig = options.config || loadRuntimeConfig();
   const session = options.session || await (options.getAuthStateImpl || getAuthState)(baseConfig);
   const playerKey = derivePlayerKey(session);
-  if (!session.hasSession || !playerKey) return { attempted: false, reason: "no-session", status: "deferred" };
+  if (!session.hasSession || !playerKey) return { attempted: false, authFailure: true, reason: "no-session", status: "deferred", terminal: false };
 
   const epoch = pendingAutoSubmitEpoch;
+  const combinedSignal = combineAbortSignals([
+    options.signal,
+    getRemoteOperationSignal(),
+    pendingAutoSubmitController.signal,
+  ]);
   const discovery = options.index || await (options.discoverScopesImpl || discoverPlayerPendingScopes)(baseConfig, session);
   const sessionFileAbs = (options.getSessionPathImpl || getRememberedSessionPath)(baseConfig, session);
   const totalPending = discovery.records.reduce((sum, item) => sum + item.pendingCount, 0);
@@ -1178,7 +1211,10 @@ async function runPendingAutoSubmit(options = {}) {
     queueRevision: discovery.revision || null,
     validPending: discovery.totals?.validPending ?? totalPending,
   };
-  if (discovery.records.length === 0) return { attempted: false, discovery, reason: "no-pending", status: "completed" };
+  if (discovery.records.length === 0) {
+    combinedSignal.dispose();
+    return { attempted: false, discovery, reason: "no-pending", status: "completed", terminal: true };
+  }
 
   autoSyncInProgress = true;
   autoSyncState = emptyAutoSyncState({
@@ -1192,17 +1228,33 @@ async function runPendingAutoSubmit(options = {}) {
   let preserved = totalPending;
   let transportFailure = false;
   let authFailure = false;
+  let attentionRequired = false;
+  let cancelled = false;
+  let retryable = false;
+  let retryAfterMs = null;
   let processedScopes = 0;
-  const stillCurrent = () => epoch === pendingAutoSubmitEpoch && options.shouldContinue?.() !== false;
+  const stillCurrent = () => !combinedSignal.signal.aborted && epoch === pendingAutoSubmitEpoch && options.shouldContinue?.() !== false;
 
   try {
     for (const record of discovery.records) {
       if (!stillCurrent()) break;
       const config = buildScopedSubmitConfig(baseConfig, record, { sessionFileAbs });
-      const membership = await (options.checkMembershipImpl || checkSeasonMembership)(config, session);
-      if (!stillCurrent()) break;
-      if (membership.status === "unknown" && !membership.response && membership.request) {
-        transportFailure = true;
+      const membership = await (options.checkMembershipImpl || checkSeasonMembership)(config, session, {
+        signal: combinedSignal.signal,
+      });
+      if (!stillCurrent()) {
+        cancelled = true;
+        break;
+      }
+      if (membership.remoteFailure === "cancelled") {
+        cancelled = true;
+        break;
+      }
+      const membershipRequestFailed = membership.status === "unknown" && !membership.response && membership.request;
+      if (membership.retryable || membershipRequestFailed) {
+        transportFailure = ["transport-failure", "timeout"].includes(membership.remoteFailure) || Boolean(membershipRequestFailed);
+        retryable = true;
+        retryAfterMs = Math.max(Number(retryAfterMs) || 0, Number(membership.retryAfterMs) || 0) || null;
         break;
       }
       if (["no_session", "unauthenticated"].includes(membership.status)) {
@@ -1213,26 +1265,36 @@ async function runPendingAutoSubmit(options = {}) {
 
       const beforeQueue = await (options.getQueueStateImpl || getQueueState)(config);
       let scopeTransportFailure = false;
+      let scopeRetryable = false;
       await captureConsoleAsync(() => (options.submitAllImpl || submitAll)(config, {
         onResult(result) {
-          if (result.action === "network_error") scopeTransportFailure = true;
-          if (result.action === "auth_required") authFailure = true;
+          if (["transport-failure", "timeout"].includes(result.outcome)) scopeTransportFailure = true;
+          if (result.retryable) scopeRetryable = true;
+          if (result.authRequired) authFailure = true;
+          if (result.outcome === "cancelled") cancelled = true;
+          if (result.outcome === "attention-required") attentionRequired = true;
+          retryAfterMs = Math.max(Number(retryAfterMs) || 0, Number(result.retryAfterMs) || 0) || null;
         },
+        signal: combinedSignal.signal,
         shouldContinue: stillCurrent,
         stopOnTransportFailure: true,
+        stopOnRetryableFailure: true,
       }));
       const afterQueue = await (options.getQueueStateImpl || getQueueState)(config);
       sent += Math.max(0, afterQueue.totals.sent - beforeQueue.totals.sent);
       failed += Math.max(0, afterQueue.totals.failed - beforeQueue.totals.failed);
       preserved -= Math.max(0, beforeQueue.totals.pending - afterQueue.totals.pending);
       processedScopes += 1;
-      if (scopeTransportFailure) {
-        transportFailure = true;
+      if (scopeTransportFailure || scopeRetryable) {
+        transportFailure = scopeTransportFailure;
+        retryable = true;
         break;
       }
-      if (authFailure) break;
+      if (authFailure || cancelled) break;
     }
   } finally {
+    if (!stillCurrent()) cancelled = true;
+    combinedSignal.dispose();
     autoSyncInProgress = false;
     const pendingAfter = Math.max(0, preserved);
     autoSyncState = emptyAutoSyncState({
@@ -1244,9 +1306,9 @@ async function runPendingAutoSubmit(options = {}) {
         : "Las puntuaciones pendientes se conservan para el proximo intento.",
       pendingAfter,
       pendingBefore: totalPending,
-      reason: transportFailure ? "transport" : authFailure ? "auth_required" : failed > 0 ? "failed_items" : null,
+      reason: cancelled ? "cancelled" : transportFailure ? "transport" : retryable ? "retryable_http" : authFailure ? "auth_required" : attentionRequired ? "attention_required" : failed > 0 ? "failed_items" : null,
       sentCount: sent,
-      status: transportFailure || authFailure ? "failed" : failed > 0 ? "partial_failed" : sent > 0 ? "synced" : "idle",
+      status: cancelled || transportFailure || retryable || authFailure ? "failed" : attentionRequired || failed > 0 ? "partial_failed" : sent > 0 ? "synced" : "idle",
     });
     pendingAutoSubmitState = {
       ...pendingAutoSubmitState,
@@ -1260,14 +1322,20 @@ async function runPendingAutoSubmit(options = {}) {
 
   return {
     attempted: processedScopes > 0,
+    attentionRequired,
     authFailure,
+    cancelled,
     diagnostics: getPendingAutoSubmitDiagnostics(),
     failed,
-    ok: !transportFailure && failed === 0,
+    ok: !cancelled && !transportFailure && !retryable && !authFailure && !attentionRequired && failed === 0 && Math.max(0, preserved) === 0,
     preserved: Math.max(0, preserved),
     sent,
+    reason: cancelled ? "cancelled" : transportFailure ? "transport" : retryable ? "retryable-http" : authFailure ? "auth-required" : attentionRequired ? "attention-required" : null,
+    retryAfterMs,
+    retryable,
+    terminal: !cancelled && !transportFailure && !retryable && !authFailure,
     transportFailure,
-    status: transportFailure || authFailure ? "deferred" : "completed",
+    status: cancelled ? "cancelled" : transportFailure || retryable || authFailure ? "deferred" : attentionRequired ? "attention-required" : "completed",
   };
 }
 
@@ -1275,11 +1343,17 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
   const contexts = options.accountContexts || [];
   const aggregate = {
     attempted: false,
+    attentionRequired: false,
+    authFailure: false,
+    cancelled: false,
     failed: 0,
     preserved: 0,
     processedAccounts: 0,
     sent: 0,
     status: "completed",
+    retryAfterMs: null,
+    retryable: false,
+    terminal: true,
     transportFailure: false,
   };
   for (const context of contexts) {
@@ -1301,11 +1375,23 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
     aggregate.preserved += Number(result.preserved) || 0;
     aggregate.sent += Number(result.sent) || 0;
     aggregate.processedAccounts += 1;
-    if (result.transportFailure) {
-      aggregate.transportFailure = true;
+    aggregate.attentionRequired = aggregate.attentionRequired || result.attentionRequired === true;
+    aggregate.authFailure = aggregate.authFailure || result.authFailure === true;
+    aggregate.cancelled = aggregate.cancelled || result.cancelled === true || result.status === "cancelled";
+    aggregate.retryable = aggregate.retryable || result.retryable === true;
+    aggregate.retryAfterMs = Math.max(Number(aggregate.retryAfterMs) || 0, Number(result.retryAfterMs) || 0) || null;
+    if (result.transportFailure || result.retryable || result.cancelled) {
+      aggregate.transportFailure = aggregate.transportFailure || result.transportFailure === true;
       aggregate.status = "deferred";
+      aggregate.terminal = false;
       break;
     }
+  }
+  if (aggregate.authFailure) {
+    aggregate.status = "deferred";
+    aggregate.terminal = false;
+  } else if (aggregate.attentionRequired && aggregate.terminal) {
+    aggregate.status = "attention-required";
   }
   return aggregate;
 }
@@ -1322,8 +1408,11 @@ async function migrateRememberedSessionsForGui() {
 
 function resetAutoSyncStateForTests() {
   autoSyncInProgress = false;
-  manualSyncInProgress = false;
   autoSyncState = emptyAutoSyncState();
+  interactiveRemoteController.abort("test-reset");
+  interactiveRemoteController = new AbortController();
+  pendingAutoSubmitController.abort("test-reset");
+  pendingAutoSubmitController = new AbortController();
   pendingAutoSubmitEpoch = 0;
   pendingAutoSubmitState = {
     connectedGeneration: null,
@@ -1991,92 +2080,6 @@ async function playPractice() {
     result: captured.result || null,
     state: await getLauncherState(),
   };
-}
-
-async function submitAllPending() {
-  await ensureRememberedPackLoaded();
-
-  if (autoSyncInProgress || manualSyncInProgress) {
-    const summary = autoSyncInProgress
-      ? "La sincronizacion automatica ya esta en marcha."
-      : "Ya hay una subida en marcha.";
-
-    return {
-      action: "submit-all",
-      lines: [summary],
-      ok: false,
-      summary,
-      state: await getLauncherState(),
-    };
-  }
-
-  const baseConfig = getEffectiveConfig();
-  const session = await getAuthState(baseConfig);
-  const membership = await checkSeasonMembership(baseConfig, session);
-
-  if (!session.hasSession) {
-    return {
-      action: "submit-all",
-      lines: [session.message, "Inicia sesión para subir puntuaciones."],
-      ok: false,
-      summary: "Inicia sesión para subir puntuaciones.",
-      state: await getLauncherState(),
-    };
-  }
-
-  if (shouldBlockSubmit(membership)) {
-    return {
-      action: "submit-all",
-      lines: [membership.message],
-      ok: false,
-      summary: membership.message,
-      state: await getLauncherState(),
-    };
-  }
-
-  const scoped = await getScopedGuiConfig(baseConfig, session);
-
-  if (!scoped.scope) {
-    return {
-      action: "submit-all",
-      lines: [scoped.reason || "No se pudo preparar la cola local de esta cuenta."],
-      ok: false,
-      summary: "No se pudo preparar la cola local.",
-      state: await getLauncherState(),
-    };
-  }
-
-  manualSyncInProgress = true;
-
-  let captured;
-  let exitCode;
-
-  try {
-    captured = await captureConsoleAsync(() => submitAll(scoped.config));
-    exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
-  } finally {
-    manualSyncInProgress = false;
-  }
-
-  const response = {
-    action: "submit-all",
-    exitCode,
-    lines: captured.lines,
-    ok: exitCode === 0,
-    result: captured.result || null,
-    state: await getLauncherState(),
-  };
-
-  if (response.state?.queue?.totals?.failed > 0) {
-    response.action = "submit-all-with-failed";
-    response.lines = [
-      ...response.lines,
-      "Las puntuaciones con error estan en Requieren atencion.",
-      "Puedes restaurarlas a pendientes cuando corrijas el problema.",
-    ];
-  }
-
-  return response;
 }
 
 async function restoreFailedSubmission(filename) {
@@ -2815,6 +2818,7 @@ module.exports = {
   getLauncherState,
   importPackFromFolderForGui,
   importPackFromZipForGui,
+  invalidateInteractiveRemoteOperations,
   invalidatePendingAutoSubmit,
   loginWithPassword,
   listPendingFileSnapshot,
@@ -2835,12 +2839,12 @@ module.exports = {
   resolveRememberedPack,
   resetAutoSyncStateForTests,
   setRemoteDiagnosticsProvider,
+  setRemoteOperationSignalProvider,
   runAutoSyncIfEligible,
   runPendingAutoSubmit,
   runPendingAutoSubmitForAccounts,
   runDiagnose,
   setLibraryPreferencesFromGui,
-  submitAllPending,
   summarizeDiagnoseReport,
   switchKnownAccountFromGui,
   syncPlugin,

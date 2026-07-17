@@ -66,6 +66,15 @@ ejemplo HTTP 500 o una respuesta no JSON/HTML.
 `unknown` se reserva para casos donde no se pudo completar o interpretar la
 comprobacion, por ejemplo error de red o configuracion incompleta.
 
+Membership usa ahora el plazo remoto comun de 15 s para cabeceras y body,
+`redirect: error` y cancelacion externa. Diagnostico distingue timeout,
+transporte y cancelacion sin guardar el mensaje crudo de la excepcion.
+
+`joinUrl` puede ser relativo o absoluto, pero tras resolverlo debe conservar el
+origen exacto de `webBaseUrl` y no incluir credenciales. Un valor externo,
+`javascript:` o malformado se marca como rechazado y cae al origen HSL seguro.
+Main repite la validacion inmediatamente antes de `shell.openExternal`.
+
 ## Detalles tecnicos
 
 En:

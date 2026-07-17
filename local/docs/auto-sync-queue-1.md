@@ -2,6 +2,22 @@
 
 Sincronizacion automatica conservadora de la cola scoped pendiente.
 
+## Addendum de fiabilidad prelaunch
+
+La implementacion vigente indexa todas las cuentas recordadas con sesion
+valida, no solo el pack visible. Las procesa secuencialmente mediante el
+coordinador comun descrito en `submission-outcome-policy-1.md`.
+
+HTTP 408/425/429/5xx, transporte y timeout conservan `pending` y activan
+cooldown 30/60/120/300/900 s. Un 401 bloquea solo la misma revision de sesion;
+la siguiente cuenta sigue teniendo oportunidad. Un cambio de cuenta visible
+invalida membership interactiva, pero no cancela el lote background ya
+congelado; suspend y shutdown si abortan el lote y nunca consumen la clave
+terminal.
+
+El antiguo `submit-all` manual de GUI no tenia consumidor IPC/preload activo y
+se elimino. La CLI `submit-all` permanece y comparte la clasificacion canonica.
+
 ## Objetivo
 
 La GUI puede subir automaticamente puntuaciones pendientes cuando ya sabe que
@@ -31,7 +47,7 @@ La subida automatica solo se intenta si todas estas condiciones son ciertas:
 - `membership.canSubmit === true`;
 - existe scope de cuenta y pack;
 - la cola scoped tiene `pending > 0`;
-- no hay otra subida automatica o manual en curso.
+- no hay otra subida automatica en curso.
 
 Estados que bloquean auto-sync:
 

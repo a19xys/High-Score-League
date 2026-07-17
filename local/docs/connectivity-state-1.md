@@ -43,6 +43,12 @@ health iniciados/deduplicados, confirmaciones, heartbeats y transporte. No
 publica IP, token, cookie ni body. `Failed to read DnsConfig` no se analiza ni
 se usa como senal.
 
+Las peticiones de producto (membership, Ranking e ingest) no llaman a
+`markReachable` ni `signalOffline`. Ante transporte pueden solicitar un health
+inmediato; el resultado del health sigue siendo la unica autoridad que
+compromete reachability. Suspend y shutdown abortan las peticiones de producto,
+y resume crea un contexto nuevo.
+
 El renderer rechaza generaciones antiguas y aplica cada snapshot de
 conectividad en una unica escritura del store. Chip, Ranking y futuros controles
 remotos se derivan durante el mismo render.

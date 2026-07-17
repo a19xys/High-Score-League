@@ -4,6 +4,7 @@ const {
   checkSeasonMembership,
   getMembershipUrl,
   normalizeMembershipResponse,
+  safeMembershipJoinUrl,
   shouldBlockCompetition,
   shouldBlockSubmit,
 } = require("../src/season-membership");
@@ -129,6 +130,7 @@ test("respuesta member permite competicion y subida", async () => {
   assert.equal(result.request.method, "GET");
   assert.equal(result.response.httpStatus, 200);
   assert.equal(result.response.bodyStatus, "member");
+  assert.equal(result.response.bodyMessage, "server_message");
   assert.equal(JSON.stringify(result).includes("secret-access-token"), false);
   assert.equal(JSON.stringify(result).includes("Authorization"), false);
 });
@@ -219,7 +221,29 @@ test("error de red devuelve unknown y permite competir con advertencia", async (
   assert.equal(shouldBlockCompetition(result), false);
   assert.equal(result.request.url, "https://high-score-league.example/api/local/season-membership?weekId=week-1");
   assert.equal(result.response, null);
-  assert.equal(result.technicalReason, "network down");
+  assert.equal(result.technicalReason, "transport-failure:request-failed");
+  assert.equal(result.remoteFailure, "transport-failure");
+});
+
+test("joinUrl accepts only the configured origin and falls back safely", () => {
+  assert.equal(
+    safeMembershipJoinUrl(config(), "https://high-score-league.example/seasons/one"),
+    "https://high-score-league.example/seasons/one",
+  );
+  assert.equal(
+    safeMembershipJoinUrl(config(), "https://evil.example/phishing"),
+    "https://high-score-league.example",
+  );
+  assert.equal(
+    safeMembershipJoinUrl(config(), "javascript:alert(1)"),
+    "https://high-score-league.example",
+  );
+  const normalized = normalizeMembershipResponse(config(), {
+    status: "not_member",
+    joinUrl: "https://evil.example/phishing",
+  });
+  assert.equal(normalized.joinUrlRejected, true);
+  assert.equal(normalized.joinUrl, "https://high-score-league.example");
 });
 
 test("invalid_week bloquea competicion", () => {

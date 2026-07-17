@@ -1,7 +1,10 @@
 const { getValidStoredSession } = require("./auth");
-const { normalizeWebBaseUrl, parseResponseBody } = require("./submission-http");
+const { normalizeWebBaseUrl, parseResponseText } = require("./submission-http");
+const { executeRemoteRequest } = require("./remote-request");
+const { parseRetryAfter, RETRYABLE_HTTP_STATUSES } = require("./submission-outcome");
 
 const NETWORK_STATUSES = new Set(["unknown", "error"]);
+const SAFE_BODY_STATUSES = new Set(["member", "not_member", "unauthenticated", "invalid_week", "error", "unknown"]);
 const BLOCKING_STATUSES = new Set(["no_session", "missing_week", "invalid_week", "not_member", "unauthenticated"]);
 const PLAYER_MESSAGES = {
   member: "Participas en esta temporada. Puedes jugar competicion.",
@@ -26,7 +29,10 @@ function baseState(overrides = {}) {
     joinUrl: null,
     message: "No se pudo comprobar la participacion.",
     request: null,
+    remoteFailure: null,
     response: null,
+    retryAfterMs: null,
+    retryable: false,
     seasonId: null,
     status: "unknown",
     technicalReason: null,
@@ -35,18 +41,21 @@ function baseState(overrides = {}) {
   };
 }
 
-function absolutizeJoinUrl(config, joinUrl) {
-  if (!joinUrl || typeof joinUrl !== "string") {
-    return normalizeWebBaseUrl(config.webBaseUrl || "");
+function resolveMembershipJoinUrl(config, joinUrl) {
+  const fallback = normalizeWebBaseUrl(config.webBaseUrl || "");
+  try {
+    const trusted = new URL(fallback);
+    const candidate = new URL(typeof joinUrl === "string" && joinUrl.trim() ? joinUrl : fallback, `${fallback}/`);
+    const safe = ["http:", "https:"].includes(candidate.protocol) &&
+      !candidate.username && !candidate.password && candidate.origin === trusted.origin;
+    return { rejected: !safe, url: safe ? candidate.href.replace(/\/$/, candidate.pathname === "/" ? "" : "/") : fallback };
+  } catch {
+    return { rejected: Boolean(joinUrl), url: fallback };
   }
+}
 
-  if (/^https?:\/\//i.test(joinUrl)) {
-    return joinUrl;
-  }
-
-  const base = normalizeWebBaseUrl(config.webBaseUrl || "");
-  const path = joinUrl.startsWith("/") ? joinUrl : `/${joinUrl}`;
-  return `${base}${path}`;
+function safeMembershipJoinUrl(config, joinUrl) {
+  return resolveMembershipJoinUrl(config, joinUrl).url;
 }
 
 function createRequestDetails(config, weekId) {
@@ -80,12 +89,10 @@ function sanitizeResponseBody(body) {
     };
   }
 
-  const bodyStatus = typeof body.status === "string" ? body.status : null;
-  const bodyMessage = typeof body.message === "string"
-    ? body.message
-    : typeof body.error === "string"
-      ? body.error
-      : null;
+  const bodyStatus = SAFE_BODY_STATUSES.has(body.status) ? body.status : typeof body.status === "string" ? "unexpected_status" : null;
+  const bodyMessage = typeof body.message === "string" || typeof body.error === "string"
+    ? "server_message"
+    : null;
 
   return {
     bodyMessage,
@@ -126,8 +133,8 @@ function normalizeMembershipResponse(config, body, options = {}) {
   const status = typeof body?.status === "string" ? body.status : "unknown";
   const weekId = typeof body?.weekId === "string" ? body.weekId : options.weekId || null;
   const seasonId = typeof body?.seasonId === "string" ? body.seasonId : null;
-  const joinUrl = absolutizeJoinUrl(config, body?.joinUrl);
-  const serverMessage = typeof body?.message === "string" ? body.message : null;
+  const joinUrlResult = resolveMembershipJoinUrl(config, body?.joinUrl);
+  const joinUrl = joinUrlResult.url;
   const request = options.request || createRequestDetails(config, weekId);
   const response = options.response || null;
   const technicalReason = options.technicalReason || getTechnicalReason(response);
@@ -138,7 +145,8 @@ function normalizeMembershipResponse(config, body, options = {}) {
       canSubmit: true,
       checkedAt,
       joinUrl,
-      message: serverMessage || PLAYER_MESSAGES.member,
+      joinUrlRejected: joinUrlResult.rejected,
+      message: PLAYER_MESSAGES.member,
       request,
       response,
       seasonId,
@@ -152,7 +160,8 @@ function normalizeMembershipResponse(config, body, options = {}) {
     return baseState({
       checkedAt,
       joinUrl,
-      message: serverMessage || PLAYER_MESSAGES.not_member,
+      joinUrlRejected: joinUrlResult.rejected,
+      message: PLAYER_MESSAGES.not_member,
       request,
       response,
       seasonId,
@@ -166,7 +175,8 @@ function normalizeMembershipResponse(config, body, options = {}) {
     return baseState({
       checkedAt,
       joinUrl,
-      message: serverMessage || PLAYER_MESSAGES.invalid_week,
+      joinUrlRejected: joinUrlResult.rejected,
+      message: PLAYER_MESSAGES.invalid_week,
       request,
       response,
       seasonId,
@@ -180,6 +190,7 @@ function normalizeMembershipResponse(config, body, options = {}) {
     return baseState({
       checkedAt,
       joinUrl,
+      joinUrlRejected: joinUrlResult.rejected,
       message: PLAYER_MESSAGES.unauthenticated,
       request,
       response,
@@ -196,7 +207,8 @@ function normalizeMembershipResponse(config, body, options = {}) {
       canSubmit: false,
       checkedAt,
       joinUrl,
-      message: serverMessage || PLAYER_MESSAGES.error,
+      joinUrlRejected: joinUrlResult.rejected,
+      message: PLAYER_MESSAGES.error,
       request,
       response,
       seasonId,
@@ -211,7 +223,8 @@ function normalizeMembershipResponse(config, body, options = {}) {
     canSubmit: false,
     checkedAt,
     joinUrl,
-    message: serverMessage || PLAYER_MESSAGES.unknown,
+    joinUrlRejected: joinUrlResult.rejected,
+    message: PLAYER_MESSAGES.unknown,
     request,
     response,
     seasonId,
@@ -312,15 +325,40 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
   }
 
   try {
-    const fetchImpl = options.fetchImpl || fetch;
-    const response = await fetchImpl(request.url, {
+    const requestResult = await executeRemoteRequest({
+      fetchImpl: options.fetchImpl,
+      signal: options.signal,
+      timeoutMs: options.timeoutMs,
+      url: request.url,
+      init: {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+      },
     });
-    const body = await parseResponseBody(response);
+    if (!requestResult.ok) {
+      return baseState({
+        canPlayCompetition: true,
+        canSubmit: false,
+        checkedAt: options.checkedAt || new Date().toISOString(),
+        joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
+        message: PLAYER_MESSAGES.unknown,
+        remoteFailure: requestResult.failureType,
+        request,
+        retryable: requestResult.failureType !== "cancelled",
+        status: "unknown",
+        technicalReason: `${requestResult.failureType}:${requestResult.reason}`,
+        weekId,
+      });
+    }
+    const response = requestResult.response;
+    const body = parseResponseText(requestResult.bodyText);
     const responseDetails = createResponseDetails(response, body);
     const safeBody = body?.rawText ? { status: "error", message: "non_json_response" } : body;
+    const retryable = RETRYABLE_HTTP_STATUSES.has(response.status) || response.status >= 500;
+    const retryAfterMs = retryable
+      ? parseRetryAfter(response.headers?.get?.("retry-after"), { nowMs: options.nowMs })
+      : null;
 
     if (response.status === 401) {
       return normalizeMembershipResponse(config, { ...safeBody, status: "unauthenticated", weekId }, {
@@ -333,13 +371,14 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
     }
 
     if (!response.ok && safeBody?.status) {
-      return normalizeMembershipResponse(config, { ...safeBody, weekId }, {
+      const normalized = normalizeMembershipResponse(config, { ...safeBody, weekId }, {
         checkedAt: options.checkedAt,
         request,
         response: responseDetails,
         technicalReason: getTechnicalReason(responseDetails),
         weekId,
       });
+      return { ...normalized, retryAfterMs, retryable };
     }
 
     if (!response.ok) {
@@ -351,6 +390,8 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
         message: PLAYER_MESSAGES.error,
         request,
         response: responseDetails,
+        retryAfterMs,
+        retryable,
         status: "error",
         technicalReason: getTechnicalReason(responseDetails),
         weekId,
@@ -372,8 +413,10 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
       joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
       message: PLAYER_MESSAGES.unknown,
       request,
+      remoteFailure: "transport-failure",
+      retryable: true,
       status: "unknown",
-      technicalReason: error.message,
+      technicalReason: error?.name || "Error",
       weekId,
     });
   }
@@ -392,6 +435,7 @@ module.exports = {
   createResponseDetails,
   getMembershipUrl,
   normalizeMembershipResponse,
+  safeMembershipJoinUrl,
   shouldBlockCompetition,
   shouldBlockSubmit,
 };

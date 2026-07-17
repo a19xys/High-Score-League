@@ -17,8 +17,12 @@
 | Chip y controles divergen durante probe | P1 | Cerrado | selector comprometido unico y render atomico |
 | Cambio administrativo de Ranking en caliente | P2 | Aceptado | reinicio, cambio semantico o refresh de desarrollo |
 | Cola legacy ambigua | P1 | Mitigado | conservar y diagnosticar; no inferir dueno |
-| Cierre durante envio | P1 | Mitigado | invalidate y guardas; request emitida puede terminar |
-| Suspension | P1 | Mitigado en codigo | prueba fisica pendiente |
+| Cierre durante envio | P1 | Cerrado en codigo | aborto externo; pending conservado; no nace red nueva |
+| Suspension | P1 | Cerrado en codigo | aborto externo distinto de timeout; prueba fisica pendiente |
+| 503 contado como autoenvio completado | P1 | Cerrado | outcome canonico + pending + cooldown |
+| Tormenta de reintentos | P1 | Cerrado | backoff 30/60/120/300/900 s y Retry-After acotado |
+| Dos instancias Electron | P1 | Cerrado | lock antes de ready y foco de primaria |
+| joinUrl externo | P1 | Cerrado | mismo origen al normalizar y antes de openExternal |
 | Warning DNS Chromium | P2 | Aceptado | no se analiza; vigilar contadores de health |
 | Desconexion/reconexion fisica | P1 | Codigo cubierto | QA Ethernet/foco/minimizado pendiente |
 | Secretos o IP en diagnostico | P0 | Cerrado | hash y agregados; sanitizer existente |
@@ -32,3 +36,7 @@ Backlog deliberadamente fuera de alcance: protocolo personalizado Electron;
 overlay y densidad visual de la tarea 2; readiness, imagenes y tema inicial de
 la tarea 3. La comprobacion
 fisica prolongada de mas de diez minutos y Ethernet sigue siendo QA manual.
+
+Residual: la prueba automatica valida semantica y ciclo de vida; suspend real,
+cierre bajo red lenta y doble clic del ejecutable empaquetado siguen siendo QA
+fisica de plataforma antes de ampliar la beta.

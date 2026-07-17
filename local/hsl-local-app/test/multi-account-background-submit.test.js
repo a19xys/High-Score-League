@@ -69,3 +69,28 @@ test("multi-account submit is sequential and never crosses account identity", as
   assert.equal(result.sent, 2);
   assert.equal(result.processedAccounts, 2);
 });
+
+test("auth failure in one account does not prevent a later account from submitting", async () => {
+  const order = [];
+  const contexts = ["user-a", "user-b"].map((userId) => ({
+    config: {},
+    index: { totals: { pending: 1 } },
+    session: { hasSession: true, userId },
+  }));
+  const result = await runPendingAutoSubmitForAccounts({
+    accountContexts: contexts,
+    runAccountImpl: async ({ session }) => {
+      order.push(session.userId);
+      return session.userId === "user-a"
+        ? { attempted: true, authFailure: true, preserved: 1, sent: 0, status: "deferred", terminal: false }
+        : { attempted: true, preserved: 0, sent: 1, status: "completed", terminal: true };
+    },
+    shouldContinue: () => true,
+  });
+  assert.deepEqual(order, ["user-a", "user-b"]);
+  assert.equal(result.authFailure, true);
+  assert.equal(result.sent, 1);
+  assert.equal(result.preserved, 1);
+  assert.equal(result.status, "deferred");
+  assert.equal(result.terminal, false);
+});

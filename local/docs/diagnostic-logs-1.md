@@ -1,5 +1,16 @@
 # Diagnostic logs
 
+## Fiabilidad remota prelaunch
+
+El bloque `autoSubmit.coordinator` expone estado, motivo de defer, revision de
+cola/sesion, intento de cooldown, `nextEligibleAt`, bloqueo de autenticacion y
+ultima clave terminal. Los resultados remotos usan motivos enumerados para
+HTTP reintentable, transporte, timeout y cancelacion.
+
+El sanitizer sigue excluyendo tokens, Authorization, cookies, cuerpos completos,
+HTML, IP y URLs devueltas por servidor. La causa tecnica se limita a estado
+HTTP, tipo/codigo de error y motivo de ciclo de vida permitido.
+
 When the local launcher user presses **Diagnosticar**, the launcher still shows the normal UI result and also writes a persistent support report under the app data folder:
 
 ```text

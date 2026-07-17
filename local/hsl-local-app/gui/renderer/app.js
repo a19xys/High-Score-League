@@ -1030,13 +1030,9 @@ function resultToLog(title, response) {
       : "La práctica terminó con aviso.",
     refresh: "Estado local actualizado.",
     "rescan-pack-directory": response.summary || "Biblioteca reescaneada.",
-    "submit-all": ok
-      ? "Subida finalizada. Si había puntuaciones válidas, se movieron a enviadas."
-      : "No se pudo completar la subida. Tus puntuaciones siguen guardadas localmente.",
     "restore-failed": ok
       ? "Puntuación restaurada a pendientes. Puedes reintentar cuando el problema esté corregido."
       : "No se pudo restaurar la puntuación.",
-    "submit-all-with-failed": "Hay puntuaciones que requieren atención. No se han perdido y puedes restaurarlas a pendientes.",
     "sync-plugin": ok
       ? "Plugin sincronizado con el pack de desarrollo."
       : "No se pudo sincronizar el plugin de desarrollo.",

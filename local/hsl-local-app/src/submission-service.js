@@ -9,17 +9,21 @@ const {
 } = require("./event-files");
 const { movePendingToFailed, movePendingToSent } = require("./file-queue");
 const { printHeader, printSubmitResult } = require("./output");
-const {
-  buildSubmissionPayload,
-  responseLooksDuplicate,
-  responseLooksOk,
-} = require("./submission-payload");
+const { buildSubmissionPayload } = require("./submission-payload");
 const {
   assertSubmitConfig,
   getIngestUrl,
-  getServerMessage,
   postSubmission,
 } = require("./submission-http");
+const {
+  baseOutcome,
+  classifySubmissionHttpResult,
+  classifySubmissionRequestFailure,
+} = require("./submission-outcome");
+
+function withOutcome(result, outcome) {
+  return { ...result, ...outcome };
+}
 
 function buildSubmitSummary(config, event) {
   return {
@@ -45,7 +49,7 @@ function formatRecentWarning(freshness) {
   return `Archivo modificado hace ${Math.round(freshness.ageMs)}ms; puede estar aun escribiendose. Umbral: ${freshness.thresholdMs}ms.`;
 }
 
-async function submitPendingFile(config, filename) {
+async function submitPendingFile(config, filename, options = {}) {
   assertSubmitConfig(config);
   assertAuthConfig(config);
 
@@ -57,12 +61,11 @@ async function submitPendingFile(config, filename) {
   const sourcePath = path.join(config.eventsPendingDirAbs, safeName);
 
   if (!(await pathExists(sourcePath))) {
-    return {
+    return withOutcome({
       action: "missing",
-      ok: false,
       filename: safeName,
       message: `No existe en pending: ${sourcePath}`,
-    };
+    }, baseOutcome({ outcome: "missing", preservePending: false, technicalReason: "missing-local-file", terminal: true }));
   }
 
   const freshness = await getEventFileFreshness(sourcePath, {
@@ -73,42 +76,39 @@ async function submitPendingFile(config, filename) {
 
   if (!result.ok) {
     if (freshness.isRecent) {
-      return {
+      return withOutcome({
         action: "pending",
-        ok: false,
         filename: safeName,
         message: `Evento local invalido, pero demasiado reciente para moverlo a failed. Se deja en pending para reintentar o revisar: ${result.errors.join("; ")}`,
         recentWarning,
-      };
+      }, baseOutcome({ outcome: "local-recent", retryable: true, technicalReason: "recent-local-event" }));
     }
 
     const reason = `Evento local inválido: ${result.errors.join("; ")}`;
     const finalPath = await movePendingToFailed(config, safeName, reason);
 
-    return {
+    return withOutcome({
       action: "failed",
-      ok: false,
       filename: safeName,
       message: reason,
       movedTo: finalPath,
       recentWarning,
-    };
+    }, baseOutcome({ outcome: "local-invalid", playerMessage: "El evento local no es valido y requiere atencion.", preservePending: false, technicalReason: "invalid-local-event", terminal: true }));
   }
 
   const submission = buildSubmitSummary(config, result.event);
   let storedSession;
 
   try {
-    storedSession = await getValidStoredSession(config);
+    storedSession = await (options.getValidStoredSessionImpl || getValidStoredSession)(config);
   } catch (error) {
-    return {
+    return withOutcome({
       action: "auth_required",
-      ok: false,
       filename: safeName,
       message: error.message,
       recentWarning,
       submission,
-    };
+    }, baseOutcome({ authRequired: true, outcome: "auth-required", playerMessage: "La puntuacion sigue guardada. Inicia sesion de nuevo para enviarla.", technicalReason: "local-auth-required" }));
   }
 
   const payload = buildSubmissionPayload(config, result.event, storedSession);
@@ -119,79 +119,79 @@ async function submitPendingFile(config, filename) {
     serverResult = await postSubmission(
       config,
       storedSession.session.access_token,
-      payload
+      payload,
+      options,
     );
   } catch (error) {
-    return {
-      action: "network_error",
+    serverResult = {
+      failureType: "transport-failure",
       ok: false,
-      filename: safeName,
-      message: `Error de red o servidor no accesible: ${error.message}`,
-      recentWarning,
-      submission,
+      technicalReason: error?.name || "Error",
     };
   }
 
-  const { status, body } = serverResult;
+  if (!serverResult.ok) {
+    const outcome = classifySubmissionRequestFailure(serverResult);
+    return withOutcome({
+      action: "network_error",
+      filename: safeName,
+      message: outcome.playerMessage,
+      recentWarning,
+      submission,
+    }, outcome);
+  }
 
-  if (responseLooksOk(status, body) || responseLooksDuplicate(status, body)) {
+  const { status, body, retryAfterHeader } = serverResult;
+  const outcome = classifySubmissionHttpResult({ body, nowMs: options.nowMs, retryAfterHeader, status });
+
+  if (["success", "duplicate"].includes(outcome.outcome)) {
     const finalPath = await movePendingToSent(config, safeName);
 
-    return {
-      action: responseLooksDuplicate(status, body) ? "duplicate_sent" : "sent",
-      ok: true,
+    return withOutcome({
+      action: outcome.outcome === "duplicate" ? "duplicate_sent" : "sent",
       filename: safeName,
       status,
-      body,
       duplicateKey: payload.duplicateKey,
       movedTo: finalPath,
       recentWarning,
       submission,
-    };
+    }, outcome);
   }
 
-  if (status === 401) {
-    return {
+  if (outcome.authRequired) {
+    return withOutcome({
       action: "auth_required",
-      ok: false,
       filename: safeName,
       status,
-      body,
-      message: `401 no autorizado. Haz login de nuevo o revisa que el endpoint acepte Bearer token. Respuesta: ${getServerMessage(body)}`,
+      message: outcome.playerMessage,
       recentWarning,
       submission,
-    };
+    }, outcome);
   }
 
-  const shouldMoveToFailed = status === 400 || status === 403 || status === 409;
-
-  if (shouldMoveToFailed) {
-    const reason = `HTTP ${status}: ${getServerMessage(body)}`;
+  if (outcome.outcome === "terminal-failure") {
+    const reason = `HTTP ${status}: envio rechazado por el servicio.`;
     const finalPath = await movePendingToFailed(config, safeName, reason);
 
-    return {
+    return withOutcome({
       action: "failed",
-      ok: false,
       filename: safeName,
       status,
-      body,
       message: reason,
       movedTo: finalPath,
       recentWarning,
       submission,
-    };
+    }, outcome);
   }
 
-  return {
+  return withOutcome({
     action: "pending",
-    ok: false,
     filename: safeName,
     status,
-    body,
-    message: `HTTP ${status}: ${getServerMessage(body)}. Se deja en pending para revisar/reintentar.`,
+    message: outcome.playerMessage,
     recentWarning,
     submission,
-  };
+  }, outcome);
 }
 
 async function submitOne(config, filename) {
@@ -255,7 +255,7 @@ async function submitAll(config, options = {}) {
       continue;
     }
 
-    const result = await submitPendingFile(config, filename);
+    const result = await submitPendingFile(config, filename, options);
     options.onResult?.(result);
     printSubmitResult(result);
 
@@ -275,6 +275,10 @@ async function submitAll(config, options = {}) {
       console.log("Se detiene submit-all por perdida de conectividad.");
       break;
     }
+    if (options.stopOnRetryableFailure && result.retryable) {
+      console.log("Se detiene submit-all hasta el siguiente intento permitido.");
+      break;
+    }
   }
 
   console.log("Resumen submit-all");
@@ -288,6 +292,8 @@ async function submitAll(config, options = {}) {
   if (failed > 0 || pending > 0) {
     process.exitCode = 1;
   }
+
+  return { failed, pending, sent, skippedRecent };
 }
 
 module.exports = {

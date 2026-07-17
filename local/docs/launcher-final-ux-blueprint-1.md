@@ -2,6 +2,10 @@
 
 High Score League App es una biblioteca local de packs y launcher de competición, no una segunda web ni una herramienta de debug.
 
+La app es de instancia unica: un segundo arranque restaura y enfoca la ventana
+primaria sin crear otro coordinador remoto. Las puntuaciones se sincronizan por
+el coordinador automatico comun; no existe un flujo manual paralelo en la GUI.
+
 Este documento consolida la dirección final de la app local a partir del MVP existente. No reemplaza la CLI ni los documentos previos: ordena la experiencia hacia una app de jugador normal, bonita, simple y coherente con la marca de High Score League.
 
 ## Visión de producto

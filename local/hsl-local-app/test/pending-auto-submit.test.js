@@ -201,3 +201,48 @@ test("membership transport and auth failures preserve pending and stop the cycle
   assert.equal(auth.authFailure, true);
   assert.equal(auth.preserved, 2);
 });
+
+test("submission 503 is deferred, retryable and never reported as completed", async () => {
+  resetAutoSyncStateForTests();
+  const session = { hasSession: true, userId: "active-user" };
+  const playerKey = derivePlayerKey(session);
+  const record = {
+    meta: {
+      pack: { packKey: "pack-one", webBaseUrl: "https://hsl.example", weekId: "week-one" },
+      player: { playerKey, userId: session.userId },
+      schemaVersion: 1,
+    },
+    pendingCount: 1,
+    scope: {
+      packKey: "pack-one",
+      playerKey,
+      scopedFailedDir: "/failed",
+      scopedPendingDir: "/pending",
+      scopedQueueRoot: "/scope",
+      scopedSentDir: "/sent",
+    },
+  };
+  const result = await runPendingAutoSubmit({
+    checkMembershipImpl: async () => ({ canSubmit: true, status: "member" }),
+    config: { userDataDir: "/user-data" },
+    discoverScopesImpl: async () => ({ playerKey, records: [record], skipped: [] }),
+    getAuthStateImpl: async () => session,
+    getQueueStateImpl: async () => queue(1),
+    getSessionPathImpl: () => "/session.json",
+    shouldContinue: () => true,
+    submitAllImpl: async (_config, options) => options.onResult({
+      action: "pending",
+      httpStatus: 503,
+      outcome: "retryable-http",
+      retryAfterMs: 60000,
+      retryable: true,
+      terminal: false,
+    }),
+  });
+  assert.equal(result.status, "deferred");
+  assert.equal(result.retryable, true);
+  assert.equal(result.retryAfterMs, 60000);
+  assert.equal(result.terminal, false);
+  assert.equal(result.ok, false);
+  assert.equal(result.preserved, 1);
+});

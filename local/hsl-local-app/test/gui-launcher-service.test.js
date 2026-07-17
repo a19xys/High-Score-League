@@ -464,8 +464,9 @@ test("launcher service wires scoped auto-submit to safe GUI state transitions", 
   assert.match(service, /stopOnTransportFailure: true/);
   assert.doesNotMatch(service, /getLauncherState\(\{ attemptAutoSync: true \}\)/);
   assert.match(service, /Puntuacion guardada localmente\. Se sincronizara cuando pueda comprobarse la temporada\./);
-  assert.match(service, /autoSyncInProgress \|\| manualSyncInProgress/);
-  assert.match(service, /submitAll\(scoped\.config\)/);
+  assert.doesNotMatch(service, /manualSyncInProgress|submitAllPending/);
+  assert.match(service, /combineAbortSignals/);
+  assert.match(service, /stopOnRetryableFailure: true/);
 });
 
 test("launcher service prepares isolated plugin run for v2 competition", async () => {

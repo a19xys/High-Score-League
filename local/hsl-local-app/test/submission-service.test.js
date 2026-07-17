@@ -131,3 +131,42 @@ test("submit moves an old invalid JSON to failed", async () => {
     assert.equal(await fileExists(path.join(config.eventsFailedDirAbs, filename)), true);
   });
 });
+
+test("HTTP outcomes move only success and terminal failures while retryable and unexpected responses stay pending", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createQueueConfig(dir, { recentEventThresholdMs: 0 });
+    const storedSession = {
+      session: { access_token: "secret-token" },
+      user: { id: "user-one" },
+    };
+    const cases = [
+      { expectedAction: "sent", expectedBox: "sent", filename: "success.json", status: 200, body: { ok: true } },
+      { expectedAction: "pending", expectedBox: "pending", filename: "retry.json", status: 503, body: { error: "temporary" } },
+      { expectedAction: "pending", expectedBox: "pending", filename: "rate.json", status: 429, body: { error: "slow" }, retryAfter: "60" },
+      { expectedAction: "pending", expectedBox: "pending", filename: "unexpected.json", status: 422, body: { error: "unexpected" } },
+      { expectedAction: "auth_required", expectedBox: "pending", filename: "auth.json", status: 401, body: { error: "auth" } },
+      { expectedAction: "failed", expectedBox: "failed", filename: "terminal.json", status: 400, body: { error: "invalid" } },
+    ];
+
+    for (const item of cases) {
+      await fsp.writeFile(path.join(config.eventsPendingDirAbs, item.filename), JSON.stringify(validEvent()), "utf8");
+      const result = await submitPendingFile(config, item.filename, {
+        fetchImpl: async () => new Response(JSON.stringify(item.body), {
+          status: item.status,
+          headers: item.retryAfter ? { "retry-after": item.retryAfter } : undefined,
+        }),
+        getValidStoredSessionImpl: async () => storedSession,
+        nowMs: Date.parse("2026-07-17T00:00:00Z"),
+      });
+      assert.equal(result.action, item.expectedAction);
+      assert.equal(result.httpStatus, item.status);
+      assert.equal(await fileExists(path.join(config.eventsPendingDirAbs, item.filename)), item.expectedBox === "pending");
+      assert.equal(await fileExists(path.join(config.eventsSentDirAbs, item.filename)), item.expectedBox === "sent");
+      assert.equal(await fileExists(path.join(config.eventsFailedDirAbs, item.filename)), item.expectedBox === "failed");
+      assert.equal(JSON.stringify(result).includes("secret-token"), false);
+      assert.equal(JSON.stringify(result).includes("temporary"), false);
+      if (item.status === 503 || item.status === 429) assert.equal(result.retryable, true);
+      if (item.status === 429) assert.equal(result.retryAfterMs, 60000);
+    }
+  });
+});

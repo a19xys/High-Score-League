@@ -19,6 +19,11 @@ function getIngestUrl(config) {
 async function parseResponseBody(response) {
   const text = await response.text();
 
+  return parseResponseText(text);
+}
+
+function parseResponseText(text) {
+
   if (!text) {
     return null;
   }
@@ -32,50 +37,41 @@ async function parseResponseBody(response) {
   }
 }
 
-function getServerMessage(body) {
-  if (!body) {
-    return "Sin cuerpo de respuesta";
-  }
-
-  if (typeof body === "string") {
-    return body;
-  }
-
-  if (typeof body.error === "string") {
-    return body.error;
-  }
-
-  if (typeof body.message === "string") {
-    return body.message;
-  }
-
-  return JSON.stringify(body);
-}
-
-async function postSubmission(config, accessToken, payload) {
-  const response = await fetch(getIngestUrl(config), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
+async function postSubmission(config, accessToken, payload, options = {}) {
+  const requestResult = await executeRemoteRequest({
+    fetchImpl: options.fetchImpl,
+    signal: options.signal,
+    timeoutMs: options.timeoutMs,
+    url: getIngestUrl(config),
+    init: {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
   });
 
-  const body = await parseResponseBody(response);
+  if (!requestResult.ok) return requestResult;
+
+  const body = parseResponseText(requestResult.bodyText);
 
   return {
-    status: response.status,
-    ok: response.ok,
     body,
+    ok: true,
+    responseOk: requestResult.response.ok,
+    retryAfterHeader: requestResult.response.headers?.get?.("retry-after") || null,
+    status: requestResult.httpStatus,
   };
 }
 
 module.exports = {
   assertSubmitConfig,
   getIngestUrl,
-  getServerMessage,
   normalizeWebBaseUrl,
   parseResponseBody,
+  parseResponseText,
   postSubmission,
 };
+const { executeRemoteRequest } = require("./remote-request");

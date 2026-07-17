@@ -4,9 +4,9 @@ const { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, safeStorage, she
 const service = require("./launcher-service");
 const { createConnectivityService, isCommittedConnected } = require("../src/connectivity-service");
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
-const { classifyMembershipConnectivitySignal } = require("../src/remote-connectivity-signals");
 const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
+const { safeMembershipJoinUrl } = require("../src/season-membership");
 const { configureSessionProtection, getSessionStorageDiagnostics } = require("../src/secure-session-storage");
 const { deriveDeveloperToolsEnabled, runDeveloperOnlyOperation } = require("../src/developer-tools");
 const { deriveRemoteAvailability } = require("./shared/remote-availability");
@@ -15,6 +15,7 @@ const {
   getRendererSecuritySummary,
   installRendererSecurity,
 } = require("./security-policy");
+const { installSingleInstancePolicy } = require("./single-instance");
 
 if (process.env.HSL_ELECTRON_VERBOSE_LOGGING === "1") {
   app.commandLine.appendSwitch("enable-logging");
@@ -37,6 +38,7 @@ let pendingAutoSubmitCoordinator = null;
 let connectivityRendererTiming = { appliedAt: null, emittedAt: null, receivedAt: null };
 let rankingRendererTiming = { appliedAt: null, receivedAt: null, stateSequence: 0 };
 let sessionMaintenanceTimer = null;
+let productOperationsController = new AbortController();
 const developerToolsEnabled = deriveDeveloperToolsEnabled({
   environment: process.env,
   isPackaged: app.isPackaged,
@@ -58,14 +60,23 @@ const CONNECTIVITY_REFRESH_REASONS = new Set([
 ]);
 
 function handlePowerSuspend() {
+  productOperationsController.abort("suspend");
+  service.invalidatePendingAutoSubmit("suspend");
+  pendingAutoSubmitCoordinator?.invalidate("suspend");
   topologyMonitor?.stop();
   connectivity?.setActivity("suspended", "suspend");
 }
 
 function handlePowerResume() {
+  productOperationsController = new AbortController();
   connectivity?.setActivity("active", "resume");
   topologyMonitor?.start();
   connectivity?.signalPossibleRecovery("resume").catch(() => {});
+}
+
+function requestConnectivityConfirmation(source) {
+  if (!connectivity || productOperationsController.signal.aborted) return;
+  connectivity.refresh(source, { force: true, phase: "background" }).catch(() => {});
 }
 
 function sendRendererEvent(channel, payload) {
@@ -87,8 +98,6 @@ function syncRemoteContext(state) {
   const nextUserId = state.session?.hasSession ? state.session.userId || null : null;
   const accountChanged = nextUserId !== activeUserId;
   if (accountChanged) {
-    service.invalidatePendingAutoSubmit("account-change");
-    pendingAutoSubmitCoordinator?.invalidate("account-change");
     activeUserId = nextUserId;
   }
   activeRankingWeekId = state.game?.weekId || null;
@@ -108,12 +117,8 @@ function syncRemoteContext(state) {
   }
 
   const membership = state.membership;
-  const membershipSignal = classifyMembershipConnectivitySignal(membership);
-
-  if (membershipSignal === "reachable") {
-    connectivity.markReachable("membership-response");
-  } else if (membershipSignal === "transport-failure") {
-    connectivity.signalOffline("membership-transport", "transport");
+  if (["transport-failure", "timeout"].includes(membership?.remoteFailure)) {
+    requestConnectivityConfirmation("membership-product-signal");
   }
 
   schedulePendingAutoSubmit(accountChanged ? "account-change" : "state-ready");
@@ -137,11 +142,11 @@ function initializeRemoteServices() {
     netIsOnline: () => net.isOnline(),
     webBaseUrl: trustedHslOrigin,
   });
+  service.setRemoteOperationSignalProvider(() => productOperationsController.signal);
   rankingCapabilities = createRankingCapabilitiesService({
     fetchImpl: (url, init) => net.fetch(url, init),
     getConnectivityState: () => connectivity.getState(),
-    onReachable: (source) => connectivity.markReachable(source),
-    onTransportFailure: (source) => connectivity.signalOffline(source, "transport"),
+    onTransportFailure: () => requestConnectivityConfirmation("ranking-product-signal"),
   });
   topologyMonitor = createNetworkTopologyMonitor({
     onChange(change) {
@@ -163,7 +168,7 @@ function initializeRemoteServices() {
       connection: connectivity.getState(),
     }),
     async onResult(result, context) {
-      if (result?.transportFailure) connectivity.signalOffline("auto-submit-transport", "transport");
+      if (result?.transportFailure) requestConnectivityConfirmation("auto-submit-product-signal");
       const state = await service.getLauncherState({ deferRemoteMembership: true });
       syncRemoteContext(state);
       sendRendererEvent("launcher:state", { autoSubmit: result, state });
@@ -249,6 +254,7 @@ function initializeSecureSessionStorage() {
 }
 
 function stopRemoteServices() {
+  productOperationsController.abort("shutdown");
   service.invalidatePendingAutoSubmit("shutdown");
   pendingAutoSubmitCoordinator?.invalidate("shutdown");
   removeConnectivityListener?.();
@@ -261,6 +267,7 @@ function stopRemoteServices() {
   sessionMaintenanceTimer = null;
   connectivity?.stop();
   service.setRemoteDiagnosticsProvider(null);
+  service.setRemoteOperationSignalProvider(null);
 }
 
 async function prepareRemoteAction(source) {
@@ -417,7 +424,7 @@ function registerIpc() {
   });
   ipcMain.handle("launcher:get-auth-state", () => service.getAuthStateForGui());
   ipcMain.handle("launcher:login", async (_event, credentials) => {
-    service.invalidatePendingAutoSubmit("login");
+    service.invalidateInteractiveRemoteOperations("login");
     await prepareRemoteAction("login");
     return withRemoteContext(service.loginWithPassword(credentials));
   });
@@ -485,15 +492,21 @@ function registerIpc() {
     return withRemoteContext(service.removeKnownAccountFromGui(userId));
   });
   ipcMain.handle("launcher:switch-account", (_event, userId) => {
-    service.invalidatePendingAutoSubmit("switch-account");
+    service.invalidateInteractiveRemoteOperations("switch-account");
     return withRemoteContext(service.switchKnownAccountFromGui(userId));
   });
-  ipcMain.handle("launcher:use-library-pack", (_event, packId) => withRemoteContext(service.activateLibraryPack(packId, {
-    deferRemoteMembership: true,
-  })));
+  ipcMain.handle("launcher:use-library-pack", (_event, packId) => {
+    service.invalidateInteractiveRemoteOperations("account-change");
+    return withRemoteContext(service.activateLibraryPack(packId, {
+      deferRemoteMembership: true,
+    }));
+  });
   ipcMain.handle("launcher:open-membership-url", async () => {
     const state = await service.getLauncherState();
-    const url = state.membership?.joinUrl || trustedHslOrigin;
+    const url = safeMembershipJoinUrl(
+      { webBaseUrl: trustedHslOrigin },
+      state.membership?.joinUrl || trustedHslOrigin,
+    );
 
     if (!url || !/^https?:\/\//i.test(url)) {
       return {
@@ -572,7 +585,7 @@ function registerIpc() {
   ipcMain.handle("launcher:force-account-sync", async () => {
     const guarded = await runDeveloperOnlyOperation(developerToolsEnabled, async () => {
       pendingAutoSubmitCoordinator.invalidate("development-force");
-      return pendingAutoSubmitCoordinator.request("development-force");
+      return pendingAutoSubmitCoordinator.request("development-force", { overrideCooldown: true });
     });
     if (!guarded.allowed) {
       return {
@@ -600,34 +613,40 @@ function registerIpc() {
   });
 }
 
-app.whenReady().then(async () => {
-  initializeSecureSessionStorage();
-  await service.migrateRememberedSessionsForGui().catch(() => []);
-  initializeRemoteServices();
-  registerIpc();
-  connectivity.start("startup").catch(() => {});
-  topologyMonitor.start();
-  sessionMaintenanceTimer = setInterval(() => schedulePendingAutoSubmit("session-maintenance"), 60 * 1000);
-  sessionMaintenanceTimer.unref?.();
-  createMainWindow();
-  powerMonitor.on("suspend", handlePowerSuspend);
-  powerMonitor.on("resume", handlePowerResume);
+const hasSingleInstanceLock = installSingleInstancePolicy(app, () => mainWindow);
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.whenReady().then(async () => {
+    initializeSecureSessionStorage();
+    await service.migrateRememberedSessionsForGui().catch(() => []);
+    initializeRemoteServices();
+    registerIpc();
+    connectivity.start("startup").catch(() => {});
+    topologyMonitor.start();
+    sessionMaintenanceTimer = setInterval(() => schedulePendingAutoSubmit("session-maintenance"), 60 * 1000);
+    sessionMaintenanceTimer.unref?.();
+    createMainWindow();
+    powerMonitor.on("suspend", handlePowerSuspend);
+    powerMonitor.on("resume", handlePowerResume);
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createMainWindow();
+      }
+    });
+  });
+
+  app.on("before-quit", () => {
+    powerMonitor.removeListener("suspend", handlePowerSuspend);
+    powerMonitor.removeListener("resume", handlePowerResume);
+    stopRemoteServices();
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
     }
   });
-});
-
-app.on("before-quit", () => {
-  powerMonitor.removeListener("suspend", handlePowerSuspend);
-  powerMonitor.removeListener("resume", handlePowerResume);
-  stopRemoteServices();
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
+}
