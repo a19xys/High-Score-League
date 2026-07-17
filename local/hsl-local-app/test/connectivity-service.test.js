@@ -124,7 +124,7 @@ test("missing or invalid origins stay unknown and never start probes", async () 
   for (const webBaseUrl of [null, undefined, "not-an-origin"]) {
     const h = harness({ webBaseUrl });
     await h.service.start();
-    h.service.signalOffline("topology-change", "system-offline");
+    h.service.confirmSystemOffline("topology-change");
     assert.equal(h.service.getState().reachability, "unknown");
     assert.equal(h.service.getState().displayStatus, "unknown");
     assert.equal(h.service.getState().reason, "missing-hsl-origin");
@@ -283,12 +283,32 @@ test("strong negative signals settle offline immediately and abort stale probes"
     fetchImpl: (url) => new Promise((resolve) => { resolveFetch = () => resolve({ status: 204, url }); }),
   });
   const startup = h.service.start();
-  h.service.signalOffline("renderer-offline", "system-offline");
+  h.setOnline(false);
+  h.service.confirmSystemOffline("renderer-offline");
   assert.equal(h.service.getState().reachability, "offline");
   assert.equal(h.service.getState().source, "renderer-offline");
   resolveFetch();
   await startup;
   assert.equal(h.service.getState().reachability, "offline");
+});
+
+test("system offline boundary verifies net state and public API cannot mark connected", async () => {
+  const h = harness({ fetchImpl: async () => { throw new Error("down"); } });
+  await h.service.start();
+  assert.equal(h.service.getState().reachability, "offline");
+  const callsBefore = h.calls.length;
+  h.setOnline(true);
+  h.service.confirmSystemOffline("renderer-offline");
+  assert.equal(h.service.getState().reachability, "offline");
+  assert.equal(h.calls.length, callsBefore + 1);
+  assert.equal(typeof h.service.markReachable, "undefined");
+  assert.equal(typeof h.service.signalOffline, "undefined");
+  assert.deepEqual(h.service.getDiagnostics().authority, {
+    connected: "health-204",
+    offline: "health-or-main-system-offline",
+    productSignals: "hints-only",
+    rendererSignals: "hints-only",
+  });
 });
 
 test("positive recovery signals debounce and share one probe", async () => {

@@ -234,7 +234,7 @@ async function getPendingAutoSubmitContexts(options = {}) {
   };
 }
 
-function invalidatePendingAutoSubmit(reason = "context-change") {
+function cancelPendingAutoSubmit(reason = "context-change") {
   pendingAutoSubmitEpoch += 1;
   pendingAutoSubmitController.abort(reason);
   pendingAutoSubmitController = new AbortController();
@@ -2819,7 +2819,7 @@ module.exports = {
   importPackFromFolderForGui,
   importPackFromZipForGui,
   invalidateInteractiveRemoteOperations,
-  invalidatePendingAutoSubmit,
+  cancelPendingAutoSubmit,
   loginWithPassword,
   listPendingFileSnapshot,
   logoutSession,

@@ -61,8 +61,8 @@ const CONNECTIVITY_REFRESH_REASONS = new Set([
 
 function handlePowerSuspend() {
   productOperationsController.abort("suspend");
-  service.invalidatePendingAutoSubmit("suspend");
-  pendingAutoSubmitCoordinator?.invalidate("suspend");
+  service.cancelPendingAutoSubmit("suspend");
+  pendingAutoSubmitCoordinator?.cancelCurrentRun("suspend");
   topologyMonitor?.stop();
   connectivity?.setActivity("suspended", "suspend");
 }
@@ -151,7 +151,7 @@ function initializeRemoteServices() {
   topologyMonitor = createNetworkTopologyMonitor({
     onChange(change) {
       if (change.snapshot.externalAddressCount === 0 && !net.isOnline()) {
-        connectivity.signalOffline("topology-change", "system-offline");
+        connectivity.confirmSystemOffline("topology-change");
         return;
       }
       connectivity.refresh("topology-change", {
@@ -255,8 +255,8 @@ function initializeSecureSessionStorage() {
 
 function stopRemoteServices() {
   productOperationsController.abort("shutdown");
-  service.invalidatePendingAutoSubmit("shutdown");
-  pendingAutoSubmitCoordinator?.invalidate("shutdown");
+  service.cancelPendingAutoSubmit("shutdown");
+  pendingAutoSubmitCoordinator?.cancelCurrentRun("shutdown");
   removeConnectivityListener?.();
   removeRankingListener?.();
   removeConnectivityListener = null;
@@ -389,7 +389,8 @@ function registerIpc() {
   ipcMain.handle("launcher:request-connectivity-refresh", (_event, reason) => {
     const safeReason = CONNECTIVITY_REFRESH_REASONS.has(reason) ? reason : "manual";
     if (safeReason === "renderer-offline") {
-      return connectivity.signalOffline(safeReason, "system-offline");
+      if (!net.isOnline()) return connectivity.confirmSystemOffline(safeReason);
+      return connectivity.refresh(safeReason, { force: true, phase: "background" });
     }
     if (["renderer-online", "connection-change"].includes(safeReason)) {
       return connectivity.signalPossibleRecovery(safeReason);
@@ -488,7 +489,8 @@ function registerIpc() {
   ipcMain.handle("launcher:set-library-preferences", (_event, patch) => service.setLibraryPreferencesFromGui(patch));
   ipcMain.handle("launcher:toggle-library-favorite", (_event, packKey) => service.toggleLibraryFavoriteFromGui(packKey));
   ipcMain.handle("launcher:remove-known-account", (_event, userId) => {
-    service.invalidatePendingAutoSubmit("remove-account");
+    service.cancelPendingAutoSubmit("remove-account");
+    pendingAutoSubmitCoordinator?.cancelCurrentRun("remove-account");
     return withRemoteContext(service.removeKnownAccountFromGui(userId));
   });
   ipcMain.handle("launcher:switch-account", (_event, userId) => {
@@ -584,8 +586,9 @@ function registerIpc() {
   ipcMain.handle("launcher:practice", () => service.playPractice());
   ipcMain.handle("launcher:force-account-sync", async () => {
     const guarded = await runDeveloperOnlyOperation(developerToolsEnabled, async () => {
-      pendingAutoSubmitCoordinator.invalidate("development-force");
-      return pendingAutoSubmitCoordinator.request("development-force", { overrideCooldown: true });
+      pendingAutoSubmitCoordinator.cancelCurrentRun("development-force");
+      pendingAutoSubmitCoordinator.resetGuards("development-force");
+      return pendingAutoSubmitCoordinator.request("development-force");
     });
     if (!guarded.allowed) {
       return {
@@ -608,7 +611,8 @@ function registerIpc() {
   ipcMain.handle("launcher:restore-failed", (_event, filename) => withRemoteContext(service.restoreFailedSubmission(filename)));
   ipcMain.handle("launcher:sync-plugin", () => service.syncPlugin());
   ipcMain.handle("launcher:logout", () => {
-    service.invalidatePendingAutoSubmit("logout");
+    service.cancelPendingAutoSubmit("logout");
+    pendingAutoSubmitCoordinator?.cancelCurrentRun("logout");
     return withRemoteContext(service.logoutSession());
   });
 }

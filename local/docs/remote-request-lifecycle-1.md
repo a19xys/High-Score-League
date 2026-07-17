@@ -24,12 +24,22 @@ La cancelacion no consume `terminalKey`, no mueve `pending` y no se confunde
 con timeout. Los motivos observables se limitan a una lista segura, sin URL,
 token, cabeceras ni cuerpo.
 
+En autoenvio, cancelar una ejecucion incrementa su epoch y rechaza el resultado
+stale, pero conserva los guards estables `userId + queueRevision +
+sessionRevision`, incluido cooldown, auth block, `retryAttempt` y
+`nextEligibleAt`. Resetear guards es una operacion distinta, explicita y
+diagnosticada, reservada al force protegido de desarrollo o a tests. Suspend
+usa solo cancelacion; resume respeta el plazo restante. Un cierre completo del
+proceso no persiste estos guards.
+
 ## Autoridad de conectividad
 
-Una peticion de producto nunca asigna `connected` ni `offline`. Un fallo de
-transporte puede pedir una confirmacion al health, pero solo el servicio de
-health compromete reachability. Un HTTP 503 de ingest o membership es un error
-de producto alcanzable, no una prueba de desconexion.
+Una peticion de producto nunca asigna `connected` ni `offline`. Solo health 204
+valido confirma `connected`; un fallo autoritativo de health o
+`net.isOnline() === false` verificado en main puede confirmar `offline`. Un
+fallo de transporte de producto puede pedir una confirmacion al health. Un HTTP
+503 de ingest o membership es un error de producto, no autoridad de
+conectividad. Los eventos renderer siguen la misma politica de hints.
 
 ## Diagnostico seguro
 

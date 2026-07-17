@@ -1,9 +1,10 @@
 # CONNECTIVITY STATE 1
 
-Main es la autoridad de reachability. `net.isOnline`, eventos renderer y
-`os.networkInterfaces()` son indicios; solo el health 204 del origen HSL
-confirma `connected`. HTTP alcanzable con error de producto, incluido 503,
-confirma reachability sin convertir el producto en disponible.
+Main es la autoridad de reachability con un contrato asimetrico. Solo un health
+204 valido del origen HSL confirma `connected`. `offline` puede comprometerse
+por un fallo autoritativo de ese health o por una senal negativa fuerte cuya
+frontera vuelve a comprobar `net.isOnline() === false`. Una respuesta de
+producto, incluso HTTP alcanzable, nunca compromete reachability.
 
 `Conectado` significa exclusivamente que el launcher alcanza el health fiable
 del origen HSL global configurado. No describe biblioteca, pack, sesion,
@@ -35,19 +36,25 @@ estado. Foco, blur y minimizado no alteran esta politica.
 
 Blur y focus solo aportan contexto de ventana. Un cambio de fingerprint aborta
 la respuesta de topologia anterior y solicita health; nunca asigna connected.
-Sin direcciones externas y con `net.isOnline=false`, se aplica offline rapido.
+Sin direcciones externas y con `net.isOnline() === false` comprobado en main,
+se aplica offline rapido. Si main sigue viendo online, la topologia solo pide
+health y no cambia el chip.
 
 IPC incluye `detectedAt`, `emittedAt`, `receivedAt` y `appliedAt`. Diagnostico
 incluye generaciones, hash de topologia, conteos agregados de interfaces,
-health iniciados/deduplicados, confirmaciones, heartbeats y transporte. No
+health iniciados/deduplicados, confirmaciones, heartbeats y transporte. El
+objeto `authority` declara `health-204`,
+`health-or-main-system-offline` y `hints-only` para renderer y producto. No
 publica IP, token, cookie ni body. `Failed to read DnsConfig` no se analiza ni
 se usa como senal.
 
-Las peticiones de producto (membership, Ranking e ingest) no llaman a
-`markReachable` ni `signalOffline`. Ante transporte pueden solicitar un health
-inmediato; el resultado del health sigue siendo la unica autoridad que
-compromete reachability. Suspend y shutdown abortan las peticiones de producto,
-y resume crea un contexto nuevo.
+Las peticiones de producto (membership, Ranking e ingest) y los eventos
+renderer son indicios. No existe `markReachable` publico ni un setter offline
+que acepte ciegamente la afirmacion del caller. Ante transporte o senales
+renderer pueden solicitar un health inmediato; renderer-offline solo usa el
+fast path cuando main verifica `net.isOnline() === false`. Renderer-online y
+connection-change solo aceleran recovery. Suspend y shutdown abortan las
+peticiones de producto, y resume crea un contexto nuevo.
 
 El renderer rechaza generaciones antiguas y aplica cada snapshot de
 conectividad en una unica escritura del store. Chip, Ranking y futuros controles

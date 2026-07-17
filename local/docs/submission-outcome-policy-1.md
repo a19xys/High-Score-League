@@ -23,14 +23,21 @@ segundos enteros o fecha HTTP; el valor efectivo nunca baja de 5 segundos ni
 supera 15 minutos. Valores negativos, caducados, invalidos o superiores al
 limite se ignoran y se usa el backoff local.
 
-Durante cooldown, los disparadores repetidos no hacen red. Una revision de
-cola, cuenta, generacion de conectividad o sesion cambia la clave y vuelve a
-evaluar. Un 401 bloquea solo la misma revision de sesion. La accion forzada de
-desarrollo puede anular cooldown/bloqueo; no existe override para produccion.
+Durante cooldown, los disparadores repetidos no hacen red. La clave estable de
+guards es `userId + queueRevision + sessionRevision`: una revision de cola,
+cuenta o sesion cambia la clave y vuelve a evaluar. La
+`reachabilityGeneration` forma parte solo de la identidad de ejecucion para
+rechazo stale y diagnostico; offline/online, focus/blur, heartbeat, recovery y
+suspend/resume no reinician cooldown, `retryAttempt`, `nextEligibleAt` ni auth
+block. Un 401 bloquea solo la misma revision de sesion. La accion forzada de
+desarrollo puede cancelar el run y resetear los guards explicitamente; no
+existe override para produccion. Un reinicio completo del proceso sigue siendo
+la excepcion porque estos guards no se persisten.
 
 `terminalKey` solo se asigna cuando el resultado declara `terminal: true`.
-Cancelacion, invalidacion, transporte, timeout y HTTP reintentable nunca la
-consumen.
+Cancelacion, transporte, timeout y HTTP reintentable nunca la consumen.
+`cancelCurrentRun` invalida resultados en vuelo sin borrar guards;
+`resetGuards` borra terminalidad, cooldown y auth block y registra el motivo.
 
 ## Multi-cuenta
 

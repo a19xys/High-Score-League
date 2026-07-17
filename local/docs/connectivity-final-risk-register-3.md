@@ -7,7 +7,7 @@
 | Heartbeat falso negativo | P1 | Mitigado | confirmacion corta, un probe concurrente |
 | Respuesta stale | P1 | Mitigado | generaciones y abort al cambiar topologia |
 | Mezcla multi-cuenta | P0 | Cerrado | player/meta/sesion congelada/epoch |
-| Autoenvio duplicado | P1 | Mitigado | usuario+generacion+cola+sesion e idempotencia |
+| Autoenvio duplicado | P1 | Mitigado | guard usuario+cola+sesion; generacion solo de ejecucion; idempotencia |
 | Refresh concurrente por cuenta | P0 | Cerrado | single-flight por userId y revision monotona |
 | Token local legible | P0 | Mitigado | safeStorage, envelope v2 y migracion verificada |
 | Linux sin keyring real | P1 | Aceptado | archivo 0600 y warning de backend degradado |
@@ -18,13 +18,15 @@
 | Cambio administrativo de Ranking en caliente | P2 | Aceptado | reinicio, cambio semantico o refresh de desarrollo |
 | Cola legacy ambigua | P1 | Mitigado | conservar y diagnosticar; no inferir dueno |
 | Cierre durante envio | P1 | Cerrado en codigo | aborto externo; pending conservado; no nace red nueva |
-| Suspension | P1 | Cerrado en codigo | aborto externo distinto de timeout; prueba fisica pendiente |
+| Suspension | P1 | Cerrado en codigo | cancela run y preserva cooldown/auth; prueba fisica pendiente |
 | 503 contado como autoenvio completado | P1 | Cerrado | outcome canonico + pending + cooldown |
 | Tormenta de reintentos | P1 | Cerrado | backoff 30/60/120/300/900 s y Retry-After acotado |
 | Dos instancias Electron | P1 | Cerrado | lock antes de ready y foco de primaria |
 | joinUrl externo | P1 | Cerrado | mismo origen al normalizar y antes de openExternal |
 | Warning DNS Chromium | P2 | Aceptado | no se analiza; vigilar contadores de health |
 | Desconexion/reconexion fisica | P1 | Codigo cubierto | QA Ethernet/foco/minimizado pendiente |
+| Renderer suplanta offline | P1 | Cerrado | main verifica net.isOnline false; si no, solo solicita health |
+| Producto suplanta reachability | P1 | Cerrado | membership/Ranking/submission son hints; connected solo health 204 |
 | Secretos o IP en diagnostico | P0 | Cerrado | hash y agregados; sanitizer existente |
 | Renderer sin CSP | P0 | Cerrado | CSP meta restrictiva, sin inline/eval/red directa |
 | Documento Electron en file:// | P1 | Pendiente auditoria | CSP meta aplicada; evaluar protocolo personalizado |
@@ -40,3 +42,12 @@ fisica prolongada de mas de diez minutos y Ethernet sigue siendo QA manual.
 Residual: la prueba automatica valida semantica y ciclo de vida; suspend real,
 cierre bajo red lenta y doble clic del ejecutable empaquetado siguen siendo QA
 fisica de plataforma antes de ampliar la beta.
+
+Protocolos manuales pendientes: (1) responder 429 con `Retry-After: 60`, retirar
+Ethernet, reconectar, esperar health 204 y comprobar que ingest no se llama
+antes de 60 s y que despues ocurre un unico retry; (2) responder 503, fijar el
+cooldown, suspender fisicamente el equipo, reanudar y comprobar que sigue
+vigente el plazo restante y que la UI no queda bloqueada; (3) desde connected,
+retirar Ethernet, comprobar `net.isOnline() === false` y offline rapido,
+reconectar, esperar health 204 y verificar que todos los controles remotos
+cambian juntos. No se consideran ejecutados en esta sesion.

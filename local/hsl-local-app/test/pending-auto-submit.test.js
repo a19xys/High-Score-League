@@ -123,7 +123,8 @@ test("main coordinator uses queue revision and updates renderer silently", async
   assert.match(main, /createPendingAutoSubmitCoordinator/);
   assert.match(main, /getPendingAutoSubmitContext/);
   assert.match(main, /runPendingAutoSubmit/);
-  assert.match(main, /invalidatePendingAutoSubmit\("shutdown"\)/);
+  assert.match(main, /cancelPendingAutoSubmit\("shutdown"\)/);
+  assert.match(main, /cancelCurrentRun\("shutdown"\)/);
   assert.match(preload, /onLauncherState/);
   assert.match(renderer, /applyBackgroundLauncherState/);
   assert.doesNotMatch(main, /attemptAutoSync: true/);

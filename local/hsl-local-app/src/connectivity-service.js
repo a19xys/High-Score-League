@@ -283,7 +283,7 @@ function createConnectivityService(options = {}) {
     });
   }
 
-  function signalOffline(source = "strong-negative-signal", reason = "system-offline") {
+  function confirmSystemOffline(source = "strong-negative-signal") {
     if (!started || disposed) return snapshot();
     if (!webBaseUrl) {
       return update({
@@ -296,12 +296,16 @@ function createConnectivityService(options = {}) {
         offlineSinceAt: null,
       });
     }
+    if (Boolean(netIsOnlineImpl())) {
+      refresh(source, { force: true, phase: "background" }).catch(() => {});
+      return snapshot();
+    }
     clearSignalTimer();
     cancelInFlight();
     clearScheduled();
     const result = settleOffline({
       checkedAt: nowIso(nowImpl),
-      reason,
+      reason: "system-offline",
       source,
       netIsOnline: false,
       detectedAt: nowIso(nowImpl),
@@ -309,31 +313,6 @@ function createConnectivityService(options = {}) {
       consecutiveFailures: state.consecutiveFailures + 1,
     });
     scheduleRecovery();
-    return result;
-  }
-
-  function markReachable(source = "remote-response") {
-    if (!started || disposed) return snapshot();
-    if (!webBaseUrl) return snapshot();
-    if (!Boolean(netIsOnlineImpl())) return signalOffline(source, "system-offline");
-    cancelInFlight();
-    clearScheduled();
-    const result = update({
-      reachability: "connected",
-      probe: idleProbe(),
-      heartbeat: { confirmationPending: false, intervalMs: heartbeatInterval() },
-      checkedAt: nowIso(nowImpl),
-      reason: null,
-      source,
-      latencyMs: null,
-      nextRetryAt: null,
-      netIsOnline: true,
-      consecutiveFailures: 0,
-      detectedAt: nowIso(nowImpl),
-      lastTrigger: source,
-      offlineSinceAt: null,
-    });
-    scheduleHeartbeat();
     return result;
   }
 
@@ -371,7 +350,7 @@ function createConnectivityService(options = {}) {
         offlineSinceAt: null,
       }));
     }
-    if (!Boolean(netIsOnlineImpl())) return Promise.resolve(signalOffline(source, "system-offline"));
+    if (!Boolean(netIsOnlineImpl())) return Promise.resolve(confirmSystemOffline(source));
     if (inFlight && refreshOptions.supersede === true) cancelInFlight();
     if (inFlight) {
       counters.deduplicatedRequestCount += 1;
@@ -484,7 +463,7 @@ function createConnectivityService(options = {}) {
 
   function signalPossibleRecovery(source = "possible-recovery") {
     if (!started || disposed) return Promise.resolve(snapshot());
-    if (!Boolean(netIsOnlineImpl())) return Promise.resolve(signalOffline(source, "system-offline"));
+    if (!Boolean(netIsOnlineImpl())) return Promise.resolve(confirmSystemOffline(source));
     if (inFlight) return inFlight;
     if (signalPromise) return signalPromise;
     signalPromise = new Promise((resolve) => { resolveSignal = resolve; });
@@ -554,15 +533,25 @@ function createConnectivityService(options = {}) {
   return {
     config,
     getDiagnostics() {
-      return { ...snapshot(), ...counters, healthEndpoint: healthEndpoint(webBaseUrl), webBaseUrl };
+      return {
+        ...snapshot(),
+        ...counters,
+        authority: {
+          connected: "health-204",
+          offline: "health-or-main-system-offline",
+          productSignals: "hints-only",
+          rendererSignals: "hints-only",
+        },
+        healthEndpoint: healthEndpoint(webBaseUrl),
+        webBaseUrl,
+      };
     },
     getState: snapshot,
     isFresh,
-    markReachable,
+    confirmSystemOffline,
     refresh,
     setActivity,
     setWebBaseUrl,
-    signalOffline,
     signalPossibleRecovery,
     start,
     stop,

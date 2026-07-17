@@ -15,6 +15,16 @@ invalida membership interactiva, pero no cancela el lote background ya
 congelado; suspend y shutdown si abortan el lote y nunca consumen la clave
 terminal.
 
+Los guards de terminalidad, cooldown y autenticacion usan una identidad estable
+`userId + queueRevision + sessionRevision`. `reachabilityGeneration` identifica
+la ejecucion y permite diagnosticar o rechazar trabajo stale, pero una
+reconexion no crea por si sola otra oportunidad de envio. La cancelacion del
+run actual esta separada del reset de guards: suspend cancela red y conserva
+`retryAttempt`, `nextEligibleAt` y el bloqueo de autenticacion; resume espera un
+`connected` confirmado y respeta el plazo restante. Solo el force explicito,
+protegido como herramienta de desarrollo, resetea esos guards. No se persisten
+entre cierres completos del proceso en este microparche.
+
 El antiguo `submit-all` manual de GUI no tenia consumidor IPC/preload activo y
 se elimino. La CLI `submit-all` permanece y comparte la clasificacion canonica.
 
@@ -133,6 +143,8 @@ Las pruebas cubren:
   `invalid_week`, `error` y `unknown`;
 - lock de intentos concurrentes;
 - resumen de `synced`, `partial_failed` y `failed`;
+- cooldown, auth block y terminalidad estables tras reconexion o suspend/resume;
+- cancelacion de ejecucion separada del reset explicito de guards;
 - exposicion renderer sin secretos.
 
 ## Presentación actual

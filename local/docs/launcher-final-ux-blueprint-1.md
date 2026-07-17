@@ -54,11 +54,13 @@ La cabecera debe ser estable, compacta y reconocible:
 - menú de cuenta.
 
 `WEB-LOCAL-CONNECTIVITY-AND-RANKING-CAPABILITIES-1` fija el contrato definitivo
-de esta senal: `Desconectado` significa que `net.isOnline()` no ve red;
-`Conectando` significa que HSL aun no ha confirmado reachability; y
-`Conectado` requiere una respuesta reciente y valida de HSL. El proceso
-principal de Electron es la unica fuente de verdad. El renderer no infiere
-`Conectado` desde `navigator.onLine`.
+de esta senal: `Conectado` requiere health 204 valido; `Desconectado` requiere
+un fallo autoritativo de health o `net.isOnline() === false` verificado en main;
+y `Conectando` significa que HSL aun no ha confirmado reachability. El proceso
+principal de Electron es la unica fuente de verdad. Renderer, membership,
+Ranking y submission solo aportan hints: nunca cambian directamente el chip.
+El fast path de topologia exige a la vez cero direcciones externas y la
+comprobacion negativa de main; con `net.isOnline()` true solicita health.
 
 Ranking depende de una capacidad semantica por `weekId` consultada por lotes a
 la web. Permanece deshabilitado si la conexion es offline/connecting o si la
