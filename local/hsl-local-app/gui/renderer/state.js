@@ -1,5 +1,5 @@
 export function createStore(initialState) {
-  let state = initialState;
+  let state = { ...initialState, rendererStateRevision: Number(initialState?.rendererStateRevision) || 0 };
   const listeners = new Set();
 
   return {
@@ -10,6 +10,7 @@ export function createStore(initialState) {
       state = {
         ...state,
         ...nextState,
+        rendererStateRevision: state.rendererStateRevision + 1,
       };
 
       for (const listener of listeners) {

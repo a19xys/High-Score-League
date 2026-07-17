@@ -13,13 +13,13 @@ function state(connectionStatus, capability, game = { weekId: "week-1" }) {
     connectivity: {
       displayStatus: connectionStatus,
       probe: { phase: "idle", inFlight: false },
-      reachability: connectionStatus === "connected" ? "connected" : "offline",
+      reachability: ["connected", "offline"].includes(connectionStatus) ? connectionStatus : "unknown",
+      reachabilityGeneration: 1,
     },
     rankingCapabilities: {
       webBaseUrl: "https://hsl.example",
       entries: capability ? {
         "week-1": {
-          expiresAt: "2999-01-01T00:00:00.000Z",
           weekId: "week-1",
           ...capability,
         },
@@ -46,24 +46,44 @@ test("Ranking follows the complete connection and capability matrix", async () =
   assert.match(getRankingActionState(state("connected"), { weekId: null }).reason, /no tiene un ranking configurado/);
 });
 
-test("cached ranking cannot survive connectivity, identity, expiry or origin changes", async () => {
+test("confirmed ranking follows committed connectivity, identity and origin without a clock", async () => {
   const { getRankingActionState } = await import(
     pathToFileURL(path.join(rendererRoot, "ranking-state.js")).href
   );
   const available = {
-    expiresAt: "2999-01-01T00:00:00.000Z",
     status: "available",
     url: "https://hsl.example/weeks/week-1",
     weekId: "week-1",
   };
 
-  for (const displayStatus of ["offline", "connecting", "reconnecting"]) {
-    assert.equal(getRankingActionState(state(displayStatus, available), { weekId: "week-1" }).available, false);
-  }
+  assert.equal(getRankingActionState(state("offline", available), { weekId: "week-1" }).available, false);
+  assert.equal(getRankingActionState(state("connecting", available), { weekId: "week-1" }).available, false);
+  const retry = state("connected", available);
+  retry.connectivity.displayStatus = "reconnecting";
+  retry.connectivity.probe = { phase: "retry", inFlight: true };
+  assert.equal(getRankingActionState(retry, { weekId: "week-1" }).available, true);
 
   assert.equal(getRankingActionState(state("connected", { ...available, weekId: "week-2" }), { weekId: "week-1" }).available, false);
-  assert.equal(getRankingActionState(state("connected", { ...available, expiresAt: "2000-01-01T00:00:00.000Z" }), { weekId: "week-1" }).available, false);
+  assert.equal(getRankingActionState(state("connected", { ...available, expiresAt: "2000-01-01T00:00:00.000Z" }), { weekId: "week-1" }).available, true);
   assert.equal(getRankingActionState(state("connected", { ...available, url: "https://other.example/weeks/week-1" }), { weekId: "week-1" }).available, false);
+});
+
+test("canonical remote gate is shared by Ranking and future controls", async () => {
+  const { deriveRemoteActionAvailability, deriveRemoteAvailability } = await import(
+    pathToFileURL(path.join(rendererRoot, "remote-availability.js")).href
+  );
+  const connectivity = {
+    displayStatus: "reconnecting",
+    probe: { phase: "retry", inFlight: true },
+    reachability: "connected",
+    reachabilityGeneration: 7,
+  };
+  const remote = deriveRemoteAvailability(connectivity);
+  const rankingGate = deriveRemoteActionAvailability(connectivity, []);
+  const futureInstallGate = deriveRemoteActionAvailability(connectivity, []);
+  assert.deepEqual(remote, { available: true, generation: 7, reason: null, status: "connected" });
+  assert.deepEqual(rankingGate, futureInstallGate);
+  assert.equal(deriveRemoteActionAvailability(connectivity, ["incompatible-pack"]).available, false);
 });
 
 test("renderer only signals network changes and never confirms connected", async () => {
@@ -186,14 +206,76 @@ test("pack activation preserves the previous snapshot and uses shared minimum fe
   assert.match(gamePanel, /if \(state\.libraryActivationInProgress\) return null/);
 });
 
-test("only a fresh available capability reaches shell.openExternal", async () => {
+test("only a session-confirmed available capability reaches shell.openExternal", async () => {
   const main = await fsp.readFile(path.join(appRoot, "gui", "main.js"), "utf8");
   const rankingBlock = main.slice(main.indexOf('ipcMain.handle("launcher:open-ranking"'), main.indexOf('ipcMain.handle("launcher:check-membership"'));
 
-  assert.match(rankingBlock, /connectivity\.refresh\("ranking-click"/);
+  assert.doesNotMatch(rankingBlock, /connectivity\.refresh\("ranking-click"/);
+  assert.match(rankingBlock, /trustedGlobalOrigin/);
+  assert.match(rankingBlock, /deriveRemoteAvailability\(connectivity\.getState\(\)\)\.available/);
   assert.match(rankingBlock, /rankingCapabilities\.ensureCapability\(weekId\)/);
   assert.match(rankingBlock, /capability\.status !== "available"/);
   assert.ok(rankingBlock.indexOf("capability.status") < rankingBlock.indexOf("shell.openExternal(safeUrl)"));
+});
+
+test("renderer applies one committed connectivity snapshot to chip and Ranking", async () => {
+  const [app, header, ranking] = await Promise.all([
+    fsp.readFile(path.join(rendererRoot, "app.js"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "connectivity-header-state.js"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "ranking-state.js"), "utf8"),
+  ]);
+  const applyBlock = app.slice(app.indexOf("function applyConnectivityState"), app.indexOf("function applyRankingCapabilitiesState"));
+  assert.match(applyBlock, /store\.setState\(\{ connectivity:/);
+  assert.match(applyBlock, /nextGeneration < currentGeneration/);
+  assert.match(applyBlock, /deriveRemoteAvailability\(appliedState\.connectivity\)/);
+  assert.match(applyBlock, /getRankingActionState\(appliedState/);
+  assert.match(header, /deriveRemoteAvailability/);
+  assert.match(ranking, /deriveRemoteAvailability/);
+  assert.doesNotMatch(ranking, /displayStatus|expiresAt|Date\.now/);
+});
+
+test("header and Ranking render the same committed gate for loss and recovery", async () => {
+  const [{ renderHeader }, { renderGamePanel }] = await Promise.all([
+    import(pathToFileURL(path.join(rendererRoot, "components", "header.js")).href),
+    import(pathToFileURL(path.join(rendererRoot, "components", "game-panel.js")).href),
+  ]);
+  const base = state("connected", {
+    status: "available",
+    url: "https://hsl.example/weeks/week-1",
+  });
+  base.busy = false;
+  base.theme = "dark";
+  base.data = {
+    activePack: { instanceKey: "pack-1" },
+    autoSync: { status: "idle" },
+    bridge: {},
+    game: { displayName: "Game", instanceKey: "pack-1", weekId: "week-1" },
+    library: { directory: { available: true }, packs: [{ instanceKey: "pack-1" }], status: "available-populated" },
+    membership: { canPlayCompetition: true },
+    queue: { totals: { failed: 0, pending: 0, sent: 0 } },
+    readiness: { canPlayCompetition: true, canPractice: true, status: "ready" },
+    selection: { activeInstanceKey: "pack-1" },
+    session: { hasSession: true },
+  };
+
+  base.connectivity.displayStatus = "reconnecting";
+  base.connectivity.probe = { phase: "retry", inFlight: true };
+  assert.match(renderHeader(base), /data-connectivity-status="connected"/);
+  assert.doesNotMatch(renderGamePanel(base), /data-action="open-ranking"[^>]*disabled/);
+
+  const offline = structuredClone(base);
+  offline.connectivity.reachability = "offline";
+  offline.connectivity.displayStatus = "offline";
+  offline.connectivity.reachabilityGeneration += 1;
+  assert.match(renderHeader(offline), /data-connectivity-status="offline"/);
+  assert.match(renderGamePanel(offline), /data-action="open-ranking"[^>]*disabled/);
+
+  const recovered = structuredClone(offline);
+  recovered.connectivity.reachability = "connected";
+  recovered.connectivity.displayStatus = "connected";
+  recovered.connectivity.reachabilityGeneration += 1;
+  assert.match(renderHeader(recovered), /data-connectivity-status="connected"/);
+  assert.doesNotMatch(renderGamePanel(recovered), /data-action="open-ranking"[^>]*disabled/);
 });
 
 test("remote product errors do not become connectivity failures", () => {

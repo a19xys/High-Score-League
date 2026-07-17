@@ -16,10 +16,25 @@ function jsonResponse(body, status = 200) {
         }[String(name).toLowerCase()] || null;
       },
     },
+    json: async () => body,
     ok: status >= 200 && status < 300,
     status,
-    json: async () => body,
   };
+}
+
+function availableResponse(init, overrides = {}) {
+  const body = JSON.parse(init.body);
+  return jsonResponse({
+    build: overrides.build || "unknown",
+    environment: "unknown",
+    version: 1,
+    results: body.requests.map((request) => ({
+      reason: "public-week",
+      requestKey: request.requestKey,
+      status: overrides.status || "available",
+      url: overrides.status === "unavailable" ? null : `https://hsl.example/weeks/${request.weekId}`,
+    })),
+  });
 }
 
 function harness(overrides = {}) {
@@ -33,90 +48,87 @@ function harness(overrides = {}) {
     reachabilityGeneration: 1,
   };
   const calls = [];
+  const timers = new Map();
   const transportFailures = [];
   const reachableResponses = [];
-  const timers = new Map();
   let timerId = 0;
+  const fetchImpl = overrides.fetchImpl || (async (_url, init) => {
+    calls.push(JSON.parse(init.body));
+    return availableResponse(init);
+  });
   const service = createRankingCapabilitiesService({
-    now: () => now,
+    clearTimeout: (id) => timers.delete(id),
+    config: {
+      batchLimit: overrides.batchLimit || 100,
+      requestTimeoutMs: 4_000,
+      unknownRetryDelaysMs: overrides.unknownRetryDelaysMs || [100, 200],
+    },
+    fetchImpl: async (url, init) => {
+      if (overrides.fetchImpl) calls.push(JSON.parse(init.body));
+      return fetchImpl(url, init);
+    },
     getConnectivityState: () => connectivityState,
+    now: () => now,
+    onReachable: (source) => reachableResponses.push(source),
+    onTransportFailure: (source) => transportFailures.push(source),
     setTimeout: (callback, delay) => {
       const id = ++timerId;
-      timers.set(id, { callback, delay });
+      timers.set(id, { callback, dueAt: now + delay });
       return id;
-    },
-    clearTimeout: (id) => timers.delete(id),
-    fetchImpl: overrides.fetchImpl || (async (_url, init) => {
-      const body = JSON.parse(init.body);
-      calls.push(body);
-      return jsonResponse({
-        version: 1,
-        results: body.requests.map((request) => ({
-          requestKey: request.requestKey,
-          status: "available",
-          reason: "public-week",
-          url: `https://hsl.example/weeks/${request.weekId}`,
-        })),
-      });
-    }),
-    onTransportFailure: (source) => transportFailures.push(source),
-    onReachable: (source) => reachableResponses.push(source),
-    config: {
-      availableTtlMs: 300_000,
-      unavailableTtlMs: 120_000,
-      unknownTtlMs: 20_000,
-      requestTimeoutMs: 4_000,
-      batchLimit: overrides.batchLimit || 100,
     },
   });
 
   return {
     calls,
+    reachableResponses,
     service,
     timers,
     transportFailures,
-    reachableResponses,
     advance(ms) { now += ms; },
-    setConnectivity(status) {
+    runNextTimer() {
+      const next = [...timers.entries()].sort((left, right) => left[1].dueAt - right[1].dueAt)[0];
+      if (!next) return false;
+      const [id, timer] = next;
+      timers.delete(id);
+      now = Math.max(now, timer.dueAt);
+      timer.callback();
+      return true;
+    },
+    setConnectivity(status, probe = { phase: "idle", inFlight: false }) {
       connectivityState = {
-        deployment: connectivityState.deployment,
-        deploymentGeneration: connectivityState.deploymentGeneration,
+        ...connectivityState,
         displayStatus: status === "connected" ? "connected" : "offline",
-        probe: { phase: "idle", inFlight: false },
-        reachability: status === "connected" ? "connected" : "offline",
+        probe,
+        reachability: status,
         reachabilityGeneration: connectivityState.reachabilityGeneration + 1,
+      };
+    },
+    setDeployment(build) {
+      connectivityState = {
+        ...connectivityState,
+        deployment: { apiVersion: 1, build, environment: "unknown" },
+        deploymentGeneration: connectivityState.deploymentGeneration + 1,
       };
     },
   };
 }
 
-test("deduplicates canonical week identities into one batch", async () => {
+test("initial batch deduplicates every valid library week", async () => {
   const h = harness();
   h.service.updateContext({
     webBaseUrl: "https://hsl.example",
-    packs: [{ weekId: "week-1" }, { weekId: "week-1" }, { weekId: "week-2" }],
+    packs: [{ weekId: "week-2" }, { weekId: "week-1" }, { weekId: "week-1" }, { weekId: null }],
   });
-  await h.service.refresh();
+  await h.service.refresh("startup");
   assert.equal(h.calls.length, 1);
   assert.deepEqual(h.calls[0].requests.map((item) => item.weekId), ["week-1", "week-2"]);
-  assert.equal(h.service.getCapability("week-1").status, "available");
+  assert.deepEqual(h.service.getDiagnostics().checkedWeekIds, ["week-1", "week-2"]);
 });
 
-test("shares one promise for concurrent refreshes", async () => {
+test("concurrent consumers share one batch promise", async () => {
   let resolveFetch;
   const h = harness({
-    fetchImpl: (_url, init) => new Promise((resolve) => {
-      const body = JSON.parse(init.body);
-      resolveFetch = () => resolve(jsonResponse({
-        version: 1,
-        results: body.requests.map((request) => ({
-          requestKey: request.requestKey,
-          status: "available",
-          reason: "public-week",
-          url: `https://hsl.example/weeks/${request.weekId}`,
-        })),
-      }));
-    }),
+    fetchImpl: (_url, init) => new Promise((resolve) => { resolveFetch = () => resolve(availableResponse(init)); }),
   });
   h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
   const first = h.service.refresh();
@@ -126,7 +138,7 @@ test("shares one promise for concurrent refreshes", async () => {
   await first;
 });
 
-test("partitions only when the server batch limit requires it", async () => {
+test("batching only partitions at the configured server limit", async () => {
   const h = harness({ batchLimit: 2 });
   h.service.updateContext({
     webBaseUrl: "https://hsl.example",
@@ -136,218 +148,197 @@ test("partitions only when the server batch limit requires it", async () => {
   assert.equal(h.calls.length, 2);
 });
 
-test("reuses fresh cache and refreshes after TTL", async () => {
+test("available remains conclusive for 24 hours without timers or requests", async () => {
   const h = harness();
   h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
   await h.service.refresh();
+  assert.equal(h.timers.size, 0);
+  for (const elapsed of [5 * 60_000, 10 * 60_000, 60 * 60_000, 24 * 60 * 60_000]) {
+    h.advance(elapsed);
+    await h.service.refresh("launcher-state");
+    assert.equal(h.service.getCapability("week-1").status, "available");
+    assert.equal(h.calls.length, 1);
+    assert.equal(h.timers.size, 0);
+  }
+});
+
+test("unavailable also remains conclusive for the process session", async () => {
+  const h = harness({ fetchImpl: async (_url, init) => availableResponse(init, { status: "unavailable" }) });
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
   await h.service.refresh();
+  h.advance(24 * 60 * 60_000);
+  await h.service.refresh("launcher-state");
+  assert.equal(h.service.getCapability("week-1").status, "unavailable");
   assert.equal(h.calls.length, 1);
-  h.advance(300_001);
-  assert.equal(h.service.getCapability("week-1").status, "available");
-  assert.equal(h.service.getCapability("week-1").freshness, "soft-stale");
-  await h.service.refresh();
-  assert.equal(h.calls.length, 2);
+  assert.equal(h.timers.size, 0);
 });
 
-test("available stays enabled while a compatible background refresh is in flight", async () => {
-  let resolveRefresh;
-  let call = 0;
-  const h = harness({
-    fetchImpl: async (_url, init) => {
-      call += 1;
-      const body = JSON.parse(init.body);
-      if (call > 1) {
-        return new Promise((resolve) => { resolveRefresh = () => resolve(jsonResponse({
-          version: 1,
-          results: body.requests.map((request) => ({ requestKey: request.requestKey, status: "available", reason: "public-week", url: `https://hsl.example/weeks/${request.weekId}` })),
-        })); });
-      }
-      return jsonResponse({ version: 1, results: body.requests.map((request) => ({ requestKey: request.requestKey, status: "available", reason: "public-week", url: `https://hsl.example/weeks/${request.weekId}` })) });
-    },
-  });
-  h.service.updateContext({ activeInstanceKey: "pack-a", webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
-  await h.service.refresh();
-  h.advance(300_001);
-  const pending = h.service.refresh("ttl-expired");
-  assert.equal(h.service.getCapability("week-1").status, "available");
-  assert.equal(h.service.getCapability("week-1").freshness, "revalidating");
-  resolveRefresh();
-  await pending;
-});
-
-test("equivalent context is stable and real pack change invalidates capability", async () => {
+test("active pack identity and equivalent ordering never invalidate known weeks", async () => {
   const h = harness();
   h.service.updateContext({ activeInstanceKey: "pack-a", webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-2" }, { weekId: "week-1" }] });
   await h.service.refresh();
-  const before = h.service.getState();
-  h.service.updateContext({ activeInstanceKey: "pack-a", webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }, { weekId: "week-2" }] });
-  assert.equal(h.service.getState().contextGeneration, before.contextGeneration);
+  const generation = h.service.getState().contextGeneration;
   h.service.updateContext({ activeInstanceKey: "pack-b", webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }, { weekId: "week-2" }] });
-  assert.notEqual(h.service.getCapability("week-1").status, "available");
-  assert.ok(h.service.getDiagnostics("week-1").transitions.length > 0);
+  await h.service.refresh("pack-change");
+  assert.equal(h.service.getState().contextGeneration, generation);
+  assert.equal(h.service.getCapability("week-1").status, "available");
+  assert.equal(h.calls.length, 1);
 });
 
-test("temporary failures are unknown and conclusive server results are unavailable", async () => {
-  let mode = "failure";
-  const h = harness({
-    fetchImpl: async (_url, init) => {
-      const body = JSON.parse(init.body);
-      if (mode === "failure") throw new Error("network down");
-      return jsonResponse({
-        version: 1,
-        results: body.requests.map((request) => ({
-          requestKey: request.requestKey,
-          status: "unavailable",
-          reason: "not-public",
-          url: null,
-        })),
-      });
-    },
-  });
-  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
-  await h.service.refresh();
-  assert.equal(h.service.getCapability("week-1").status, "unknown");
-  const unknown = h.service.getCapability("week-1");
-  assert.equal(new Date(unknown.expiresAt) - new Date(unknown.checkedAt), 20_000);
-  mode = "success";
-  await h.service.refresh("retry", { force: true });
-  const unavailable = h.service.getCapability("week-1");
-  assert.equal(unavailable.status, "unavailable");
-  assert.equal(new Date(unavailable.expiresAt) - new Date(unavailable.checkedAt), 120_000);
-});
-
-test("offline skips requests and packs without week identity are not configured", async () => {
+test("library changes query only new or previously unknown weeks", async () => {
   const h = harness();
-  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: null }] });
-  assert.equal(h.service.getCapability(null).reason, "not-configured");
-  h.setConnectivity("offline");
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
   await h.service.refresh();
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }, { weekId: "week-2" }] });
+  await h.service.refresh("library-change");
+  assert.equal(h.calls.length, 2);
+  assert.deepEqual(h.calls[1].requests.map((item) => item.weekId), ["week-2"]);
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-2" }] });
+  assert.equal(h.service.getState().entries["week-1"], undefined);
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }, { weekId: "week-2" }] });
+  await h.service.refresh("library-change");
+  assert.equal(h.calls.length, 2);
+});
+
+test("a real deployment change invalidates and rechecks all current weeks", async () => {
+  let build = "unknown";
+  const h = harness({ fetchImpl: async (_url, init) => availableResponse(init, { build }) });
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }, { weekId: "week-2" }] });
+  await h.service.refresh();
+  build = "build-2";
+  h.setDeployment(build);
+  h.service.updateDeployment();
+  assert.equal(h.service.getCapability("week-1").status, "unknown");
+  await h.service.refresh("deployment-change");
+  assert.equal(h.calls.length, 2);
+  assert.equal(h.service.getCapability("week-1").status, "available");
+});
+
+test("startup offline defers the initial batch until committed recovery", async () => {
+  const h = harness();
+  h.setConnectivity("offline");
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
+  await h.service.refresh("startup");
   assert.equal(h.calls.length, 0);
+  assert.equal(h.service.getCapability("week-1").status, "unknown");
+  h.setConnectivity("connected");
+  await h.service.refresh("connectivity-restored");
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.service.getCapability("week-1").status, "available");
 });
 
-test("unsafe server URLs become unknown rather than available", async () => {
-  const h = harness({
-    fetchImpl: async (_url, init) => {
-      const body = JSON.parse(init.body);
-      return jsonResponse({
-        version: 1,
-        results: body.requests.map((request) => ({
-          requestKey: request.requestKey,
-          status: "available",
-          reason: "public-week",
-          url: "https://other.example/weeks/week-1",
-        })),
-      });
-    },
-  });
+test("retry probes use committed reachability and do not hide capabilities", async () => {
+  const h = harness();
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
+  await h.service.refresh();
+  h.setConnectivity("connected", { phase: "retry", inFlight: true });
+  assert.equal(h.service.getCapability("week-1").status, "available");
+  await h.service.refresh("probe");
+  assert.equal(h.calls.length, 1);
+});
+
+test("temporary failures retry only unknown results with bounded timers", async () => {
+  const h = harness({ fetchImpl: async () => { throw new Error("network down"); } });
   h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
   await h.service.refresh();
   assert.equal(h.service.getCapability("week-1").status, "unknown");
-  assert.equal(h.service.getCapability("week-1").reason, "unsafe-url");
-  assert.deepEqual(h.transportFailures, []);
+  assert.equal(h.timers.size, 1);
+  h.runNextTimer();
+  await new Promise((resolve) => setImmediate(resolve));
+  h.runNextTimer();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(h.calls.length, 3);
+  assert.equal(h.timers.size, 0);
 });
 
-test("transport errors request connectivity reevaluation", async () => {
-  const h = harness({
-    fetchImpl: async () => {
-      throw new Error("dns failure");
-    },
-  });
+test("development force refresh can replace a conclusive result", async () => {
+  let status = "unavailable";
+  const h = harness({ fetchImpl: async (_url, init) => availableResponse(init, { status }) });
   h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
   await h.service.refresh();
-  assert.deepEqual(h.transportFailures, ["ranking-capabilities"]);
+  assert.equal(h.service.getCapability("week-1").status, "unavailable");
+  status = "available";
+  await h.service.forceRefresh();
+  assert.equal(h.service.getCapability("week-1").status, "available");
+  assert.ok(h.service.getDiagnostics().lastForcedRefreshAt);
 });
 
-test("HTTP 503 is unknown but confirms HSL reachability and records a safe code", async () => {
-  const h = harness({
-    fetchImpl: async () => jsonResponse({
-      code: "RANKING_CONTEXT_QUERY_FAILED",
-      error: "No se pudo comprobar la disponibilidad.",
-    }, 503),
-  });
+test("failed development refresh preserves a conclusive available result", async () => {
+  let fail = false;
+  const h = harness({ fetchImpl: async (_url, init) => {
+    if (fail) throw new Error("temporary");
+    return availableResponse(init);
+  } });
   h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
   await h.service.refresh();
-  assert.equal(h.service.getCapability("week-1").status, "unknown");
-  assert.deepEqual(h.reachableResponses, ["ranking-capabilities-response"]);
-  assert.deepEqual(h.transportFailures, []);
-  assert.equal(h.service.getDiagnostics("week-1").lastRequest.httpStatus, 503);
-  assert.equal(h.service.getDiagnostics("week-1").lastRequest.errorCode, "RANKING_CONTEXT_QUERY_FAILED");
+  fail = true;
+  await h.service.forceRefresh();
+  assert.equal(h.service.getCapability("week-1").status, "available");
 });
 
-test("a response crossing an offline generation cannot populate cache", async () => {
-  let resolveFetch;
-  const h = harness({
-    fetchImpl: (_url, init) => new Promise((resolve) => {
-      const body = JSON.parse(init.body);
-      resolveFetch = () => resolve(jsonResponse({
-        version: 1,
-        results: body.requests.map((request) => ({
-          requestKey: request.requestKey,
-          status: "available",
-          reason: "public-week",
-          url: `https://hsl.example/weeks/${request.weekId}`,
-        })),
-      }));
-    }),
-  });
+test("offline gates queries but does not invalidate a confirmed capability", async () => {
+  const h = harness();
   h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
-  const pending = h.service.refresh();
+  await h.service.refresh();
   h.setConnectivity("offline");
-  resolveFetch();
-  await pending;
-  assert.equal(h.service.getDiagnostics("week-1").cache.available, 0);
+  await h.service.refresh("offline");
+  assert.equal(h.service.getCapability("week-1").status, "available");
+  assert.equal(h.calls.length, 1);
 });
 
-test("discards stale library responses", async () => {
+test("responses crossing offline or semantic context generations are discarded", async () => {
   let resolveFetch;
-  const h = harness({
-    fetchImpl: (_url, init) => new Promise((resolve) => {
-      const body = JSON.parse(init.body);
-      resolveFetch = () => resolve(jsonResponse({
-        version: 1,
-        results: body.requests.map((request) => ({
-          requestKey: request.requestKey,
-          status: "available",
-          reason: "public-week",
-          url: `https://hsl.example/weeks/${request.weekId}`,
-        })),
-      }));
-    }),
-  });
+  const h = harness({ fetchImpl: (_url, init) => new Promise((resolve) => { resolveFetch = () => resolve(availableResponse(init)); }) });
   h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
   const pending = h.service.refresh();
   h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-2" }] });
   resolveFetch();
   await pending;
-  assert.equal(h.service.getCapability("week-2").status, "checking");
+  assert.equal(h.service.getCapability("week-2").status, "unknown");
+});
+
+test("unsafe URLs and deployment mismatches cannot populate available", async () => {
+  const unsafe = harness({ fetchImpl: async (_url, init) => {
+    const response = availableResponse(init);
+    const payload = await response.json();
+    payload.results[0].url = "https://other.example/weeks/week-1";
+    return jsonResponse(payload);
+  } });
+  unsafe.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
+  await unsafe.service.refresh();
+  assert.equal(unsafe.service.getCapability("week-1").status, "unknown");
+
+  const mismatch = harness({ fetchImpl: async (_url, init) => availableResponse(init, { build: "other-build" }) });
+  mismatch.setDeployment("health-build");
+  mismatch.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
+  await mismatch.service.refresh();
+  assert.equal(mismatch.service.getCapability("week-1").reason, "deployment-mismatch");
+});
+
+test("HTTP responses confirm reachability while transient results stay unknown", async () => {
+  const h = harness({ fetchImpl: async () => jsonResponse({ code: "RANKING_CONTEXT_QUERY_FAILED", version: 1 }, 503) });
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
+  await h.service.refresh();
+  assert.equal(h.service.getCapability("week-1").status, "unknown");
+  assert.deepEqual(h.reachableResponses, ["ranking-capabilities-response"]);
+  assert.deepEqual(h.transportFailures, []);
+  assert.equal(h.service.getDiagnostics().lastRequest.errorCode, "RANKING_CONTEXT_QUERY_FAILED");
+});
+
+test("diagnostics declare session verification and no automatic TTL refresh", async () => {
+  const h = harness();
+  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
+  await h.service.refresh();
+  const diagnostics = h.service.getDiagnostics("week-1");
+  assert.equal(diagnostics.verificationMode, "session");
+  assert.equal(diagnostics.automaticTtlRefresh, false);
+  assert.ok(diagnostics.initialBatchAt);
+  assert.equal(diagnostics.context.fingerprint.includes("pack-a"), false);
+  assert.ok(diagnostics.transitions.length > 0);
 });
 
 test("rejects unsafe schemes and foreign origins", () => {
   assert.equal(safeRankingUrl("javascript:alert(1)", "https://hsl.example"), null);
   assert.equal(safeRankingUrl("https://other.example/weeks/1", "https://hsl.example"), null);
   assert.equal(safeRankingUrl("https://hsl.example/weeks/1", "https://hsl.example"), "https://hsl.example/weeks/1");
-});
-
-test("deployment mismatch cannot populate ranking cache", async () => {
-  const h = harness({
-    fetchImpl: async (_url, init) => {
-      const body = JSON.parse(init.body);
-      return jsonResponse({
-        version: 1,
-        build: "ranking-build",
-        environment: "production",
-        results: body.requests.map((request) => ({
-          requestKey: request.requestKey,
-          status: "available",
-          reason: "public-week",
-          url: `https://hsl.example/weeks/${request.weekId}`,
-        })),
-      });
-    },
-  });
-  h.service.updateContext({ webBaseUrl: "https://hsl.example", packs: [{ weekId: "week-1" }] });
-  await h.service.refresh();
-  assert.equal(h.service.getCapability("week-1").status, "unknown");
-  assert.equal(h.service.getCapability("week-1").reason, "deployment-mismatch");
-  assert.equal(h.service.getDiagnostics("week-1").lastRequest.deploymentMatchesHealth, false);
 });

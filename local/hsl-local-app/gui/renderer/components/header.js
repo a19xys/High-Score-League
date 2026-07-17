@@ -2,6 +2,7 @@ import { COPY } from "./copy.js";
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
 import { deriveConnectivityHeaderState } from "../connectivity-header-state.js";
+import { deriveRemoteAvailability } from "../remote-availability.js";
 
 const NO_SESSION_LABEL = "No has iniciado sesión";
 const SESSION_CHIP_EMPTY_LABEL = "Sin sesión";
@@ -120,6 +121,7 @@ function renderAuthForm(state) {
   }
 
   const disabled = state.busy ? "disabled" : "";
+  const remoteDisabled = !deriveRemoteAvailability(state.connectivity).available ? "disabled" : disabled;
   const emailValue = state.authEmail ? `value="${escapeHtml(state.authEmail)}"` : "";
 
   return `
@@ -134,7 +136,7 @@ function renderAuthForm(state) {
       </label>
       ${state.authError ? `<p class="auth-error">${escapeHtml(state.authError)}</p>` : ""}
       <div class="form-actions form-actions--inline">
-        <button class="tool-button account-primary" type="submit" ${disabled}>
+        <button class="tool-button account-primary" type="submit" ${remoteDisabled}>
           ${state.busy && state.busyLabel === "Conectando" ? "Conectando..." : "Entrar"}
         </button>
         <button class="tool-button" type="button" data-action="cancel-login" ${disabled}>

@@ -1,7 +1,4 @@
-const {
-  isStableConnected,
-  normalizeWebBaseUrl,
-} = require("./connectivity-service");
+const { isCommittedConnected, normalizeWebBaseUrl } = require("./connectivity-service");
 const {
   deploymentFingerprintsMatch,
   deploymentKey,
@@ -12,13 +9,10 @@ const {
 const RANKING_CAPABILITIES_PATH = "/api/launcher/ranking-capabilities";
 const RANKING_CONTRACT_VERSION = 1;
 const DEFAULT_RANKING_CAPABILITIES_OPTIONS = Object.freeze({
-  availableTtlMs: 5 * 60 * 1000,
   batchLimit: 100,
   requestTimeoutMs: 4 * 1000,
-  softStaleGraceMs: 60 * 1000,
   transitionLimit: 75,
-  unavailableTtlMs: 2 * 60 * 1000,
-  unknownTtlMs: 20 * 1000,
+  unknownRetryDelaysMs: Object.freeze([20 * 1000, 60 * 1000, 2 * 60 * 1000]),
 });
 const identifierPattern = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -29,9 +23,7 @@ function rankingCapabilitiesEndpoint(webBaseUrl) {
 
 function safeRankingUrl(value, webBaseUrl) {
   const normalized = normalizeWebBaseUrl(webBaseUrl);
-
   if (!normalized) return null;
-
   try {
     const candidate = new URL(String(value || ""));
     const allowed = new URL(normalized);
@@ -48,31 +40,30 @@ function validWeekId(value) {
 }
 
 function createRankingCapabilitiesService(options = {}) {
-  const config = {
-    ...DEFAULT_RANKING_CAPABILITIES_OPTIONS,
-    ...(options.config || {}),
-  };
+  const config = { ...DEFAULT_RANKING_CAPABILITIES_OPTIONS, ...(options.config || {}) };
   const nowImpl = options.now || Date.now;
   const setTimeoutImpl = options.setTimeout || setTimeout;
   const clearTimeoutImpl = options.clearTimeout || clearTimeout;
   const listeners = new Set();
   const cache = new Map();
+  const transitions = [];
   let context = {
+    deploymentKey: deploymentKey(options.getConnectivityState()?.deployment),
     fingerprint: "",
     generation: 0,
-    activeInstanceKey: null,
     webBaseUrl: null,
     weekIds: [],
   };
   let inFlight = null;
   let activeController = null;
   let pendingIds = new Set();
-  let refreshTimer = null;
+  let retryTimer = null;
   let disposed = false;
   let requestGeneration = 0;
   let stateSequence = 0;
   let previousEntries = {};
-  const transitions = [];
+  let initialBatchAt = null;
+  let lastForcedRefreshAt = null;
   let lastRequest = {
     build: "unknown",
     checkedAt: null,
@@ -85,89 +76,83 @@ function createRankingCapabilitiesService(options = {}) {
   };
 
   function connectivityState() {
-    return options.getConnectivityState();
+    return options.getConnectivityState() || {};
   }
 
   function canQuery() {
-    return isStableConnected(connectivityState());
+    return isCommittedConnected(connectivityState());
   }
 
   function cacheKey(weekId) {
-    return `${context.webBaseUrl || "missing"}|${deploymentKey(connectivityState().deployment)}|${context.activeInstanceKey || "none"}|${weekId}`;
+    return `${context.webBaseUrl || "missing"}|${context.deploymentKey}|${weekId}`;
+  }
+
+  function publicEntry(entry, overrides = {}) {
+    return {
+      ...entry,
+      nextRetryAtMs: undefined,
+      retryAttempt: undefined,
+      verificationMode: "session",
+      ...overrides,
+    };
   }
 
   function entryFor(weekId) {
     if (!validWeekId(weekId)) {
       return {
-        weekId: null,
+        checkedAt: null,
+        contractVersion: RANKING_CONTRACT_VERSION,
+        reason: "not-configured",
         status: "unavailable",
         url: null,
-        reason: "not-configured",
-        checkedAt: null,
-        expiresAt: null,
-        contractVersion: RANKING_CONTRACT_VERSION,
+        verificationMode: "session",
+        weekId: null,
       };
     }
-
     const cached = cache.get(cacheKey(weekId));
-    const connected = canQuery();
-
-    if (cached && cached.expiresAtMs > nowImpl()) {
-      return {
-        ...cached,
-        expiresAtMs: undefined,
-        freshness: pendingIds.has(weekId) ? "revalidating" : "fresh",
-        revalidating: pendingIds.has(weekId),
-      };
-    }
-
-    if (cached?.status === "available" && connected && cached.hardExpiresAtMs > nowImpl()) {
-      return {
-        ...cached,
-        expiresAtMs: undefined,
-        hardExpiresAtMs: undefined,
-        freshness: pendingIds.has(weekId) ? "revalidating" : "soft-stale",
-        revalidating: pendingIds.has(weekId),
-      };
-    }
-
+    if (cached) return publicEntry(cached, { revalidating: pendingIds.has(weekId) });
     return {
-      weekId,
-      status: connected && (pendingIds.has(weekId) || !cached) ? "checking" : "unknown",
-      url: null,
-      reason: cached ? "expired" : "not-checked",
-      checkedAt: cached?.checkedAt || null,
-      expiresAt: cached?.expiresAt || null,
+      checkedAt: null,
       contractVersion: RANKING_CONTRACT_VERSION,
       deployment: { ...(connectivityState().deployment || {}) },
       deploymentGeneration: connectivityState().deploymentGeneration || 0,
-      freshness: cached ? "hard-expired" : "missing",
+      reason: "not-checked",
       revalidating: pendingIds.has(weekId),
+      status: canQuery() && pendingIds.has(weekId) ? "checking" : "unknown",
+      url: null,
+      verificationMode: "session",
+      weekId,
     };
   }
 
+  function currentEntries() {
+    return context.weekIds.map((weekId) => entryFor(weekId));
+  }
+
   function cacheSummary() {
-    const entries = [...cache.values()];
+    const entries = currentEntries();
     return {
       entries: entries.length,
       available: entries.filter((item) => item.status === "available").length,
       unavailable: entries.filter((item) => item.status === "unavailable").length,
-      unknown: entries.filter((item) => item.status === "unknown").length,
-      expired: entries.filter((item) => item.expiresAtMs <= nowImpl()).length,
+      unknown: entries.filter((item) => ["unknown", "checking"].includes(item.status)).length,
     };
   }
 
   function snapshot() {
     return {
-      contractVersion: RANKING_CONTRACT_VERSION,
-      generation: context.generation,
+      automaticTtlRefresh: false,
+      cache: cacheSummary(),
+      contextFingerprint: context.fingerprint,
       contextGeneration: context.generation,
+      contractVersion: RANKING_CONTRACT_VERSION,
+      entries: Object.fromEntries(context.weekIds.map((weekId) => [weekId, entryFor(weekId)])),
+      generation: context.generation,
       inFlight: Boolean(inFlight),
       requestGeneration,
       stateSequence,
+      verificationMode: "session",
       webBaseUrl: context.webBaseUrl,
-      entries: Object.fromEntries(context.weekIds.map((weekId) => [weekId, entryFor(weekId)])),
-      cache: cacheSummary(),
     };
   }
 
@@ -176,15 +161,13 @@ function createRankingCapabilitiesService(options = {}) {
     const value = snapshot();
     for (const [weekId, next] of Object.entries(value.entries)) {
       const previous = previousEntries[weekId];
-      if (!previous || previous.status !== next.status || previous.reason !== next.reason || previous.freshness !== next.freshness) {
+      if (!previous || previous.status !== next.status || previous.reason !== next.reason || previous.revalidating !== next.revalidating) {
         transitions.push({
-          activePackInstanceKey: context.activeInstanceKey,
           activeWeekId: weekId,
-          cache: next.freshness || "unknown",
+          cache: next.status,
           checkedAt: next.checkedAt || null,
           contextGeneration: context.generation,
           deploymentGeneration: connectivityState().deploymentGeneration || 0,
-          expiresAt: next.expiresAt || null,
           inFlight: Boolean(inFlight),
           nextReason: next.reason || null,
           nextStatus: next.status,
@@ -203,65 +186,66 @@ function createRankingCapabilitiesService(options = {}) {
     for (const listener of listeners) listener(value);
   }
 
-  function clearRefreshTimer() {
-    if (refreshTimer !== null) {
-      clearTimeoutImpl(refreshTimer);
-      refreshTimer = null;
-    }
+  function clearRetryTimer() {
+    if (retryTimer !== null) clearTimeoutImpl(retryTimer);
+    retryTimer = null;
   }
 
-  function scheduleRefresh() {
-    clearRefreshTimer();
+  function scheduleUnknownRetry() {
+    clearRetryTimer();
     if (disposed || !canQuery()) return;
-    const expirations = context.weekIds
-      .map((weekId) => {
-        const cached = cache.get(cacheKey(weekId));
-        return cached?.nextRefreshAtMs || cached?.expiresAtMs;
-      })
-      .filter(Number.isFinite);
-
-    if (expirations.length === 0) return;
-    const delay = Math.max(0, Math.min(...expirations) - nowImpl());
-    refreshTimer = setTimeoutImpl(() => {
-      refreshTimer = null;
-      refresh("ttl-expired");
-    }, delay);
+    const retryTimes = context.weekIds
+      .map((weekId) => cache.get(cacheKey(weekId)))
+      .filter((entry) => entry?.status === "unknown" && Number.isFinite(entry.nextRetryAtMs))
+      .map((entry) => entry.nextRetryAtMs);
+    if (retryTimes.length === 0) return;
+    retryTimer = setTimeoutImpl(() => {
+      retryTimer = null;
+      refresh("unknown-retry");
+    }, Math.max(0, Math.min(...retryTimes) - nowImpl()));
   }
 
-  function writeEntry(weekId, status, reason, url = null) {
-    const ttl = status === "available"
-      ? config.availableTtlMs
-      : status === "unavailable"
-        ? config.unavailableTtlMs
-        : config.unknownTtlMs;
-    const checkedAtMs = nowImpl();
-    cache.set(cacheKey(weekId), {
-      weekId,
-      status,
-      url,
-      reason,
-      checkedAt: new Date(checkedAtMs).toISOString(),
-      expiresAt: new Date(checkedAtMs + ttl).toISOString(),
-      expiresAtMs: checkedAtMs + ttl,
-      hardExpiresAtMs: checkedAtMs + ttl + config.softStaleGraceMs,
-      nextRefreshAtMs: null,
+  function writeConclusive(result) {
+    cache.set(cacheKey(result.weekId), {
+      checkedAt: new Date(nowImpl()).toISOString(),
       contractVersion: RANKING_CONTRACT_VERSION,
+      reason: result.reason,
+      status: result.status,
+      url: result.url,
+      weekId: result.weekId,
     });
   }
 
-  function staleWeekIds(weekIds, force) {
-    return weekIds.filter((weekId) => {
-      if (force) return true;
+  function writeUnknown(weekId, reason) {
+    const key = cacheKey(weekId);
+    const previous = cache.get(key);
+    if (["available", "unavailable"].includes(previous?.status)) return;
+    const retryAttempt = (Number(previous?.retryAttempt) || 0) + 1;
+    const retryDelay = config.unknownRetryDelaysMs[retryAttempt - 1];
+    cache.set(key, {
+      checkedAt: new Date(nowImpl()).toISOString(),
+      contractVersion: RANKING_CONTRACT_VERSION,
+      nextRetryAtMs: Number.isFinite(retryDelay) ? nowImpl() + retryDelay : null,
+      reason,
+      retryAttempt,
+      status: "unknown",
+      url: null,
+      weekId,
+    });
+  }
+
+  function requestedWeekIds(values, force) {
+    return values.filter((weekId) => {
       const cached = cache.get(cacheKey(weekId));
-      return !cached || (cached.expiresAtMs <= nowImpl() && (!cached.nextRefreshAtMs || cached.nextRefreshAtMs <= nowImpl()));
+      if (force) return true;
+      if (!cached) return true;
+      return cached.status === "unknown" && Number.isFinite(cached.nextRetryAtMs) && cached.nextRetryAtMs <= nowImpl();
     });
   }
 
   function splitBatches(values) {
     const batches = [];
-    for (let index = 0; index < values.length; index += config.batchLimit) {
-      batches.push(values.slice(index, index + config.batchLimit));
-    }
+    for (let index = 0; index < values.length; index += config.batchLimit) batches.push(values.slice(index, index + config.batchLimit));
     return batches;
   }
 
@@ -269,38 +253,26 @@ function createRankingCapabilitiesService(options = {}) {
     if (!payload || payload.version !== RANKING_CONTRACT_VERSION || !Array.isArray(payload.results)) {
       throw Object.assign(new Error("Invalid ranking response"), { reason: "invalid-response" });
     }
-
     const responseDeployment = readRankingDeployment(payload);
     if (!deploymentFingerprintsMatch(expectedDeployment, responseDeployment)) {
-      throw Object.assign(new Error("Ranking deployment differs from health"), {
-        reason: "deployment-mismatch",
-        responseDeployment,
-      });
+      throw Object.assign(new Error("Ranking deployment differs from health"), { reason: "deployment-mismatch", responseDeployment });
     }
-
     const byRequestKey = new Map(payload.results.map((item) => [item?.requestKey, item]));
-
     return {
       deployment: responseDeployment,
       results: requests.map((request) => {
-      const result = byRequestKey.get(request.requestKey);
-
-      if (!result || !["available", "unavailable"].includes(result.status)) {
-        throw Object.assign(new Error("Incomplete ranking response"), { reason: "invalid-response" });
-      }
-
-      const url = result.status === "available" ? safeRankingUrl(result.url, webBaseUrl) : null;
-
-      if (result.status === "available" && !url) {
-        throw Object.assign(new Error("Unsafe ranking URL"), { reason: "unsafe-url" });
-      }
-
-      return {
-        weekId: request.weekId,
-        status: result.status,
-        reason: typeof result.reason === "string" ? result.reason : "server-result",
-        url,
-      };
+        const result = byRequestKey.get(request.requestKey);
+        if (!result || !["available", "unavailable"].includes(result.status)) {
+          throw Object.assign(new Error("Incomplete ranking response"), { reason: "invalid-response" });
+        }
+        const url = result.status === "available" ? safeRankingUrl(result.url, webBaseUrl) : null;
+        if (result.status === "available" && !url) throw Object.assign(new Error("Unsafe ranking URL"), { reason: "unsafe-url" });
+        return {
+          reason: typeof result.reason === "string" ? result.reason : "server-result",
+          status: result.status,
+          url,
+          weekId: request.weekId,
+        };
       }),
     };
   }
@@ -315,22 +287,20 @@ function createRankingCapabilitiesService(options = {}) {
     }
   }
 
-  function refresh(reason = "manual", refreshOptions = {}) {
+  function refresh(reason = "context", refreshOptions = {}) {
     if (disposed || !canQuery()) {
       emit(reason);
       return Promise.resolve(snapshot());
     }
-
     if (inFlight) return inFlight;
-
-    const requestedWeekIds = Array.isArray(refreshOptions.weekIds)
+    const candidates = Array.isArray(refreshOptions.weekIds)
       ? refreshOptions.weekIds.filter((weekId) => context.weekIds.includes(weekId))
       : context.weekIds;
-    const weekIds = staleWeekIds(requestedWeekIds, Boolean(refreshOptions.force));
+    const retryUnknownNow = ["connectivity-restored", "deployment-change"].includes(reason);
+    const weekIds = requestedWeekIds(candidates, Boolean(refreshOptions.force) || retryUnknownNow);
     const endpoint = rankingCapabilitiesEndpoint(context.webBaseUrl);
-
     if (!endpoint || weekIds.length === 0) {
-      scheduleRefresh();
+      scheduleUnknownRetry();
       return Promise.resolve(snapshot());
     }
 
@@ -343,19 +313,17 @@ function createRankingCapabilitiesService(options = {}) {
     const controller = new AbortController();
     activeController = controller;
     pendingIds = new Set(weekIds);
+    if (!initialBatchAt) initialBatchAt = new Date(nowImpl()).toISOString();
+    if (refreshOptions.force) lastForcedRefreshAt = new Date(nowImpl()).toISOString();
     emit(`${reason}:start`);
     const timeout = setTimeoutImpl(() => controller.abort(), config.requestTimeoutMs);
 
     inFlight = (async () => {
       try {
-        const batches = splitBatches(weekIds);
         const allResults = [];
-
+        const batches = splitBatches(weekIds);
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
-          const requests = batches[batchIndex].map((weekId, index) => ({
-            requestKey: `r-${batchIndex}-${index}`,
-            weekId,
-          }));
+          const requests = batches[batchIndex].map((weekId, index) => ({ requestKey: `r-${batchIndex}-${index}`, weekId }));
           const response = await options.fetchImpl(endpoint, {
             body: JSON.stringify({ version: RANKING_CONTRACT_VERSION, requests }),
             cache: "no-store",
@@ -364,7 +332,6 @@ function createRankingCapabilitiesService(options = {}) {
             redirect: "manual",
             signal: controller.signal,
           });
-
           options.onReachable?.("ranking-capabilities-response");
           const responseHeaderDeployment = readHealthDeployment(response);
           const headersMatchHealth = deploymentFingerprintsMatch(requestDeployment, responseHeaderDeployment);
@@ -378,30 +345,15 @@ function createRankingCapabilitiesService(options = {}) {
             httpStatus: response.status,
             reason: response.ok ? null : `http-${response.status}`,
           };
-
-          if (!headersMatchHealth) {
-            throw Object.assign(new Error("Ranking headers differ from health"), {
-              reason: "deployment-mismatch",
-              responseDeployment: responseHeaderDeployment,
-            });
-          }
-
+          if (!headersMatchHealth) throw Object.assign(new Error("Ranking headers differ from health"), { reason: "deployment-mismatch", responseDeployment: responseHeaderDeployment });
           if (!response.ok) {
             const errorCode = await safeServiceErrorCode(response);
             lastRequest = { ...lastRequest, errorCode };
-            throw Object.assign(new Error("Ranking endpoint unavailable"), {
-              errorCode,
-              reason: `http-${response.status}`,
-            });
+            throw Object.assign(new Error("Ranking endpoint unavailable"), { errorCode, reason: `http-${response.status}` });
           }
-
-          const payload = await response.json();
-          const validated = validateBatchResponse(payload, requests, requestBaseUrl, requestDeployment);
+          const validated = validateBatchResponse(await response.json(), requests, requestBaseUrl, requestDeployment);
           if (!deploymentFingerprintsMatch(responseHeaderDeployment, validated.deployment)) {
-            throw Object.assign(new Error("Ranking body differs from response headers"), {
-              reason: "deployment-mismatch",
-              responseDeployment: validated.deployment,
-            });
+            throw Object.assign(new Error("Ranking body differs from response headers"), { reason: "deployment-mismatch", responseDeployment: validated.deployment });
           }
           lastRequest = {
             ...lastRequest,
@@ -412,39 +364,18 @@ function createRankingCapabilitiesService(options = {}) {
           };
           allResults.push(...validated.results);
         }
-
-        if (disposed || requestContextGeneration !== context.generation || currentRequestGeneration !== requestGeneration || requestBaseUrl !== context.webBaseUrl ||
-            requestReachabilityGeneration !== connectivityState().reachabilityGeneration ||
-            requestDeploymentGeneration !== (connectivityState().deploymentGeneration || 0) || !canQuery()) {
-          return snapshot();
-        }
-
-        for (const result of allResults) {
-          writeEntry(result.weekId, result.status, result.reason, result.url);
-        }
-
+        if (disposed || requestContextGeneration !== context.generation || currentRequestGeneration !== requestGeneration ||
+            requestBaseUrl !== context.webBaseUrl || requestReachabilityGeneration !== connectivityState().reachabilityGeneration ||
+            requestDeploymentGeneration !== (connectivityState().deploymentGeneration || 0) || !canQuery()) return snapshot();
+        for (const result of allResults) writeConclusive(result);
       } catch (error) {
-        const connectivityUnchanged = requestReachabilityGeneration === connectivityState().reachabilityGeneration &&
+        const unchanged = requestContextGeneration === context.generation && currentRequestGeneration === requestGeneration &&
+          requestBaseUrl === context.webBaseUrl && requestReachabilityGeneration === connectivityState().reachabilityGeneration &&
           requestDeploymentGeneration === (connectivityState().deploymentGeneration || 0);
-
-        if (!disposed && requestContextGeneration === context.generation && currentRequestGeneration === requestGeneration && requestBaseUrl === context.webBaseUrl && connectivityUnchanged) {
-          for (const weekId of weekIds) {
-            const key = cacheKey(weekId);
-            const cached = cache.get(key);
-            if (cached?.status === "available" && cached.hardExpiresAtMs > nowImpl()) {
-              cache.set(key, {
-                ...cached,
-                lastError: error?.reason || "temporary-failure",
-                nextRefreshAtMs: nowImpl() + config.unknownTtlMs,
-              });
-            } else {
-              writeEntry(weekId, "unknown", error?.reason || "temporary-failure");
-            }
-          }
-
-          const reason = String(error?.reason || "temporary-failure");
-
-          if (reason === "deployment-mismatch") {
+        if (!disposed && unchanged) {
+          const failureReason = controller.signal.aborted ? "timeout" : String(error?.reason || "temporary-failure");
+          for (const weekId of weekIds) writeUnknown(weekId, failureReason);
+          if (failureReason === "deployment-mismatch") {
             lastRequest = {
               ...lastRequest,
               build: error?.responseDeployment?.build || "unknown",
@@ -453,20 +384,16 @@ function createRankingCapabilitiesService(options = {}) {
               environment: error?.responseDeployment?.environment || "unknown",
             };
           }
-
-          if (!reason.startsWith("http-") || !lastRequest.checkedAt) {
+          if (!failureReason.startsWith("http-") || !lastRequest.checkedAt) {
             lastRequest = {
               ...lastRequest,
               checkedAt: new Date(nowImpl()).toISOString(),
               errorCode: error?.errorCode || null,
-              httpStatus: reason === "temporary-failure" || controller.signal.aborted ? null : lastRequest.httpStatus,
-              reason: controller.signal.aborted ? "timeout" : reason,
+              httpStatus: null,
+              reason: failureReason,
             };
           }
-
-          if (controller.signal.aborted || reason === "temporary-failure") {
-            options.onTransportFailure?.("ranking-capabilities");
-          }
+          if (controller.signal.aborted || failureReason === "temporary-failure") options.onTransportFailure?.("ranking-capabilities");
         }
       } finally {
         clearTimeoutImpl(timeout);
@@ -475,58 +402,51 @@ function createRankingCapabilitiesService(options = {}) {
           activeController = null;
           pendingIds = new Set();
           emit(`${reason}:complete`);
-          scheduleRefresh();
+          scheduleUnknownRetry();
         }
       }
-
       return snapshot();
     })();
-
     return inFlight;
   }
 
-  function updateContext(input = {}) {
-    const webBaseUrl = normalizeWebBaseUrl(input.webBaseUrl);
-    const weekIds = [...new Set((input.packs || []).map((pack) => pack?.weekId).filter(validWeekId))].sort();
-    const activeInstanceKey = String(input.activeInstanceKey || "");
-    const fingerprint = `${webBaseUrl || "missing"}|${activeInstanceKey}|${weekIds.join("|")}`;
-
-    if (fingerprint === context.fingerprint) return snapshot();
-    context = {
-      fingerprint,
-      generation: context.generation + 1,
-      activeInstanceKey,
-      webBaseUrl,
-      weekIds,
-    };
+  function replaceContext(next) {
+    context = { ...next, generation: context.generation + 1 };
     activeController?.abort();
     activeController = null;
     inFlight = null;
     pendingIds = new Set();
-    clearRefreshTimer();
+    clearRetryTimer();
     requestGeneration += 1;
     emit("context-change");
     return snapshot();
   }
 
+  function updateContext(input = {}) {
+    const webBaseUrl = normalizeWebBaseUrl(input.webBaseUrl);
+    const weekIds = [...new Set((input.packs || []).map((pack) => pack?.weekId).filter(validWeekId))].sort();
+    const currentDeploymentKey = deploymentKey(connectivityState().deployment);
+    const fingerprint = `${webBaseUrl || "missing"}|${currentDeploymentKey}|${weekIds.join("|")}`;
+    if (fingerprint === context.fingerprint) return snapshot();
+    return replaceContext({ deploymentKey: currentDeploymentKey, fingerprint, webBaseUrl, weekIds });
+  }
+
+  function updateDeployment() {
+    const currentDeploymentKey = deploymentKey(connectivityState().deployment);
+    if (currentDeploymentKey === context.deploymentKey) return snapshot();
+    const fingerprint = `${context.webBaseUrl || "missing"}|${currentDeploymentKey}|${context.weekIds.join("|")}`;
+    return replaceContext({ ...context, deploymentKey: currentDeploymentKey, fingerprint });
+  }
+
   async function ensureCapability(weekId) {
-    if (!validWeekId(weekId)) return entryFor(null);
-    const current = entryFor(weekId);
-    if ((current.status === "available" && current.freshness === "fresh") || current.status === "unavailable") return current;
-    const checkedAt = current.checkedAt;
-    await refresh("ranking-click", { force: true, weekIds: [weekId] });
-    const refreshed = entryFor(weekId);
-    if (refreshed.status === "available" && refreshed.checkedAt === checkedAt && refreshed.freshness !== "fresh") {
-      return { ...refreshed, status: "unknown", reason: "revalidation-failed", url: null };
-    }
-    return refreshed;
+    return entryFor(validWeekId(weekId) ? weekId : null);
   }
 
   function stop() {
     disposed = true;
     context.generation += 1;
     activeController?.abort();
-    clearRefreshTimer();
+    clearRetryTimer();
     pendingIds = new Set();
     listeners.clear();
   }
@@ -534,25 +454,37 @@ function createRankingCapabilitiesService(options = {}) {
   return {
     config,
     ensureCapability,
+    forceRefresh: () => refresh("development-force", { force: true }),
     getCapability: entryFor,
     getDiagnostics(activeWeekId = null) {
+      const entries = currentEntries();
       return {
         activeWeekId,
         active: activeWeekId ? entryFor(activeWeekId) : null,
+        automaticTtlRefresh: false,
+        available: entries.filter((item) => item.status === "available").map((item) => item.weekId),
         cache: cacheSummary(),
-        endpoint: rankingCapabilitiesEndpoint(context.webBaseUrl),
+        checkedWeekIds: entries.filter((item) => ["available", "unavailable"].includes(item.status)).map((item) => item.weekId),
         configurationAvailable: Boolean(rankingCapabilitiesEndpoint(context.webBaseUrl)),
-        lastRequest: { ...lastRequest },
         context: {
-          activeInstanceKey: context.activeInstanceKey,
           contractVersion: RANKING_CONTRACT_VERSION,
+          deployment: context.deploymentKey,
+          fingerprint: context.fingerprint,
           generation: context.generation,
           inFlight: Boolean(inFlight),
           weekCount: context.weekIds.length,
           webBaseUrl: context.webBaseUrl,
         },
+        endpoint: rankingCapabilitiesEndpoint(context.webBaseUrl),
+        initialBatchAt,
+        lastForcedRefreshAt,
+        lastRequest: { ...lastRequest },
+        retryPending: retryTimer !== null,
         stateSequence,
         transitions: transitions.map((item) => ({ ...item })),
+        unavailable: entries.filter((item) => item.status === "unavailable").map((item) => item.weekId),
+        unknown: entries.filter((item) => ["unknown", "checking"].includes(item.status)).map((item) => item.weekId),
+        verificationMode: "session",
       };
     },
     getState: snapshot,
@@ -564,6 +496,7 @@ function createRankingCapabilitiesService(options = {}) {
       return () => listeners.delete(listener);
     },
     updateContext,
+    updateDeployment,
   };
 }
 

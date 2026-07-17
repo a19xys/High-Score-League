@@ -10,6 +10,8 @@ import { renderLibraryPanel } from "./components/library-panel.js";
 import { renderLogPanel } from "./components/log-panel.js";
 import { renderActivityDrawer } from "./components/queue-panel.js";
 import { getLibraryCapabilities } from "./library-capabilities.js";
+import { deriveRemoteAvailability } from "./remote-availability.js";
+import { getRankingActionState } from "./ranking-state.js";
 import {
   DEFAULT_OPERATION_MIN_VISIBLE_MS,
   runWithOperationFeedback,
@@ -774,12 +776,28 @@ async function toggleLibraryFavorite(packKey) {
 
 function applyConnectivityState(connectivityState) {
   if (!["offline", "connecting", "reconnecting", "connected"].includes(connectivityState?.displayStatus)) return;
+  const currentGeneration = Number(store.getState().connectivity?.reachabilityGeneration) || 0;
+  const nextGeneration = Number(connectivityState.reachabilityGeneration) || 0;
+  if (nextGeneration < currentGeneration) return;
   const receivedAt = new Date().toISOString();
   store.setState({ connectivity: { ...connectivityState, receivedAt } });
+  const appliedState = store.getState();
+  const remoteAvailability = deriveRemoteAvailability(appliedState.connectivity);
+  const ranking = getRankingActionState(appliedState, appliedState.data?.game);
+  const capability = appliedState.rankingCapabilities?.entries?.[appliedState.data?.game?.weekId];
+  const inconsistency = remoteAvailability.status === "offline" && ranking.available
+    ? "offline-ranking-enabled"
+    : remoteAvailability.status === "connected" && capability?.status === "available" && !ranking.available && !appliedState.rankingOpening
+      ? "connected-available-ranking-disabled"
+      : null;
   window.hslLauncher.reportConnectivityApplied?.({
     appliedAt: new Date().toISOString(),
     emittedAt: connectivityState.emittedAt || null,
+    inconsistency,
+    rankingEnabled: ranking.available,
     receivedAt,
+    remoteAvailability,
+    rendererStateRevision: appliedState.rendererStateRevision,
   });
 }
 
@@ -1647,6 +1665,10 @@ function bindActions() {
 
     if (action === "force-account-sync") {
       runAction(action, "Sincronizando cuentas", "Forzar sincronizacion", () => window.hslLauncher.forceAccountSync());
+    }
+
+    if (action === "force-ranking-refresh") {
+      runAction(action, "Comprobando rankings", "Forzar comprobacion de rankings", () => window.hslLauncher.requestRankingCapabilitiesRefresh());
     }
 
     if (action === "restore-failed") {

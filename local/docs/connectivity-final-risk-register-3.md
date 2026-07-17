@@ -12,7 +12,10 @@
 | Token local legible | P0 | Mitigado | safeStorage, envelope v2 y migracion verificada |
 | Linux sin keyring real | P1 | Aceptado | archivo 0600 y warning de backend degradado |
 | Configuracion remota Supabase incompatible | P1 | Pendiente | checklist manual; panel no verificado en esta sesion |
-| Ranking pierde available al revalidar | P1 | Cerrado en codigo | resultado confirmado + SWR acotado + secuencias |
+| Ranking pierde available por TTL | P1 | Cerrado | verificacion de sesion sin expiracion ni timer periodico |
+| Biblioteca invalida cambia health | P0 | Cerrado | origen global inmutable respecto al pack y seleccion |
+| Chip y controles divergen durante probe | P1 | Cerrado | selector comprometido unico y render atomico |
+| Cambio administrativo de Ranking en caliente | P2 | Aceptado | reinicio, cambio semantico o refresh de desarrollo |
 | Cola legacy ambigua | P1 | Mitigado | conservar y diagnosticar; no inferir dueno |
 | Cierre durante envio | P1 | Mitigado | invalidate y guardas; request emitida puede terminar |
 | Suspension | P1 | Mitigado en codigo | prueba fisica pendiente |
@@ -24,4 +27,5 @@ No queda P0 abierto. No se declara cerrada la validacion fisica hasta medir
 desconexion y recuperacion con foco, sin foco y minimizado sobre hardware real.
 
 Backlog deliberadamente fuera de alcance: CSP; overlay y densidad visual de la
-tarea 2; readiness, imagenes y tema inicial de la tarea 3.
+tarea 2; readiness, imagenes y tema inicial de la tarea 3. La comprobacion
+fisica prolongada de mas de diez minutos y Ethernet sigue siendo QA manual.

@@ -22,7 +22,12 @@ function isStableConnected(state = {}) {
     deriveConnectivityDisplayState(state) === "connected";
 }
 
+function isCommittedConnected(state = {}) {
+  return state.reachability === "connected";
+}
+
 module.exports = {
   deriveConnectivityDisplayState,
+  isCommittedConnected,
   isStableConnected,
 };

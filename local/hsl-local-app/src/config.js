@@ -26,6 +26,7 @@ function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR) {
     ...config,
     defaultWeekId: config.defaultWeekId || pack?.weekId,
     eventsBaseDir: config.eventsBaseDir,
+    globalWebBaseUrl: config.webBaseUrl || null,
     sessionFile,
     userDataDir: config.userDataDir || "auto",
     webBaseUrl: config.webBaseUrl || pack?.webBaseUrl,

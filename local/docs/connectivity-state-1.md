@@ -5,9 +5,16 @@ Main es la autoridad de reachability. `net.isOnline`, eventos renderer y
 confirma `connected`. HTTP alcanzable con error de producto, incluido 503,
 confirma reachability sin convertir el producto en disponible.
 
-El header oculta `unknown` y solo muestra estados estables. Un probe manual
-mantiene la etiqueta y deshabilita temporalmente refresh. El selector acepta
-`null`, `undefined`, objeto vacio y estados parciales.
+`Conectado` significa exclusivamente que el launcher alcanza el health fiable
+del origen HSL global configurado. No describe biblioteca, pack, sesion,
+membership, Ranking ni posibilidad de enviar una puntuacion. El origen procede
+de `config.webBaseUrl`; un pack nunca puede sustituirlo.
+
+El selector canonico deriva disponibilidad solo de `reachability` comprometido.
+El header oculta `unknown`. Un probe manual o retry conserva la etiqueta y la
+compuerta anterior; solo deshabilita temporalmente refresh. El selector acepta
+`null`, `undefined`, objeto vacio y estados parciales. Ranking y las restantes
+acciones remotas usan el mismo selector, no `displayStatus` ni `probe.phase`.
 
 Politica desde RECOVERY-5:
 
@@ -35,3 +42,7 @@ incluye generaciones, hash de topologia, conteos agregados de interfaces,
 health iniciados/deduplicados, confirmaciones, heartbeats y transporte. No
 publica IP, token, cookie ni body. `Failed to read DnsConfig` no se analiza ni
 se usa como senal.
+
+El renderer rechaza generaciones antiguas y aplica cada snapshot de
+conectividad en una unica escritura del store. Chip, Ranking y futuros controles
+remotos se derivan durante el mismo render.

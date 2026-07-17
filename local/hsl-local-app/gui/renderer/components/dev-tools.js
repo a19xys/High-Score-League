@@ -1,5 +1,6 @@
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
+import { deriveRemoteAvailability } from "../remote-availability.js";
 
 function valueOrDash(value) {
   if (value === undefined || value === null || value === "") {
@@ -74,9 +75,16 @@ export function renderDevTools(state) {
     : data?.bridge?.devBridge
       ? "modo desarrollo puente"
       : data?.bridge?.mode || "desconocido";
+  const remoteAvailable = deriveRemoteAvailability(state.connectivity).available;
   const forceAccountSync = data?.bridge?.devBridge
-    ? `<button class="tool-button" type="button" data-action="force-account-sync" ${disabled}>
+    ? `<button class="tool-button" type="button" data-action="force-account-sync" ${disabled || !remoteAvailable ? "disabled" : ""}>
         Forzar sincronizacion de cuentas elegibles
+        <small>Solo desarrollo</small>
+      </button>`
+    : "";
+  const forceRankingRefresh = data?.bridge?.devBridge
+    ? `<button class="tool-button" type="button" data-action="force-ranking-refresh" ${disabled || !remoteAvailable ? "disabled" : ""}>
+        Forzar comprobacion de rankings
         <small>Solo desarrollo</small>
       </button>`
     : "";
@@ -117,7 +125,7 @@ export function renderDevTools(state) {
         <button class="tool-button" type="button" data-action="diagnose" ${disabled}>
           Diagnosticar
         </button>
-        <button class="tool-button" type="button" data-action="check-membership" ${disabled}>
+        <button class="tool-button" type="button" data-action="check-membership" ${disabled || !remoteAvailable ? "disabled" : ""}>
           Comprobar de nuevo
           <small>Temporada</small>
         </button>
@@ -130,6 +138,7 @@ export function renderDevTools(state) {
           <small>Legacy / deprecated</small>
         </button>
         ${forceAccountSync}
+        ${forceRankingRefresh}
         <button class="tool-button" type="button" data-action="logout" ${disabled}>
           Cerrar sesión local
         </button>

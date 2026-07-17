@@ -1,5 +1,6 @@
 const {
   deriveConnectivityDisplayState,
+  isCommittedConnected,
   isStableConnected,
 } = require("./connectivity-state");
 const {
@@ -565,6 +566,7 @@ module.exports = {
   createConnectivityService,
   deriveConnectivityDisplayState,
   healthEndpoint,
+  isCommittedConnected,
   isStableConnected,
   normalizeWebBaseUrl,
   probePhaseFor,

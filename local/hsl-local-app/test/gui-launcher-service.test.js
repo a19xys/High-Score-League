@@ -2472,6 +2472,7 @@ test("deriveOpenedPackConfig resolves MAME and plugin queue from the opened pack
       supabaseAnonKey: "anon-key",
       supabaseUrl: "https://example.supabase.co",
       userDataDir: path.join(dir, "userData"),
+      globalWebBaseUrl: "https://dev.example",
       webBaseUrl: "https://dev.example",
     };
 
@@ -2480,7 +2481,10 @@ test("deriveOpenedPackConfig resolves MAME and plugin queue from the opened pack
 
     assert.equal(config.configSource, "pack abierto");
     assert.equal(config.defaultWeekId, "week-1");
-    assert.equal(config.webBaseUrl, "https://high-score-league.example");
+    assert.equal(config.webBaseUrl, "https://dev.example");
+    assert.equal(config.pack.webBaseUrl, "https://dev.example");
+    assert.equal(config.pack.declaredWebBaseUrl, "https://high-score-league.example");
+    assert.match(config.pack.metadataWarnings.join(" "), /no coincide con el origen HSL/);
     assert.equal(config.mame.executablePath, path.join(packMameRoot, "mame.exe"));
     assert.equal(config.mame.workingDir, packMameRoot);
     assert.equal(config.mame.pluginName, "hsl-score");
@@ -2489,6 +2493,31 @@ test("deriveOpenedPackConfig resolves MAME and plugin queue from the opened pack
     assert.equal(config.eventsFailedDirAbs, path.join(packMameRoot, "plugins", "hsl-score", "events", "failed"));
     assert.equal(config.sessionFileAbs, baseConfig.sessionFileAbs);
     assert.equal(config.configPath, baseConfig.configPath);
+  });
+});
+
+test("pack webBaseUrl never overrides the trusted launcher origin", async () => {
+  await withTempDir(async (dir) => {
+    const baseConfig = {
+      globalWebBaseUrl: "https://hsl.example",
+      userDataDir: path.join(dir, "userData"),
+      webBaseUrl: "https://hsl.example",
+    };
+    for (const declared of [undefined, "https://hsl.example/path", "https://foreign.example", "not-a-url"]) {
+      const pack = {
+        ...validPack(),
+        packPath: path.join(dir, "pack.json"),
+        packRoot: dir,
+        webBaseUrl: declared,
+      };
+      const config = deriveOpenedPackConfig(baseConfig, pack);
+      assert.equal(config.webBaseUrl, "https://hsl.example");
+      assert.equal(config.pack.webBaseUrl, "https://hsl.example");
+      assert.equal(config.pack.declaredWebBaseUrl, declared || null);
+      if (declared && !declared.startsWith("https://hsl.example")) {
+        assert.ok(config.pack.metadataWarnings.length > 0);
+      }
+    }
   });
 });
 

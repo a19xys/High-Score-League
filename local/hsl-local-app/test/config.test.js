@@ -47,6 +47,16 @@ test("loadConfig resolves explicit queue paths and legacy default session path",
   });
 });
 
+test("loadConfig preserves a distinct trusted global HSL origin", async () => {
+  await withTempDir(async (dir) => {
+    const configPath = path.join(dir, "config.json");
+    await fsp.writeFile(configPath, JSON.stringify({ webBaseUrl: "https://hsl.example" }), "utf8");
+    const config = loadConfig(configPath, dir);
+    assert.equal(config.globalWebBaseUrl, "https://hsl.example");
+    assert.equal(config.webBaseUrl, "https://hsl.example");
+  });
+});
+
 test("loadConfig derives queue paths from eventsBaseDir", async () => {
   await withTempDir(async (dir) => {
     const configPath = path.join(dir, "config.json");

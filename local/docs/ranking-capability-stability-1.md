@@ -1,23 +1,28 @@
 # RANKING CAPABILITY STABILITY 1
 
-La oscilacion procedia de sustituir un resultado `available` confirmado por un
-estado intermedio cada vez que comenzaba una revalidacion o llegaba un contexto
-equivalente con nueva identidad de objeto. Tambien existia riesgo de que una
-respuesta antigua pisara un IPC posterior.
+El flicker de cinco minutos tenia dos causas: el renderer exigia
+`expiresAt > Date.now()` y el servicio programaba revalidacion al vencer el TTL.
+Ademas, `activeInstanceKey` formaba parte del fingerprint y de la cache aunque
+la capacidad pertenece a una semana, no a una tarjeta visual.
 
-El servicio conserva por separado el ultimo resultado confirmado, el estado de
-revalidacion y el ultimo error temporal. La cache distingue `fresh`,
-`revalidating`, `soft-stale` y `hard-expired`, con 60 s de gracia soft-stale.
-Durante esa gracia Ranking sigue disponible solo si conectividad, weekId,
-origen, deployment y `activeInstanceKey` siguen siendo compatibles. Al abrir
-Ranking desde soft-stale se fuerza revalidacion y no se abre si falla.
+Ranking usa ahora verificacion de duracion de proceso. `available` y
+`unavailable` son concluyentes hasta cerrar la app o hasta un cambio semantico
+real de origen/deployment/weekIds. No existen TTL, soft-stale, hard-expired ni
+timer periodico para resultados concluyentes.
 
-El fingerprint normaliza y ordena weekIds y usa la instancia activa del pack.
-Cambios de cola, contadores, autoenvio u objetos semanticamente equivalentes no
-invalidan la capacidad. Cambios reales de pack, origen, weekId, deployment,
-offline o unavailable confirmado si la invalidan.
+La cache key es `trustedOrigin + deploymentKey + weekId`. El fingerprint es el
+origen global, deployment y lista ordenada de weekIds. Cuenta, membership,
+cola, seleccion, orden y `activeInstanceKey` quedan fuera.
 
-Cada snapshot lleva `stateSequence`, `contextGeneration` y
-`requestGeneration`. El renderer ignora secuencias menores a la aplicada. Un
-ring buffer acotado a 75 transiciones conserva triggers, estados, razones,
-cache, tiempos, pack y generaciones sin secretos.
+Al conocer la biblioteca se consulta un batch con todas las semanas unicas. Un
+cambio posterior consulta solo IDs nuevos o sin resultado. Startup offline
+mantiene unknown y recovery consulta inmediatamente. Un deployment diferente
+invalida el namespace anterior y vuelve a consultar todas las semanas actuales.
+
+Los errores temporales permanecen unknown y tienen retry limitado. Nunca
+sobrescriben un resultado concluyente previo. La accion de desarrollo
+"Forzar comprobacion de rankings" puede revalidar explicitamente el batch.
+
+Cada snapshot conserva `stateSequence`, `contextGeneration` y
+`requestGeneration`; respuestas stale no escriben cache y el renderer ignora
+secuencias anteriores. El ring buffer sigue acotado a 75 transiciones.

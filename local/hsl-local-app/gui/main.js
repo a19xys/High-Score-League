@@ -1,12 +1,13 @@
 const path = require("node:path");
 const { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, safeStorage, shell } = require("electron");
 const service = require("./launcher-service");
-const { createConnectivityService, isStableConnected } = require("../src/connectivity-service");
+const { createConnectivityService, isCommittedConnected } = require("../src/connectivity-service");
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
 const { classifyMembershipConnectivitySignal } = require("../src/remote-connectivity-signals");
 const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
 const { configureSessionProtection, getSessionStorageDiagnostics } = require("../src/secure-session-storage");
+const { deriveRemoteAvailability } = require("./shared/remote-availability");
 
 if (process.env.HSL_ELECTRON_VERBOSE_LOGGING === "1") {
   app.commandLine.appendSwitch("enable-logging");
@@ -23,11 +24,20 @@ let activeRankingWeekId = null;
 let removeConnectivityListener = null;
 let removeRankingListener = null;
 let previousReachability = "unknown";
+let lastCommittedAt = null;
 let activeUserId = null;
 let pendingAutoSubmitCoordinator = null;
 let connectivityRendererTiming = { appliedAt: null, emittedAt: null, receivedAt: null };
 let rankingRendererTiming = { appliedAt: null, receivedAt: null, stateSequence: 0 };
 let sessionMaintenanceTimer = null;
+let trustedGlobalOrigin = null;
+let trustedGlobalOriginSource = "config.webBaseUrl";
+let lastLibraryRemoteContext = {
+  connectivityUnaffected: true,
+  directoryClassification: null,
+  libraryStatus: null,
+  selection: null,
+};
 const CONNECTIVITY_REFRESH_REASONS = new Set([
   "manual",
   "connection-change",
@@ -58,7 +68,6 @@ function schedulePendingAutoSubmit(trigger) {
 
 function syncRemoteContext(state) {
   if (!state || !connectivity || !rankingCapabilities) return state;
-  const webBaseUrl = state.bridge?.webBaseUrl || null;
   const nextUserId = state.session?.hasSession ? state.session.userId || null : null;
   const accountChanged = nextUserId !== activeUserId;
   if (accountChanged) {
@@ -67,14 +76,18 @@ function syncRemoteContext(state) {
     activeUserId = nextUserId;
   }
   activeRankingWeekId = state.game?.weekId || null;
-  connectivity.setWebBaseUrl(webBaseUrl).catch(() => {});
+  lastLibraryRemoteContext = {
+    connectivityUnaffected: true,
+    directoryClassification: state.library?.directory?.classification || state.library?.directory?.reason || null,
+    libraryStatus: state.library?.status || null,
+    selection: state.selection?.activeInstanceKey || null,
+  };
   rankingCapabilities.updateContext({
-    activeInstanceKey: state.selection?.activeInstanceKey || null,
     packs: state.library?.packs || [],
-    webBaseUrl,
+    webBaseUrl: trustedGlobalOrigin,
   });
 
-  if (isStableConnected(connectivity.getState())) {
+  if (isCommittedConnected(connectivity.getState())) {
     rankingCapabilities.refresh("launcher-state").catch(() => {});
   }
 
@@ -100,6 +113,8 @@ async function withRemoteContext(promise) {
 
 function initializeRemoteServices() {
   const bootstrap = service.getRemoteBootstrapState();
+  trustedGlobalOrigin = bootstrap.webBaseUrl || null;
+  trustedGlobalOriginSource = bootstrap.originSource || "config.webBaseUrl";
   connectivity = createConnectivityService({
     fetchImpl: (url, init) => net.fetch(url, init),
     netIsOnline: () => net.isOnline(),
@@ -155,6 +170,13 @@ function initializeRemoteServices() {
     sessionStorage: getSessionStorageDiagnostics(),
     connectivity: {
       ...connectivity.getDiagnostics(),
+      committedReachability: connectivity.getState().reachability,
+      lastCommittedAt,
+      probePhase: connectivity.getState().probe?.phase || "idle",
+      originSource: trustedGlobalOriginSource,
+      remoteAvailability: deriveRemoteAvailability(connectivity.getState()),
+      remoteAvailabilityGeneration: deriveRemoteAvailability(connectivity.getState()).generation,
+      trustedGlobalOrigin,
       renderer: connectivityRendererTiming,
       topology: topologyMonitor.getDiagnostics(),
       window: {
@@ -166,17 +188,19 @@ function initializeRemoteServices() {
       ...rankingCapabilities.getDiagnostics(activeRankingWeekId),
       renderer: rankingRendererTiming,
     },
+    libraryRemoteContext: { ...lastLibraryRemoteContext },
   }));
   removeConnectivityListener = connectivity.subscribe((state) => {
-    sendRendererEvent("launcher:connectivity-state", state);
-
     const becameConnected = state.reachability === "connected" && previousReachability !== "connected";
+    if (state.reachability !== previousReachability && ["connected", "offline"].includes(state.reachability)) {
+      lastCommittedAt = state.emittedAt || state.checkedAt || new Date().toISOString();
+    }
     previousReachability = state.reachability;
-    if (isStableConnected(state)) {
-      rankingCapabilities.refresh("connectivity-restored").catch(() => {});
+    rankingCapabilities.updateDeployment();
+    sendRendererEvent("launcher:connectivity-state", state);
+    if (isCommittedConnected(state)) {
+      rankingCapabilities.refresh(becameConnected ? "connectivity-restored" : "connectivity-confirmed").catch(() => {});
       if (becameConnected) schedulePendingAutoSubmit(state.source === "startup" ? "startup" : "connectivity-restored");
-    } else {
-      sendRendererEvent("launcher:ranking-capabilities-state", rankingCapabilities.getState());
     }
   });
   removeRankingListener = rankingCapabilities.subscribe((state) => {
@@ -317,7 +341,11 @@ function registerIpc() {
     connectivityRendererTiming = {
       appliedAt: timing?.appliedAt || null,
       emittedAt: timing?.emittedAt || null,
+      inconsistency: timing?.inconsistency || null,
+      rankingEnabled: timing?.rankingEnabled === true,
       receivedAt: timing?.receivedAt || null,
+      remoteAvailability: timing?.remoteAvailability || null,
+      rendererStateRevision: Number(timing?.rendererStateRevision) || 0,
     };
   });
   ipcMain.on("launcher:ranking-applied", (_event, timing) => {
@@ -338,7 +366,31 @@ function registerIpc() {
     return connectivity.refresh(safeReason, { force: true, phase: "manual" });
   });
   ipcMain.handle("launcher:get-ranking-capabilities-state", () => rankingCapabilities.getState());
-  ipcMain.handle("launcher:request-ranking-capabilities-refresh", () => rankingCapabilities.refresh("renderer-request"));
+  ipcMain.handle("launcher:request-ranking-capabilities-refresh", async () => {
+    const state = await service.getLauncherState({ deferRemoteMembership: true });
+    if (!state.bridge?.devBridge) {
+      return {
+        action: "force-ranking-refresh",
+        lines: ["La comprobacion forzada de rankings solo esta disponible en desarrollo."],
+        ok: false,
+        state,
+        summary: "Accion disponible solo en desarrollo.",
+      };
+    }
+    await rankingCapabilities.forceRefresh();
+    const summary = rankingCapabilities.getDiagnostics(activeRankingWeekId);
+    return {
+      action: "force-ranking-refresh",
+      lines: [
+        `Disponibles: ${summary.available.length}.`,
+        `No disponibles: ${summary.unavailable.length}.`,
+        `Sin confirmar: ${summary.unknown.length}.`,
+      ],
+      ok: true,
+      state,
+      summary: "Comprobacion de rankings completada.",
+    };
+  });
   ipcMain.handle("launcher:get-auth-state", () => service.getAuthStateForGui());
   ipcMain.handle("launcher:login", async (_event, credentials) => {
     service.invalidatePendingAutoSubmit("login");
@@ -447,7 +499,7 @@ function registerIpc() {
     const state = await service.getLauncherState();
     syncRemoteContext(state);
     const weekId = state.game?.weekId || null;
-    const webBaseUrl = state.bridge?.webBaseUrl || null;
+    const webBaseUrl = trustedGlobalOrigin;
 
     if (!weekId) {
       return {
@@ -459,19 +511,7 @@ function registerIpc() {
       };
     }
 
-    if (!isStableConnected(connectivity.getState())) {
-      const summary = connectivity.getState().displayStatus === "offline"
-        ? "Necesitas conexion para abrir el ranking."
-        : "Comprobando conexion con High Score League.";
-      return { action: "open-ranking", lines: [summary], ok: false, summary, state };
-    }
-
-    const connection = await connectivity.refresh("ranking-click", {
-      maxAgeMs: connectivity.config.focusStaleMs,
-      phase: "background",
-    });
-
-    if (!isStableConnected(connection)) {
+    if (!deriveRemoteAvailability(connectivity.getState()).available) {
       const summary = "Necesitas conexion para abrir el ranking.";
       return { action: "open-ranking", lines: [summary], ok: false, summary, state };
     }
@@ -481,7 +521,7 @@ function registerIpc() {
     const safeUrl = safeRankingUrl(capability.url, webBaseUrl);
     const contextStillMatches = activeRankingWeekId === weekId;
 
-    if (!isStableConnected(connectivity.getState()) || !contextStillMatches ||
+    if (!deriveRemoteAvailability(connectivity.getState()).available || !contextStillMatches ||
         capability.weekId !== weekId || capability.status !== "available" || !safeUrl) {
       const summary = capability.status === "unavailable"
         ? "El ranking todavia no esta disponible."

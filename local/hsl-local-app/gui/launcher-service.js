@@ -116,7 +116,8 @@ function getRemoteBootstrapState() {
   const config = loadRuntimeConfig();
 
   return {
-    webBaseUrl: config.webBaseUrl || null,
+    originSource: "config.webBaseUrl",
+    webBaseUrl: config.globalWebBaseUrl || null,
   };
 }
 
@@ -221,6 +222,27 @@ function invalidatePendingAutoSubmit(reason = "context-change") {
 }
 
 function deriveOpenedPackConfig(baseConfig, pack) {
+  const trustedWebBaseUrl = baseConfig.globalWebBaseUrl !== undefined
+    ? baseConfig.globalWebBaseUrl
+    : baseConfig.webBaseUrl || null;
+  const declaredWebBaseUrl = pack.webBaseUrl || null;
+  let originWarning = null;
+  try {
+    if (declaredWebBaseUrl && trustedWebBaseUrl && new URL(declaredWebBaseUrl).origin !== new URL(trustedWebBaseUrl).origin) {
+      originWarning = "El webBaseUrl del pack no coincide con el origen HSL del launcher y se ha ignorado.";
+    }
+  } catch {
+    if (declaredWebBaseUrl) originWarning = "El webBaseUrl del pack no es un origen valido y se ha ignorado.";
+  }
+  const normalizedPack = {
+    ...pack,
+    declaredWebBaseUrl,
+    metadataWarnings: [
+      ...(pack.metadataWarnings || []),
+      ...(originWarning ? [originWarning] : []),
+    ],
+    webBaseUrl: trustedWebBaseUrl,
+  };
   const pluginName = getPackPluginName(pack);
   const requiresSharedMameRuntime = pack?.packVersion === 2 || pack?.contract?.version === 2;
   const mame = {
@@ -269,13 +291,13 @@ function deriveOpenedPackConfig(baseConfig, pack) {
     legacyEventsSentDirAbs: requiresSharedMameRuntime ? eventsSentDirAbs : null,
     mame,
     mameSource: requiresSharedMameRuntime ? "shared-runtime-pending" : "opened-pack",
-    pack,
+    pack: normalizedPack,
     packErrors: pack.errors || [],
     packLoaded: true,
     packPath: pack.packPath,
     packRoot: pack.packRoot,
     requiresSharedMameRuntime,
-    webBaseUrl: pack.webBaseUrl || baseConfig.webBaseUrl,
+    webBaseUrl: trustedWebBaseUrl,
   };
 }
 
