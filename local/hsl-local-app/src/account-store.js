@@ -101,14 +101,23 @@ function normalizeStore(raw, warnings = []) {
     uniqueAccounts.push(account);
   }
 
+  const requestedActiveUserId = sanitizeString(raw?.lastActiveUserId);
+  const lastActiveUserId = requestedActiveUserId && uniqueAccounts.some((account) => account.userId === requestedActiveUserId)
+    ? requestedActiveUserId
+    : null;
+  const normalizedWarnings = [...warnings];
+  if (raw?.lastActiveUserId !== null && raw?.lastActiveUserId !== undefined && !lastActiveUserId) {
+    normalizedWarnings.push("lastActiveUserId no referencia una cuenta existente; se ha reparado a null.");
+  }
+
   return {
     accounts: uniqueAccounts,
     corrupt: false,
-    lastActiveUserId: sanitizeString(raw?.lastActiveUserId),
+    lastActiveUserId,
     revision: Math.max(0, Number(raw?.revision) || 0),
     schemaVersion: 2,
     updatedAt: sanitizeString(raw?.updatedAt),
-    warnings,
+    warnings: normalizedWarnings,
   };
 }
 
@@ -140,9 +149,14 @@ async function readKnownAccounts(config = {}) {
 async function writeKnownAccountsUnlocked(config = {}, store, options = {}) {
   const filePath = getKnownAccountsPath(config);
   const updatedAt = options.now || new Date().toISOString();
+  const accounts = Array.isArray(store.accounts) ? store.accounts : [];
+  const requestedActiveUserId = sanitizeString(store.lastActiveUserId);
+  const lastActiveUserId = requestedActiveUserId && accounts.some((account) => sanitizeString(account?.userId) === requestedActiveUserId)
+    ? requestedActiveUserId
+    : null;
   const data = {
-    accounts: store.accounts || [],
-    lastActiveUserId: store.lastActiveUserId || null,
+    accounts,
+    lastActiveUserId,
     revision: Number(store.revision) || 1,
     schemaVersion: 2,
     updatedAt,
@@ -203,13 +217,22 @@ async function rememberAccount(config = {}, accountInput = {}, options = {}) {
   return mutateKnownAccounts(config, (current) => {
     const existing = current.accounts.find((item) => item.userId === account.userId);
     const accounts = current.accounts.filter((item) => item.userId !== account.userId);
+    const explicitInitials = sanitizeString(accountInput.initials)?.toUpperCase().replace(/[^A-Z0-9]/g, "") || null;
     accounts.unshift({
       ...existing,
       ...account,
       addedAt: existing?.addedAt || account.addedAt,
+      avatarUrl: account.avatarUrl || existing?.avatarUrl || null,
+      displayName: account.displayName || existing?.displayName || null,
+      email: account.email || existing?.email || null,
+      initials: explicitInitials || existing?.initials || account.initials,
       lastUsedAt: now,
       requiresLogin: options.requiresLogin ?? existing?.requiresLogin ?? false,
-      sessionRevision: options.sessionRevision ?? existing?.sessionRevision ?? 0,
+      sessionRevision: Math.max(
+        Number(existing?.sessionRevision) || 0,
+        Number(account.sessionRevision) || 0,
+        Number(options.sessionRevision) || 0,
+      ),
     });
     return { accounts, lastActiveUserId: options.setActive === false ? current.lastActiveUserId : account.userId };
   }, { ...options, now });
@@ -287,7 +310,8 @@ function toSafeAccountsState(store = emptyStore(), session = {}, options = {}) {
   const sessionStatuses = options.sessionStatuses || new Map();
   const accounts = store.accounts.map((account) => {
     const sessionState = sessionStatuses.get(account.userId) || null;
-    const requiresLogin = account.requiresLogin === true || (Number(sessionState?.pendingCount) > 0
+    const hasPending = Number(sessionState?.pendingCount) > 0;
+    const requiresLogin = account.requiresLogin === true || sessionState?.requiresLogin === true || (hasPending
       && ["corrupt", "revoked", "unavailable"].includes(sessionState?.status));
 
     return {
@@ -300,7 +324,9 @@ function toSafeAccountsState(store = emptyStore(), session = {}, options = {}) {
       lastUsedAt: account.lastUsedAt,
       requiresLogin,
       requiresLoginMessage: requiresLogin
-        ? "Esta cuenta tiene puntuaciones pendientes. Inicia sesion para enviarlas."
+        ? hasPending
+          ? "Esta cuenta tiene puntuaciones pendientes. Inicia sesion para enviarlas."
+          : "Inicia sesion de nuevo para usar esta cuenta."
         : null,
       sessionStatus: sessionState?.status || null,
       userId: account.userId,

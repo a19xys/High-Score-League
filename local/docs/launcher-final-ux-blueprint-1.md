@@ -417,6 +417,13 @@ la unica autoridad por `userId`. La activa es solo `lastActiveUserId`, switch no
 copia tokens y GUI/CLI comparten repositorio y locks. `session.json` queda
 limitado a migracion legacy y se elimina despues de verificar el destino.
 
+La estabilización posterior separa presencia local de aptitud remota: la UI
+puede mostrar una cuenta recordada mientras membership e ingest permanecen
+`auth-deferred` o `auth-required`. Revisión persistente, tombstones, binding de
+proveedor y drain son infraestructura; no deben exponerse como jerga en la
+pantalla principal. Véase
+[canonical-account-sessions-stabilization-2.md](canonical-account-sessions-stabilization-2.md).
+
 ## Iconos y marca
 
 La web puede reutilizar recursos existentes:
@@ -513,6 +520,9 @@ Orden recomendado:
 
 - `auto-sync-queue-1.md` implementa la primera sincronizacion automatica
   conservadora sobre la cola scoped activa, sin cambiar payloads ni endpoint.
+- `canonical-account-sessions-stabilization-2.md` fija la matriz de auth,
+  umbrales remotos, ledger/tombstones, orden de locks, recuperación y el
+  protocolo de staging todavía pendiente.
 - `shared-mame-runtime-blueprint-1.md` define el destino final de runtime MAME
   compartido, packs ligeros, directorio unico de packs y carga futura de
   plugin/adaptadores.

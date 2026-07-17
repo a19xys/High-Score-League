@@ -40,6 +40,9 @@ let pendingAutoSubmitCoordinator = null;
 let connectivityRendererTiming = { appliedAt: null, emittedAt: null, receivedAt: null };
 let rankingRendererTiming = { appliedAt: null, receivedAt: null, stateSequence: 0 };
 let sessionMaintenanceTimer = null;
+let quitAfterSessionDrain = false;
+let quitDrainPromise = null;
+let suspendDrainPromise = null;
 let productOperationsController = new AbortController();
 const developerToolsEnabled = deriveDeveloperToolsEnabled({
   environment: process.env,
@@ -66,11 +69,16 @@ function handlePowerSuspend() {
   service.cancelAccountSessionOperations(null, "suspend");
   service.cancelPendingAutoSubmit("suspend");
   pendingAutoSubmitCoordinator?.cancelCurrentRun("suspend");
+  suspendDrainPromise = Promise.resolve(service.drainAccountSessionOperations?.({
+    reason: "suspend",
+    timeoutMs: 2000,
+  })).catch(() => null);
   topologyMonitor?.stop();
   connectivity?.setActivity("suspended", "suspend");
 }
 
 function handlePowerResume() {
+  suspendDrainPromise = null;
   productOperationsController = new AbortController();
   connectivity?.setActivity("active", "resume");
   topologyMonitor?.start();
@@ -92,7 +100,7 @@ function schedulePendingAutoSubmit(trigger) {
   pendingAutoSubmitCoordinator?.request(trigger).catch(() => {});
 }
 
-function syncRemoteContext(state) {
+function syncRemoteContext(state, options = {}) {
   if (state) {
     state.developerToolsEnabled = developerToolsEnabled;
     state.remoteConfiguration = remoteConfiguration;
@@ -124,7 +132,9 @@ function syncRemoteContext(state) {
     requestConnectivityConfirmation("membership-product-signal");
   }
 
-  schedulePendingAutoSubmit(accountChanged ? "account-change" : "state-ready");
+  if (options.scheduleAutoSubmit !== false) {
+    schedulePendingAutoSubmit(accountChanged ? "account-change" : "state-ready");
+  }
 
   return state;
 }
@@ -173,7 +183,7 @@ function initializeRemoteServices() {
     async onResult(result, context) {
       if (result?.transportFailure) requestConnectivityConfirmation("auto-submit-product-signal");
       const state = await service.getLauncherState({ deferRemoteMembership: true });
-      syncRemoteContext(state);
+      syncRemoteContext(state, { scheduleAutoSubmit: false });
       sendRendererEvent("launcher:state", { autoSubmit: result, state });
     },
     run: (context) => service.runPendingAutoSubmitForAccounts({
@@ -256,9 +266,9 @@ function initializeSecureSessionStorage() {
   });
 }
 
-function stopRemoteServices() {
+async function stopRemoteServices() {
   productOperationsController.abort("shutdown");
-  service.shutdownAccountSessions();
+  const sessionDrain = service.shutdownAccountSessions({ reason: "shutdown", timeoutMs: 3000 });
   service.cancelPendingAutoSubmit("shutdown");
   pendingAutoSubmitCoordinator?.cancelCurrentRun("shutdown");
   removeConnectivityListener?.();
@@ -272,6 +282,7 @@ function stopRemoteServices() {
   connectivity?.stop();
   service.setRemoteDiagnosticsProvider(null);
   service.setRemoteOperationSignalProvider(null);
+  return sessionDrain;
 }
 
 async function prepareRemoteAction(source) {
@@ -648,10 +659,18 @@ if (!hasSingleInstanceLock) {
     });
   });
 
-  app.on("before-quit", () => {
+  app.on("before-quit", (event) => {
+    if (quitAfterSessionDrain) return;
+    event.preventDefault();
+    if (quitDrainPromise) return;
     powerMonitor.removeListener("suspend", handlePowerSuspend);
     powerMonitor.removeListener("resume", handlePowerResume);
-    stopRemoteServices();
+    quitDrainPromise = Promise.resolve(stopRemoteServices())
+      .catch(() => null)
+      .finally(() => {
+        quitAfterSessionDrain = true;
+        app.quit();
+      });
   });
 
   app.on("window-all-closed", () => {

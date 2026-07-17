@@ -159,6 +159,8 @@ function createPendingAutoSubmitCoordinator(options = {}) {
     if (result.authFailure) {
       authBlockedKey = guardKey;
       setDeferred(result.reason || "auth-required", { authBlocked: true });
+    } else if (result.sessionDeferred) {
+      setDeferred(result.reason || "session-deferred", { authBlocked: false });
     } else if (result.retryable || result.transportFailure || result.status === "deferred") {
       const backoffMs = RETRY_BACKOFF_MS[Math.min(retryAttempt, RETRY_BACKOFF_MS.length - 1)];
       retryAttempt += 1;

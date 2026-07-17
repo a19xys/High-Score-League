@@ -1,9 +1,7 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const {
-  clearActiveAccount,
   readKnownAccounts,
-  removeKnownAccount,
   toSafeAccountsState,
 } = require("../src/account-store");
 const { loadConfig } = require("../src/config");
@@ -17,11 +15,16 @@ const {
 const {
   getAccountSessionRepository,
   getAuthState,
-  isSessionExpiringSoon,
   logoutLocal,
-  readSession,
+  resolveCanonicalSessionResult,
   signInWithPassword,
 } = require("../src/auth");
+const {
+  isSessionDeferred,
+  isSessionLocallyAvailable,
+  isSessionRemoteUsable,
+  requiresSessionLogin,
+} = require("../src/session-result");
 const { buildDiagnoseReport } = require("../src/diagnose");
 const { writeDiagnosticReport } = require("../src/diagnostic-logs");
 const { listJsonFiles, readEventFile } = require("../src/event-files");
@@ -101,24 +104,33 @@ function sessionRepository(config = loadRuntimeConfig()) {
 
 const accountSessionCoordinator = {
   async resolve(account, config, options = {}) {
-    const result = await sessionRepository(config).resolve(account.userId, {
+    const resolveSessionResult = options.resolveSessionResultImpl || resolveCanonicalSessionResult;
+    const result = await resolveSessionResult(config, {
       connected: options.connected === true,
       force: options.force === true,
+      userId: account.userId,
     });
-    const status = result.status === "valid" ? "valid"
-      : result.status === "corrupt" ? "corrupt"
-      : result.status === "revoked" ? "revoked"
-      : result.storedSession ? "deferred-offline" : "unavailable";
     const state = {
       accessTokenExpiresAt: result.storedSession?.session?.expires_at || null,
       active: options.active === true,
+      hasLocalSession: isSessionLocallyAvailable(result),
       pendingCount: accountSessionStates.get(account.userId)?.pendingCount || 0,
+      remoteUsable: isSessionRemoteUsable(result),
+      requiresLogin: requiresSessionLogin(result),
       sessionRevision: Number(result.sessionRevision) || 0,
-      status,
+      status: result.status,
       userHash: `user_${hashPart(account.userId, 12)}`,
     };
     accountSessionStates.set(account.userId, state);
-    return { remembered: result, sessionRevision: state.sessionRevision, status, storedSession: result.storedSession };
+    return {
+      remembered: result,
+      remoteUsable: state.remoteUsable,
+      requiresLogin: state.requiresLogin,
+      sessionResult: result,
+      sessionRevision: state.sessionRevision,
+      status: result.status,
+      storedSession: result.storedSession,
+    };
   },
   getDiagnostics() { return [...accountSessionStates.values()].map((state) => ({ ...state })); },
   getState(userId) { return accountSessionStates.get(userId) || null; },
@@ -197,14 +209,24 @@ async function getPendingAutoSubmitContexts(options = {}) {
   });
   const accountContexts = [];
   const accounts = [];
+  const totals = { invalidPending: 0, pending: 0, validPending: 0 };
+  const sessionSummary = {
+    loginRequiredPendingCount: 0,
+    sessionDeferredPendingCount: 0,
+    unavailablePendingCount: 0,
+  };
   for (const account of ordered) {
     const resolved = await accountSessionCoordinator.resolve(account, config, {
       active: account.userId === activeUserId,
       connected: options.connection?.reachability === "connected",
       force: options.forceSessionRefresh === true,
+      resolveSessionResultImpl: options.resolveSessionResultImpl,
     });
     const item = {
       active: account.userId === activeUserId,
+      hasLocalSession: isSessionLocallyAvailable(resolved.sessionResult),
+      remoteUsable: isSessionRemoteUsable(resolved.sessionResult),
+      requiresLogin: requiresSessionLogin(resolved.sessionResult),
       sessionRevision: resolved.sessionRevision || 0,
       status: resolved.status,
       userHash: `user_${hashPart(account.userId, 12)}`,
@@ -216,9 +238,24 @@ async function getPendingAutoSubmitContexts(options = {}) {
     };
     const index = await buildPlayerPendingIndex(config, accountSession);
     item.pendingCount = index.totals.pending;
+    item.queueRevision = index.revision;
+    totals.invalidPending += index.totals.invalidPending;
+    totals.pending += index.totals.pending;
+    totals.validPending += index.totals.validPending;
     accountSessionCoordinator.setPendingCount(account.userId, index.totals.pending);
     accounts.push(item);
-    if (resolved.status !== "valid" || !resolved.storedSession) continue;
+    if (!isSessionRemoteUsable(resolved.sessionResult) || !resolved.storedSession) {
+      if (index.totals.pending > 0) {
+        if (requiresSessionLogin(resolved.sessionResult)) {
+          sessionSummary.loginRequiredPendingCount += index.totals.pending;
+        } else if (isSessionDeferred(resolved.sessionResult)) {
+          sessionSummary.sessionDeferredPendingCount += index.totals.pending;
+        } else {
+          sessionSummary.unavailablePendingCount += index.totals.pending;
+        }
+      }
+      continue;
+    }
     accountContexts.push({
       account,
       active: item.active,
@@ -226,21 +263,22 @@ async function getPendingAutoSubmitContexts(options = {}) {
       index,
       playerKey: index.playerKey,
       session: accountSession,
+      sessionResult: resolved.sessionResult,
+      sessionStatus: resolved.status,
       sessionRevision: item.sessionRevision,
       storedSession: resolved.storedSession,
       userId: account.userId,
       webBaseUrl: config.webBaseUrl || null,
     });
   }
-  const totals = accountContexts.reduce((sum, context) => ({
-    invalidPending: sum.invalidPending + context.index.totals.invalidPending,
-    pending: sum.pending + context.index.totals.pending,
-    validPending: sum.validPending + context.index.totals.validPending,
-  }), { invalidPending: 0, pending: 0, validPending: 0 });
-  const revision = hashPart(JSON.stringify(accountContexts.map((context) => [
-    context.userId,
-    context.index.revision,
-    context.sessionRevision,
+  Object.defineProperty(accountContexts, "sessionSummary", {
+    enumerable: false,
+    value: Object.freeze({ ...sessionSummary }),
+  });
+  const stableAccounts = [...accounts].sort((left, right) => left.userHash.localeCompare(right.userHash));
+  const revision = hashPart(JSON.stringify(stableAccounts.map((account) => [
+    account.userHash,
+    account.queueRevision,
   ])), 32);
   return {
     accountContexts,
@@ -249,7 +287,7 @@ async function getPendingAutoSubmitContexts(options = {}) {
     index: { revision, totals },
     playerKey: "remembered-accounts",
     session: { hasSession: true, userId: "remembered-accounts" },
-    sessionRevision: hashPart(JSON.stringify(accounts.map((account) => [account.userHash, account.sessionRevision, account.status])), 16),
+    sessionRevision: hashPart(JSON.stringify(stableAccounts.map((account) => [account.userHash, account.sessionRevision])), 16),
     userId: "remembered-accounts",
     webBaseUrl: config.webBaseUrl || null,
   };
@@ -1028,12 +1066,15 @@ async function stateFromContext(context) {
     account.userId,
     await sessionRepository(baseConfig).read(account.userId),
   ]));
-  const savedSessionUserIds = new Set(canonicalStates.filter(([, result]) => result.ok).map(([userId]) => userId));
+  const savedSessionUserIds = new Set(canonicalStates.filter(([, result]) => isSessionLocallyAvailable(result)).map(([userId]) => userId));
   const sessionStatuses = new Map(canonicalStates.map(([userId, result]) => {
     const observed = accountSessionCoordinator.getState(userId);
     return [userId, {
       ...observed,
+      hasLocalSession: isSessionLocallyAvailable(result),
       pendingCount: observed?.pendingCount || 0,
+      remoteUsable: isSessionRemoteUsable(result),
+      requiresLogin: requiresSessionLogin(result),
       sessionRevision: Number(result.sessionRevision) || Number(observed?.sessionRevision) || 0,
       status: result.status,
     }];
@@ -1222,7 +1263,7 @@ async function runPendingAutoSubmit(options = {}) {
     pendingAutoSubmitController.signal,
   ]);
   const discovery = options.index || await (options.discoverScopesImpl || discoverPlayerPendingScopes)(baseConfig, session);
-  const storedSession = options.storedSession || null;
+  const sessionResult = options.sessionResult || null;
   const totalPending = discovery.records.reduce((sum, item) => sum + item.pendingCount, 0);
   pendingAutoSubmitState = {
     connectedGeneration: options.connectedGeneration ?? null,
@@ -1259,6 +1300,7 @@ async function runPendingAutoSubmit(options = {}) {
   let attentionRequired = false;
   let cancelled = false;
   let retryable = false;
+  let sessionDeferred = false;
   let retryAfterMs = null;
   let processedScopes = 0;
   const stillCurrent = () => !combinedSignal.signal.aborted && epoch === pendingAutoSubmitEpoch && options.shouldContinue?.() !== false;
@@ -1268,8 +1310,8 @@ async function runPendingAutoSubmit(options = {}) {
       if (!stillCurrent()) break;
       const config = buildScopedSubmitConfig(baseConfig, record);
       const membership = await (options.checkMembershipImpl || checkSeasonMembership)(config, session, {
+        sessionResult: sessionResult || undefined,
         signal: combinedSignal.signal,
-        storedSession,
       });
       if (!stillCurrent()) {
         cancelled = true;
@@ -1277,6 +1319,10 @@ async function runPendingAutoSubmit(options = {}) {
       }
       if (membership.remoteFailure === "cancelled") {
         cancelled = true;
+        break;
+      }
+      if (membership.authDeferred) {
+        sessionDeferred = true;
         break;
       }
       const membershipRequestFailed = membership.status === "unknown" && !membership.response && membership.request;
@@ -1296,11 +1342,12 @@ async function runPendingAutoSubmit(options = {}) {
       let scopeTransportFailure = false;
       let scopeRetryable = false;
       await captureConsoleAsync(() => (options.submitAllImpl || submitAll)(config, {
-        getValidStoredSessionImpl: storedSession ? async () => storedSession : undefined,
+        sessionResult: sessionResult || undefined,
         onResult(result) {
           if (["transport-failure", "timeout"].includes(result.outcome)) scopeTransportFailure = true;
           if (result.retryable) scopeRetryable = true;
           if (result.authRequired) authFailure = true;
+          if (result.sessionDeferred) sessionDeferred = true;
           if (result.outcome === "cancelled") cancelled = true;
           if (result.outcome === "attention-required") attentionRequired = true;
           retryAfterMs = Math.max(Number(retryAfterMs) || 0, Number(result.retryAfterMs) || 0) || null;
@@ -1320,7 +1367,7 @@ async function runPendingAutoSubmit(options = {}) {
         retryable = true;
         break;
       }
-      if (authFailure || cancelled) break;
+      if (authFailure || cancelled || sessionDeferred) break;
     }
   } finally {
     if (!stillCurrent()) cancelled = true;
@@ -1336,9 +1383,9 @@ async function runPendingAutoSubmit(options = {}) {
         : "Las puntuaciones pendientes se conservan para el proximo intento.",
       pendingAfter,
       pendingBefore: totalPending,
-      reason: cancelled ? "cancelled" : transportFailure ? "transport" : retryable ? "retryable_http" : authFailure ? "auth_required" : attentionRequired ? "attention_required" : failed > 0 ? "failed_items" : null,
+      reason: cancelled ? "cancelled" : transportFailure ? "transport" : retryable ? "retryable_http" : authFailure ? "auth_required" : sessionDeferred ? "session_deferred" : attentionRequired ? "attention_required" : failed > 0 ? "failed_items" : null,
       sentCount: sent,
-      status: cancelled || transportFailure || retryable || authFailure ? "failed" : attentionRequired || failed > 0 ? "partial_failed" : sent > 0 ? "synced" : "idle",
+      status: cancelled || transportFailure || retryable || authFailure || sessionDeferred ? "failed" : attentionRequired || failed > 0 ? "partial_failed" : sent > 0 ? "synced" : "idle",
     });
     pendingAutoSubmitState = {
       ...pendingAutoSubmitState,
@@ -1357,29 +1404,36 @@ async function runPendingAutoSubmit(options = {}) {
     cancelled,
     diagnostics: getPendingAutoSubmitDiagnostics(),
     failed,
-    ok: !cancelled && !transportFailure && !retryable && !authFailure && !attentionRequired && failed === 0 && Math.max(0, preserved) === 0,
+    ok: !cancelled && !transportFailure && !retryable && !authFailure && !sessionDeferred && !attentionRequired && failed === 0 && Math.max(0, preserved) === 0,
     preserved: Math.max(0, preserved),
     sent,
-    reason: cancelled ? "cancelled" : transportFailure ? "transport" : retryable ? "retryable-http" : authFailure ? "auth-required" : attentionRequired ? "attention-required" : null,
+    reason: cancelled ? "cancelled" : transportFailure ? "transport" : retryable ? "retryable-http" : authFailure ? "auth-required" : sessionDeferred ? "session-deferred" : attentionRequired ? "attention-required" : null,
     retryAfterMs,
     retryable,
-    terminal: !cancelled && !transportFailure && !retryable && !authFailure,
+    sessionDeferred,
+    terminal: !cancelled && !transportFailure && !retryable && !authFailure && !sessionDeferred,
     transportFailure,
-    status: cancelled ? "cancelled" : transportFailure || retryable || authFailure ? "deferred" : attentionRequired ? "attention-required" : "completed",
+    status: cancelled ? "cancelled" : sessionDeferred ? "auth-deferred" : transportFailure || retryable || authFailure ? "deferred" : attentionRequired ? "attention-required" : "completed",
   };
 }
 
 async function runPendingAutoSubmitForAccounts(options = {}) {
   const contexts = options.accountContexts || [];
+  const sessionSummary = contexts.sessionSummary || {};
+  const sessionDeferredPendingCount = Number(sessionSummary.sessionDeferredPendingCount) || 0;
+  const loginRequiredPendingCount = Number(sessionSummary.loginRequiredPendingCount) || 0;
   const aggregate = {
     attempted: false,
     attentionRequired: false,
+    authDeferred: false,
     authFailure: false,
     cancelled: false,
     failed: 0,
-    preserved: 0,
+    preserved: sessionDeferredPendingCount + loginRequiredPendingCount + (Number(sessionSummary.unavailablePendingCount) || 0),
     processedAccounts: 0,
+    reason: null,
     sent: 0,
+    sessionDeferred: false,
     status: "completed",
     retryAfterMs: null,
     retryable: false,
@@ -1397,6 +1451,7 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
       connectedGeneration: options.connectedGeneration,
       index: context.index,
       session: context.session,
+      sessionResult: context.sessionResult,
       storedSession: context.storedSession,
       shouldContinue: options.shouldContinue,
       trigger: options.trigger,
@@ -1408,6 +1463,8 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
     aggregate.processedAccounts += 1;
     aggregate.attentionRequired = aggregate.attentionRequired || result.attentionRequired === true;
     aggregate.authFailure = aggregate.authFailure || result.authFailure === true;
+    aggregate.authDeferred = aggregate.authDeferred || result.sessionDeferred === true;
+    aggregate.sessionDeferred = aggregate.sessionDeferred || result.sessionDeferred === true;
     aggregate.cancelled = aggregate.cancelled || result.cancelled === true || result.status === "cancelled";
     aggregate.retryable = aggregate.retryable || result.retryable === true;
     aggregate.retryAfterMs = Math.max(Number(aggregate.retryAfterMs) || 0, Number(result.retryAfterMs) || 0) || null;
@@ -1418,8 +1475,16 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
       break;
     }
   }
+  if (loginRequiredPendingCount > 0) aggregate.authFailure = true;
   if (aggregate.authFailure) {
+    aggregate.reason = "auth-required";
     aggregate.status = "deferred";
+    aggregate.terminal = false;
+  } else if ((sessionDeferredPendingCount > 0 || aggregate.sessionDeferred) && !aggregate.cancelled && !aggregate.retryable && !aggregate.transportFailure) {
+    aggregate.authDeferred = true;
+    aggregate.reason = "session-deferred";
+    aggregate.sessionDeferred = true;
+    aggregate.status = "auth-deferred";
     aggregate.terminal = false;
   } else if (aggregate.attentionRequired && aggregate.terminal) {
     aggregate.status = "attention-required";
@@ -1445,8 +1510,12 @@ function cancelAccountSessionOperations(userId, reason = "cancelled") {
   else repository.cancelAllOperations(reason);
 }
 
-function shutdownAccountSessions() {
-  sessionRepository(loadRuntimeConfig()).shutdown();
+async function drainAccountSessionOperations(options = {}) {
+  return sessionRepository(options.config || loadRuntimeConfig()).drain(options);
+}
+
+async function shutdownAccountSessions(options = {}) {
+  return sessionRepository(options.config || loadRuntimeConfig()).shutdown(options);
 }
 
 function resetAutoSyncStateForTests() {
@@ -1527,27 +1596,32 @@ async function adoptNewStagingEvents(stagingPendingDir, scopedPendingDir, snapsh
 
 async function getSessionState(config) {
   try {
-    const storedSession = await readSession(config);
+    const sessionResult = await resolveCanonicalSessionResult(config, { deferRemote: true });
+    const storedSession = sessionResult.storedSession;
 
-    if (!storedSession) {
+    if (!isSessionLocallyAvailable(sessionResult) || !storedSession) {
       return {
         email: null,
         hasSession: false,
         message: "No hay sesión local. Usa npm run login -- <email> en CLI.",
-        sessionRevision: 0,
-        status: "missing",
+        remoteUsable: false,
+        requiresLogin: requiresSessionLogin(sessionResult),
+        sessionRevision: sessionResult.sessionRevision,
+        status: sessionResult.status,
       };
     }
 
-    const expiringSoon = isSessionExpiringSoon(storedSession);
+    const expiringSoon = isSessionDeferred(sessionResult);
 
     return {
       email: storedSession.user?.email || null,
       expiresAt: storedSession.session?.expires_at || null,
       hasSession: true,
       message: expiringSoon ? "Sesión local encontrada, pero expira pronto." : "Sesión local encontrada.",
-      sessionRevision: Number(storedSession.sessionRevision) || 0,
-      status: expiringSoon ? "warning" : "ok",
+      remoteUsable: isSessionRemoteUsable(sessionResult),
+      requiresLogin: requiresSessionLogin(sessionResult),
+      sessionRevision: sessionResult.sessionRevision,
+      status: sessionResult.status,
       userId: storedSession.user?.id || null,
     };
   } catch (error) {
@@ -1555,6 +1629,8 @@ async function getSessionState(config) {
       email: null,
       error: normalizeMessage(error),
       hasSession: false,
+      remoteUsable: false,
+      requiresLogin: false,
       message: "No se pudo leer la sesión local.",
       sessionRevision: 0,
       status: "error",
@@ -2225,14 +2301,7 @@ async function loginWithPassword(credentials = {}) {
 async function logoutSession() {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
-  const session = await getAuthState(config, { deferRemote: true });
-  const result = await logoutLocal(config);
-
-  if (session.hasSession && session.userId) {
-    await removeKnownAccount(config, session.userId, { deleteSession: false });
-  } else {
-    await clearActiveAccount(config);
-  }
+  const result = await logoutLocal(config, { forgetAccount: true, reason: "gui-logout" });
 
   return {
     action: "logout",
@@ -2264,7 +2333,7 @@ async function switchKnownAccountFromGui(userId, options = {}) {
     connected: options.connected === true,
   });
 
-  if (["unavailable", "corrupt", "revoked"].includes(resolved.status) || !resolved.storedSession) {
+  if (!isSessionLocallyAvailable(resolved.sessionResult) || requiresSessionLogin(resolved.sessionResult) || !resolved.storedSession) {
     return {
       action: "switch-account-login-required",
       email: account.email,
@@ -2309,9 +2378,10 @@ async function removeKnownAccountFromGui(userId) {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
   const session = await getAuthState(config, { deferRemote: true });
-  sessionRepository(config).cancelUserOperations(userId, "remove-account");
-  await sessionRepository(config).remove(userId, { reason: "remove-account" });
-  const result = await removeKnownAccount(config, userId, { deleteSession: false });
+  const result = await sessionRepository(config).remove(userId, {
+    forgetAccount: true,
+    reason: "remove-account",
+  });
 
   if (session.hasSession && session.userId === userId) {
 
@@ -2839,6 +2909,7 @@ module.exports = {
   choosePackDirectoryFromGui,
   classifyFailureReason,
   deriveOpenedPackConfig,
+  drainAccountSessionOperations,
   eventResultToQueueItem,
   getAuthStateForGui,
   getPendingAutoSubmitDiagnostics,

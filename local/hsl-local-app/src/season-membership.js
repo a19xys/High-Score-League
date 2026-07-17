@@ -1,7 +1,13 @@
-const { resolveCanonicalSession } = require("./auth");
+const { resolveCanonicalSessionResult } = require("./auth");
 const { normalizeWebBaseUrl, parseResponseText } = require("./submission-http");
 const { executeRemoteRequest } = require("./remote-request");
 const { parseRetryAfter, RETRYABLE_HTTP_STATUSES } = require("./submission-outcome");
+const {
+  createSessionResult,
+  isCanonicalSessionResult,
+  isSessionRemoteUsableNow,
+  requiresSessionLogin,
+} = require("./session-result");
 
 const NETWORK_STATUSES = new Set(["unknown", "error"]);
 const SAFE_BODY_STATUSES = new Set(["member", "not_member", "unauthenticated", "invalid_week", "error", "unknown"]);
@@ -23,6 +29,7 @@ function getMembershipUrl(config, weekId) {
 
 function baseState(overrides = {}) {
   return {
+    authDeferred: false,
     canPlayCompetition: false,
     canSubmit: false,
     checkedAt: null,
@@ -34,11 +41,67 @@ function baseState(overrides = {}) {
     retryAfterMs: null,
     retryable: false,
     seasonId: null,
+    sessionRevision: 0,
+    sessionStatus: null,
     status: "unknown",
     technicalReason: null,
     weekId: null,
     ...overrides,
   };
+}
+
+function unauthenticatedSessionState(config, weekId, request, sessionResult, options = {}) {
+  return baseState({
+    checkedAt: options.checkedAt || new Date().toISOString(),
+    joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
+    message: PLAYER_MESSAGES.unauthenticated,
+    request,
+    sessionRevision: Number(sessionResult?.sessionRevision) || 0,
+    sessionStatus: sessionResult?.status || null,
+    status: "unauthenticated",
+    technicalReason: `auth-required:${sessionResult?.status || "unknown"}`,
+    weekId,
+  });
+}
+
+function deferredSessionState(config, weekId, sessionResult, options = {}, reason = null) {
+  const sessionStatus = sessionResult?.status || "unknown";
+  return baseState({
+    authDeferred: true,
+    canPlayCompetition: true,
+    canSubmit: false,
+    checkedAt: options.checkedAt || new Date().toISOString(),
+    joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
+    message: PLAYER_MESSAGES.unknown,
+    remoteFailure: sessionStatus === "cancelled" ? "cancelled" : null,
+    retryAfterMs: Number(sessionResult?.retryAfterMs) || null,
+    retryable: sessionStatus !== "cancelled" && sessionResult?.shouldRetry !== false,
+    sessionRevision: Number(sessionResult?.sessionRevision) || 0,
+    sessionStatus,
+    status: "unknown",
+    technicalReason: `auth-deferred:${reason || sessionResult?.reason || sessionStatus}`,
+    weekId,
+  });
+}
+
+async function resolveMembershipSessionResult(config, sessionState, options = {}) {
+  if (options.sessionResult !== undefined) return options.sessionResult;
+  if (options.trustStoredSessionFixture === true && options.storedSession) {
+    return createSessionResult({
+      sessionRevision: Number(options.storedSession.sessionRevision) || 0,
+      status: "valid",
+      storedSession: options.storedSession,
+    });
+  }
+  const resolveImpl = options.resolveCanonicalSessionResultImpl || resolveCanonicalSessionResult;
+  return resolveImpl(config, {
+    connected: options.connected !== false,
+    fetchImpl: options.sessionFetchImpl,
+    force: options.forceSessionRefresh === true,
+    signal: options.signal,
+    timeoutMs: options.sessionTimeoutMs,
+    userId: options.userId || sessionState?.userId || undefined,
+  });
 }
 
 function resolveMembershipJoinUrl(config, joinUrl) {
@@ -238,19 +301,13 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
   const weekId = config.defaultWeekId || config.pack?.weekId || null;
   const request = createRequestDetails(config, weekId);
 
-  if (!sessionState?.hasSession) {
-    if (sessionState?.status === "expired" || sessionState?.status === "error") {
-      return baseState({
-        checkedAt: options.checkedAt || new Date().toISOString(),
-        joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
-        message: PLAYER_MESSAGES.unauthenticated,
-        request,
-        status: "unauthenticated",
-        technicalReason: sessionState.message || sessionState.error || "invalid_local_session",
-        weekId,
-      });
+  if (!sessionState?.hasSession && options.sessionResult === undefined) {
+    if (sessionState?.requiresLogin === true) {
+      return unauthenticatedSessionState(config, weekId, request, {
+        sessionRevision: sessionState.sessionRevision,
+        status: sessionState.status || "missing",
+      }, options);
     }
-
     return baseState({
       checkedAt: options.checkedAt || new Date().toISOString(),
       joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
@@ -294,34 +351,33 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
     });
   }
 
-  let storedSession;
+  let sessionResult;
 
   try {
-    storedSession = options.storedSession || await resolveCanonicalSession(config);
+    sessionResult = await resolveMembershipSessionResult(config, sessionState, options);
   } catch (error) {
-    return baseState({
-      joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
-      checkedAt: options.checkedAt || new Date().toISOString(),
-      message: PLAYER_MESSAGES.unauthenticated,
-      request,
-      status: "unauthenticated",
-      technicalReason: error.message,
-      weekId,
-    });
+    if (requiresSessionLogin(error?.sessionResult)) {
+      return unauthenticatedSessionState(config, weekId, request, error.sessionResult, options);
+    }
+    return deferredSessionState(config, weekId, error?.sessionResult, options, error?.code || "session-resolution-failed");
   }
 
-  const accessToken = storedSession?.session?.access_token;
+  if (!isCanonicalSessionResult(sessionResult)) {
+    return deferredSessionState(config, weekId, null, options, "invalid-session-result");
+  }
+
+  if (requiresSessionLogin(sessionResult)) {
+    return unauthenticatedSessionState(config, weekId, request, sessionResult, options);
+  }
+
+  if (!isSessionRemoteUsableNow(sessionResult, { config, nowMs: options.nowMs })) {
+    return deferredSessionState(config, weekId, sessionResult, options);
+  }
+
+  const accessToken = sessionResult.storedSession?.session?.access_token;
 
   if (!accessToken) {
-    return baseState({
-      joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
-      checkedAt: options.checkedAt || new Date().toISOString(),
-      message: PLAYER_MESSAGES.unauthenticated,
-      request,
-      status: "unauthenticated",
-      technicalReason: "missing_access_token",
-      weekId,
-    });
+    return deferredSessionState(config, weekId, sessionResult, options, "remote-credential-missing");
   }
 
   try {

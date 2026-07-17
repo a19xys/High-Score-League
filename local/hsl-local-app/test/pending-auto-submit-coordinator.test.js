@@ -249,3 +249,27 @@ test("cancelCurrentRun preserves guards while resetGuards clears them explicitly
   assert.match(coordinator.getDiagnostics().guardKey, /^guard_[a-f0-9]{12}$/);
   assert.equal(coordinator.getDiagnostics().guardKey.includes("user-one"), false);
 });
+
+test("session refresh deferral consumes neither auth block, terminal key nor submission cooldown", async () => {
+  let runs = 0;
+  const coordinator = createPendingAutoSubmitCoordinator({
+    inspect: async () => ready(),
+    run: async () => {
+      runs += 1;
+      return {
+        reason: "refresh-backoff",
+        sessionDeferred: true,
+        status: "deferred",
+        terminal: false,
+      };
+    },
+  });
+  const first = await coordinator.request("startup");
+  const second = await coordinator.request("maintenance");
+  assert.equal(first.status, "deferred");
+  assert.equal(second.status, "deferred");
+  assert.equal(runs, 2);
+  assert.equal(coordinator.getDiagnostics().authBlocked, false);
+  assert.equal(coordinator.getDiagnostics().nextEligibleAt, null);
+  assert.equal(coordinator.getDiagnostics().lastTerminalKey, null);
+});

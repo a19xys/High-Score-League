@@ -4,6 +4,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { submitAll, submitPendingFile } = require("../src/submission-service");
+const { createSessionResult } = require("../src/session-result");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-submit-service-test-"));
@@ -57,6 +58,18 @@ function validEvent() {
     source: "mame_memory",
     mameVersion: "MAME 0.265",
     pluginVersion: "0.1.4",
+  };
+}
+
+function storedSession(suffix = "one") {
+  return {
+    supabaseUrl: "https://example.supabase.co",
+    session: {
+      access_token: `secret-token-${suffix}`,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      refresh_token: `secret-refresh-${suffix}`,
+    },
+    user: { id: "user-one" },
   };
 }
 
@@ -135,10 +148,7 @@ test("submit moves an old invalid JSON to failed", async () => {
 test("HTTP outcomes move only success and terminal failures while retryable and unexpected responses stay pending", async () => {
   await withTempDir(async (dir) => {
     const config = await createQueueConfig(dir, { recentEventThresholdMs: 0 });
-    const storedSession = {
-      session: { access_token: "secret-token" },
-      user: { id: "user-one" },
-    };
+    const sessionResult = createSessionResult({ status: "valid", storedSession: storedSession() });
     const cases = [
       { expectedAction: "sent", expectedBox: "sent", filename: "success.json", status: 200, body: { ok: true } },
       { expectedAction: "pending", expectedBox: "pending", filename: "retry.json", status: 503, body: { error: "temporary" } },
@@ -155,7 +165,7 @@ test("HTTP outcomes move only success and terminal failures while retryable and 
           status: item.status,
           headers: item.retryAfter ? { "retry-after": item.retryAfter } : undefined,
         }),
-        getValidStoredSessionImpl: async () => storedSession,
+        sessionResult,
         nowMs: Date.parse("2026-07-17T00:00:00Z"),
       });
       assert.equal(result.action, item.expectedAction);
@@ -163,10 +173,151 @@ test("HTTP outcomes move only success and terminal failures while retryable and 
       assert.equal(await fileExists(path.join(config.eventsPendingDirAbs, item.filename)), item.expectedBox === "pending");
       assert.equal(await fileExists(path.join(config.eventsSentDirAbs, item.filename)), item.expectedBox === "sent");
       assert.equal(await fileExists(path.join(config.eventsFailedDirAbs, item.filename)), item.expectedBox === "failed");
-      assert.equal(JSON.stringify(result).includes("secret-token"), false);
+      assert.equal(JSON.stringify(result).includes("secret-token-one"), false);
       assert.equal(JSON.stringify(result).includes("temporary"), false);
       if (item.status === 503 || item.status === 429) assert.equal(result.retryable, true);
       if (item.status === 429) assert.equal(result.retryAfterMs, 60000);
     }
+  });
+});
+
+test("deferred, cancelled, stale and lock-timeout session results never post or move pending", async () => {
+  for (const status of ["deferred", "cancelled", "stale", "lock-timeout"]) {
+    await withTempDir(async (dir) => {
+      const config = await createQueueConfig(dir, { recentEventThresholdMs: 0 });
+      const filename = `${status}.json`;
+      const pendingPath = path.join(config.eventsPendingDirAbs, filename);
+      await fsp.writeFile(pendingPath, JSON.stringify(validEvent()), "utf8");
+      let posts = 0;
+      const result = await submitPendingFile(config, filename, {
+        fetchImpl: async () => {
+          posts += 1;
+          throw new Error("post must not run");
+        },
+        sessionResult: createSessionResult({
+          status,
+          storedSession: storedSession(status),
+          sessionRevision: 7,
+        }),
+      });
+
+      assert.equal(posts, 0, status);
+      assert.equal(result.action, "pending", status);
+      assert.equal(result.outcome, "auth-deferred", status);
+      assert.equal(result.authRequired, false, status);
+      assert.equal(result.terminal, false, status);
+      assert.equal(result.preservePending, true, status);
+      assert.equal(result.retryable, true, status);
+      assert.equal(result.sessionStatus, status, status);
+      assert.equal(await fileExists(pendingPath), true, status);
+      assert.equal(await fileExists(path.join(config.eventsSentDirAbs, filename)), false, status);
+      assert.equal(await fileExists(path.join(config.eventsFailedDirAbs, filename)), false, status);
+    });
+  }
+});
+
+test("requiresLogin remains auth-required without posting or consuming pending", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createQueueConfig(dir, { recentEventThresholdMs: 0 });
+    const filename = "revoked.json";
+    const pendingPath = path.join(config.eventsPendingDirAbs, filename);
+    await fsp.writeFile(pendingPath, JSON.stringify(validEvent()), "utf8");
+    let posts = 0;
+    const result = await submitPendingFile(config, filename, {
+      fetchImpl: async () => {
+        posts += 1;
+        throw new Error("post must not run");
+      },
+      sessionResult: createSessionResult({ status: "revoked", sessionRevision: 8 }),
+    });
+
+    assert.equal(posts, 0);
+    assert.equal(result.action, "auth_required");
+    assert.equal(result.outcome, "auth-required");
+    assert.equal(result.authRequired, true);
+    assert.equal(result.terminal, false);
+    assert.equal(result.preservePending, true);
+    assert.equal(await fileExists(pendingPath), true);
+  });
+});
+
+test("an old remote-usable result is revalidated before posting and does not consume pending", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createQueueConfig(dir, { recentEventThresholdMs: 0 });
+    const filename = "expired-after-resolution.json";
+    const pendingPath = path.join(config.eventsPendingDirAbs, filename);
+    await fsp.writeFile(pendingPath, JSON.stringify(validEvent()), "utf8");
+    const expiredAfterResolution = storedSession("expired-after-resolution");
+    expiredAfterResolution.session.expires_at = 100;
+    let posts = 0;
+    const result = await submitPendingFile(config, filename, {
+      fetchImpl: async () => {
+        posts += 1;
+        throw new Error("post must not run");
+      },
+      nowMs: 200_000,
+      sessionResult: createSessionResult({
+        sessionRevision: 9,
+        status: "valid",
+        storedSession: expiredAfterResolution,
+      }),
+    });
+
+    assert.equal(posts, 0);
+    assert.equal(result.outcome, "auth-deferred");
+    assert.equal(result.sessionDeferred, true);
+    assert.equal(result.terminal, false);
+    assert.equal(await fileExists(pendingPath), true);
+  });
+});
+
+test("remoteUsable is the posting gate for refreshed and residual deferred credentials", async () => {
+  for (const status of ["refreshed", "deferred"]) {
+    await withTempDir(async (dir) => {
+      const config = await createQueueConfig(dir, { recentEventThresholdMs: 0 });
+      const filename = `${status}-usable.json`;
+      await fsp.writeFile(path.join(config.eventsPendingDirAbs, filename), JSON.stringify(validEvent()), "utf8");
+      let resolverCalls = 0;
+      let posts = 0;
+      const canonicalResult = createSessionResult({
+        remoteUsable: true,
+        status,
+        storedSession: storedSession(status),
+        sessionRevision: 9,
+      });
+      const result = await submitPendingFile(config, filename, {
+        fetchImpl: async () => {
+          posts += 1;
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        },
+        getSessionResultImpl: async () => {
+          resolverCalls += 1;
+          return canonicalResult;
+        },
+      });
+
+      assert.equal(resolverCalls, 1, status);
+      assert.equal(posts, 1, status);
+      assert.equal(result.action, "sent", status);
+      assert.equal(await fileExists(path.join(config.eventsSentDirAbs, filename)), true, status);
+    });
+  }
+});
+
+test("session resolution errors are deferred instead of forcing login", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createQueueConfig(dir, { recentEventThresholdMs: 0 });
+    const filename = "resolution-error.json";
+    const pendingPath = path.join(config.eventsPendingDirAbs, filename);
+    await fsp.writeFile(pendingPath, JSON.stringify(validEvent()), "utf8");
+    const result = await submitPendingFile(config, filename, {
+      getSessionResultImpl: async () => {
+        throw new Error("temporary storage failure");
+      },
+    });
+    assert.equal(result.outcome, "auth-deferred");
+    assert.equal(result.authRequired, false);
+    assert.equal(result.terminal, false);
+    assert.equal(await fileExists(pendingPath), true);
   });
 });

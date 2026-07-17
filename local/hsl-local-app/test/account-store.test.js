@@ -6,6 +6,7 @@ const path = require("node:path");
 const {
   clearActiveAccount,
   getKnownAccountsPath,
+  mutateKnownAccounts,
   readKnownAccounts,
   rememberAccount,
   rememberSessionAccount,
@@ -51,6 +52,40 @@ test("JSON corrupto no crashea y devuelve warning", async () => {
 
     assert.equal(store.accounts.length, 0);
     assert.equal(store.warnings.length, 1);
+  });
+});
+
+test("pointer inexistente se repara a null con warning", async () => {
+  await withTempDir(async (dir) => {
+    const cfg = config(dir);
+    const filePath = getKnownAccountsPath(cfg);
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    await fsp.writeFile(filePath, JSON.stringify({
+      accounts: [{ email: "player@example.com", userId: "user-1" }],
+      lastActiveUserId: "missing-user",
+      revision: 4,
+      schemaVersion: 2,
+    }), "utf8");
+
+    const store = await readKnownAccounts(cfg);
+
+    assert.equal(store.lastActiveUserId, null);
+    assert.match(store.warnings.join("\n"), /lastActiveUserId.*reparado a null/);
+  });
+});
+
+test("las escrituras nunca persisten un pointer a una cuenta inexistente", async () => {
+  await withTempDir(async (dir) => {
+    const cfg = config(dir);
+    await rememberAccount(cfg, { email: "player@example.com", userId: "user-1" });
+
+    await mutateKnownAccounts(cfg, (current) => ({
+      accounts: current.accounts,
+      lastActiveUserId: "missing-user",
+    }));
+
+    const raw = JSON.parse(await fsp.readFile(getKnownAccountsPath(cfg), "utf8"));
+    assert.equal(raw.lastActiveUserId, null);
   });
 });
 
@@ -104,6 +139,59 @@ test("anadir la misma cuenta actualiza lastUsedAt sin duplicar", async () => {
     assert.equal(store.accounts[0].displayName, "Player One");
     assert.equal(store.accounts[0].addedAt, "2026-06-19T00:00:00.000Z");
     assert.equal(store.accounts[0].lastUsedAt, "2026-06-20T00:00:00.000Z");
+  });
+});
+
+test("rememberAccount conserva presentacion no nula y revision monotona ante datos sparse", async () => {
+  await withTempDir(async (dir) => {
+    const cfg = config(dir);
+    await rememberAccount(cfg, {
+      addedAt: "2026-06-18T00:00:00.000Z",
+      avatarUrl: "https://example.com/avatar.png",
+      displayName: "Player One",
+      email: "player@example.com",
+      initials: "P1",
+      userId: "user-1",
+    }, {
+      now: "2026-06-19T00:00:00.000Z",
+      sessionRevision: 9,
+    });
+
+    await rememberAccount(cfg, {
+      addedAt: null,
+      avatarUrl: null,
+      displayName: null,
+      email: null,
+      initials: null,
+      userId: "user-1",
+    }, {
+      now: "2026-06-20T00:00:00.000Z",
+      sessionRevision: 3,
+    });
+
+    const account = (await readKnownAccounts(cfg)).accounts[0];
+    assert.equal(account.addedAt, "2026-06-18T00:00:00.000Z");
+    assert.equal(account.avatarUrl, "https://example.com/avatar.png");
+    assert.equal(account.displayName, "Player One");
+    assert.equal(account.email, "player@example.com");
+    assert.equal(account.initials, "P1");
+    assert.equal(account.lastUsedAt, "2026-06-20T00:00:00.000Z");
+    assert.equal(account.sessionRevision, 9);
+  });
+});
+
+test("known-accounts corrupto no se sobrescribe durante una mutacion", async () => {
+  await withTempDir(async (dir) => {
+    const cfg = config(dir);
+    const filePath = getKnownAccountsPath(cfg);
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    await fsp.writeFile(filePath, "{broken", "utf8");
+
+    await assert.rejects(
+      () => rememberAccount(cfg, { email: "player@example.com", userId: "user-1" }),
+      (error) => error.code === "KNOWN_ACCOUNTS_CORRUPT",
+    );
+    assert.equal(await fsp.readFile(filePath, "utf8"), "{broken");
   });
 });
 
@@ -174,6 +262,24 @@ test("quitar cuenta recordada no toca colas locales", async () => {
 
     assert.equal(result.removed, true);
     assert.equal(await fsp.readFile(queueFile, "utf8"), "score");
+  });
+});
+
+test("un touch tardio de sesion no resucita una cuenta eliminada", async () => {
+  await withTempDir(async (dir) => {
+    const cfg = config(dir);
+    await rememberAccount(cfg, { email: "player@example.com", userId: "user-1" });
+    await removeKnownAccount(cfg, "user-1");
+
+    await rememberSessionAccount(cfg, {
+      email: "player@example.com",
+      hasSession: true,
+      userId: "user-1",
+    }, { touch: true });
+
+    const store = await readKnownAccounts(cfg);
+    assert.equal(store.accounts.some((account) => account.userId === "user-1"), false);
+    assert.equal(store.lastActiveUserId, null);
   });
 });
 

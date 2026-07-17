@@ -172,7 +172,7 @@ test("temporary refresh failures and lock timeout preserve the canonical session
     const lock = await acquireFileLock(sessionLockPath(cfg, "user-1"), { purpose: "test" });
     try {
       const locked = await repo.resolve("user-1", { connected: true, force: true, timeoutMs: 20 });
-      assert.equal(locked.status, "deferred");
+      assert.equal(locked.status, "lock-timeout");
       assert.equal(locked.reason, "lock-timeout");
     } finally {
       await lock.release();
@@ -224,7 +224,7 @@ test("a refreshed session with the wrong identity is conclusively revoked", asyn
     const repo = repository(cfg, { refreshProvider: async () => stored("other-user", "wrong") });
     await repo.saveLogin(stored("user-1", "old", 1));
     assert.equal((await repo.resolve("user-1", { connected: true })).status, "revoked");
-    assert.equal((await repo.read("user-1")).status, "missing");
+    assert.equal((await repo.read("user-1")).status, "revoked");
     assert.equal((await readKnownAccounts(cfg)).accounts[0].requiresLogin, true);
   });
 });
@@ -468,6 +468,46 @@ test("two processes mutate known accounts without lost updates", async () => {
     assert.deepEqual(new Set(store.accounts.map((account) => account.userId)), new Set(["user-a", "user-b"]));
     assert.equal(store.revision, 2);
     JSON.parse(await fsp.readFile(store.filePath, "utf8"));
+  });
+});
+
+test("two processes logging into the same account allocate distinct monotonic revisions", async () => {
+  await withTempDir(async (root) => {
+    const cfg = config(root);
+    const configPath = path.join(root, "config.json");
+    const firstResult = path.join(root, "login-first.json");
+    const secondResult = path.join(root, "login-second.json");
+    await fsp.writeFile(configPath, JSON.stringify(cfg), "utf8");
+    const childScript = path.join(__dirname, "..", "test-support", "session-login-child.cjs");
+    await Promise.all([
+      spawnChild(childScript, [configPath, firstResult, "first"]),
+      spawnChild(childScript, [configPath, secondResult, "second"]),
+    ]);
+    const revisions = await Promise.all([firstResult, secondResult].map(async (file) => JSON.parse(await fsp.readFile(file, "utf8")).revision));
+    assert.deepEqual(revisions.sort((left, right) => left - right), [1, 2]);
+    const final = await repository(cfg).read("user-1");
+    assert.equal(final.sessionRevision, 2);
+    assert.ok(["refresh-first", "refresh-second"].includes(final.storedSession.session.refresh_token));
+  });
+});
+
+test("two processes serialize the global canonical migration", async () => {
+  await withTempDir(async (root) => {
+    const cfg = config(root);
+    await writeStoredSession(cfg.sessionFileAbs, stored("user-1", "legacy"), { expectedUserId: "user-1" });
+    const configPath = path.join(root, "migration-config.json");
+    const firstResult = path.join(root, "migration-first.json");
+    const secondResult = path.join(root, "migration-second.json");
+    await fsp.writeFile(configPath, JSON.stringify(cfg), "utf8");
+    const childScript = path.join(__dirname, "..", "test-support", "session-migration-child.cjs");
+    await Promise.all([
+      spawnChild(childScript, [configPath, firstResult]),
+      spawnChild(childScript, [configPath, secondResult]),
+    ]);
+    const statuses = await Promise.all([firstResult, secondResult].map(async (file) => JSON.parse(await fsp.readFile(file, "utf8")).status));
+    assert.deepEqual(statuses, ["completed", "completed"]);
+    assert.equal((await repository(cfg).read("user-1")).sessionRevision, 1);
+    await assert.rejects(() => fsp.access(cfg.sessionFileAbs));
   });
 });
 

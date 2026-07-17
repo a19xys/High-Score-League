@@ -10,7 +10,13 @@
 | Autoenvio duplicado | P1 | Mitigado | guard usuario+cola+sesion; generacion solo de ejecucion; idempotencia |
 | Refresh concurrente por cuenta | P0 | Cerrado | repositorio canonico, single-flight y lock interproceso por userId |
 | Sesiones activa/recordada divergentes | P0 | Cerrado | una sesion por userId; activo como pointer; migracion verificable |
-| Token local legible | P0 | Mitigado | safeStorage, envelope v2 y migracion verificada |
+| Token local legible | P0 | Mitigado condicional | safeStorage cuando está disponible; fallback restringido no equivale a cifrado y debe bloquear cierre de release |
+| Sesión usada contra otro proveedor | P0 | Mitigado en código | binding a origen exacto y fingerprint; staging real pendiente |
+| Resurrección tras revoke/remove | P0 | Mitigado en código | ledger monotónico y tombstone superior; cortes físicos pendientes |
+| Corte entre archivos de sesión | P1 | Mitigado con residual | orden ledger/envelope/metadata y journal; no hay transacción multiarchivo |
+| Lock vacío, truncado o reemplazado | P1 | Mitigado en código | doble lectura estable y cuarentena; PID reuse sigue residual |
+| Shutdown durante refresh colgado | P1 | Cubierto en pruebas | aborto y drain acotado; ejecutable empaquetado/OS pendientes |
+| Ciclo Auth real de staging | P1 | Pendiente | protocolo de 17 pasos no ejecutado |
 | Linux sin keyring real | P1 | Aceptado | archivo 0600 y warning de backend degradado |
 | Configuracion remota Supabase incompatible | P1 | Pendiente | checklist manual; panel no verificado en esta sesion |
 | Ranking pierde available por TTL | P1 | Cerrado | verificacion de sesion sin expiracion ni timer periodico |
@@ -32,8 +38,12 @@
 | Renderer sin CSP | P0 | Cerrado | CSP meta restrictiva, sin inline/eval/red directa |
 | Documento Electron en file:// | P1 | Pendiente auditoria | CSP meta aplicada; evaluar protocolo personalizado |
 
-No queda P0 abierto. No se declara cerrada la validacion fisica hasta medir
-desconexion y recuperacion con foco, sin foco y minimizado sobre hardware real.
+Las marcas `Cerrado` o `Mitigado` describen el código y la evidencia automática
+disponible; no equivalen a cierre operativo en staging o hardware. El detalle
+de sesiones, límites y protocolo pendiente está en
+[canonical-account-sessions-stabilization-2.md](canonical-account-sessions-stabilization-2.md).
+No se declara cerrada la validacion fisica hasta medir desconexion y
+recuperacion con foco, sin foco y minimizado sobre hardware real.
 
 Backlog deliberadamente fuera de alcance: protocolo personalizado Electron;
 overlay y densidad visual de la tarea 2; readiness, imagenes y tema inicial de

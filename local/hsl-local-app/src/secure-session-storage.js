@@ -1,4 +1,5 @@
 const fsp = require("node:fs/promises");
+const crypto = require("node:crypto");
 const path = require("node:path");
 
 let protectionProvider = null;
@@ -57,7 +58,7 @@ async function readRaw(filePath) {
 
 async function atomicWriteJson(filePath, value) {
   await fsp.mkdir(path.dirname(filePath), { recursive: true });
-  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.${crypto.randomBytes(8).toString("hex")}.tmp`;
   let handle;
   try {
     handle = await fsp.open(tempPath, "wx", 0o600);
@@ -122,7 +123,12 @@ async function readStoredSession(filePath, options = {}) {
   const raw = await readRaw(filePath);
   if (!raw) return { filePath, status: "missing", storedSession: null, storage: getSessionStorageDiagnostics() };
   if (raw.schemaVersion === 2 && typeof raw.encryptedPayload === "string") {
-    const storedSession = decodePayload(raw);
+    let storedSession;
+    try {
+      storedSession = decodePayload(raw);
+    } catch (error) {
+      throw Object.assign(error, { currentRevision: Number(raw.revision) || 0 });
+    }
     if (!storedSession?.user?.id || storedSession.user.id !== raw.userId) {
       throw Object.assign(new Error("La identidad del envelope no coincide."), { code: "SESSION_IDENTITY_MISMATCH" });
     }

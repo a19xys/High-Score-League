@@ -15,6 +15,14 @@ invalida membership interactiva, pero no cancela el lote background ya
 congelado; suspend y shutdown si abortan el lote y nunca consumen la clave
 terminal.
 
+La elegibilidad autenticada usa el resultado canónico, no solo la existencia
+de un archivo: únicamente `remoteUsable:true` permite llegar a ingest.
+`requiresLogin:true` se clasifica `auth-required`; un resultado reintentable sin
+credencial remota se clasifica `auth-deferred`. Ambos preservan `pending`. Un
+`deferred` todavía puede ser remoto-utilizable si el access token supera el
+margen absoluto. Matriz y umbrales:
+[canonical-account-sessions-stabilization-2.md](canonical-account-sessions-stabilization-2.md).
+
 Los guards de terminalidad, cooldown y autenticacion usan una identidad estable
 `userId + queueRevision + sessionRevision`. `reachabilityGeneration` identifica
 la ejecucion y permite diagnosticar o rechazar trabajo stale, pero una

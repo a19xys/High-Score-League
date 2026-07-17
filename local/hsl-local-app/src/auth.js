@@ -1,16 +1,27 @@
 const readline = require("node:readline/promises");
+const crypto = require("node:crypto");
 const path = require("node:path");
 const { stdin: input, stdout: output } = require("node:process");
 const {
   clearActiveAccount,
   readKnownAccounts,
-  removeKnownAccount,
 } = require("./account-store");
 const { createAccountSessionRepository } = require("./account-session-repository");
 const { printHeader } = require("./output");
+const { executeRemoteRequest } = require("./remote-request");
+const {
+  createSessionResult,
+  isSessionLocallyAvailable,
+  isSessionRemoteUsable,
+  requiresSessionLogin,
+} = require("./session-result");
+const { normalizeProviderUrl } = require("./session-refresh-policy");
+const { parseResponseText } = require("./submission-http");
+const { parseRetryAfter } = require("./submission-outcome");
 
 const repositories = new Map();
 const migrationPromises = new WeakMap();
+const migratedRepositories = new WeakSet();
 
 function loadSupabaseSdk() {
   try {
@@ -56,47 +67,99 @@ function classifySessionRefreshError(error) {
   if (error?.code === "SESSION_IDENTITY_MISMATCH") return { status: "revoked", reason: "identity-mismatch", transient: false };
   if (error?.code === "SESSION_STORAGE_CORRUPT") return { status: "corrupt", reason: "corrupt-storage", transient: false };
   const status = Number(error?.status || error?.cause?.status) || null;
-  const code = String(error?.code || error?.cause?.code || "").toLowerCase();
-  const message = String(error?.message || "").toLowerCase();
-  const conclusive = [400, 401, 403].includes(status) &&
-    /refresh|invalid.grant|session.*(missing|not found|revoked)|token.*(invalid|revoked|already used)/.test(`${code} ${message}`);
+  const code = String(error?.providerCode || error?.code || error?.cause?.code || "").toLowerCase();
+  const conclusiveCodes = new Set([
+    "invalid_grant",
+    "invalid_refresh_token",
+    "refresh_token_already_used",
+    "refresh_token_not_found",
+    "refresh_token_revoked",
+  ]);
+  const conclusive = [400, 401, 403].includes(status) && conclusiveCodes.has(code);
   if (conclusive) return { status: "revoked", reason: "refresh-token-rejected", transient: false };
-  return { status: "temporary-failure", reason: status === 429 ? "rate-limited" : status && status >= 500 ? "provider-unavailable" : "transport", transient: true };
+  const cancelled = error?.failureType === "cancelled" || error?.name === "AbortError";
+  return {
+    status: "temporary-failure",
+    reason: cancelled ? "cancelled" : status === 429 ? "rate-limited" : status && status >= 500 ? "provider-unavailable" : error?.failureType === "timeout" ? "timeout" : "transport",
+    transient: true,
+  };
 }
 
-async function requestProviderRefresh(config, refreshToken, signal) {
-  const controller = new AbortController();
-  const forwardAbort = () => controller.abort(signal?.reason || "cancelled");
-  if (signal?.aborted) forwardAbort();
-  else signal?.addEventListener("abort", forwardAbort, { once: true });
-  const timeout = setTimeout(() => controller.abort("refresh-timeout"), 15000);
-  try {
-    const response = await fetch(`${String(config.supabaseUrl).replace(/\/+$/, "")}/auth/v1/token?grant_type=refresh_token`, {
+async function requestProviderRefresh(config, refreshToken, signal, options = {}) {
+  const origin = normalizeProviderUrl(config.supabaseUrl);
+  if (!origin) throw Object.assign(new Error("El proveedor de autenticacion no es valido."), { code: "PROVIDER_URL_INVALID" });
+  const request = await executeRemoteRequest({
+    fetchImpl: options.fetchImpl,
+    init: {
       body: JSON.stringify({ refresh_token: refreshToken }),
-      headers: {
-        apikey: config.supabaseAnonKey,
-        "Content-Type": "application/json",
-      },
+      headers: { apikey: config.supabaseAnonKey, "Content-Type": "application/json" },
       method: "POST",
-      redirect: "error",
-      signal: controller.signal,
+    },
+    signal,
+    timeoutMs: options.timeoutMs,
+    url: `${origin}/auth/v1/token?grant_type=refresh_token`,
+  });
+  if (!request.ok) {
+    throw Object.assign(new Error("No se pudo completar la renovacion."), {
+      code: request.reason || "REFRESH_TRANSPORT_FAILURE",
+      failureType: request.failureType,
+      refreshReason: request.reason,
+      transient: true,
     });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw Object.assign(new Error("El proveedor rechazo la renovacion."), {
-        code: body.error_code || body.error || `HTTP_${response.status}`,
-        status: response.status,
-      });
-    }
-    const { user, ...session } = body;
-    return { session, user };
-  } finally {
-    clearTimeout(timeout);
-    signal?.removeEventListener("abort", forwardAbort);
   }
+  const body = parseResponseText(request.bodyText);
+  if (!request.response.ok) {
+    const providerCode = typeof body?.error_code === "string" ? body.error_code
+      : typeof body?.code === "string" ? body.code
+      : typeof body?.error === "string" ? body.error
+      : null;
+    throw Object.assign(new Error("El proveedor rechazo la renovacion."), {
+      code: providerCode || `HTTP_${request.httpStatus}`,
+      providerCode,
+      retryAfterMs: parseRetryAfter(request.response.headers?.get?.("retry-after"), { nowMs: options.nowMs }),
+      status: request.httpStatus,
+    });
+  }
+  if (!body || body.rawText || typeof body !== "object") {
+    throw Object.assign(new Error("El proveedor devolvio una respuesta de renovacion no valida."), {
+      code: "REFRESH_RESPONSE_INVALID",
+      status: request.httpStatus,
+      transient: true,
+    });
+  }
+  const { user, ...session } = body;
+  return { session, user };
 }
 
-async function refreshProviderSession({ config, signal, storedSession, supabaseClient }) {
+function awaitRefreshOperation(operation, signal, timeoutMs = 15000) {
+  const deadlineMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 15000;
+  let timer;
+  let abortListener;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error("La renovacion excedio su deadline."), {
+      code: "REFRESH_TIMEOUT",
+      failureType: "timeout",
+      transient: true,
+    })), deadlineMs);
+  });
+  const cancellation = new Promise((_, reject) => {
+    if (!signal) return;
+    abortListener = () => reject(Object.assign(new Error("La renovacion fue cancelada."), {
+      code: "REFRESH_CANCELLED",
+      failureType: "cancelled",
+      name: "AbortError",
+      transient: true,
+    }));
+    if (signal.aborted) abortListener();
+    else signal.addEventListener("abort", abortListener, { once: true });
+  });
+  return Promise.race([Promise.resolve(operation), deadline, cancellation]).finally(() => {
+    clearTimeout(timer);
+    if (signal && abortListener) signal.removeEventListener("abort", abortListener);
+  });
+}
+
+async function refreshProviderSession({ config, fetchImpl, signal, storedSession, supabaseClient, timeoutMs }) {
   const refreshToken = storedSession?.session?.refresh_token;
   if (!refreshToken) {
     throw Object.assign(new Error("No hay refresh_token guardado."), { code: "MISSING_REFRESH_TOKEN", sessionStatus: "revoked", transient: false });
@@ -104,8 +167,12 @@ async function refreshProviderSession({ config, signal, storedSession, supabaseC
   let data;
   let error;
   try {
-    if (supabaseClient) ({ data, error } = await supabaseClient.auth.refreshSession({ refresh_token: refreshToken }));
-    else data = await requestProviderRefresh(config, refreshToken, signal);
+    if (supabaseClient) ({ data, error } = await awaitRefreshOperation(
+      supabaseClient.auth.refreshSession({ refresh_token: refreshToken }),
+      signal,
+      timeoutMs,
+    ));
+    else data = await requestProviderRefresh(config, refreshToken, signal, { fetchImpl, timeoutMs });
   } catch (requestError) {
     error = requestError;
   }
@@ -114,7 +181,10 @@ async function refreshProviderSession({ config, signal, storedSession, supabaseC
     throw Object.assign(new Error("No se pudo renovar la sesion."), {
       cause: error,
       code: classification.reason,
+      refreshReason: classification.reason,
+      retryAfterMs: error?.retryAfterMs,
       sessionStatus: classification.status,
+      status: error?.status,
       transient: classification.transient,
     });
   }
@@ -126,7 +196,14 @@ async function refreshProviderSession({ config, signal, storedSession, supabaseC
     });
   }
   const expectedUserId = storedSession?.user?.id;
-  const returnedUserId = data.user?.id || expectedUserId;
+  const returnedUserId = data.user?.id || null;
+  if (!data.user?.id) {
+    throw Object.assign(new Error("El proveedor no devolvio la identidad renovada."), {
+      code: "REFRESH_IDENTITY_MISSING",
+      sessionStatus: "temporary-failure",
+      transient: true,
+    });
+  }
   if (!expectedUserId || returnedUserId !== expectedUserId) {
     throw Object.assign(new Error("La identidad renovada no coincide con la cuenta."), {
       code: "SESSION_IDENTITY_MISMATCH",
@@ -138,12 +215,16 @@ async function refreshProviderSession({ config, signal, storedSession, supabaseC
     schemaVersion: 1,
     session: data.session,
     supabaseUrl: config.supabaseUrl,
-    user: data.user || storedSession.user,
+    user: data.user,
   };
 }
 
 function repositoryKey(config) {
-  return `${config.userDataDir || ""}\n${config.supabaseUrl || ""}`;
+  const anonKeyFingerprint = crypto.createHash("sha256")
+    .update(String(config.supabaseAnonKey || "missing-anon-key"))
+    .digest("hex")
+    .slice(0, 16);
+  return `${path.resolve(config.userDataDir || ".")}\n${normalizeProviderUrl(config.supabaseUrl) || "invalid-provider"}\nkey_${anonKeyFingerprint}`;
 }
 
 function sessionConfig(config) {
@@ -168,23 +249,25 @@ function getAccountSessionRepository(config, options = {}) {
 }
 
 function ensureMigration(repository) {
-  if (!migrationPromises.has(repository)) {
-    migrationPromises.set(repository, repository.migrateLegacy().catch((error) => ({ error, status: "recovery-required" })));
-  }
-  return migrationPromises.get(repository);
+  if (migratedRepositories.has(repository)) return Promise.resolve({ cached: true, status: "completed" });
+  const existing = migrationPromises.get(repository);
+  if (existing) return existing;
+  const operation = repository.migrateLegacy()
+    .catch((error) => ({ error, status: "recovery-required" }))
+    .then((result) => {
+      if (result?.status === "completed") migratedRepositories.add(repository);
+      return result;
+    })
+    .finally(() => {
+      if (migrationPromises.get(repository) === operation) migrationPromises.delete(repository);
+    });
+  migrationPromises.set(repository, operation);
+  return operation;
 }
 
 async function activeIdentity(config) {
   const accounts = await readKnownAccounts(sessionConfig(config));
   return accounts.lastActiveUserId || null;
-}
-
-async function readSession(config, options = {}) {
-  const repository = getAccountSessionRepository(config, options);
-  await ensureMigration(repository);
-  const userId = options.userId || await activeIdentity(config);
-  if (!userId) return null;
-  return (await repository.read(userId)).storedSession || null;
 }
 
 async function saveSession(config, session, user, options = {}) {
@@ -202,50 +285,62 @@ async function deleteSession(config, options = {}) {
   const repository = getAccountSessionRepository(config, options);
   await ensureMigration(repository);
   const userId = options.userId || await activeIdentity(config);
-  if (!userId) return { removed: false };
-  const result = await repository.remove(userId, { reason: options.reason || "logout" });
-  await clearActiveAccount(sessionConfig(config));
+  if (!userId) {
+    await clearActiveAccount(sessionConfig(config));
+    return { removed: false };
+  }
+  const result = await repository.remove(userId, {
+    forgetAccount: options.forgetAccount === true,
+    reason: options.reason || "logout",
+  });
+  if (options.forgetAccount !== true) await clearActiveAccount(sessionConfig(config));
   return result;
 }
 
-async function refreshStoredSession(config, storedSession, options = {}) {
+async function resolveCanonicalSessionResult(config, options = {}) {
   const repository = getAccountSessionRepository(config, options);
-  await ensureMigration(repository);
-  const userId = storedSession?.user?.id;
-  if (!userId) throw Object.assign(new Error("La sesion no contiene userId."), { code: "SESSION_IDENTITY_MISSING" });
-  const result = await repository.refresh(userId, {
-    connected: options.connected !== false,
-    force: true,
-    supabaseClient: options.supabaseClient,
-  });
-  if (!result.storedSession) {
-    const error = result.error || new Error(result.status === "revoked" ? "La sesion requiere login." : "La renovacion se ha aplazado.");
-    error.sessionStatus ||= result.status;
-    throw error;
-  }
-  return result.storedSession;
-}
-
-async function getValidStoredSession(config, options = {}) {
-  const repository = getAccountSessionRepository(config, options);
-  await ensureMigration(repository);
+  const migration = await ensureMigration(repository);
   const userId = options.userId || await activeIdentity(config);
-  if (!userId) throw new Error("No hay sesion guardada. Ejecuta: node app.js login");
-  const result = await repository.resolve(userId, {
+  if (migration?.status === "cancelled") {
+    return createSessionResult({ status: "cancelled", reason: "migration-cancelled" });
+  }
+  if (migration?.status === "recovery-required" || migration?.error) {
+    const current = userId ? await repository.read(userId).catch(() => null) : null;
+    return createSessionResult({
+      error: migration.error,
+      hasLocalSession: current?.hasLocalSession === true,
+      migrationRequired: true,
+      reason: "migration-recovery-required",
+      sessionRevision: current?.sessionRevision || 0,
+      status: "recovery-required",
+      storedSession: current?.storedSession || null,
+    });
+  }
+  if (!userId) return createSessionResult({ status: "missing", reason: "no-active-account" });
+  return repository.resolve(userId, {
     connected: options.connected !== false,
     deferRemote: options.deferRemote === true,
+    fetchImpl: options.fetchImpl,
+    force: options.force === true,
+    signal: options.signal,
     supabaseClient: options.supabaseClient,
+    timeoutMs: options.timeoutMs,
   });
-  if (!result.storedSession) {
-    const error = result.error || new Error(result.status === "revoked" ? "Esta sesion requiere iniciar sesion de nuevo." : "No hay sesion canonica valida.");
-    error.sessionStatus ||= result.status;
-    throw error;
-  }
-  return result.storedSession;
 }
 
-async function resolveCanonicalSession(config, options = {}) {
-  return getValidStoredSession(config, options);
+async function requireRemoteUsableSession(config, options = {}) {
+  const sessionResult = await resolveCanonicalSessionResult(config, options);
+  if (isSessionRemoteUsable(sessionResult)) return sessionResult;
+  const error = Object.assign(new Error(
+    sessionResult.requiresLogin
+      ? "Esta sesion requiere iniciar sesion de nuevo."
+      : "La credencial remota no esta disponible temporalmente."
+  ), {
+    code: sessionResult.requiresLogin ? "SESSION_LOGIN_REQUIRED" : "SESSION_REMOTE_DEFERRED",
+    sessionResult,
+    sessionStatus: sessionResult.status,
+  });
+  throw error;
 }
 
 function redactValues(text, values = []) {
@@ -260,6 +355,8 @@ function toSafeSessionState(storedSession, overrides = {}) {
     expiresAt: storedSession?.session?.expires_at || null,
     hasSession: Boolean(storedSession),
     message: overrides.message || "Sesion local activa.",
+    remoteUsable: overrides.remoteUsable === true,
+    requiresLogin: overrides.requiresLogin === true,
     sessionRevision: Number(storedSession?.sessionRevision) || Number(overrides.sessionRevision) || 0,
     status: overrides.status || "ok",
     userId: storedSession?.user?.id || overrides.userId || null,
@@ -270,29 +367,34 @@ async function getAuthState(config, options = {}) {
   try { assertAuthConfig(config); } catch {
     return { email: null, hasSession: false, message: "La autenticacion local no esta configurada.", sessionRevision: 0, status: "not_configured", userId: null };
   }
-  const repository = getAccountSessionRepository(config, options);
-  await ensureMigration(repository);
-  const userId = await activeIdentity(config);
-  if (!userId) return { email: null, hasSession: false, message: "No hay sesion guardada.", sessionRevision: 0, status: "missing", userId: null };
-  const result = await repository.resolve(userId, {
-    connected: options.connected !== false,
-    deferRemote: options.deferRemote === true,
-    supabaseClient: options.supabaseClient,
-  });
-  if (result.storedSession) {
-    return toSafeSessionState(result.storedSession, {
-      message: result.status.startsWith("deferred") ? "La sesion se renovara cuando vuelva la conexion." : "Sesion local activa.",
-      sessionRevision: result.sessionRevision,
-      status: result.status.startsWith("deferred") ? "deferred-offline" : "ok",
+  const sessionResult = await resolveCanonicalSessionResult(config, options);
+  if (isSessionLocallyAvailable(sessionResult) && sessionResult.storedSession) {
+    const remoteUsable = isSessionRemoteUsable(sessionResult);
+    return toSafeSessionState(sessionResult.storedSession, {
+      message: sessionResult.requiresLogin
+        ? "Esta sesion requiere iniciar sesion de nuevo."
+        : remoteUsable
+          ? "Sesion local activa."
+          : "La sesion se conserva y su renovacion esta aplazada.",
+      remoteUsable,
+      requiresLogin: requiresSessionLogin(sessionResult),
+      sessionRevision: sessionResult.sessionRevision,
+      status: ["valid", "refreshed"].includes(sessionResult.status) ? "ok" : sessionResult.status,
     });
   }
   return {
     email: null,
-    hasSession: false,
-    message: result.status === "revoked" ? "Esta sesion requiere iniciar sesion de nuevo." : "No se pudo leer la sesion local.",
-    sessionRevision: Number(result.sessionRevision) || 0,
-    status: result.status || "corrupt",
-    userId: null,
+    hasSession: isSessionLocallyAvailable(sessionResult),
+    message: sessionResult.requiresLogin
+      ? "Esta sesion requiere iniciar sesion de nuevo."
+      : sessionResult.status === "missing"
+        ? "No hay sesion guardada."
+        : "La sesion local no esta disponible temporalmente.",
+    remoteUsable: false,
+    requiresLogin: requiresSessionLogin(sessionResult),
+    sessionRevision: sessionResult.sessionRevision,
+    status: sessionResult.status,
+    userId: options.userId || null,
   };
 }
 
@@ -319,11 +421,11 @@ async function signInWithPassword(config, credentials = {}, options = {}) {
 }
 
 async function logoutLocal(config, options = {}) {
-  await deleteSession(config, options);
+  const removed = await deleteSession(config, options);
   return {
     message: "Sesion cerrada.",
     ok: true,
-    session: { email: null, hasSession: false, message: "No hay sesion guardada.", sessionRevision: 0, status: "missing", userId: null },
+    session: { email: null, hasSession: false, message: "No hay sesion guardada.", remoteUsable: false, requiresLogin: false, sessionRevision: removed.sessionRevision || 0, status: "missing", userId: null },
   };
 }
 
@@ -357,8 +459,7 @@ async function logout(config) {
   if (userId) {
     const repository = getAccountSessionRepository(config);
     await ensureMigration(repository);
-    await repository.remove(userId, { reason: "cli-logout" });
-    await removeKnownAccount(sessionConfig(config), userId, { deleteSession: false });
+    await repository.remove(userId, { forgetAccount: true, reason: "cli-logout" });
   } else {
     await clearActiveAccount(sessionConfig(config));
   }
@@ -366,24 +467,30 @@ async function logout(config) {
   console.log("");
 }
 
+async function shutdownAccountSessionRepositories(options = {}) {
+  const repositoriesToClose = [...new Set(repositories.values())];
+  return Promise.all(repositoriesToClose.map((repository) => repository.shutdown(options)));
+}
+
 module.exports = {
   assertAuthConfig,
   authStatus,
   createSupabaseClient,
+  classifySessionRefreshError,
   deleteSession,
   getAccountSessionRepository,
   getAuthState,
-  getValidStoredSession,
   isSessionExpiringSoon,
   login,
   logout,
   logoutLocal,
   maskToken,
-  readSession,
-  resolveCanonicalSession,
+  requestProviderRefresh,
+  requireRemoteUsableSession,
+  resolveCanonicalSessionResult,
   refreshProviderSession,
-  refreshStoredSession,
   saveSession,
+  shutdownAccountSessionRepositories,
   signInWithPassword,
   toSafeSessionState,
 };

@@ -1,5 +1,5 @@
 const path = require("path");
-const { assertAuthConfig, resolveCanonicalSession } = require("./auth");
+const { assertAuthConfig, resolveCanonicalSessionResult } = require("./auth");
 const { assertDirExists, pathExists } = require("./file-utils");
 const {
   RECENT_EVENT_THRESHOLD_MS,
@@ -20,6 +20,12 @@ const {
   classifySubmissionHttpResult,
   classifySubmissionRequestFailure,
 } = require("./submission-outcome");
+const {
+  assertSessionResult,
+  isSessionDeferred,
+  isSessionRemoteUsableNow,
+  requiresSessionLogin,
+} = require("./session-result");
 
 function withOutcome(result, outcome) {
   return { ...result, ...outcome };
@@ -47,6 +53,56 @@ function formatRecentWarning(freshness) {
   }
 
   return `Archivo modificado hace ${Math.round(freshness.ageMs)}ms; puede estar aun escribiendose. Umbral: ${freshness.thresholdMs}ms.`;
+}
+
+async function getSubmissionSessionResult(config, options = {}) {
+  if (options.sessionResult !== undefined) return assertSessionResult(await options.sessionResult);
+  const resolver = options.getSessionResultImpl || resolveCanonicalSessionResult;
+  let result;
+  try {
+    result = await resolver(config, options);
+  } catch (error) {
+    if (error?.sessionResult) return assertSessionResult(error.sessionResult);
+    return { resolutionError: error };
+  }
+  return assertSessionResult(result);
+}
+
+function buildSessionUnavailableResult(sessionResult, details) {
+  const requiresLogin = sessionResult && requiresSessionLogin(sessionResult);
+  if (requiresLogin) {
+    const playerMessage = "La puntuacion sigue guardada. Inicia sesion de nuevo para enviarla.";
+    return withOutcome({
+      ...details,
+      action: "auth_required",
+      message: playerMessage,
+      sessionStatus: sessionResult.status,
+    }, baseOutcome({
+      authRequired: true,
+      outcome: "auth-required",
+      playerMessage,
+      technicalReason: `session-${sessionResult.status}`,
+      terminal: false,
+    }));
+  }
+
+  const status = sessionResult?.status || "resolution-error";
+  const playerMessage = "La credencial remota no esta disponible temporalmente. La puntuacion sigue guardada.";
+  return withOutcome({
+    ...details,
+    action: "pending",
+    message: playerMessage,
+    sessionDeferred: true,
+    sessionStatus: status,
+  }, baseOutcome({
+    authRequired: false,
+    outcome: "auth-deferred",
+    playerMessage,
+    preservePending: true,
+    retryable: sessionResult ? isSessionDeferred(sessionResult) : true,
+    technicalReason: `session-${status}`,
+    terminal: false,
+  }));
 }
 
 async function submitPendingFile(config, filename, options = {}) {
@@ -97,18 +153,25 @@ async function submitPendingFile(config, filename, options = {}) {
   }
 
   const submission = buildSubmitSummary(config, result.event);
-  let storedSession;
-
-  try {
-    storedSession = await (options.getValidStoredSessionImpl || resolveCanonicalSession)(config);
-  } catch (error) {
-    return withOutcome({
-      action: "auth_required",
+  const sessionResult = await getSubmissionSessionResult(config, options);
+  if (sessionResult.resolutionError || !isSessionRemoteUsableNow(sessionResult, { config, nowMs: options.nowMs })) {
+    return buildSessionUnavailableResult(sessionResult.resolutionError ? null : sessionResult, {
       filename: safeName,
-      message: error.message,
       recentWarning,
       submission,
-    }, baseOutcome({ authRequired: true, outcome: "auth-required", playerMessage: "La puntuacion sigue guardada. Inicia sesion de nuevo para enviarla.", technicalReason: "local-auth-required" }));
+    });
+  }
+  const storedSession = sessionResult.storedSession;
+  const hasRemoteCredential = typeof storedSession?.session?.access_token === "string"
+    && storedSession.session.access_token.length > 0
+    && typeof storedSession?.user?.id === "string"
+    && storedSession.user.id.length > 0;
+  if (!hasRemoteCredential) {
+    return buildSessionUnavailableResult(null, {
+      filename: safeName,
+      recentWarning,
+      submission,
+    });
   }
 
   const payload = buildSubmissionPayload(config, result.event, storedSession);
@@ -269,6 +332,10 @@ async function submitAll(config, options = {}) {
 
     if (result.action === "auth_required") {
       console.log("Se detiene submit-all porque falta autenticación válida.");
+      break;
+    }
+    if (result.sessionDeferred) {
+      console.log("Se detiene submit-all hasta que la credencial remota vuelva a estar disponible.");
       break;
     }
     if (options.stopOnTransportFailure && result.action === "network_error") {

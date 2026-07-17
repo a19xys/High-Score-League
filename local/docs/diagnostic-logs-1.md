@@ -13,6 +13,15 @@ refresh, deferred, revocacion, corrupcion y stale writes, mas revision,
 expiracion y `requiresLogin` por cuenta. No incluye email, tokens, cuerpos del
 proveedor ni rutas fisicas de credenciales.
 
+La estabilización añade el backoff de refresh por hash de usuario, intento,
+motivo, estado HTTP permitido, `nextEligibleAt` y plazo restante. Los resultados
+de sesión sanitizan y acotan `reason`, `error` y `lockState`; nunca debe
+serializarse `storedSession`. Un diagnóstico puede describir
+`provider-mismatch`, `storage-unavailable`, `lock-timeout` o
+`recovery-required`, pero no repara archivos, no valida la configuración remota
+de Supabase y no demuestra que staging haya pasado. Contrato completo:
+[canonical-account-sessions-stabilization-2.md](canonical-account-sessions-stabilization-2.md).
+
 El sanitizer sigue excluyendo tokens, Authorization, cookies, cuerpos completos,
 HTML, IP y URLs devueltas por servidor. La causa tecnica se limita a estado
 HTTP, tipo/codigo de error y motivo de ciclo de vida permitido.

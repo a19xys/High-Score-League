@@ -2101,8 +2101,8 @@ test("launcher service and renderer expose account switcher without tokens", asy
   assert.match(service, /switchKnownAccountFromGui/);
   assert.match(service, /toSafeAccountsState/);
   assert.match(service, /removeKnownAccountFromGui/);
-  assert.match(service, /removeKnownAccount\(config, session\.userId, \{ deleteSession: false \}\)/);
-  assert.match(service, /logoutLocal\(config\)/);
+  assert.match(service, /logoutLocal\(config, \{ forgetAccount: true, reason: "gui-logout" \}\)/);
+  assert.match(service, /forgetAccount: true/);
   assert.match(header, /<strong>Cuentas<\/strong>/);
   assert.match(header, /data-action="switch-account"/);
   assert.match(header, /data-action="add-account"/);

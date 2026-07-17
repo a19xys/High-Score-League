@@ -8,10 +8,12 @@ const {
   shouldBlockCompetition,
   shouldBlockSubmit,
 } = require("../src/season-membership");
+const { createSessionResult } = require("../src/session-result");
 
 function config(overrides = {}) {
   return {
     defaultWeekId: "week-1",
+    supabaseUrl: "https://project.supabase.co",
     webBaseUrl: "https://high-score-league.example",
     ...overrides,
   };
@@ -26,13 +28,24 @@ function sessionState() {
 
 function storedSession(token = "secret-access-token") {
   return {
+    supabaseUrl: "https://project.supabase.co",
     session: {
       access_token: token,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
     },
     user: {
       id: "user-1",
     },
   };
+}
+
+function remoteSessionResult(token = "secret-access-token", overrides = {}) {
+  return createSessionResult({
+    sessionRevision: 1,
+    status: "valid",
+    storedSession: storedSession(token),
+    ...overrides,
+  });
 }
 
 function jsonResponse(status, body) {
@@ -62,22 +75,27 @@ test("sin sesion devuelve no_session y bloquea competicion", async () => {
   assert.equal(shouldBlockCompetition(result), true);
 });
 
-test("sesion local caducada devuelve unauthenticated", async () => {
-  const result = await checkSeasonMembership(config(), {
-    hasSession: false,
-    message: "La sesion ha caducado.",
-    status: "expired",
+test("requiresLogin canonico devuelve unauthenticated sin una peticion remota", async () => {
+  let fetched = false;
+  const result = await checkSeasonMembership(config(), sessionState(), {
+    fetchImpl: async () => {
+      fetched = true;
+      throw new Error("must not run");
+    },
+    sessionResult: createSessionResult({ sessionRevision: 3, status: "revoked" }),
   });
 
+  assert.equal(fetched, false);
   assert.equal(result.status, "unauthenticated");
   assert.equal(result.canPlayCompetition, false);
   assert.match(result.message, /sesion no es valida/i);
-  assert.equal(result.technicalReason, "La sesion ha caducado.");
+  assert.equal(result.technicalReason, "auth-required:revoked");
+  assert.equal(result.sessionRevision, 3);
 });
 
 test("sin weekId devuelve missing_week", async () => {
   const result = await checkSeasonMembership(config({ defaultWeekId: null }), sessionState(), {
-    storedSession: storedSession(),
+    sessionResult: remoteSessionResult(),
   });
 
   assert.equal(result.status, "missing_week");
@@ -118,7 +136,7 @@ test("respuesta member permite competicion y subida", async () => {
         message: "Participas en esta temporada.",
       });
     },
-    storedSession: storedSession(),
+    sessionResult: remoteSessionResult(),
   });
 
   assert.equal(authorization, "Bearer secret-access-token");
@@ -144,7 +162,7 @@ test("respuesta not_member bloquea competicion y subida", async () => {
       seasonId: "season-1",
       joinUrl: "/seasons/season-1",
     }),
-    storedSession: storedSession(),
+    sessionResult: remoteSessionResult(),
   });
 
   assert.equal(result.status, "not_member");
@@ -161,7 +179,7 @@ test("endpoint 401 devuelve unauthenticated", async () => {
       status: "unauthenticated",
       message: "Necesitas una sesion valida.",
     }),
-    storedSession: storedSession(),
+    sessionResult: remoteSessionResult(),
   });
 
   assert.equal(result.status, "unauthenticated");
@@ -177,7 +195,7 @@ test("respuesta 500 JSON error devuelve error diagnostico", async () => {
       status: "error",
       message: "No se pudo comprobar la participacion.",
     }),
-    storedSession: storedSession(),
+    sessionResult: remoteSessionResult(),
   });
 
   assert.equal(result.status, "error");
@@ -192,7 +210,7 @@ test("respuesta HTML no guarda HTML completo y devuelve error seguro", async () 
   const html = "<html><body><h1>Not Found</h1><script>secret</script></body></html>";
   const result = await checkSeasonMembership(config(), sessionState(), {
     fetchImpl: async () => textResponse(404, html),
-    storedSession: storedSession("very-secret-token"),
+    sessionResult: remoteSessionResult("very-secret-token"),
   });
 
   const serialized = JSON.stringify(result);
@@ -211,7 +229,7 @@ test("error de red devuelve unknown y permite competir con advertencia", async (
     fetchImpl: async () => {
       throw new Error("network down");
     },
-    storedSession: storedSession(),
+    sessionResult: remoteSessionResult(),
   });
 
   assert.equal(result.status, "unknown");
@@ -223,6 +241,107 @@ test("error de red devuelve unknown y permite competir con advertencia", async (
   assert.equal(result.response, null);
   assert.equal(result.technicalReason, "transport-failure:request-failed");
   assert.equal(result.remoteFailure, "transport-failure");
+});
+
+test("deferred con un access token expirado preservado no envia Authorization", async () => {
+  let fetched = false;
+  const result = await checkSeasonMembership(config(), sessionState(), {
+    fetchImpl: async () => {
+      fetched = true;
+      throw new Error("must not run");
+    },
+    sessionResult: createSessionResult({
+      reason: "refresh-provider-unavailable",
+      sessionRevision: 4,
+      status: "deferred",
+      storedSession: storedSession("expired-access-token"),
+    }),
+  });
+
+  assert.equal(fetched, false);
+  assert.equal(result.status, "unknown");
+  assert.equal(result.authDeferred, true);
+  assert.equal(result.canPlayCompetition, true);
+  assert.equal(result.canSubmit, false);
+  assert.equal(result.sessionStatus, "deferred");
+  assert.equal(result.sessionRevision, 4);
+  assert.match(result.technicalReason, /^auth-deferred:/);
+  assert.doesNotMatch(JSON.stringify(result), /expired-access-token|Authorization/);
+});
+
+test("un resultado remoto antiguo se revalida justo antes de enviar Authorization", async () => {
+  let fetched = false;
+  const expiredAfterResolution = storedSession("expired-after-resolution");
+  expiredAfterResolution.session.expires_at = 100;
+  const result = await checkSeasonMembership(config(), sessionState(), {
+    fetchImpl: async () => {
+      fetched = true;
+      throw new Error("must not run");
+    },
+    nowMs: 200_000,
+    sessionResult: createSessionResult({
+      sessionRevision: 5,
+      status: "valid",
+      storedSession: expiredAfterResolution,
+    }),
+  });
+
+  assert.equal(fetched, false);
+  assert.equal(result.authDeferred, true);
+  assert.equal(result.status, "unknown");
+  assert.equal(result.sessionStatus, "valid");
+});
+
+test("cancelled y lock-timeout son auth-deferred y nunca unauthenticated", async () => {
+  for (const status of ["cancelled", "lock-timeout"]) {
+    let authorizationSent = false;
+    const result = await checkSeasonMembership(config(), sessionState(), {
+      fetchImpl: async (_url, init) => {
+        authorizationSent = Boolean(init?.headers?.Authorization);
+        throw new Error("must not run");
+      },
+      sessionResult: createSessionResult({
+        sessionRevision: 2,
+        status,
+        storedSession: storedSession("preserved-token"),
+      }),
+    });
+    assert.equal(authorizationSent, false, status);
+    assert.equal(result.status, "unknown", status);
+    assert.equal(result.authDeferred, true, status);
+    assert.equal(result.sessionStatus, status, status);
+  }
+});
+
+test("legacy storedSession is ignored unless the fixture opts in explicitly", async () => {
+  let fetched = false;
+  const result = await checkSeasonMembership(config(), sessionState(), {
+    fetchImpl: async () => {
+      fetched = true;
+      throw new Error("must not run");
+    },
+    resolveCanonicalSessionResultImpl: async () => createSessionResult({
+      reason: "refresh-timeout",
+      status: "deferred",
+      storedSession: storedSession("canonical-expired-token"),
+    }),
+    storedSession: storedSession("legacy-fixture-token"),
+  });
+  assert.equal(fetched, false);
+  assert.equal(result.authDeferred, true);
+  assert.equal(result.status, "unknown");
+
+  let authorization = null;
+  const trusted = await checkSeasonMembership(config(), sessionState(), {
+    fetchImpl: async (_url, init) => {
+      authorization = init.headers.Authorization;
+      return jsonResponse(200, { status: "member", weekId: "week-1" });
+    },
+    storedSession: storedSession("trusted-fixture-token"),
+    trustStoredSessionFixture: true,
+  });
+  assert.equal(trusted.status, "member");
+  assert.equal(authorization, "Bearer trusted-fixture-token");
 });
 
 test("joinUrl accepts only the configured origin and falls back safely", () => {

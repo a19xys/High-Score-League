@@ -361,6 +361,7 @@ test("diagnose session summary does not expose tokens", async () => {
       config.sessionFileAbs,
       JSON.stringify({
         schemaVersion: 1,
+        supabaseUrl: config.supabaseUrl,
         user: {
           id: "user-1",
           email: "test@example.com",
@@ -443,6 +444,7 @@ test("diagnose derives scoped queue from active session without requiring it to 
       config.sessionFileAbs,
       JSON.stringify({
         schemaVersion: 1,
+        supabaseUrl: config.supabaseUrl,
         user: {
           id: "User 1",
           email: "player@example.com",
