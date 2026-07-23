@@ -6,6 +6,7 @@ const path = require("node:path");
 const { createAccountSessionRepository } = require("../src/account-session-repository");
 const { rememberAccount } = require("../src/account-store");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
+const { derivePlayerKey } = require("../src/scoped-queue");
 const { createSessionResult } = require("../src/session-result");
 const {
   getPendingAutoSubmitContexts,
@@ -187,4 +188,97 @@ test("a session that becomes unusable during one account run does not block anot
   assert.equal(aggregate.retryable, false);
   assert.equal(aggregate.status, "auth-deferred");
   assert.equal(aggregate.terminal, false);
+});
+
+test("main-style state events, canonical account discovery and the coordinator share one deferred retry", async () => {
+  const userDataDir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-main-session-retry-"));
+  const userId = "user-main";
+  const playerKey = derivePlayerKey({ hasSession: true, userId });
+  const queueRoot = path.join(userDataDir, "players", playerKey, "packs", "pack-main");
+  const pendingDir = path.join(queueRoot, "events", "pending");
+  const config = {
+    eventsPendingDirAbs: path.join(userDataDir, "events", "pending"),
+    sessionFileAbs: path.join(userDataDir, "session.json"),
+    userDataDir,
+    webBaseUrl: "https://hsl.example",
+  };
+  let clock = Date.parse("2026-07-17T00:00:00Z");
+  let timerId = 0;
+  const timers = new Map();
+  let refreshed = false;
+  let remoteRuns = 0;
+  const deferred = () => createSessionResult({
+    retryAfterMs: 10000,
+    sessionRevision: 1,
+    status: "deferred",
+    storedSession: stored(userId),
+  });
+  const usable = () => createSessionResult({
+    sessionRevision: 2,
+    status: "refreshed",
+    storedSession: stored(userId),
+  });
+
+  try {
+    await rememberAccount(config, { email: `${userId}@example.com`, userId });
+    await fsp.mkdir(pendingDir, { recursive: true });
+    await fsp.writeFile(path.join(queueRoot, "meta.json"), JSON.stringify({
+      pack: {
+        gameId: "game",
+        packKey: "pack-main",
+        webBaseUrl: "https://hsl.example",
+        weekId: "week-main",
+      },
+      player: { playerKey, userId },
+      schemaVersion: 1,
+    }));
+    await fsp.writeFile(path.join(pendingDir, "score.json"), "{}");
+
+    const inspect = () => getPendingAutoSubmitContexts({
+      activeUserId: userId,
+      config,
+      connection: { reachability: "connected", reachabilityGeneration: 1 },
+      resolveSessionResultImpl: async () => refreshed ? usable() : deferred(),
+    });
+    const coordinator = createPendingAutoSubmitCoordinator({
+      autoScheduleSessionRetry: true,
+      clearTimeoutImpl: (id) => timers.delete(id),
+      inspect,
+      now: () => clock,
+      run: (context) => runPendingAutoSubmitForAccounts({
+        accountContexts: context.accountContexts,
+        runAccountImpl: async () => {
+          remoteRuns += 1;
+          return { attempted: true, preserved: 0, sent: 1, status: "completed", terminal: true };
+        },
+        shouldContinue: () => true,
+      }),
+      setTimeoutImpl(fn, delay) {
+        const id = ++timerId;
+        timers.set(id, { at: clock + delay, fn });
+        return id;
+      },
+    });
+
+    const firstContext = await inspect();
+    assert.equal(firstContext.sessionDeferrals.length, 1, JSON.stringify(firstContext.accounts));
+    await coordinator.request("startup");
+    await coordinator.request("launcher-state");
+    await coordinator.request("session-maintenance");
+    assert.equal(remoteRuns, 0);
+    assert.equal(timers.size, 1);
+
+    refreshed = true;
+    clock += 10000;
+    const due = [...timers.entries()].filter(([, timer]) => timer.at <= clock);
+    for (const [id, timer] of due) {
+      timers.delete(id);
+      timer.fn();
+    }
+    await coordinator.request("timer-drain");
+    assert.equal(remoteRuns, 1);
+    assert.equal(timers.size, 0);
+  } finally {
+    await fsp.rm(userDataDir, { recursive: true, force: true });
+  }
 });

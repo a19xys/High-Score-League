@@ -12,6 +12,7 @@ import { renderActivityDrawer } from "./components/queue-panel.js";
 import { getLibraryCapabilities } from "./library-capabilities.js";
 import { deriveRemoteAvailability } from "./remote-availability.js";
 import { getRankingActionState } from "./ranking-state.js";
+import { createLauncherStateGate } from "./launcher-state-gate.js";
 import {
   DEFAULT_OPERATION_MIN_VISIBLE_MS,
   runWithOperationFeedback,
@@ -36,6 +37,7 @@ const store = createStore({
   busyLabel: "Iniciando",
   connectivity: null,
   data: null,
+  launcherStateDiagnostics: { highestRevision: null, legacySnapshotsIgnored: 0, staleSnapshotsIgnored: 0 },
   libraryFavoriteFilter: "all",
   libraryActivationInProgress: false,
   libraryFiltersOpen: false,
@@ -74,6 +76,23 @@ let rankingOpenInProgress = false;
 const detailAssetPreloadCache = new Map();
 const favoriteSyncByKey = new Map();
 const unavailableDirectoryPrompts = new Set();
+const launcherStateGate = createLauncherStateGate();
+
+function evaluateLauncherSnapshot(snapshot) {
+  if (!snapshot) return { accepted: false, patch: {} };
+  const decision = launcherStateGate.accept(snapshot);
+  return {
+    accepted: decision.accepted,
+    patch: {
+      ...(decision.accepted ? { data: snapshot } : {}),
+      launcherStateDiagnostics: launcherStateGate.getDiagnostics(),
+    },
+  };
+}
+
+function launcherSnapshotPatch(snapshot) {
+  return evaluateLauncherSnapshot(snapshot).patch;
+}
 
 function delay(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -499,7 +518,7 @@ function refreshRemoteStateAfterPackActivation(requestId, expectedInstanceKey) {
   window.hslLauncher.getState().then((nextData) => {
     if (requestId !== libraryPackSelectionSequence) return;
     if (nextData?.selection?.activeInstanceKey !== expectedInstanceKey) return;
-    store.setState({ data: nextData });
+    store.setState(launcherSnapshotPatch(nextData));
   }).catch(() => {});
 }
 
@@ -666,6 +685,11 @@ async function refreshState() {
   }
   await waitForMinimumVisibleDuration({ startedAt });
   const current = store.getState();
+  const snapshot = evaluateLauncherSnapshot(data);
+  if (!snapshot.accepted) {
+    store.setState({ ...snapshot.patch, busy: false, busyLabel: null });
+    return;
+  }
   const allowLibraryPreferenceHydration = startedWithLibraryPreferenceRevision === libraryPreferenceUserRevision;
   const noticeLogs = (data.notices || [])
     .filter((notice) => !current.noticeIds.includes(notice.id))
@@ -681,7 +705,7 @@ async function refreshState() {
     ...libraryUnavailableStatePatch(data),
     busy: false,
     busyLabel: null,
-    data,
+    ...snapshot.patch,
     libraryFavoriteFilter: data.session?.hasSession ? current.libraryFavoriteFilter : "all",
     ...libraryPreferencesStatePatch(data, current, allowLibraryPreferenceHydration),
     logs: noticeLogs.reduce((logs, notice) => appendLog(logs, notice), current.logs),
@@ -818,9 +842,10 @@ function applyRankingCapabilitiesState(capabilitiesState) {
 function applyBackgroundLauncherState(payload) {
   if (!payload?.state) return;
   const sent = Number(payload.autoSubmit?.sent) || 0;
+  const snapshot = evaluateLauncherSnapshot(payload.state);
   store.setState({
-    data: payload.state,
-    ...(sent > 0 ? {
+    ...snapshot.patch,
+    ...(snapshot.accepted && sent > 0 ? {
       logs: appendLog(store.getState().logs, {
         details: [],
         ok: true,
@@ -839,7 +864,7 @@ async function openRankingWithoutGlobalBusy() {
   try {
     const response = await window.hslLauncher.openRanking();
     store.setState({
-      data: response.state || store.getState().data,
+      ...launcherSnapshotPatch(response.state),
       logs: appendLog(store.getState().logs, resultToLog("Ver ranking", response)),
       rankingOpening: false,
     });
@@ -887,12 +912,12 @@ async function syncLibraryFavorite(packKey) {
 
       const latestSync = favoriteSyncByKey.get(packKey);
 
-      if (response.state) {
-        store.setState({
-          data: response.state,
-        });
+      const snapshot = evaluateLauncherSnapshot(response.state);
+      if (snapshot.accepted) {
+        store.setState(snapshot.patch);
       } else {
         store.setState({
+          ...snapshot.patch,
           data: withFavoritePatch(store.getState().data, packKey, {
             favorite: sync.desiredFavorite,
           }),
@@ -1098,10 +1123,11 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
     };
 
     if (response.state) {
-      statePatch.data = response.state;
-      Object.assign(statePatch, libraryUnavailableStatePatch(response.state));
+      const snapshot = evaluateLauncherSnapshot(response.state);
+      Object.assign(statePatch, snapshot.patch);
+      if (snapshot.accepted) Object.assign(statePatch, libraryUnavailableStatePatch(response.state));
 
-      if (options.promptForUnavailableDirectory) {
+      if (snapshot.accepted && options.promptForUnavailableDirectory) {
         Object.assign(statePatch, unavailableDirectoryDialogPatch(response.state));
       }
     }
@@ -1150,7 +1176,7 @@ async function submitLogin(form) {
       accountMenuOpen: !response.ok,
       busy: false,
       busyLabel: null,
-      data: response.state || store.getState().data,
+      ...launcherSnapshotPatch(response.state),
       logs: appendLog(store.getState().logs, resultToLog("Iniciar sesión", response)),
     });
   } catch {
@@ -1190,7 +1216,7 @@ async function switchAccount(button) {
     const nextState = {
       busy: false,
       busyLabel: null,
-      data: response.state || store.getState().data,
+      ...launcherSnapshotPatch(response.state),
       logs: appendLog(store.getState().logs, resultToLog("Cambiar cuenta", response)),
     };
 
@@ -1267,7 +1293,7 @@ async function activateLibraryPackWithPreload(packId) {
     store.setState({
       busy: false,
       busyLabel: null,
-      data: response.state || store.getState().data,
+      ...launcherSnapshotPatch(response.state),
       libraryActivationInProgress: false,
       logs: appendLog(store.getState().logs, resultToLog("Usar pack de biblioteca", response)),
       pendingLibraryPackId: null,

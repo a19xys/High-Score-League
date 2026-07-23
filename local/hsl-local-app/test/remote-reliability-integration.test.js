@@ -31,7 +31,7 @@ test("suspend and shutdown abort product operations and no legacy GUI submit pat
   assert.doesNotMatch(service, /submitAllPending/);
   assert.doesNotMatch(renderer, /"submit-all"/);
   assert.match(service, /invalidateInteractiveRemoteOperations/);
-  const switchBlock = main.slice(main.indexOf('ipcMain.handle("launcher:switch-account"'), main.indexOf('ipcMain.handle("launcher:use-library-pack"'));
+  const switchBlock = main.slice(main.indexOf('registerLauncherStateHandler("launcher:switch-account"'), main.indexOf('registerLauncherStateHandler("launcher:use-library-pack"'));
   assert.match(switchBlock, /invalidateInteractiveRemoteOperations/);
   assert.doesNotMatch(switchBlock, /cancelPendingAutoSubmit/);
 });
@@ -60,8 +60,8 @@ test("renderer and topology can commit offline only after main verifies net.isOn
 test("only the developer-gated force action can reset auto-submit guards", async () => {
   const main = await source("gui/main.js");
   const forceHandler = main.slice(
-    main.indexOf('ipcMain.handle("launcher:force-account-sync"'),
-    main.indexOf('ipcMain.handle("launcher:restore-failed"'),
+    main.indexOf('registerLauncherStateHandler("launcher:force-account-sync"'),
+    main.indexOf('registerLauncherStateHandler("launcher:restore-failed"'),
   );
   assert.match(forceHandler, /runDeveloperOnlyOperation\(developerToolsEnabled/);
   assert.match(forceHandler, /cancelCurrentRun\("development-force"\)/);

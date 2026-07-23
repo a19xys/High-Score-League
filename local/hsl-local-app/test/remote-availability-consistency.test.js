@@ -89,7 +89,7 @@ test("administrative IPC and controls use developerToolsEnabled instead of devBr
     fsp.readFile(path.join(appRoot, "gui", "main.js"), "utf8"),
     fsp.readFile(path.join(appRoot, "gui", "renderer", "components", "dev-tools.js"), "utf8"),
   ]);
-  const handler = main.slice(main.indexOf('ipcMain.handle("launcher:request-ranking-capabilities-refresh"'), main.indexOf('ipcMain.handle("launcher:get-auth-state"'));
+  const handler = main.slice(main.indexOf('registerLauncherStateHandler("launcher:request-ranking-capabilities-refresh"'), main.indexOf('ipcMain.handle("launcher:get-auth-state"'));
   assert.match(handler, /runDeveloperOnlyOperation\(developerToolsEnabled/);
   assert.doesNotMatch(handler, /devBridge/);
   assert.match(handler, /rankingCapabilities\.forceRefresh/);

@@ -357,6 +357,8 @@ test("global migration lock serializes repositories and recovery login completes
     assert.equal((await left.read("user-1")).sessionRevision, 1);
 
     const savedAt = "2026-07-17T00:00:00.000Z";
+    // Start a new migration cycle before constructing divergent legacy sources.
+    await fsp.rm(migrationJournalPath(cfg), { force: true });
     await writeStoredSession(canonicalSessionPath(cfg, "user-1"), stored("user-1", "remembered", 100), {
       expectedRevision: 1,
       expectedUserId: "user-1",

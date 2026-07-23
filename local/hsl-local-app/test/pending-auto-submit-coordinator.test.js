@@ -18,6 +18,34 @@ function ready(revision = "rev-1") {
   };
 }
 
+function fakeTimers(initialNow = Date.parse("2026-07-17T00:00:00Z")) {
+  let clock = initialNow;
+  let nextId = 0;
+  const timers = new Map();
+  return {
+    clearTimeoutImpl(id) { timers.delete(id); },
+    count() { return timers.size; },
+    now() { return clock; },
+    setTimeoutImpl(fn, delay) {
+      const id = ++nextId;
+      timers.set(id, { at: clock + Math.max(0, Number(delay) || 0), fn });
+      return id;
+    },
+    async advance(ms) {
+      clock += ms;
+      const due = [...timers.entries()]
+        .filter(([, timer]) => timer.at <= clock)
+        .sort((left, right) => left[1].at - right[1].at);
+      for (const [id, timer] of due) {
+        if (!timers.delete(id)) continue;
+        timer.fn();
+      }
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+    },
+  };
+}
+
 test("readiness and stable guard identity separate queue/session from connectivity generation", () => {
   assert.equal(derivePendingAutoSubmitReadiness(ready()).ready, true);
   assert.equal(derivePendingAutoSubmitReadiness({ ...ready(), session: null }).reason, "session-not-ready");
@@ -268,8 +296,238 @@ test("session refresh deferral consumes neither auth block, terminal key nor sub
   const second = await coordinator.request("maintenance");
   assert.equal(first.status, "deferred");
   assert.equal(second.status, "deferred");
-  assert.equal(runs, 2);
+  assert.equal(runs, 1);
   assert.equal(coordinator.getDiagnostics().authBlocked, false);
   assert.equal(coordinator.getDiagnostics().nextEligibleAt, null);
   assert.equal(coordinator.getDiagnostics().lastTerminalKey, null);
+});
+
+test("session wait ignores queue, reachability and active-account events and owns one timer", async () => {
+  const timers = fakeTimers();
+  let context = { ...ready(), sessionRevision: 7 };
+  let runs = 0;
+  const coordinator = createPendingAutoSubmitCoordinator({
+    autoScheduleSessionRetry: true,
+    clearTimeoutImpl: timers.clearTimeoutImpl,
+    inspect: async () => context,
+    now: timers.now,
+    run: async () => {
+      runs += 1;
+      return runs === 1
+        ? { retryAfterMs: 60000, sessionDeferred: true, status: "deferred", terminal: false }
+        : { sent: 1, status: "completed", terminal: true };
+    },
+    setTimeoutImpl: timers.setTimeoutImpl,
+  });
+
+  await coordinator.request("startup");
+  assert.equal(runs, 1);
+  assert.equal(timers.count(), 1);
+  for (let index = 0; index < 8; index += 1) {
+    context = {
+      ...context,
+      active: index % 2 === 0,
+      connection: { reachability: "connected", reachabilityGeneration: 3 + index },
+      index: { revision: `queue-${index}`, totals: { pending: 1 } },
+    };
+    const result = await coordinator.request("state-event");
+    assert.equal(result.reason, "session-refresh-wait");
+    assert.equal(timers.count(), 1);
+  }
+  assert.equal(runs, 1);
+
+  await timers.advance(60000);
+  assert.equal(runs, 2);
+  assert.equal(timers.count(), 0);
+});
+
+test("deadline runs once, a second canonical deferral rearms, and a new login revision bypasses immediately", async () => {
+  const timers = fakeTimers();
+  let context = { ...ready(), sessionRevision: 4 };
+  let runs = 0;
+  const coordinator = createPendingAutoSubmitCoordinator({
+    autoScheduleSessionRetry: true,
+    clearTimeoutImpl: timers.clearTimeoutImpl,
+    inspect: async () => context,
+    now: timers.now,
+    run: async () => {
+      runs += 1;
+      if (runs === 1) return { retryAfterMs: 10000, sessionDeferred: true, status: "deferred", terminal: false };
+      if (runs === 2) return { retryAfterMs: 20000, sessionDeferred: true, status: "deferred", terminal: false };
+      return { status: "completed", terminal: true };
+    },
+    setTimeoutImpl: timers.setTimeoutImpl,
+  });
+
+  await coordinator.request("startup");
+  await timers.advance(10000);
+  assert.equal(runs, 2);
+  assert.equal(timers.count(), 1);
+  await timers.advance(20000);
+  assert.equal(runs, 3);
+  assert.equal(timers.count(), 0);
+
+  runs = 0;
+  const loginCoordinator = createPendingAutoSubmitCoordinator({
+    autoScheduleSessionRetry: true,
+    clearTimeoutImpl: timers.clearTimeoutImpl,
+    inspect: async () => context,
+    now: timers.now,
+    run: async () => {
+      runs += 1;
+      return runs === 1
+        ? { retryAfterMs: 60000, sessionDeferred: true, status: "deferred", terminal: false }
+        : { status: "completed", terminal: true };
+    },
+    setTimeoutImpl: timers.setTimeoutImpl,
+  });
+  await loginCoordinator.request("startup");
+  context = { ...context, sessionRevision: 5 };
+  await loginCoordinator.request("login");
+  assert.equal(runs, 2);
+  assert.equal(timers.count(), 0);
+});
+
+test("two account waits keep independent deadlines behind one timer", async () => {
+  const timers = fakeTimers();
+  const account = (userId, revision) => ({
+    config: {},
+    index: { revision: `queue-${userId}`, totals: { pending: 1 } },
+    session: { hasSession: true, userId },
+    sessionRevision: revision,
+    userId,
+  });
+  let context = {
+    accountContexts: [],
+    connection: { reachability: "connected", reachabilityGeneration: 1 },
+    index: { revision: "aggregate-1", totals: { pending: 2 } },
+    playerKey: "remembered-accounts",
+    session: { hasSession: true, userId: "remembered-accounts" },
+    sessionDeferrals: [
+      { pendingCount: 1, retryAfterMs: 10000, sessionRevision: 1, userId: "user-a" },
+      { pendingCount: 1, retryAfterMs: 20000, sessionRevision: 2, userId: "user-b" },
+    ],
+    sessionIdentities: [
+      { sessionRevision: 1, userId: "user-a" },
+      { sessionRevision: 2, userId: "user-b" },
+    ],
+    sessionRevision: "aggregate-sessions",
+    userId: "remembered-accounts",
+    webBaseUrl: "https://hsl.example",
+  };
+  const processed = [];
+  const coordinator = createPendingAutoSubmitCoordinator({
+    autoScheduleSessionRetry: true,
+    clearTimeoutImpl: timers.clearTimeoutImpl,
+    inspect: async () => context,
+    now: timers.now,
+    run: async (current) => {
+      processed.push(...current.accountContexts.map((item) => item.userId));
+      return current.sessionDeferrals.length > 0
+        ? { sessionDeferred: true, sessionDeferrals: current.sessionDeferrals, status: "deferred", terminal: false }
+        : { status: "completed", terminal: true };
+    },
+    setTimeoutImpl: timers.setTimeoutImpl,
+  });
+
+  await coordinator.request("startup");
+  assert.equal(coordinator.getDiagnostics().sessionDeferralCount, 2);
+  assert.equal(timers.count(), 1);
+  context = { ...context, accountContexts: [account("user-a", 1)], sessionDeferrals: context.sessionDeferrals.slice(1) };
+  await timers.advance(10000);
+  assert.deepEqual(processed, ["user-a"]);
+  assert.equal(coordinator.getDiagnostics().sessionDeferralCount, 1);
+  assert.equal(timers.count(), 1);
+  context = { ...context, accountContexts: [account("user-b", 2)], sessionDeferrals: [] };
+  await timers.advance(10000);
+  assert.deepEqual(processed, ["user-a", "user-b"]);
+  assert.equal(timers.count(), 0);
+});
+
+test("cancel, suspend/resume, logout and shutdown cannot duplicate or retain session timers", async () => {
+  const timers = fakeTimers();
+  let context = { ...ready(), sessionRevision: 1 };
+  const coordinator = createPendingAutoSubmitCoordinator({
+    autoScheduleSessionRetry: true,
+    clearTimeoutImpl: timers.clearTimeoutImpl,
+    inspect: async () => context,
+    now: timers.now,
+    run: async () => ({ retryAfterMs: 60000, sessionDeferred: true, status: "deferred", terminal: false }),
+    setTimeoutImpl: timers.setTimeoutImpl,
+  });
+  await coordinator.request("startup");
+  assert.equal(timers.count(), 1);
+  coordinator.cancelCurrentRun("suspend");
+  assert.equal(timers.count(), 0);
+  await coordinator.resume("resume");
+  assert.equal(timers.count(), 1);
+
+  coordinator.cancelCurrentRun("logout");
+  assert.equal(timers.count(), 0);
+  context = {
+    ...context,
+    index: { revision: "empty", totals: { pending: 0 } },
+    sessionDeferrals: [],
+    sessionIdentities: [],
+  };
+  await coordinator.request("logout-state");
+  assert.equal(coordinator.getDiagnostics().sessionDeferralCount, 0);
+  assert.equal(timers.count(), 0);
+
+  coordinator.shutdown("shutdown");
+  assert.equal(timers.count(), 0);
+  assert.equal((await coordinator.request("after-shutdown")).reason, "shutdown");
+});
+
+test("session deferral preserves an existing submission cooldown and does not increment its attempt", async () => {
+  let clock = Date.parse("2026-07-17T00:00:00Z");
+  let context = { ...ready("queue-submission"), sessionRevision: 3 };
+  let mode = "submission";
+  const coordinator = createPendingAutoSubmitCoordinator({
+    inspect: async () => context,
+    now: () => clock,
+    run: async () => mode === "submission"
+      ? { retryAfterMs: 60000, retryable: true, status: "deferred", terminal: false }
+      : { retryAfterMs: 120000, sessionDeferred: true, status: "deferred", terminal: false },
+  });
+
+  await coordinator.request("ingest-429");
+  const submissionDeadline = coordinator.getDiagnostics().nextEligibleAt;
+  assert.equal(coordinator.getDiagnostics().retryAttempt, 1);
+  context = { ...context, index: { revision: "queue-session-event", totals: { pending: 1 } } };
+  mode = "session";
+  await coordinator.request("session-event");
+  assert.equal(coordinator.getDiagnostics().nextEligibleAt, submissionDeadline);
+  assert.equal(coordinator.getDiagnostics().retryAttempt, 1);
+
+  context = { ...context, index: { revision: "queue-submission", totals: { pending: 1 } } };
+  const cooled = await coordinator.request("reconnect");
+  assert.equal(cooled.reason, "cooldown");
+  assert.equal(cooled.retryAfterMs, 60000);
+  clock += 1;
+});
+
+test("missing canonical Retry-After uses increasing fallback without touching submission retryAttempt", async () => {
+  const timers = fakeTimers();
+  let runs = 0;
+  const coordinator = createPendingAutoSubmitCoordinator({
+    autoScheduleSessionRetry: true,
+    clearTimeoutImpl: timers.clearTimeoutImpl,
+    inspect: async () => ({ ...ready(), sessionRevision: 9 }),
+    now: timers.now,
+    run: async () => {
+      runs += 1;
+      return { sessionDeferred: true, status: "deferred", terminal: false };
+    },
+    setTimeoutImpl: timers.setTimeoutImpl,
+  });
+  await coordinator.request("startup");
+  const firstDeadline = Date.parse(coordinator.getDiagnostics().sessionNextEligibleAt);
+  assert.equal(firstDeadline - timers.now(), 30000);
+  await timers.advance(30000);
+  const secondDeadline = Date.parse(coordinator.getDiagnostics().sessionNextEligibleAt);
+  assert.equal(secondDeadline - timers.now(), 60000);
+  assert.equal(runs, 2);
+  assert.equal(coordinator.getDiagnostics().retryAttempt, 0);
+  coordinator.shutdown();
 });

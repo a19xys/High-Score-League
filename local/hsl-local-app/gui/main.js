@@ -6,6 +6,7 @@ const { createConnectivityService, isCommittedConnected } = require("../src/conn
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
 const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
+const { createLauncherStateAuthority } = require("../src/launcher-state-authority");
 const { safeMembershipJoinUrl } = require("../src/season-membership");
 const { configureSessionProtection, getSessionStorageDiagnostics } = require("../src/secure-session-storage");
 const { deriveDeveloperToolsEnabled, runDeveloperOnlyOperation } = require("../src/developer-tools");
@@ -37,6 +38,7 @@ let previousReachability = "unknown";
 let lastCommittedAt = null;
 let activeUserId = null;
 let pendingAutoSubmitCoordinator = null;
+const launcherStateAuthority = createLauncherStateAuthority();
 let connectivityRendererTiming = { appliedAt: null, emittedAt: null, receivedAt: null };
 let rankingRendererTiming = { appliedAt: null, receivedAt: null, stateSequence: 0 };
 let sessionMaintenanceTimer = null;
@@ -82,6 +84,7 @@ function handlePowerResume() {
   productOperationsController = new AbortController();
   connectivity?.setActivity("active", "resume");
   topologyMonitor?.start();
+  pendingAutoSubmitCoordinator?.resume("resume").catch(() => {});
   connectivity?.signalPossibleRecovery("resume").catch(() => {});
 }
 
@@ -145,6 +148,14 @@ async function withRemoteContext(promise) {
   return value;
 }
 
+function registerLauncherStateHandler(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    const revision = launcherStateAuthority.reserveRevision();
+    return Promise.resolve(handler(event, ...args))
+      .then((value) => launcherStateAuthority.publishResult(value, revision));
+  });
+}
+
 function initializeRemoteServices() {
   const bootstrap = service.getRemoteBootstrapState();
   trustedHslOrigin = bootstrap.hslOrigin || null;
@@ -185,18 +196,28 @@ function initializeRemoteServices() {
       if (result?.transportFailure) requestConnectivityConfirmation("auto-submit-product-signal");
       const state = await service.getLauncherState({ deferRemoteMembership: true });
       syncRemoteContext(state, { scheduleAutoSubmit: false });
-      sendRendererEvent("launcher:state", { autoSubmit: result, state });
+      sendRendererEvent("launcher:state", {
+        autoSubmit: result,
+        state: launcherStateAuthority.publishSnapshot(
+          state,
+          result.launcherStateRevision || launcherStateAuthority.reserveRevision(),
+        ),
+      });
     },
-    run: (context) => service.runPendingAutoSubmitForAccounts({
-      accountContexts: context.accountContexts,
-      connectedGeneration: context.connection.reachabilityGeneration,
-      shouldContinue: () => {
-        const latest = connectivity.getState();
-        return latest.reachability === "connected" &&
-          latest.reachabilityGeneration === context.connection.reachabilityGeneration;
-      },
-      trigger: context.trigger,
-    }),
+    async run(context) {
+      const launcherStateRevision = launcherStateAuthority.reserveRevision();
+      const result = await service.runPendingAutoSubmitForAccounts({
+        accountContexts: context.accountContexts,
+        connectedGeneration: context.connection.reachabilityGeneration,
+        shouldContinue: () => {
+          const latest = connectivity.getState();
+          return latest.reachability === "connected" &&
+            latest.reachabilityGeneration === context.connection.reachabilityGeneration;
+        },
+        trigger: context.trigger,
+      });
+      return { ...result, launcherStateRevision };
+    },
   });
   service.setRemoteDiagnosticsProvider(() => ({
     securityPolicy: getRendererSecuritySummary(),
@@ -272,6 +293,7 @@ async function stopRemoteServices() {
   const sessionDrain = service.shutdownAccountSessions({ reason: "shutdown", timeoutMs: 3000 });
   service.cancelPendingAutoSubmit("shutdown");
   pendingAutoSubmitCoordinator?.cancelCurrentRun("shutdown");
+  pendingAutoSubmitCoordinator?.shutdown("shutdown");
   removeConnectivityListener?.();
   removeRankingListener?.();
   removeConnectivityListener = null;
@@ -382,7 +404,7 @@ async function showImportFolderDialog(event) {
 }
 
 function registerIpc() {
-  ipcMain.handle("launcher:get-state", () => withRemoteContext(service.getLauncherState()));
+  registerLauncherStateHandler("launcher:get-state", () => withRemoteContext(service.getLauncherState()));
   ipcMain.handle("launcher:get-connectivity-state", () => connectivity.getState());
   ipcMain.on("launcher:connectivity-applied", (_event, timing) => {
     connectivityRendererTiming = {
@@ -414,7 +436,7 @@ function registerIpc() {
     return connectivity.refresh(safeReason, { force: true, phase: "manual" });
   });
   ipcMain.handle("launcher:get-ranking-capabilities-state", () => rankingCapabilities.getState());
-  ipcMain.handle("launcher:request-ranking-capabilities-refresh", async () => {
+  registerLauncherStateHandler("launcher:request-ranking-capabilities-refresh", async () => {
     const guarded = await runDeveloperOnlyOperation(developerToolsEnabled, () => rankingCapabilities.forceRefresh());
     const state = syncRemoteContext(await service.getLauncherState({ deferRemoteMembership: true }));
     if (!guarded.allowed) {
@@ -440,12 +462,14 @@ function registerIpc() {
     };
   });
   ipcMain.handle("launcher:get-auth-state", () => service.getAuthStateForGui());
-  ipcMain.handle("launcher:login", async (_event, credentials) => {
+  registerLauncherStateHandler("launcher:login", async (_event, credentials) => {
     service.invalidateInteractiveRemoteOperations("login");
+    service.cancelPendingAutoSubmit("login");
+    pendingAutoSubmitCoordinator?.cancelCurrentRun("login");
     await prepareRemoteAction("login");
     return withRemoteContext(service.loginWithPassword(credentials));
   });
-  ipcMain.handle("launcher:open-pack", async () => {
+  registerLauncherStateHandler("launcher:open-pack", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       buttonLabel: "Abrir pack",
       message: "Elige la carpeta raíz del pack",
@@ -459,7 +483,7 @@ function registerIpc() {
 
     return withRemoteContext(service.openPackDirectory(result.filePaths[0]));
   });
-  ipcMain.handle("launcher:choose-pack-directory", async () => {
+  registerLauncherStateHandler("launcher:choose-pack-directory", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       buttonLabel: "Elegir directorio",
       message: "Elige la carpeta que contiene todos tus packs locales",
@@ -473,15 +497,15 @@ function registerIpc() {
 
     return withRemoteContext(service.choosePackDirectoryFromGui(result.filePaths[0]));
   });
-  ipcMain.handle("launcher:use-suggested-pack-directory", (_event, directoryPath) => (
+  registerLauncherStateHandler("launcher:use-suggested-pack-directory", (_event, directoryPath) => (
     withRemoteContext(service.choosePackDirectoryFromGui(directoryPath))
   ));
-  ipcMain.handle("launcher:import-pack-zip", (event) => withRemoteContext(showImportZipDialog(event)));
-  ipcMain.handle("launcher:import-pack-folder", (event) => withRemoteContext(showImportFolderDialog(event)));
-  ipcMain.handle("launcher:open-pack-directory", () => service.openConfiguredPackDirectory({
+  registerLauncherStateHandler("launcher:import-pack-zip", (event) => withRemoteContext(showImportZipDialog(event)));
+  registerLauncherStateHandler("launcher:import-pack-folder", (event) => withRemoteContext(showImportFolderDialog(event)));
+  registerLauncherStateHandler("launcher:open-pack-directory", () => service.openConfiguredPackDirectory({
     openPathImpl: (directoryPath) => shell.openPath(directoryPath),
   }));
-  ipcMain.handle("launcher:choose-shared-mame-runtime", async () => {
+  registerLauncherStateHandler("launcher:choose-shared-mame-runtime", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       buttonLabel: "Elegir mame.exe",
       filters: [
@@ -498,30 +522,30 @@ function registerIpc() {
 
     return service.chooseSharedMameRuntimeFromGui(result.filePaths[0]);
   });
-  ipcMain.handle("launcher:open-shared-mame-runtime", () => service.openSharedMameRuntimeDirectory({
+  registerLauncherStateHandler("launcher:open-shared-mame-runtime", () => service.openSharedMameRuntimeDirectory({
     openPathImpl: (directoryPath) => shell.openPath(directoryPath),
   }));
-  ipcMain.handle("launcher:rescan-pack-directory", () => withRemoteContext(service.rescanPackDirectory()));
-  ipcMain.handle("launcher:set-library-preferences", (_event, patch) => service.setLibraryPreferencesFromGui(patch));
-  ipcMain.handle("launcher:toggle-library-favorite", (_event, packKey) => service.toggleLibraryFavoriteFromGui(packKey));
-  ipcMain.handle("launcher:remove-known-account", (_event, userId) => {
+  registerLauncherStateHandler("launcher:rescan-pack-directory", () => withRemoteContext(service.rescanPackDirectory()));
+  registerLauncherStateHandler("launcher:set-library-preferences", (_event, patch) => service.setLibraryPreferencesFromGui(patch));
+  registerLauncherStateHandler("launcher:toggle-library-favorite", (_event, packKey) => service.toggleLibraryFavoriteFromGui(packKey));
+  registerLauncherStateHandler("launcher:remove-known-account", (_event, userId) => {
     service.cancelPendingAutoSubmit("remove-account");
     pendingAutoSubmitCoordinator?.cancelCurrentRun("remove-account");
     return withRemoteContext(service.removeKnownAccountFromGui(userId));
   });
-  ipcMain.handle("launcher:switch-account", (_event, userId) => {
+  registerLauncherStateHandler("launcher:switch-account", (_event, userId) => {
     service.invalidateInteractiveRemoteOperations("switch-account");
     return withRemoteContext(service.switchKnownAccountFromGui(userId, {
       connected: isCommittedConnected(connectivity?.getState()),
     }));
   });
-  ipcMain.handle("launcher:use-library-pack", (_event, packId) => {
+  registerLauncherStateHandler("launcher:use-library-pack", (_event, packId) => {
     service.invalidateInteractiveRemoteOperations("account-change");
     return withRemoteContext(service.activateLibraryPack(packId, {
       deferRemoteMembership: true,
     }));
   });
-  ipcMain.handle("launcher:open-membership-url", async () => {
+  registerLauncherStateHandler("launcher:open-membership-url", async () => {
     const state = await service.getLauncherState();
     const url = safeMembershipJoinUrl(
       { webBaseUrl: trustedHslOrigin },
@@ -548,11 +572,11 @@ function registerIpc() {
       state,
     };
   });
-  ipcMain.handle("launcher:open-manual", () => service.openPackManual({
+  registerLauncherStateHandler("launcher:open-manual", () => service.openPackManual({
     openExternalImpl: (url) => shell.openExternal(url),
     openPathImpl: (filePath) => shell.openPath(filePath),
   }));
-  ipcMain.handle("launcher:open-ranking", async () => {
+  registerLauncherStateHandler("launcher:open-ranking", async () => {
     const state = await service.getLauncherState();
     syncRemoteContext(state);
     const weekId = state.game?.weekId || null;
@@ -595,14 +619,14 @@ function registerIpc() {
       state,
     };
   });
-  ipcMain.handle("launcher:check-membership", async () => {
+  registerLauncherStateHandler("launcher:check-membership", async () => {
     await prepareRemoteAction("membership");
     return withRemoteContext(service.recheckSeasonMembership());
   });
-  ipcMain.handle("launcher:diagnose", () => service.runDiagnose());
-  ipcMain.handle("launcher:play-competition", () => withRemoteContext(service.playCompetition()));
-  ipcMain.handle("launcher:practice", () => service.playPractice());
-  ipcMain.handle("launcher:force-account-sync", async () => {
+  registerLauncherStateHandler("launcher:diagnose", () => service.runDiagnose());
+  registerLauncherStateHandler("launcher:play-competition", () => withRemoteContext(service.playCompetition()));
+  registerLauncherStateHandler("launcher:practice", () => service.playPractice());
+  registerLauncherStateHandler("launcher:force-account-sync", async () => {
     const guarded = await runDeveloperOnlyOperation(developerToolsEnabled, async () => {
       pendingAutoSubmitCoordinator.cancelCurrentRun("development-force");
       pendingAutoSubmitCoordinator.resetGuards("development-force");
@@ -626,9 +650,9 @@ function registerIpc() {
       summary: result?.status === "deferred" ? "La sincronizacion queda pendiente." : "Sincronizacion de cuentas completada.",
     };
   });
-  ipcMain.handle("launcher:restore-failed", (_event, filename) => withRemoteContext(service.restoreFailedSubmission(filename)));
-  ipcMain.handle("launcher:sync-plugin", () => service.syncPlugin());
-  ipcMain.handle("launcher:logout", () => {
+  registerLauncherStateHandler("launcher:restore-failed", (_event, filename) => withRemoteContext(service.restoreFailedSubmission(filename)));
+  registerLauncherStateHandler("launcher:sync-plugin", () => service.syncPlugin());
+  registerLauncherStateHandler("launcher:logout", () => {
     service.cancelPendingAutoSubmit("logout");
     pendingAutoSubmitCoordinator?.cancelCurrentRun("logout");
     return withRemoteContext(service.logoutSession());

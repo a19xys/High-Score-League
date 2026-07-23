@@ -219,6 +219,7 @@ async function getPendingAutoSubmitContexts(options = {}) {
   });
   const accountContexts = [];
   const accounts = [];
+  const sessionDeferrals = [];
   const totals = { invalidPending: 0, pending: 0, validPending: 0 };
   const sessionSummary = {
     loginRequiredPendingCount: 0,
@@ -240,6 +241,7 @@ async function getPendingAutoSubmitContexts(options = {}) {
       requiresLogin: requiresSessionLogin(resolved.sessionResult),
       sessionRevision: resolved.sessionRevision || 0,
       status: resolved.status,
+      userId: account.userId,
       userHash: `user_${hashPart(account.userId, 12)}`,
     };
     const accountSession = {
@@ -265,6 +267,12 @@ async function getPendingAutoSubmitContexts(options = {}) {
             sessionSummary.retryAfterMs,
             resolved.sessionResult.retryAfterMs,
           );
+          sessionDeferrals.push({
+            pendingCount: index.totals.pending,
+            retryAfterMs: resolved.sessionResult.retryAfterMs,
+            sessionRevision: item.sessionRevision,
+            userId: account.userId,
+          });
         } else {
           sessionSummary.unavailablePendingCount += index.totals.pending;
         }
@@ -302,6 +310,11 @@ async function getPendingAutoSubmitContexts(options = {}) {
     index: { revision, totals },
     playerKey: "remembered-accounts",
     session: { hasSession: true, userId: "remembered-accounts" },
+    sessionDeferrals,
+    sessionIdentities: accounts.map((account) => ({
+      sessionRevision: account.sessionRevision,
+      userId: account.userId,
+    })),
     sessionRevision: hashPart(JSON.stringify(stableAccounts.map((account) => [account.userHash, account.sessionRevision])), 16),
     userId: "remembered-accounts",
     webBaseUrl: config.webBaseUrl || null,
@@ -1457,6 +1470,7 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
     reason: null,
     sent: 0,
     sessionDeferred: false,
+    sessionDeferrals: [],
     status: "completed",
     retryAfterMs: null,
     retryable: false,
@@ -1492,6 +1506,12 @@ async function runPendingAutoSubmitForAccounts(options = {}) {
     aggregate.retryable = aggregate.retryable || result.retryable === true;
     if (result.sessionDeferred) {
       sessionRetryAfterMs = earliestPositiveRetryAfterMs(sessionRetryAfterMs, result.retryAfterMs);
+      aggregate.sessionDeferrals.push({
+        pendingCount: Number(result.preserved) || context.index.totals.pending,
+        retryAfterMs: result.retryAfterMs,
+        sessionRevision: context.sessionRevision || 0,
+        userId: context.userId || context.session?.userId,
+      });
     }
     if (result.retryable || result.transportFailure) {
       aggregate.retryAfterMs = Math.max(Number(aggregate.retryAfterMs) || 0, Number(result.retryAfterMs) || 0) || null;

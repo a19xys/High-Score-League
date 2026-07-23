@@ -231,7 +231,7 @@ test("pack activation preserves the previous snapshot and uses shared minimum fe
 
 test("only a session-confirmed available capability reaches shell.openExternal", async () => {
   const main = await fsp.readFile(path.join(appRoot, "gui", "main.js"), "utf8");
-  const rankingBlock = main.slice(main.indexOf('ipcMain.handle("launcher:open-ranking"'), main.indexOf('ipcMain.handle("launcher:check-membership"'));
+  const rankingBlock = main.slice(main.indexOf('registerLauncherStateHandler("launcher:open-ranking"'), main.indexOf('registerLauncherStateHandler("launcher:check-membership"'));
 
   assert.doesNotMatch(rankingBlock, /connectivity\.refresh\("ranking-click"/);
   assert.match(rankingBlock, /trustedHslOrigin/);
