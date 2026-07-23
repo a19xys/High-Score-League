@@ -159,7 +159,7 @@ function renderFavoriteFilterButton(state) {
   `;
 }
 
-function renderFilterCard(state, packs) {
+export function renderLibraryFilters(state, packs) {
   if (!state.libraryFiltersOpen || !getLibraryCapabilities(state).filtersEnabled) {
     return "";
   }
@@ -179,7 +179,7 @@ function renderFilterCard(state, packs) {
     <div class="library-filter-card" id="library-filter-card">
       <div class="library-search">
         <span id="library-search-label">Búsqueda general</span>
-        <input type="search" placeholder="Escribe aquí..." data-library-search value="${escapeHtml(state.libraryQuery)}" aria-labelledby="library-search-label">
+        <input type="search" placeholder="Escribe aquí..." data-library-search data-focus-key="library-search" aria-labelledby="library-search-label">
       </div>
       <div class="library-filters">
         <div class="library-filter-field">
@@ -209,7 +209,7 @@ function renderFilterCard(state, packs) {
   `;
 }
 
-function renderLibraryControls(state, packs) {
+export function renderLibraryControls(state, packs) {
   const capabilities = getLibraryCapabilities(state);
   const filtersDisabled = !capabilities.filtersEnabled;
   const viewsDisabled = !capabilities.viewsEnabled;
@@ -231,7 +231,7 @@ function renderLibraryControls(state, packs) {
           <span>Filtros</span>
         </button>
       </div>
-      ${renderFilterCard(state, packs)}
+      ${renderLibraryFilters(state, packs)}
       <div class="library-views" aria-label="Vista de biblioteca">
         ${renderViewButton(state, "covers", "Portadas", "covers", viewsDisabled)}
         ${renderViewButton(state, "list", "Lista", "list", viewsDisabled)}
@@ -241,7 +241,7 @@ function renderLibraryControls(state, packs) {
   `;
 }
 
-function renderPacks(state) {
+export function renderLibraryPacks(state) {
   const packs = state.data?.library?.packs || [];
   const directory = state.data?.library?.directory || {};
 
@@ -350,20 +350,14 @@ function renderLibraryCount(data) {
   return `${count} ${count === 1 ? "pack" : "packs"}`;
 }
 
-export function renderLibraryPanel(state) {
+export function renderLibraryHeading(state) {
   const data = state.data;
-
-  if (!data) {
-    return `<section class="panel library-panel skeleton-panel"></section>`;
-  }
-
-  const hasDirectory = Boolean(data.library?.directory?.path);
+  const hasDirectory = Boolean(data?.library?.directory?.path);
   const disabled = state.busy ? "disabled" : "";
   const openDirectoryDisabled = !hasDirectory ? "disabled" : disabled;
   const rescanning = state.busy && state.busyLabel === "Reescaneando";
 
   return `
-    <section class="panel library-panel">
       <div class="panel-heading compact">
         <div class="library-title-row">
           <button class="library-open-control" type="button" data-action="open-pack-directory" ${openDirectoryDisabled} aria-label="Abrir carpeta de packs" title="Abrir carpeta de packs">
@@ -376,9 +370,24 @@ export function renderLibraryPanel(state) {
           <span class="library-count-pill">${escapeHtml(renderLibraryCount(data))}</span>
         </div>
       </div>
-      ${renderLibraryControls(state, data.library?.packs || [])}
-      <div class="library-section library-section--packs">
-        ${renderPacks(state)}
+  `;
+}
+
+export function renderLibraryPanel(state) {
+  const data = state.data;
+
+  if (!data) {
+    return `<section class="panel library-panel skeleton-panel"></section>`;
+  }
+
+  const packs = data.library?.packs || [];
+
+  return `
+    <section class="panel library-panel">
+      <div class="render-region-contents" data-render-region="library-heading">${renderLibraryHeading(state)}</div>
+      <div class="render-region-contents" data-render-region="library-controls">${renderLibraryControls(state, packs)}</div>
+      <div class="library-section library-section--packs" data-render-region="library-packs">
+        ${renderLibraryPacks(state)}
       </div>
     </section>
   `;

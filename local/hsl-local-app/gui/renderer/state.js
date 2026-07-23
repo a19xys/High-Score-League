@@ -7,6 +7,7 @@ export function createStore(initialState) {
       return state;
     },
     setState(nextState) {
+      const changedKeys = Object.keys(nextState);
       state = {
         ...state,
         ...nextState,
@@ -14,7 +15,7 @@ export function createStore(initialState) {
       };
 
       for (const listener of listeners) {
-        listener(state);
+        listener(state, changedKeys);
       }
     },
     subscribe(listener) {

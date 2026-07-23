@@ -279,6 +279,74 @@ export function shouldRenderLibraryBrandFallback(state) {
   return null;
 }
 
+export function renderGameVisualRegion(state) {
+  return renderPackVisuals(state.data?.game);
+}
+
+export function renderGameStatusRegion(state) {
+  const data = state.data || {};
+
+  return `
+    <div class="badge-row">
+      ${renderStatusBadges(data.readiness, data.membership, data.autoSync, data.bridge)}
+    </div>
+  `;
+}
+
+export function renderGameIdentityRegion(state) {
+  const data = state.data || {};
+  const game = data.game || {};
+  const weekLabel = game.weekNumber ? `Semana ${game.weekNumber}` : game.weekId ? "Semana" : null;
+  const description = game.shortDescription || "";
+
+  return `
+    <div class="pack-title-row">
+      <div class="game-title-block">
+        <div class="game-title-main">
+          <h2 title="${escapeHtml(game.displayName)}">${escapeHtml(game.displayName)}</h2>
+          ${renderDetailFavoriteMark(game)}
+        </div>
+        ${weekLabel ? `<p class="game-week-subtitle">${renderIcon("calendar", { className: "status-icon game-week-icon", size: "sm" })}<span>${escapeHtml(weekLabel)}</span></p>` : ""}
+      </div>
+    </div>
+    ${description ? `<p class="ready-copy">${escapeHtml(description)}</p>` : ""}
+    ${renderPackMetadata(game)}
+    ${renderPackErrors(game, data.readiness)}
+  `;
+}
+
+export function renderGameActionsRegion(state) {
+  const data = state.data || {};
+  const game = data.game || {};
+  const membership = data.membership;
+  const readiness = data.readiness;
+  const disabled = state.busy ? "disabled" : "";
+  const membershipBlocksCompetition = membership?.canPlayCompetition === false;
+  const readinessBlocksCompetition = readiness?.canPlayCompetition === false;
+  const practiceDisabled = state.busy || readiness?.canPractice === false ? "disabled" : "";
+  const competitionDisabled = state.busy || !data.session?.hasSession || membershipBlocksCompetition || readinessBlocksCompetition ? "disabled" : "";
+  const ranking = getRankingActionState(state, game);
+
+  return `
+    <div class="primary-actions action-grid">
+      <button class="play-button action-tile" type="button" data-action="play" ${competitionDisabled}>
+        ${renderIcon("play", { className: "action-icon icon-slot icon-slot--play" })}
+        <span class="action-button-label">${COPY.actions.play}</span>
+      </button>
+      <button class="secondary-action primary-action-tile action-tile" type="button" data-action="practice" ${practiceDisabled}>
+        ${renderIcon("practice", { className: "action-icon icon-slot icon-slot--practice" })}
+        <span class="action-button-label">${COPY.actions.practice}</span>
+      </button>
+      ${renderContentAction("open-manual", "Manual", game.manual, disabled)}
+      ${renderContentAction("open-ranking", "Ranking", ranking, disabled)}
+    </div>
+  `;
+}
+
+export function renderGameActivityRegion(state) {
+  return renderActivitySummaryCard(state);
+}
+
 export function renderGamePanel(state) {
   const data = state.data;
 
@@ -333,51 +401,14 @@ export function renderGamePanel(state) {
     `;
   }
 
-  const bridge = data?.bridge;
-  const membership = data?.membership;
-  const autoSync = data?.autoSync;
-  const readiness = data?.readiness;
-  const disabled = state.busy ? "disabled" : "";
-  const membershipBlocksCompetition = membership?.canPlayCompetition === false;
-  const readinessBlocksCompetition = readiness?.canPlayCompetition === false;
-  const practiceDisabled = state.busy || readiness?.canPractice === false ? "disabled" : "";
-  const competitionDisabled = state.busy || !data?.session?.hasSession || membershipBlocksCompetition || readinessBlocksCompetition ? "disabled" : "";
-  const weekLabel = game?.weekNumber ? `Semana ${game.weekNumber}` : game?.weekId ? "Semana" : null;
-  const description = game?.shortDescription || "";
-  const ranking = getRankingActionState(state, game);
-
   return `
     <section class="game-panel game-detail-card">
-      ${renderPackVisuals(game)}
+      <div class="render-region-contents" data-render-region="game-visual">${renderGameVisualRegion(state)}</div>
       <div class="game-detail-body">
-        <div class="badge-row">
-          ${renderStatusBadges(readiness, membership, autoSync, bridge)}
-        </div>
-        <div class="pack-title-row">
-          <div class="game-title-block">
-            <div class="game-title-main">
-              <h2 title="${escapeHtml(game.displayName)}">${escapeHtml(game.displayName)}</h2>
-              ${renderDetailFavoriteMark(game)}
-            </div>
-            ${weekLabel ? `<p class="game-week-subtitle">${renderIcon("calendar", { className: "status-icon game-week-icon", size: "sm" })}<span>${escapeHtml(weekLabel)}</span></p>` : ""}
-          </div>
-        </div>
-        ${description ? `<p class="ready-copy">${escapeHtml(description)}</p>` : ""}
-        ${renderPackMetadata(game)}
-        ${renderPackErrors(game, readiness)}
-        <div class="primary-actions action-grid">
-          <button class="play-button action-tile" type="button" data-action="play" ${competitionDisabled}>
-            ${renderIcon("play", { className: "action-icon icon-slot icon-slot--play" })}
-            <span class="action-button-label">${COPY.actions.play}</span>
-          </button>
-          <button class="secondary-action primary-action-tile action-tile" type="button" data-action="practice" ${practiceDisabled}>
-            ${renderIcon("practice", { className: "action-icon icon-slot icon-slot--practice" })}
-            <span class="action-button-label">${COPY.actions.practice}</span>
-          </button>
-          ${renderContentAction("open-manual", "Manual", game?.manual, disabled)}
-          ${renderContentAction("open-ranking", "Ranking", ranking, disabled)}
-        </div>
-        ${renderActivitySummaryCard(state)}
+        <div class="render-region-contents" data-render-region="game-status">${renderGameStatusRegion(state)}</div>
+        <div class="render-region-contents" data-render-region="game-identity">${renderGameIdentityRegion(state)}</div>
+        <div class="render-region-contents" data-render-region="game-actions">${renderGameActionsRegion(state)}</div>
+        <div class="render-region-contents" data-render-region="game-activity">${renderGameActivityRegion(state)}</div>
       </div>
     </section>
   `;

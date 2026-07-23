@@ -180,9 +180,18 @@ function renderAccountMenu(state) {
   `;
 }
 
-export function renderHeader(state) {
+export function renderThemeControl(state) {
   const themeLabel = state.theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
   const themeIcon = state.theme === "dark" ? "moon" : "sun";
+
+  return `
+    <button class="theme-button theme-button--icon" type="button" data-action="toggle-theme" title="${themeLabel}" aria-label="${themeLabel}">
+      ${renderIcon(themeIcon, { className: "button-icon theme-icon", size: "sm" })}
+    </button>
+  `;
+}
+
+export function renderAccountControl(state) {
   const session = state.data?.session;
   const activeAccount = getActiveAccount(state.data?.accounts, session);
   const sessionChipLabel = session?.hasSession ? accountAriaLabel(activeAccount) : SESSION_CHIP_EMPTY_LABEL;
@@ -190,6 +199,16 @@ export function renderHeader(state) {
     ? renderAccountAvatar(activeAccount, "account-chip-avatar")
     : `<span class="session-chip__empty">${SESSION_CHIP_EMPTY_LABEL}</span>`;
   const sessionChipClass = session?.hasSession ? "session-chip--avatar-only" : "session-chip--empty";
+
+  return `
+    <button class="session-chip session-chip--button ${sessionChipClass}" type="button" data-action="toggle-account-menu" aria-expanded="${state.accountMenuOpen ? "true" : "false"}" title="${escapeHtml(sessionChipLabel)}" aria-label="${escapeHtml(sessionChipLabel)}">
+      ${sessionChipContent}
+    </button>
+    ${state.accountMenuOpen ? renderAccountMenu(state) : ""}
+  `;
+}
+
+export function renderConnectionControl(state) {
   const headerStatus = deriveConnectivityHeaderState(state.connectivity);
   const connection = {
     connected: ["Conectado", "connection-chip--connected"],
@@ -201,7 +220,7 @@ export function renderHeader(state) {
     : null;
   const manualProbeInFlight = state.connectivity?.probe?.phase === "manual" && state.connectivity?.probe?.inFlight;
   const silentBackground = state.connectivity?.probe?.phase === "background" && state.connectivity?.probe?.inFlight;
-  const connectionChip = configurationProblem ? `
+  return configurationProblem ? `
         <div class="connection-chip connection-chip--configuration" data-remote-configuration-status="${escapeHtml(configurationProblem.status)}" title="${escapeHtml(configurationProblem.message)}">
           <span class="connection-dot" aria-hidden="true"></span>
           <span class="connection-label">${configurationProblem.status === "invalid" ? "Configuracion HSL invalida" : "HSL sin configurar"}</span>
@@ -213,6 +232,9 @@ export function renderHeader(state) {
           <button class="connection-refresh-button" type="button" data-action="refresh-connectivity" title="Comprobar conexi\u00f3n" aria-label="Comprobar conexi\u00f3n" aria-disabled="${manualProbeInFlight ? "true" : "false"}" ${manualProbeInFlight ? "disabled" : ""}>${renderIcon("refresh", { className: "connection-refresh-icon", size: "sm" })}</button>
         </div>
   ` : "";
+}
+
+export function renderHeader(state) {
 
   return `
     <header class="launcher-header app-header">
@@ -224,19 +246,12 @@ export function renderHeader(state) {
         </div>
       </div>
       <div class="header-actions">
-        ${connectionChip}
-        <button class="theme-button theme-button--icon" type="button" data-action="toggle-theme" title="${themeLabel}" aria-label="${themeLabel}">
-          ${renderIcon(themeIcon, { className: "button-icon theme-icon", size: "sm" })}
-        </button>
+        <span class="render-region-contents" data-render-region="header-connection">${renderConnectionControl(state)}</span>
+        <span class="render-region-contents" data-render-region="header-theme">${renderThemeControl(state)}</span>
         <button class="theme-button theme-button--icon" type="button" data-action="show-settings" title="Configuracion" aria-label="Configuracion">
           ${renderIcon("settings", { className: "button-icon settings-icon", size: "sm" })}
         </button>
-        <div class="account-menu-shell">
-          <button class="session-chip session-chip--button ${sessionChipClass}" type="button" data-action="toggle-account-menu" aria-expanded="${state.accountMenuOpen ? "true" : "false"}" title="${escapeHtml(sessionChipLabel)}" aria-label="${escapeHtml(sessionChipLabel)}">
-            ${sessionChipContent}
-          </button>
-          ${state.accountMenuOpen ? renderAccountMenu(state) : ""}
-        </div>
+        <div class="account-menu-shell" data-render-region="header-account">${renderAccountControl(state)}</div>
       </div>
     </header>
   `;

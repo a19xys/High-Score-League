@@ -3,16 +3,35 @@ import { COPY } from "./components/copy.js";
 import { renderAppDialog } from "./components/app-dialog.js";
 import { renderBusyOverlay } from "./components/busy-overlay.js";
 import { renderDevTools } from "./components/dev-tools.js";
-import { renderGamePanel } from "./components/game-panel.js";
-import { renderHeader } from "./components/header.js";
+import {
+  renderGameActionsRegion,
+  renderGameActivityRegion,
+  renderGameIdentityRegion,
+  renderGamePanel,
+  renderGameStatusRegion,
+  renderGameVisualRegion,
+  shouldRenderLibraryBrandFallback,
+} from "./components/game-panel.js";
+import {
+  renderAccountControl,
+  renderConnectionControl,
+  renderHeader,
+  renderThemeControl,
+} from "./components/header.js";
 import { markIconLoaded, markIconMissing, renderIcon } from "./components/icon.js";
-import { renderLibraryPanel } from "./components/library-panel.js";
+import {
+  renderLibraryControls,
+  renderLibraryHeading,
+  renderLibraryPacks,
+  renderLibraryPanel,
+} from "./components/library-panel.js";
 import { renderLogPanel } from "./components/log-panel.js";
 import { renderActivityDrawer } from "./components/queue-panel.js";
 import { getLibraryCapabilities } from "./library-capabilities.js";
 import { deriveRemoteAvailability } from "./remote-availability.js";
 import { getRankingActionState } from "./ranking-state.js";
 import { createLauncherStateGate } from "./launcher-state-gate.js";
+import { createRegionRenderer } from "./region-renderer.js";
 import {
   DEFAULT_OPERATION_MIN_VISIBLE_MS,
   runWithOperationFeedback,
@@ -71,6 +90,12 @@ let favoriteTitleResizeObserver = null;
 let favoriteTitleFrame = 0;
 let currentDetailScrollKey = null;
 let currentDialogType = null;
+let currentOverlayType = null;
+let currentGameStructureKey = null;
+let currentLibraryStructureKey = null;
+let rendererMounted = false;
+let dialogReturnFocus = null;
+let overlayReturnFocus = null;
 let busyRunSequence = 0;
 let rankingOpenInProgress = false;
 const detailAssetPreloadCache = new Map();
@@ -179,25 +204,77 @@ function applyTheme(theme) {
   localStorage.setItem("hsl-launcher-theme", normalizedTheme);
 }
 
-function readMainScrollState() {
-  return {
-    game: root.querySelector(".game-scroll")?.scrollTop || 0,
-    library: root.querySelector(".library-section--packs")?.scrollTop || 0,
-  };
-}
-
-function restoreMainScrollState(scrollState, { resetGame = false } = {}) {
-  const gameScroll = root.querySelector(".game-scroll");
-  const libraryScroll = root.querySelector(".library-section--packs");
-
-  if (gameScroll) {
-    gameScroll.scrollTop = resetGame ? 0 : scrollState.game;
+function elementInteractionIdentity(element) {
+  for (const attribute of ["data-focus-key", "id", "name", "data-action"]) {
+    const value = element.getAttribute?.(attribute);
+    if (!value) continue;
+    const attributes = { [attribute]: value };
+    for (const qualifier of ["data-user-id", "data-pack-id", "data-favorite-key", "data-view", "data-filter"]) {
+      const qualifierValue = element.getAttribute(qualifier);
+      if (qualifierValue) attributes[qualifier] = qualifierValue;
+    }
+    return attributes;
   }
 
-  if (libraryScroll) {
-    libraryScroll.scrollTop = scrollState.library;
+  return null;
+}
+
+function captureRegionInteraction(region) {
+  const active = document.activeElement;
+  const identity = active && region.contains(active) ? elementInteractionIdentity(active) : null;
+  const focus = identity ? {
+    attributes: identity,
+    selectionEnd: Number.isInteger(active.selectionEnd) ? active.selectionEnd : null,
+    selectionStart: Number.isInteger(active.selectionStart) ? active.selectionStart : null,
+    value: "value" in active ? active.value : null,
+  } : null;
+  const scroll = [...region.querySelectorAll("[data-preserve-scroll]")].map((element) => ({
+    key: element.dataset.preserveScroll,
+    left: element.scrollLeft,
+    top: element.scrollTop,
+  }));
+
+  return { focus, scroll };
+}
+
+function restoreRegionInteraction(region, interaction) {
+  for (const saved of interaction.scroll) {
+    const element = [...region.querySelectorAll("[data-preserve-scroll]")]
+      .find((candidate) => candidate.dataset.preserveScroll === saved.key);
+    if (!element) continue;
+    element.scrollLeft = saved.left;
+    element.scrollTop = saved.top;
+  }
+
+  if (!interaction.focus) return;
+  const attributes = Object.entries(interaction.focus.attributes);
+  const candidate = [...region.querySelectorAll(`[${attributes[0][0]}]`)]
+    .find((element) => attributes.every(([attribute, value]) => element.getAttribute(attribute) === value));
+  if (!candidate || candidate.disabled) return;
+
+  if (interaction.focus.value !== null && "value" in candidate) {
+    candidate.value = interaction.focus.value;
+  }
+  candidate.focus({ preventScroll: true });
+
+  if (
+    interaction.focus.selectionStart !== null &&
+    typeof candidate.setSelectionRange === "function"
+  ) {
+    candidate.setSelectionRange(interaction.focus.selectionStart, interaction.focus.selectionEnd);
   }
 }
+
+function writeRegion(region, html) {
+  const interaction = captureRegionInteraction(region);
+  region.innerHTML = html;
+  restoreRegionInteraction(region, interaction);
+}
+
+const regionRenderer = createRegionRenderer({
+  findRegion: (name) => root.querySelector(`[data-render-region="${name}"]`),
+  writeRegion,
+});
 
 function detailScrollKeyFromState(state) {
   const data = state.data || {};
@@ -563,11 +640,11 @@ function renderOverlay(state) {
             <p class="eyebrow">${isActivity ? "Cola local" : "Launcher"}</p>
             <h2>${isActivity ? "Actividad local" : "Configuracion"}</h2>
           </div>
-          <button class="icon-button" type="button" data-action="close-overlay" title="Cerrar" aria-label="Cerrar">
+          <button class="icon-button" type="button" data-action="close-overlay" data-overlay-initial-focus title="Cerrar" aria-label="Cerrar">
             ${renderIcon("close", { className: "button-icon", size: "sm" })}
           </button>
         </div>
-        <div class="drawer-body">
+        <div class="drawer-body" data-preserve-scroll="drawer-body">
           ${isActivity ? renderActivityDrawer(state) : `
             <p class="advanced-shell__intro">Runtime MAME, directorio de packs, readiness, diagnóstico y herramientas legacy.</p>
             <div class="advanced-grid">
@@ -624,52 +701,213 @@ function openAccountFormState(email = "") {
   };
 }
 
-function render() {
-  const state = store.getState();
-  const scrollState = readMainScrollState();
-  const nextDetailScrollKey = detailScrollKeyFromState(state);
-  const resetGameScroll = Boolean(currentDetailScrollKey && nextDetailScrollKey && currentDetailScrollKey !== nextDetailScrollKey);
-  applyTheme(state.theme);
-  const sidebarWidth = clampSidebarWidth(state.librarySidebarWidth);
+function libraryRegionHtml(state) {
+  const packs = state.data?.library?.packs || [];
+  return {
+    "library-controls": renderLibraryControls(state, packs),
+    "library-heading": renderLibraryHeading(state),
+    "library-packs": renderLibraryPacks(state),
+  };
+}
 
+function gameRegionHtml(state) {
+  return {
+    "game-actions": renderGameActionsRegion(state),
+    "game-activity": renderGameActivityRegion(state),
+    "game-identity": renderGameIdentityRegion(state),
+    "game-status": renderGameStatusRegion(state),
+    "game-visual": renderGameVisualRegion(state),
+  };
+}
+
+function primeRegions(regions) {
+  Object.entries(regions).forEach(([name, html]) => regionRenderer.prime(name, html));
+}
+
+function renderRegions(regions) {
+  const changed = new Set();
+  Object.entries(regions).forEach(([name, html]) => {
+    if (regionRenderer.render(name, html)) changed.add(name);
+  });
+  return changed;
+}
+
+function gameStructureKey(state) {
+  if (!state.data) return "loading";
+  const fallback = shouldRenderLibraryBrandFallback(state);
+  if (fallback) return `fallback:${fallback}`;
+  const detailKey = detailScrollKeyFromState(state);
+  if (detailKey && state.data.game) return `detail:${detailKey}`;
+  return "fallback:empty";
+}
+
+function syncLibraryControlValues(state) {
+  const search = root.querySelector("[data-library-search]");
+  if (search instanceof HTMLInputElement && document.activeElement !== search) {
+    search.value = state.libraryQuery;
+  }
+
+  const season = root.querySelector("[data-library-season]");
+  if (season instanceof HTMLSelectElement && season.value !== state.librarySeason) {
+    season.value = state.librarySeason;
+  }
+  const sortBy = root.querySelector("[data-library-sort-by]");
+  if (sortBy instanceof HTMLSelectElement && sortBy.value !== state.librarySortBy) {
+    sortBy.value = state.librarySortBy;
+  }
+}
+
+function mountRenderer(state) {
+  const sidebarWidth = clampSidebarWidth(state.librarySidebarWidth);
   root.innerHTML = `
     ${renderHeader(state)}
     <main class="app-main" style="--library-sidebar-width: ${sidebarWidth}px">
       <aside class="library-panel-region">
-        <div class="library-scroll">
+        <div class="library-scroll" data-render-region="library-panel">
           ${renderLibraryPanel(state)}
         </div>
       </aside>
       <div class="library-resizer" data-sidebar-resizer role="separator" aria-orientation="vertical" aria-label="Ajustar anchura de biblioteca" tabindex="0"></div>
       <section class="game-panel-region">
-        <div class="game-scroll">
+        <div class="game-scroll" data-render-region="game-panel">
           ${renderGamePanel(state)}
         </div>
       </section>
     </main>
     ${renderStatusFooter()}
-    ${renderOverlay(state)}
-    ${renderAppDialog(state)}
-    ${renderBusyOverlay(state)}
+    <div class="render-region-contents" data-render-region="overlay">${renderOverlay(state)}</div>
+    <div class="render-region-contents" data-render-region="dialog">${renderAppDialog(state)}</div>
+    <div class="render-region-contents" data-render-region="busy-overlay">${renderBusyOverlay(state)}</div>
   `;
-  restoreMainScrollState(scrollState, { resetGame: resetGameScroll });
+  regionRenderer.clear();
+  primeRegions({
+    "busy-overlay": renderBusyOverlay(state),
+    dialog: renderAppDialog(state),
+    "game-panel": renderGamePanel(state),
+    "header-account": renderAccountControl(state),
+    "header-connection": renderConnectionControl(state),
+    "header-theme": renderThemeControl(state),
+    "library-panel": renderLibraryPanel(state),
+    overlay: renderOverlay(state),
+  });
+  if (state.data) primeRegions(libraryRegionHtml(state));
+  if (state.data?.game && detailScrollKeyFromState(state)) primeRegions(gameRegionHtml(state));
+  currentLibraryStructureKey = state.data ? "ready" : "loading";
+  currentGameStructureKey = gameStructureKey(state);
+  currentDetailScrollKey = detailScrollKeyFromState(state);
+  rendererMounted = true;
+}
+
+function render(nextState, changedKeys = []) {
+  const state = nextState || store.getState();
+  if (!rendererMounted || changedKeys.includes("theme")) {
+    applyTheme(state.theme);
+  }
+
+  if (!rendererMounted) {
+    mountRenderer(state);
+    syncLibraryControlValues(state);
+    syncGameMetadataLayout();
+    syncFavoriteTitleMarks();
+    syncDialogFocus(state);
+    syncOverlayFocus(state);
+    return;
+  }
+
+  root.querySelector(".app-main")?.style.setProperty(
+    "--library-sidebar-width",
+    `${clampSidebarWidth(state.librarySidebarWidth)}px`,
+  );
+  if (changedKeys.length === 1 && changedKeys[0] === "librarySidebarWidth") {
+    return;
+  }
+  renderRegions({
+    "header-account": renderAccountControl(state),
+    "header-connection": renderConnectionControl(state),
+    "header-theme": renderThemeControl(state),
+  });
+
+  const nextLibraryStructureKey = state.data ? "ready" : "loading";
+  if (nextLibraryStructureKey !== currentLibraryStructureKey) {
+    regionRenderer.render("library-panel", renderLibraryPanel(state));
+    currentLibraryStructureKey = nextLibraryStructureKey;
+    if (state.data) primeRegions(libraryRegionHtml(state));
+  } else if (state.data) {
+    renderRegions(libraryRegionHtml(state));
+  }
+
+  const nextDetailScrollKey = detailScrollKeyFromState(state);
+  const nextGameStructureKey = gameStructureKey(state);
+  let gameLayoutChanged = false;
+  if (nextGameStructureKey !== currentGameStructureKey) {
+    regionRenderer.render("game-panel", renderGamePanel(state));
+    currentGameStructureKey = nextGameStructureKey;
+    if (state.data?.game && nextDetailScrollKey) primeRegions(gameRegionHtml(state));
+    if (currentDetailScrollKey && nextDetailScrollKey !== currentDetailScrollKey) {
+      const gameScroll = root.querySelector(".game-scroll");
+      if (gameScroll) gameScroll.scrollTop = 0;
+    }
+    gameLayoutChanged = true;
+  } else if (nextGameStructureKey.startsWith("detail:") && state.data?.game && nextDetailScrollKey) {
+    const changed = renderRegions(gameRegionHtml(state));
+    gameLayoutChanged = changed.has("game-identity") || changed.has("game-visual");
+  } else {
+    gameLayoutChanged = regionRenderer.render("game-panel", renderGamePanel(state));
+  }
   currentDetailScrollKey = nextDetailScrollKey;
-  syncGameMetadataLayout();
-  syncFavoriteTitleMarks();
+
+  renderRegions({
+    "busy-overlay": renderBusyOverlay(state),
+    dialog: renderAppDialog(state),
+    overlay: renderOverlay(state),
+  });
+  syncLibraryControlValues(state);
+  if (gameLayoutChanged) {
+    syncGameMetadataLayout();
+    syncFavoriteTitleMarks();
+  }
   syncDialogFocus(state);
+  syncOverlayFocus(state);
 }
 
 function syncDialogFocus(state) {
   const dialogType = state.activeDialog?.type || null;
 
-  if (!dialogType || dialogType === currentDialogType) {
-    currentDialogType = dialogType;
+  if (dialogType === currentDialogType) {
     return;
   }
 
+  if (dialogType && !currentDialogType) {
+    dialogReturnFocus = document.activeElement;
+  }
+  const closing = !dialogType && currentDialogType;
   currentDialogType = dialogType;
   window.requestAnimationFrame(() => {
-    root.querySelector("[data-dialog-initial-focus]")?.focus();
+    if (dialogType) {
+      root.querySelector("[data-dialog-initial-focus]")?.focus();
+    } else if (closing && dialogReturnFocus?.isConnected) {
+      dialogReturnFocus.focus({ preventScroll: true });
+    }
+    if (!dialogType) dialogReturnFocus = null;
+  });
+}
+
+function syncOverlayFocus(state) {
+  const overlayType = state.activeOverlay || null;
+  if (overlayType === currentOverlayType) return;
+
+  if (overlayType && !currentOverlayType) {
+    overlayReturnFocus = document.activeElement;
+  }
+  const closing = !overlayType && currentOverlayType;
+  currentOverlayType = overlayType;
+  window.requestAnimationFrame(() => {
+    if (overlayType) {
+      root.querySelector("[data-overlay-initial-focus]")?.focus();
+    } else if (closing && overlayReturnFocus?.isConnected) {
+      overlayReturnFocus.focus({ preventScroll: true });
+    }
+    if (!overlayType) overlayReturnFocus = null;
   });
 }
 
@@ -1351,17 +1589,7 @@ function bindActions() {
     const input = event.target instanceof Element ? event.target.closest("[data-library-search]") : null;
     if (!input) return;
 
-    const cursor = input.selectionStart;
     store.setState({ libraryQuery: input.value });
-    const nextInput = root.querySelector("[data-library-search]");
-
-    if (nextInput instanceof HTMLInputElement) {
-      nextInput.focus();
-
-      if (Number.isInteger(cursor)) {
-        nextInput.setSelectionRange(cursor, cursor);
-      }
-    }
   });
 
   root.addEventListener("change", (event) => {
@@ -1761,10 +1989,22 @@ function cleanupConnectivitySignals() {
   navigator.connection?.removeEventListener?.("change", handleConnectionChange);
 }
 
+function cleanupRendererLifecycle() {
+  cleanupConnectivitySignals();
+  metadataResizeObserver?.disconnect();
+  favoriteTitleResizeObserver?.disconnect();
+  window.cancelAnimationFrame(metadataLayoutFrame);
+  window.cancelAnimationFrame(favoriteTitleFrame);
+  if (libraryPreferencesPersistTimer) {
+    window.clearTimeout(libraryPreferencesPersistTimer);
+    libraryPreferencesPersistTimer = null;
+  }
+}
+
 window.addEventListener("offline", handleRendererOffline);
 window.addEventListener("online", handleRendererOnline);
 navigator.connection?.addEventListener?.("change", handleConnectionChange);
-window.addEventListener("beforeunload", cleanupConnectivitySignals, { once: true });
+window.addEventListener("beforeunload", cleanupRendererLifecycle, { once: true });
 window.hslLauncher.onConnectivityState?.(applyConnectivityState);
 window.hslLauncher.onLauncherState?.(applyBackgroundLauncherState);
 window.hslLauncher.onRankingCapabilitiesState?.(applyRankingCapabilitiesState);
