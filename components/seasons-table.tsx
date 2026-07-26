@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatTableDateRange } from "@/lib/format";
 import type { SeasonSummary } from "@/types";
-import { PlayerHoverCard } from "./player-hover-card";
+import { PlayerPill } from "./player-pill";
 import { SeasonJoinButton } from "./season-join-button";
 import { EmptyState } from "./ui/state";
 import { StatusBadge } from "./ui/status-badge";
@@ -284,7 +284,7 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
                   </td>
                   <td className="hidden whitespace-nowrap px-4 py-6 lg:table-cell">
                     {visibleLeader ? (
-                      <PlayerHoverCard player={visibleLeader} />
+                      <PlayerPill compactOnMobile player={visibleLeader} />
                     ) : (
                       <span className="theme-text-muted">Pendiente</span>
                     )}

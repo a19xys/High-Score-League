@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { formatScore } from "@/lib/format";
 import type { SeasonStanding } from "@/types";
 
@@ -78,16 +80,23 @@ export function PodiumPlaceholder({
       </div>
       <div className="mt-8 grid items-end gap-4 sm:grid-cols-3 lg:min-h-80">
         {visualOrder.map((standing, index) => (
-          <div
-            className={`flex min-w-0 flex-col items-center text-center ${desktopOrder(
+          <Link
+            aria-label={`Ver perfil de @${standing.player.username}`}
+            className={`flex min-w-0 flex-col items-center rounded-xl text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit ${desktopOrder(
               standing,
               index,
             )}`}
+            href={`/players/${encodeURIComponent(standing.player.username)}`}
             key={standing.player.id}
           >
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full text-base font-bold theme-surface-strong">
-              {standing.player.initials}
-            </div>
+            <ProfileAvatar
+              avatarUrl={standing.player.avatarUrl}
+              className="mb-4"
+              decorative
+              initials={standing.player.initials}
+              size="medium"
+              username={standing.player.username}
+            />
             <div
               className={`flex w-full max-w-56 ${podiumHeight(
                 standing.rank,
@@ -104,7 +113,7 @@ export function PodiumPlaceholder({
                 {formatScore(standing.totalPoints)} pts
               </p>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </section>

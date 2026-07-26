@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 import { GameHero } from "@/components/game-hero";
 import { LeaderboardTable } from "@/components/leaderboard-table";
+import { PlayerPill } from "@/components/player-pill";
 import { SubmissionsTable } from "@/components/submissions-table";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ActionLink } from "@/components/ui/action-link";
@@ -299,11 +300,12 @@ export function WeekDetailView({
                     <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
                       <RankBadge rank={result.rank} />
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
-                      {result.player?.initials ?? "???"}
-                      <span className="ml-2 text-xs font-normal theme-text-muted">
-                        @{result.player?.username ?? "desconocido"}
-                      </span>
+                    <td className="min-w-0 px-4 py-4 font-semibold theme-text">
+                      {result.player ? (
+                        <PlayerPill compactOnMobile player={result.player} />
+                      ) : (
+                        <span className="theme-text-muted">Jugador desconocido</span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
                       {formatScore(result.finalScore)}

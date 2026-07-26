@@ -9,6 +9,10 @@ normal.
 - Landing publica para visitantes sin sesion.
 - Rutas privadas protegidas con `AccessRequired`.
 - Auth real con email/password y perfiles reales.
+- Perfiles propio y público comparten una tarjeta de jugador finalista, métricas
+  competitivas reales, trayectoria y fallbacks de avatar. Las identidades de
+  leaderboard, clasificación, podios, historial, archivos y chat enlazan al
+  perfil público autenticado.
 - Juegos, temporadas, semanas, submissions, leaderboards, `weekly_results`,
   clasificacion de temporada, benchmarks y chat global leen Supabase. El chat
   permite editar el último mensaje propio durante 15 minutos.
@@ -76,6 +80,7 @@ normal.
 - Admin: `docs/admin.md`, `docs/admin-weeks.md`, `docs/admin-games.md`,
   `docs/admin-seasons.md`.
 - Cuestionario de Home: `docs/home-polls.md`.
+- Perfiles y decisiones futuras de privacidad/media: `docs/profile-revamp.md`.
 - Automatizacion: `docs/automation.md`.
 - Checklist de despliegue: `docs/deploy-checklist.md`.
 
@@ -91,8 +96,9 @@ manual de `docs/deploy-checklist.md` en el entorno real de Vercel y Supabase.
 - Capturas reales.
 - App local y plugin MAME como flujo principal de envios.
 - Panel completo de usuarios.
-- Pulido de perfil y eliminacion de cuenta por anonimizacion, sin borrar
-  actividad historica.
+- `PROFILE-PRIVACY-1`: controles persistentes de visibilidad y presencia.
+- `PROFILE-ANONYMIZATION-1`: baja por anonimización sin borrar historia.
+- `MEDIA-UPLOADS-1`: sistema universal de imágenes y migración de URLs legacy.
 - Medallas y bonus.
 - Moderacion UI del chat.
 - Configuracion de Vercel Cron o equivalente para ejecutar
@@ -106,6 +112,5 @@ manual de `docs/deploy-checklist.md` en el entorno real de Vercel y Supabase.
 
 ## Proximo objetivo recomendado
 
-Ejecutar el checklist manual de despliegue, configurar variables de entorno,
-aplicar migraciones pendientes y validar rutas publicas, privadas, admin, cron,
-Realtime e ingest en produccion.
+Diseñar `MEDIA-UPLOADS-1` como sistema universal antes de sustituir el editor URL
+del avatar o añadir nuevas superficies de carga de imágenes.

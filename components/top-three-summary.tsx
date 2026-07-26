@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { formatScore } from "@/lib/format";
 import type { LeaderboardEntry } from "@/types";
 
@@ -34,24 +36,6 @@ type TopThreeSummaryProps = {
   entries: LeaderboardEntry[];
 };
 
-function PlayerAvatar({ entry }: { entry: LeaderboardEntry }) {
-  if (entry.player.avatarUrl) {
-    return (
-      <img
-        alt=""
-        className="h-12 w-12 shrink-0 rounded-full border object-cover theme-border"
-        src={entry.player.avatarUrl}
-      />
-    );
-  }
-
-  return (
-    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border text-base font-black theme-border theme-surface theme-text">
-      {entry.player.initials}
-    </div>
-  );
-}
-
 function TopThreeRankBadge({ rank }: { rank: number }) {
   const style = podiumStyles[rank]?.rank ?? "border-[var(--border)] theme-surface theme-text";
 
@@ -82,17 +66,27 @@ export function TopThreeSummary({ entries }: TopThreeSummaryProps) {
               className={`top-three-card-shine pointer-events-none absolute ${style.cardShine}`}
             />
             <div className="relative z-[1] flex min-w-0 items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <PlayerAvatar entry={entry} />
-                <div className="min-w-0">
-                  <p className="truncate text-base font-black theme-text">
+              <Link
+                aria-label={`Ver perfil de @${entry.player.username}`}
+                className="-m-1 flex min-w-0 items-center gap-3 rounded-xl p-1 transition hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
+                href={`/players/${encodeURIComponent(entry.player.username)}`}
+              >
+                <ProfileAvatar
+                  avatarUrl={entry.player.avatarUrl}
+                  decorative
+                  initials={entry.player.initials}
+                  size="medium"
+                  username={entry.player.username}
+                />
+                <span className="min-w-0">
+                  <span className="block truncate text-base font-black theme-text">
                     {entry.player.initials}
-                  </p>
-                  <p className="truncate text-sm theme-text-muted">
+                  </span>
+                  <span className="block truncate text-sm theme-text-muted">
                     @{entry.player.username}
-                  </p>
-                </div>
-              </div>
+                  </span>
+                </span>
+              </Link>
               <TopThreeRankBadge rank={entry.rank} />
             </div>
 

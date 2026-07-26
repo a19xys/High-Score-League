@@ -74,19 +74,26 @@ Nunca se redirige a `/profile/setup` desde el flujo normal.
 
 ## Perfil
 
-`/profile` es el centro único del perfil real.
+`/profile` es el centro único del perfil real. Comparte sistema visual y capa de
+datos competitivos con `/players/[username]`; la composición y decisiones están
+documentadas en `docs/profile-revamp.md`.
 
-Si hay sesión y perfil, muestra email, username, initials, avatar, bio pública,
-fecha de creación y estadísticas reales cuando existen. Permite actualizar
-username, initials, descripción, `avatar_url` como URL temporal y la preferencia
-`track_play_time`. Al guardar se actualiza también `user_metadata` y se refresca
-la ruta para que la navegación no requiera F5.
+Si hay sesión y perfil, muestra identidad, fecha de creación, resultados
+oficiales, mejores marcas y envíos propios. El email vive solo en el bloque
+privado de sesión. Permite actualizar username, initials, descripción,
+`avatar_url` como URL temporal y la preferencia real `track_play_time`. Al
+guardar se actualiza también `user_metadata` y se refresca la ruta.
 
 Si hay sesión pero no hay perfil, `/profile` muestra un formulario inline para
 crearlo. Si no hay sesión, muestra enlace a `/login`.
 
-No hay Storage de avatar todavía: `avatar_url` es texto http/https mientras se
-prepara la subida real de imágenes.
+No hay Storage de avatar todavía: el editor encapsula `avatar_url` como mecanismo
+legacy con preview y fallback de siglas, sin simular subida. `MEDIA-UPLOADS-1`
+reemplazará esa frontera con un uploader común.
+
+`track_play_time` permite recopilar tiempo desde la futura app local. No es una
+preferencia de visibilidad, presencia ni última conexión y no se expone en el
+perfil público.
 
 `localStorage` no es fuente principal de verdad para perfiles. Solo Supabase Auth
 metadata y `public.profiles` se usan para este flujo.

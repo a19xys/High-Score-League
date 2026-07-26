@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatTableDateRange } from "@/lib/format";
 import type { WeekSummary } from "@/types";
-import { PlayerHoverCard } from "./player-hover-card";
+import { PlayerPill } from "./player-pill";
 import { StatusBadge } from "./ui/status-badge";
 import { EmptyState } from "./ui/state";
 import { SortableHeaderButton } from "./ui/sortable-header-button";
@@ -435,7 +435,7 @@ export function WeeksTable({
                   </td>
                   <td className="hidden whitespace-nowrap px-3 py-4 lg:table-cell">
                     {!secret && summary.winner ? (
-                      <PlayerHoverCard player={summary.winner} />
+                      <PlayerPill compactOnMobile player={summary.winner} />
                     ) : (
                       <span className="theme-text-muted">Pendiente</span>
                     )}

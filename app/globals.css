@@ -221,6 +221,24 @@ textarea {
     color: var(--text-muted);
   }
 
+  .profile-hero {
+    background:
+      radial-gradient(circle at 12% 18%, rgba(20, 184, 166, 0.36), transparent 23rem),
+      radial-gradient(circle at 82% 24%, rgba(168, 85, 247, 0.28), transparent 25rem),
+      linear-gradient(128deg, #071527 0%, #10243f 52%, #190f34 100%);
+  }
+
+  .profile-hero-grid {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+    background-size: 30px 30px;
+    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.7), transparent 88%);
+  }
+
   .top-three-rank-shine-bar {
     pointer-events: none;
     position: absolute;
@@ -286,6 +304,12 @@ textarea {
   .top-three-score-bronze {
     background: color-mix(in srgb, var(--bronze-row) 78%, #000);
     border-color: color-mix(in srgb, var(--bronze-row) 58%, #9a3412);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
   }
 }
 

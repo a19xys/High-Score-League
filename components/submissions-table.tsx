@@ -8,6 +8,7 @@ import {
   formatScore,
 } from "@/lib/format";
 import type { Game, Player, Submission, Week } from "@/types";
+import { PlayerPill } from "./player-pill";
 import { EmptyState } from "./ui/state";
 import { DataTable } from "./ui/table";
 
@@ -362,7 +363,7 @@ export function SubmissionsTable({
   currentUserId = null,
   currentUserInitials = null,
   eyebrow,
-  showPlayer: _showPlayer = true,
+  showPlayer = true,
   showWeek = true,
   showSource: _showSource = false,
   showDetectedAt: _showDetectedAt = false,
@@ -478,7 +479,7 @@ export function SubmissionsTable({
                 label="Ordenar por intento"
                 onClick={() => toggleSort("attempt")}
               >
-                Intento
+                {showPlayer ? "Jugador / intento" : "Intento"}
               </SortableHeader>
             </th>
             <th className="whitespace-nowrap px-3 py-2.5 text-right" scope="col">
@@ -542,8 +543,15 @@ export function SubmissionsTable({
                   </td>
                 ) : null}
                 <td className="whitespace-nowrap px-3 py-3 font-semibold theme-text">
-                  <div className="inline-flex items-center gap-2">
-                    <span>{submission.playerInitials}</span>
+                  <div className="inline-flex min-w-0 items-center gap-2">
+                    {showPlayer && submission.player ? (
+                      <PlayerPill
+                        compactOnMobile
+                        player={submission.player}
+                      />
+                    ) : (
+                      <span>{submission.playerInitials}</span>
+                    )}
                     <span className="theme-text-muted">
                       #{submission.attemptNumber ?? "-"}
                     </span>

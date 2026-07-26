@@ -95,7 +95,7 @@ export function PlayerHoverCard({ player }: PlayerHoverCardProps) {
       </div>
       <Link
         className="mt-3 inline-flex rounded-md px-3 py-2 text-sm font-semibold theme-surface-strong"
-        href={`/players/${player.username}`}
+        href={`/players/${encodeURIComponent(player.username)}`}
       >
         Ver perfil
       </Link>
@@ -106,7 +106,7 @@ export function PlayerHoverCard({ player }: PlayerHoverCardProps) {
     <>
       <Link
         className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold theme-surface-strong"
-        href={`/players/${player.username}`}
+        href={`/players/${encodeURIComponent(player.username)}`}
         onFocus={showCard}
         onBlur={scheduleClose}
         onMouseEnter={showCard}

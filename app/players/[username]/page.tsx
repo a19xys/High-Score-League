@@ -1,12 +1,21 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AccessRequired } from "@/components/auth/access-required";
+import { PublicProfileView } from "@/components/profile/public-profile-view";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { hasServerSession } from "@/lib/auth/session";
+import { usernamePattern } from "@/lib/auth/validation";
+import {
+  getPlayerCompetitiveProfile,
+  getPublicPlayerProfile,
+} from "@/lib/data/player-profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { RealProfile } from "@/types/supabase";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Jugador | High Score League",
+};
 
 type PlayerPageProps = {
   params: Promise<{
@@ -14,24 +23,18 @@ type PlayerPageProps = {
   }>;
 };
 
-async function getProfile(username: string) {
-  const supabase = await createSupabaseServerClient();
-
-  if (!supabase) {
-    return { profile: null, error: "Supabase no está configurado." };
-  }
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id,username,initials,avatar_url,bio,track_play_time,is_admin,created_at,updated_at")
-    .eq("username", username)
-    .maybeSingle();
-
-  if (error) {
-    return { profile: null, error: error.message };
-  }
-
-  return { profile: (data ?? null) as RealProfile | null, error: null };
+function ProfileUnavailable() {
+  return (
+    <Card>
+      <CardHeader title="Perfil no disponible" eyebrow="Jugador">
+        No se pudo completar una lectura segura del perfil público.
+      </CardHeader>
+      <EmptyState
+        title="Inténtalo de nuevo más tarde."
+        description="La liga no expondrá detalles técnicos ni datos parciales que no haya podido verificar."
+      />
+    </Card>
+  );
 }
 
 export default async function PlayerPage({ params }: PlayerPageProps) {
@@ -40,56 +43,36 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   }
 
   const { username } = await params;
-  const { profile, error } = await getProfile(username);
 
-  if (error) {
-    return (
-      <Card>
-        <CardHeader title="Perfil no disponible" eyebrow="Jugador">
-          No se pudo cargar el perfil público.
-        </CardHeader>
-        <EmptyState title="Error de lectura." description={error} />
-      </Card>
-    );
-  }
-
-  if (!profile) {
+  if (!usernamePattern.test(username)) {
     notFound();
   }
 
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader eyebrow="Perfil público" title={profile.initials}>
-          @{profile.username}
-        </CardHeader>
-        <div className="mb-5 flex flex-wrap items-start gap-5">
-          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full text-2xl font-bold theme-surface-strong">
-            {profile.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt={`Avatar de ${profile.username}`}
-                className="h-full w-full object-cover"
-                src={profile.avatar_url}
-              />
-            ) : (
-              profile.initials
-            )}
-          </div>
-          <div className="max-w-2xl">
-            <p className="text-3xl font-bold theme-text">{profile.initials}</p>
-            <p className="theme-text-muted">@{profile.username}</p>
-            <p className="mt-4 leading-7 theme-text">
-              {profile.bio ?? "Este jugador todavía no ha añadido una bio pública."}
-            </p>
-          </div>
-        </div>
-      </Card>
+  const supabase = await createSupabaseServerClient();
 
-      <EmptyState
-        title="Historial público pendiente."
-        description="Los mejores resultados públicos aparecerán aquí cuando estén disponibles."
-      />
-    </div>
+  if (!supabase) {
+    return <ProfileUnavailable />;
+  }
+
+  const profileResult = await getPublicPlayerProfile(supabase, username);
+
+  if (profileResult.status === "error") {
+    return <ProfileUnavailable />;
+  }
+
+  if (profileResult.status === "not-found") {
+    notFound();
+  }
+
+  const competitive = await getPlayerCompetitiveProfile(
+    profileResult.profile.id,
+    "public",
+  );
+
+  return (
+    <PublicProfileView
+      competitive={competitive}
+      profile={profileResult.profile}
+    />
   );
 }

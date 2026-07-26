@@ -50,10 +50,11 @@ http://localhost:3000
   benchmarks y resultados oficiales cuando existen.
 - `/seasons`: archivo real de temporadas.
 - `/seasons/[seasonId]`: detalle real de temporada con clasificacion y podio.
-- `/players/[username]`: perfil publico real.
+- `/players/[username]`: perfil competitivo público para miembros autenticados.
 - `/submit`: herramienta legacy/interna para admins; el flujo normal de
   puntuaciones va por app local/MAME.
-- `/profile`: perfil real, ajustes y centro admin para administradores.
+- `/profile`: centro personal con trayectoria real, edición, apariencia, cuenta
+  y área admin separada para administradores.
 - `/admin/weeks`, `/admin/games`, `/admin/seasons`: panel admin minimo.
   Juegos permite metadatos múltiples y borrado seguro si no hay semanas
   asociadas.
@@ -79,6 +80,7 @@ Supabase Storage queda reservado para contenido dinamico futuro.
 - [Ingest API](docs/ingest-api.md)
 - [Resultados semanales](docs/weekly-results.md)
 - [Clasificacion de temporada](docs/season-standings.md)
+- [Sistema de perfiles](docs/profile-revamp.md)
 - [Chat](docs/chat.md)
 - [Admin](docs/admin.md)
 - [Admin semanas](docs/admin-weeks.md)

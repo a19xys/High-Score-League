@@ -1,8 +1,7 @@
 ﻿# High Score League database model
 
-Este documento describe el esquema inicial de Supabase para el MVP. La app
-todavia no esta conectada a Supabase; el SQL vive en
-`supabase/migrations/0001_initial_schema.sql` para revision y aplicacion manual.
+Este documento describe el esquema de Supabase del MVP. La app usa estas tablas
+como fuente real; las migraciones viven en `supabase/migrations/`.
 
 ## Tablas principales
 
@@ -40,6 +39,12 @@ Desde `0010_profile_preferences.sql` incluye:
 
 `avatar_url` sigue siendo una URL de texto temporal. No hay Storage ni subida de
 avatar en esta fase.
+
+`track_play_time` es exclusivamente permiso de recopilación. No debe
+reinterpretarse como visibilidad pública del tiempo, presencia online o última
+conexión. La arquitectura y las tareas `PROFILE-PRIVACY-1`,
+`PROFILE-ANONYMIZATION-1` y `MEDIA-UPLOADS-1` se detallan en
+`docs/profile-revamp.md`.
 
 ### seasons
 
