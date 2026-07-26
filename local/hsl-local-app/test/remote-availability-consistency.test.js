@@ -44,15 +44,17 @@ test("probe phases and displayStatus never close the committed gate", () => {
 });
 
 test("all class A renderer controls use the shared remote selector", async () => {
-  const [header, ranking, devTools] = await Promise.all([
+  const [header, ranking, devTools, presentation] = await Promise.all([
     fsp.readFile(path.join(appRoot, "gui", "renderer", "components", "header.js"), "utf8"),
     fsp.readFile(path.join(appRoot, "gui", "renderer", "ranking-state.js"), "utf8"),
     fsp.readFile(path.join(appRoot, "gui", "renderer", "components", "dev-tools.js"), "utf8"),
+    fsp.readFile(path.join(appRoot, "gui", "renderer", "product-presentation.js"), "utf8"),
   ]);
-  assert.match(header, /deriveRemoteAvailability/);
+  assert.match(header, /deriveConnectivityPresentation/);
+  assert.match(presentation, /deriveRemoteAvailability/);
   assert.match(ranking, /deriveRemoteAvailability/);
   assert.match(devTools, /deriveRemoteAvailability/);
-  assert.match(devTools, /check-membership[\s\S]*!remoteAvailable/);
+  assert.match(devTools, /check-membership[\s\S]*devActions\.checkMembership/);
   assert.match(devTools, /force-ranking-refresh/);
   assert.equal(deriveRemoteActionAvailability({ reachability: "connected" }, []).available, true);
   assert.equal(deriveRemoteActionAvailability({ reachability: "offline" }, []).available, false);

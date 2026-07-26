@@ -1,5 +1,10 @@
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
+import {
+  deriveQueuePresentation,
+  deriveSupportingActions,
+} from "../product-presentation.js";
+import { renderStatusBadge } from "./status-primitives.js";
 
 function formatDetectedAt(value) {
   if (!value) return "sin fecha";
@@ -23,7 +28,7 @@ function renderQueueItem(item) {
   `;
 }
 
-function renderFailedItem(item) {
+function renderFailedItem(item, restoreAction) {
   const score = item.score === null ? "sin puntuación" : item.score.toLocaleString();
   const title = item.game || item.rom || "Puntuación local";
   const reason = item.failure?.friendlyReason || "No se pudo enviar esta puntuación.";
@@ -49,14 +54,14 @@ function renderFailedItem(item) {
           </dl>
         </details>
       </div>
-      <button class="tool-button restore-button" type="button" data-action="restore-failed" data-filename="${escapeHtml(item.filename)}">
+      <button class="tool-button restore-button" type="button" data-action="restore-failed" data-filename="${escapeHtml(item.filename)}" ${restoreAction.available ? "" : `disabled aria-disabled="true" aria-describedby="${restoreAction.reasonId}"`}>
         Restaurar a pendientes
       </button>
     </li>
   `;
 }
 
-function renderFailedSection(failed) {
+function renderFailedSection(failed, state) {
   if (!failed?.exists || failed.count === 0) {
     return "";
   }
@@ -65,6 +70,7 @@ function renderFailedSection(failed) {
     ? "1 puntuación requiere atención"
     : `${failed.count} puntuaciones requieren atención`;
   const items = failed.items.slice(0, 5);
+  const restoreAction = deriveSupportingActions(state).restoreFailed;
 
   return `
     <section class="attention-section">
@@ -73,10 +79,11 @@ function renderFailedSection(failed) {
           <h3>Puntuaciones con error</h3>
           <p>${countText}. Tu puntuación no se ha perdido.</p>
         </div>
-        <span class="badge badge-warn">Requieren atención</span>
+        ${renderStatusBadge({ severity: "warning", icon: "warning", title: "Requieren atención", description: "Estas puntuaciones siguen guardadas localmente." })}
       </div>
       <p class="attention-copy">Puedes restaurarlas a pendientes y reintentarlas cuando corrijas el problema.</p>
-      <ul class="queue-list">${items.map(renderFailedItem).join("")}</ul>
+      <ul class="queue-list">${items.map((item) => renderFailedItem(item, restoreAction)).join("")}</ul>
+      ${!restoreAction.available && restoreAction.reason ? `<p class="action-block-reason" id="${restoreAction.reasonId}">${escapeHtml(restoreAction.reason)}</p>` : ""}
     </section>
   `;
 }
@@ -102,37 +109,17 @@ export function renderQueuePanel(state) {
     return `<section class="panel queue-panel"><h2>Puntuaciones pendientes</h2><p class="muted">Cargando cola local...</p></section>`;
   }
 
-  const totals = state.data?.queue?.totals || { failed: 0, pending: 0, sent: 0 };
-  const autoSync = state.data?.autoSync || {};
-  const statusLabel = autoSync.status === "syncing"
-    ? "Sincronizando"
-    : autoSync.status === "synced"
-      ? "Sincronizado"
-      : totals.failed > 0
-        ? "Requiere atención"
-        : totals.pending > 0
-          ? "Pendiente de sincronizar"
-          : "Auto-sync listo";
-  const badgeClass = autoSync.status === "synced"
-    ? "badge-ok"
-    : autoSync.status === "failed" || totals.failed > 0
-      ? "badge-error"
-      : totals.pending > 0
-        ? "badge-warn"
-        : "badge-muted";
+  const queue = deriveQueuePresentation(state.data?.queue, state.data?.autoSync, state.data?.session);
 
   return `
     <section class="panel queue-panel activity-panel">
       <div class="panel-heading compact">
         <div>
           <h2>Actividad local</h2>
-          <p>${escapeHtml(autoSync.message || "Las puntuaciones se guardan por cuenta y pack.")}</p>
+          <p>${escapeHtml(queue.description)}</p>
         </div>
-        <span class="badge ${badgeClass}">${escapeHtml(statusLabel)}</span>
+        ${renderStatusBadge(queue)}
       </div>
-      <p class="activity-summary-line">
-        ${escapeHtml(getActivitySummary(state.data?.queue, autoSync).message)}
-      </p>
       <button class="tool-button activity-details-button" type="button" data-action="show-activity-details">
         Ver detalles
         <small>Cola activa</small>
@@ -142,31 +129,13 @@ export function renderQueuePanel(state) {
 }
 
 export function getActivitySummary(queue, autoSync = {}) {
-  const totals = queue?.totals || { failed: 0, pending: 0, sent: 0 };
-
-  if (totals.failed > 0 || autoSync.status === "partial_failed" || autoSync.status === "failed") {
-    return {
-      icon: "sync-error",
-      status: "Requiere atención",
-      tone: "warning",
-      message: "Hay puntuaciones con error.",
-    };
-  }
-
-  if (totals.pending > 0 || autoSync.status === "blocked" || autoSync.status === "syncing") {
-    return {
-      icon: "sync-pending",
-      status: autoSync.status === "syncing" ? "Sincronizando" : "Pendiente de sincronizar",
-      tone: "pending",
-      message: "Quedan puntuaciones por subir.",
-    };
-  }
-
+  const model = deriveQueuePresentation(queue, autoSync, { hasSession: true });
+  const tones = { error: "warning", warning: "pending", progress: "pending", info: "pending", success: "ok", neutral: "locked" };
   return {
-    icon: "sync-ok",
-    status: "Sincronizado",
-    tone: "ok",
-    message: "Todo al día, sin puntuaciones pendientes.",
+    icon: model.icon,
+    status: model.title,
+    tone: tones[model.severity] || "pending",
+    message: model.description,
   };
 }
 
@@ -234,7 +203,7 @@ export function renderActivityDrawer(state) {
           </div>
         </div>
         ${body}
-        ${renderFailedSection(failed)}
+        ${renderFailedSection(failed, state)}
         <details class="technical-details">
           <summary>Detalles técnicos</summary>
           <dl>

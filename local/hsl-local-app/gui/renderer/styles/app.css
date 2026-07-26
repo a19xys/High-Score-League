@@ -6200,6 +6200,151 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   border-color: var(--led-warning);
 }
 
+/* LOCAL-PRE-BETA-PRODUCT-STATES-AND-VISUAL-SYSTEM-3B.3: shared product-state primitives. */
+.state-badge {
+  min-height: var(--status-badge-height);
+  gap: 6px;
+  border-width: var(--state-border-width);
+  text-transform: none;
+}
+
+.state-badge .status-icon.ui-icon,
+.connection-status-icon.ui-icon {
+  width: var(--status-icon-size);
+  height: var(--status-icon-size);
+  flex: 0 0 auto;
+}
+
+.badge-info,
+.state-badge--info {
+  border-color: color-mix(in srgb, var(--state-info) 58%, var(--border));
+  background: var(--state-info-bg);
+  color: var(--state-info);
+}
+
+.badge-progress,
+.state-badge--progress {
+  border-color: color-mix(in srgb, var(--state-progress) 58%, var(--border));
+  background: var(--state-progress-bg);
+  color: var(--state-progress);
+}
+
+.badge-blocked,
+.state-badge--blocked {
+  border-color: color-mix(in srgb, var(--state-blocked) 64%, var(--border));
+  background: var(--state-blocked-bg);
+  color: var(--state-blocked);
+}
+
+.state-notice {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-state-inline);
+  border: var(--state-border-width) solid var(--border);
+  border-radius: var(--control-radius);
+  padding: var(--space-state-block);
+}
+
+.state-notice__icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+}
+
+.state-notice__copy {
+  min-width: 0;
+}
+
+.state-notice__copy strong,
+.state-notice__copy p {
+  margin: 0;
+}
+
+.state-notice__copy p {
+  margin-top: 3px;
+  color: var(--text-muted);
+}
+
+.state-notice--warning {
+  border-color: color-mix(in srgb, var(--state-warning) 42%, var(--border));
+  background: color-mix(in srgb, var(--state-warning-bg) 52%, var(--surface));
+  color: var(--state-warning);
+}
+
+.state-notice--error,
+.state-notice--blocked {
+  border-color: color-mix(in srgb, var(--state-error) 42%, var(--border));
+  background: color-mix(in srgb, var(--state-error-bg) 52%, var(--surface));
+  color: var(--state-error);
+}
+
+.pack-error-panel.state-notice {
+  display: grid;
+}
+
+.pack-error-panel .state-notice__copy strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.action-block-reasons {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.action-block-reason,
+.auth-availability-reason {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.action-block-reason strong {
+  color: var(--text);
+}
+
+.account-session-state {
+  margin: 0;
+  color: var(--state-warning);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.connection-chip {
+  min-height: var(--control-height-compact);
+  border: var(--state-border-width) solid color-mix(in srgb, currentColor 34%, transparent);
+  border-radius: 999px;
+}
+
+.connection-chip--neutral {
+  color: var(--state-neutral);
+}
+
+.connection-chip--info {
+  color: var(--state-info);
+}
+
+.connection-chip--progress {
+  color: var(--state-progress);
+}
+
+.connection-chip--success {
+  color: var(--state-success);
+}
+
+.connection-chip--warning {
+  color: var(--state-warning);
+}
+
+.connection-chip--error,
+.connection-chip--blocked {
+  color: var(--state-error);
+}
+
 .pack-card--list .pack-card__media,
 .pack-card--icons .pack-card__media {
   overflow: hidden;

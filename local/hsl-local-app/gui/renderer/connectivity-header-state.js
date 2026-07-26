@@ -1,8 +1,5 @@
-import { deriveRemoteAvailability } from "./remote-availability.js";
+import { deriveConnectivityPresentation } from "./product-presentation.js";
 
 export function deriveConnectivityHeaderState(connectivity) {
-  const remote = deriveRemoteAvailability(connectivity);
-  if (remote.status === "connected") return "connected";
-  if (remote.status === "offline") return "offline";
-  return "hidden";
+  return deriveConnectivityPresentation(connectivity).status;
 }

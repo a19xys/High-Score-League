@@ -1,8 +1,12 @@
 import { COPY } from "./copy.js";
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
-import { deriveConnectivityHeaderState } from "../connectivity-header-state.js";
-import { deriveRemoteAvailability } from "../remote-availability.js";
+import {
+  deriveConnectivityPresentation,
+  deriveRememberedAccountPresentation,
+  deriveSessionPresentation,
+  deriveSupportingActions,
+} from "../product-presentation.js";
 
 const NO_SESSION_LABEL = "No has iniciado sesión";
 const SESSION_CHIP_EMPTY_LABEL = "Sin sesión";
@@ -63,8 +67,9 @@ function renderAccountAvatar(account, className = "") {
 
 function renderAccountText(account) {
   const email = account?.email || accountTitle(account);
-  const sessionWarning = account?.requiresLogin
-    ? `<small class="account-row__session-warning" title="${escapeHtml(account.requiresLoginMessage)}">Requiere iniciar sesion</small>`
+  const session = deriveRememberedAccountPresentation(account);
+  const sessionWarning = session.status !== "available"
+    ? `<small class="account-row__session-warning" title="${escapeHtml(session.description)}">${escapeHtml(session.title)}</small>`
     : "";
 
   return `
@@ -75,7 +80,7 @@ function renderAccountText(account) {
   `;
 }
 
-function renderKnownAccount(account, disabled) {
+function renderKnownAccount(account, disabled, switchAction) {
   const check = account.isActive
     ? renderIcon("check", { className: "account-row__check icon-slot icon-slot--check", label: "Cuenta seleccionada", size: "sm" })
     : `<span class="account-row__check" aria-hidden="true"></span>`;
@@ -106,7 +111,7 @@ function renderKnownAccount(account, disabled) {
   return `
     <li class="account-row">
       <div class="account-row__surface">
-      <button class="account-row__button" type="button" data-action="switch-account" data-user-id="${escapeHtml(account.userId)}" data-email="${escapeHtml(account.email || "")}" title="${escapeHtml(accountAriaLabel(account))}" aria-label="${escapeHtml(accountAriaLabel(account))}" ${disabled}>
+      <button class="account-row__button" type="button" data-action="switch-account" data-user-id="${escapeHtml(account.userId)}" data-email="${escapeHtml(account.email || "")}" title="${escapeHtml(switchAction.reason || accountAriaLabel(account))}" aria-label="${escapeHtml(accountAriaLabel(account))}" ${!switchAction.available && switchAction.reason ? `aria-describedby="${switchAction.reasonId}" aria-disabled="true"` : ""} ${disabled}>
         ${rowContent}
       </button>
       ${forgetButton}
@@ -121,22 +126,28 @@ function renderAuthForm(state) {
   }
 
   const disabled = state.busy ? "disabled" : "";
-  const remoteDisabled = !deriveRemoteAvailability(state.connectivity).available ? "disabled" : disabled;
+  const loginAction = deriveSupportingActions(state).login;
+  const remoteDisabled = loginAction.available ? disabled : "disabled";
   const emailValue = state.authEmail ? `value="${escapeHtml(state.authEmail)}"` : "";
+  const errorReference = state.authError ? "aria-describedby=\"hsl-login-error\" aria-invalid=\"true\"" : "";
+  const loginBlockReference = !loginAction.available && loginAction.reason
+    ? `aria-describedby="${loginAction.reasonId}"`
+    : "";
 
   return `
     <form class="auth-form auth-form--menu account-login-form" data-auth-form>
       <label>
         <span>${renderIcon("email", { className: "form-label-icon", size: "sm" })}Email</span>
-        <input id="hsl-login-email" name="email" type="email" autocomplete="username" required ${emailValue} ${disabled}>
+        <input id="hsl-login-email" name="email" type="email" autocomplete="username" required ${emailValue} ${errorReference} ${disabled}>
       </label>
       <label>
         <span>${renderIcon("password", { className: "form-label-icon", size: "sm" })}Contraseña</span>
-        <input id="hsl-login-password" name="password" type="password" autocomplete="current-password" required ${disabled}>
+        <input id="hsl-login-password" name="password" type="password" autocomplete="current-password" required ${errorReference} ${disabled}>
       </label>
-      ${state.authError ? `<p class="auth-error">${escapeHtml(state.authError)}</p>` : ""}
+      ${state.authError ? `<p class="auth-error" id="hsl-login-error" role="alert">${escapeHtml(state.authError)}</p>` : ""}
+      ${!loginAction.available && loginAction.reason ? `<p class="auth-availability-reason" id="${loginAction.reasonId}">${escapeHtml(loginAction.reason)}</p>` : ""}
       <div class="form-actions form-actions--inline">
-        <button class="tool-button account-primary" type="submit" ${remoteDisabled}>
+        <button class="tool-button account-primary" type="submit" ${loginBlockReference} ${remoteDisabled}>
           ${state.busy && state.busyLabel === "Conectando" ? "Conectando..." : "Entrar"}
         </button>
         <button class="tool-button" type="button" data-action="cancel-login" ${disabled}>
@@ -153,6 +164,8 @@ function renderAccountMenu(state) {
   const accounts = data?.accounts?.knownAccounts || [];
   const activeAccount = getActiveAccount(data?.accounts, data?.session);
   const activeEmail = activeAccount?.email || "";
+  const session = deriveSessionPresentation(data?.session, data?.accounts, state);
+  const switchAction = deriveSupportingActions(state).switchAccount;
 
   return `
     <div class="account-menu" data-account-menu>
@@ -163,11 +176,13 @@ function renderAccountMenu(state) {
           ${activeEmail ? `<p>${escapeHtml(activeEmail)}</p>` : ""}
         </div>
       </div>
+      ${!["active", "no-session"].includes(session.status) ? `<p class="account-session-state" data-severity="${escapeHtml(session.severity)}">${escapeHtml(session.title)}</p>` : ""}
       <div class="known-accounts known-accounts--menu">
         <strong>Cuentas</strong>
         ${accounts.length
-          ? `<ul>${accounts.map((account) => renderKnownAccount(account, disabled)).join("")}</ul>`
+          ? `<ul>${accounts.map((account) => renderKnownAccount(account, disabled, switchAction)).join("")}</ul>`
           : `<p class="account-empty-note">Sin cuentas recordadas.</p>`}
+        ${!switchAction.available && switchAction.reason ? `<p class="sr-only" id="${switchAction.reasonId}">${escapeHtml(switchAction.reason)}</p>` : ""}
       </div>
       <div class="account-menu__actions">
         <button class="tool-button account-primary icon-slot-button" type="button" data-action="add-account" ${disabled}>
@@ -193,8 +208,10 @@ export function renderThemeControl(state) {
 
 export function renderAccountControl(state) {
   const session = state.data?.session;
+  const sessionPresentation = deriveSessionPresentation(session, state.data?.accounts, state);
   const activeAccount = getActiveAccount(state.data?.accounts, session);
-  const sessionChipLabel = session?.hasSession ? accountAriaLabel(activeAccount) : SESSION_CHIP_EMPTY_LABEL;
+  const accountLabel = session?.hasSession ? accountAriaLabel(activeAccount) : SESSION_CHIP_EMPTY_LABEL;
+  const sessionChipLabel = `${accountLabel}. ${sessionPresentation.title}`;
   const sessionChipContent = session?.hasSession
     ? renderAccountAvatar(activeAccount, "account-chip-avatar")
     : `<span class="session-chip__empty">${SESSION_CHIP_EMPTY_LABEL}</span>`;
@@ -209,29 +226,24 @@ export function renderAccountControl(state) {
 }
 
 export function renderConnectionControl(state) {
-  const headerStatus = deriveConnectivityHeaderState(state.connectivity);
-  const connection = {
-    connected: ["Conectado", "connection-chip--connected"],
-    offline: ["Desconectado", "connection-chip--offline"],
-  }[headerStatus];
-  const remoteConfiguration = state.data?.remoteConfiguration;
-  const configurationProblem = ["missing", "invalid"].includes(remoteConfiguration?.status)
-    ? remoteConfiguration
-    : null;
-  const manualProbeInFlight = state.connectivity?.probe?.phase === "manual" && state.connectivity?.probe?.inFlight;
-  const silentBackground = state.connectivity?.probe?.phase === "background" && state.connectivity?.probe?.inFlight;
-  return configurationProblem ? `
-        <div class="connection-chip connection-chip--configuration" data-remote-configuration-status="${escapeHtml(configurationProblem.status)}" title="${escapeHtml(configurationProblem.message)}">
-          <span class="connection-dot" aria-hidden="true"></span>
-          <span class="connection-label">${configurationProblem.status === "invalid" ? "Configuracion HSL invalida" : "HSL sin configurar"}</span>
-        </div>
-  ` : connection ? `
-        <div class="connection-chip ${connection[1]}" data-connectivity-status="${headerStatus}">
-          <span class="connection-dot" aria-hidden="true"></span>
-          <span class="connection-label" aria-live="${silentBackground ? "off" : "polite"}" aria-atomic="true">${connection[0]}</span>
-          <button class="connection-refresh-button" type="button" data-action="refresh-connectivity" title="Comprobar conexi\u00f3n" aria-label="Comprobar conexi\u00f3n" aria-disabled="${manualProbeInFlight ? "true" : "false"}" ${manualProbeInFlight ? "disabled" : ""}>${renderIcon("refresh", { className: "connection-refresh-icon", size: "sm" })}</button>
-        </div>
-  ` : "";
+  const status = deriveConnectivityPresentation(state.connectivity, state.data?.remoteConfiguration);
+  const refreshAction = deriveSupportingActions(state).refreshConnectivity;
+  const configurationProblem = status.domain === "remote-configuration";
+  const configurationAttribute = configurationProblem
+    ? `data-remote-configuration-status="${escapeHtml(status.status)}"`
+    : "";
+  const reasonReference = !refreshAction.available && refreshAction.reason
+    ? `aria-describedby="${refreshAction.reasonId}"`
+    : "";
+
+  return `
+    <div class="connection-chip connection-chip--${escapeHtml(status.severity)}" data-connectivity-status="${escapeHtml(status.status)}" ${configurationAttribute} data-severity="${escapeHtml(status.severity)}" title="${escapeHtml(status.description)}">
+      ${renderIcon(status.icon, { className: "connection-status-icon", size: "sm" })}
+      <span class="connection-label">${escapeHtml(status.title)}</span>
+      ${configurationProblem ? "" : `<button class="connection-refresh-button" type="button" data-action="refresh-connectivity" title="Comprobar conexión" aria-label="Comprobar conexión" ${reasonReference} ${refreshAction.available ? "" : "disabled aria-disabled=\"true\""}>${renderIcon("refresh", { className: "connection-refresh-icon", size: "sm" })}</button>`}
+      ${!refreshAction.available && refreshAction.reason ? `<span class="sr-only" id="${refreshAction.reasonId}">${escapeHtml(refreshAction.reason)}</span>` : ""}
+    </div>
+  `;
 }
 
 export function renderHeader(state) {
@@ -248,7 +260,7 @@ export function renderHeader(state) {
       <div class="header-actions">
         <span class="render-region-contents" data-render-region="header-connection">${renderConnectionControl(state)}</span>
         <span class="render-region-contents" data-render-region="header-theme">${renderThemeControl(state)}</span>
-        <button class="theme-button theme-button--icon" type="button" data-action="show-settings" title="Configuracion" aria-label="Configuracion">
+        <button class="theme-button theme-button--icon" type="button" data-action="show-settings" title="Configuración" aria-label="Configuración">
           ${renderIcon("settings", { className: "button-icon settings-icon", size: "sm" })}
         </button>
         <div class="account-menu-shell" data-render-region="header-account">${renderAccountControl(state)}</div>

@@ -1,11 +1,11 @@
 import { deriveRemoteAvailability } from "./remote-availability.js";
 
 const RANKING_COPY = Object.freeze({
-  connecting: "Comprobando conexion con High Score League.",
+  connecting: "Comprobando conexión con High Score League.",
   notConfigured: "Este pack no tiene un ranking configurado.",
-  offline: "Necesitas conexion para abrir el ranking.",
+  offline: "Necesitas conexión para abrir el ranking.",
   checking: "Comprobando la disponibilidad del ranking.",
-  unavailable: "El ranking todavia no esta disponible.",
+  unavailable: "El ranking todavía no está disponible.",
   unknown: "No se pudo comprobar el ranking.",
 });
 

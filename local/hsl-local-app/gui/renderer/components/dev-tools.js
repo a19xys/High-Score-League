@@ -1,6 +1,8 @@
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
 import { deriveRemoteAvailability } from "../remote-availability.js";
+import { deriveSupportingActions } from "../product-presentation.js";
+import { renderBlockingReasons } from "./status-primitives.js";
 
 function valueOrDash(value) {
   if (value === undefined || value === null || value === "") {
@@ -77,6 +79,18 @@ export function renderDevTools(state) {
       ? "modo desarrollo puente"
       : data?.bridge?.mode || "desconocido";
   const remoteAvailable = deriveRemoteAvailability(state.connectivity).available;
+  const supportingActions = deriveSupportingActions(state);
+  const devActions = Object.fromEntries(Object.entries(supportingActions).map(([key, model]) => [key, {
+    ...model,
+    reasonId: `${model.reasonId}-dev`,
+  }]));
+  const explainedActions = [
+    devActions.importPack,
+    devActions.chooseLibrary,
+    devActions.rescanLibrary,
+    devActions.openLibraryFolder,
+    devActions.checkMembership,
+  ];
   const forceAccountSync = developerToolsEnabled
     ? `<button class="tool-button" type="button" data-action="force-account-sync" ${disabled || !remoteAvailable ? "disabled" : ""}>
         Forzar sincronizacion de cuentas elegibles
@@ -99,19 +113,19 @@ export function renderDevTools(state) {
         </div>
       </div>
       <div class="dev-actions">
-        <button class="tool-button" type="button" data-action="import-pack" ${disabled}>
+        <button class="tool-button" type="button" data-action="import-pack" ${devActions.importPack.available ? disabled : `disabled aria-disabled="true" aria-describedby="${devActions.importPack.reasonId}"`}>
           Importar pack
           <small>ZIP o carpeta</small>
         </button>
-        <button class="tool-button" type="button" data-action="choose-pack-directory" ${disabled}>
+        <button class="tool-button" type="button" data-action="choose-pack-directory" ${devActions.chooseLibrary.available ? disabled : `disabled aria-disabled="true" aria-describedby="${devActions.chooseLibrary.reasonId}"`}>
           ${escapeHtml(packDirectoryLabel)}
           <small>Biblioteca de packs</small>
         </button>
-        <button class="tool-button" type="button" data-action="rescan-pack-directory" ${disabled}>
+        <button class="tool-button" type="button" data-action="rescan-pack-directory" ${devActions.rescanLibrary.available ? disabled : `disabled aria-disabled="true" aria-describedby="${devActions.rescanLibrary.reasonId}"`}>
           Reescanear biblioteca
           <small>${library?.totals?.packs || 0} packs detectados</small>
         </button>
-        <button class="tool-button" type="button" data-action="open-pack-directory" ${disabled || !packDirectoryConfigured ? "disabled" : ""}>
+        <button class="tool-button" type="button" data-action="open-pack-directory" ${devActions.openLibraryFolder.available ? disabled : `disabled aria-disabled="true" aria-describedby="${devActions.openLibraryFolder.reasonId}"`}>
           Abrir carpeta de packs
           <small>${packDirectory.exists ? "Carpeta disponible" : "Revisar carpeta"}</small>
         </button>
@@ -126,7 +140,7 @@ export function renderDevTools(state) {
         <button class="tool-button" type="button" data-action="diagnose" ${disabled}>
           Diagnosticar
         </button>
-        <button class="tool-button" type="button" data-action="check-membership" ${disabled || !remoteAvailable ? "disabled" : ""}>
+        <button class="tool-button" type="button" data-action="check-membership" ${devActions.checkMembership.available ? disabled : `disabled aria-disabled="true" aria-describedby="${devActions.checkMembership.reasonId}"`}>
           Comprobar de nuevo
           <small>Temporada</small>
         </button>
@@ -143,6 +157,7 @@ export function renderDevTools(state) {
         <button class="tool-button" type="button" data-action="logout" ${disabled}>
           Cerrar sesión local
         </button>
+        ${renderBlockingReasons(explainedActions)}
       </div>
       <details class="technical-details">
         <summary>Detalles técnicos</summary>
@@ -173,7 +188,7 @@ export function renderDevTools(state) {
           ${detailRow("Version MAME", runtime?.version)}
           ${detailRow("Runtime warnings", runtime?.warnings?.length ? runtime.warnings.join(" | ") : "sin warnings")}
           ${detailRow("Comprobación de temporada", membership?.status || "sin comprobación")}
-          ${detailRow("Configuracion remota", data?.remoteConfiguration?.status)}
+          ${detailRow("Configuración remota", data?.remoteConfiguration?.status)}
           ${detailRow("Origen HSL", data?.remoteConfiguration?.hslOrigin)}
           ${detailRow("Fuente del origen HSL", data?.remoteConfiguration?.source)}
           ${detailRow("Herramientas de desarrollo", developerToolsEnabled ? "activadas" : "desactivadas")}

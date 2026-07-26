@@ -495,15 +495,20 @@ test("renderer maps membership statuses and manual recheck action", async () => 
     path.join(__dirname, "..", "gui", "renderer", "app.js"),
     "utf8",
   );
+  const presentation = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "product-presentation.js"),
+    "utf8",
+  );
 
-  assert.match(gamePanel, /membership\.status === "no_session"/);
-  assert.match(gamePanel, /membership\.status === "unauthenticated"/);
+  assert.match(gamePanel, /deriveGameSummaryPresentation/);
+  assert.match(presentation, /no_session:/);
+  assert.match(presentation, /membership\.status === "unauthenticated"/);
   assert.equal(/"Sin cuenta"/.test(gamePanel), false);
-  assert.match(gamePanel, /error: \["badge-warn", "Listo con avisos"\]/);
+  assert.match(presentation, /"No se pudo consultar la participación"/);
   assert.equal(/data-action="check-membership"/.test(gamePanel), false);
   assert.match(devTools, /data-action="check-membership"/);
-  assert.match(gamePanel, /autoSyncBadge/);
-  assert.match(gamePanel, /Auto-sync activo/);
+  assert.doesNotMatch(gamePanel, /autoSyncBadge|Auto-sync activo/);
+  assert.match(presentation, /deriveQueuePresentation/);
   assert.match(app, /window\.hslLauncher\.checkMembership\(\)/);
 });
 
@@ -567,8 +572,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /library-count-pill/);
   assert.match(libraryPanel, /renderLibraryCount/);
   assert.match(libraryPanel, /1 \? "pack" : "packs"/);
-  assert.match(libraryPanel, /Todavía no has elegido un directorio de packs/);
-  assert.match(libraryPanel, /Tu biblioteca está vacía/);
+  assert.match(libraryPanel, /deriveLibraryPresentation/);
+  assert.match(libraryPanel, /library\.description/);
+  assert.match(libraryPanel, /library\.title/);
   assert.match(libraryPanel, /Sin temporada/);
   assert.equal(/const id = pack\.deprecated/.test(libraryPanel), false);
   assert.match(libraryPanel, /data-action="toggle-library-filters"/);
@@ -1011,6 +1017,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "asset-preloader.js"), "utf8"),
   ]);
+  const presentation = await fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "product-presentation.js"), "utf8");
 
   assert.match(app, /app-main/);
   assert.match(app, /import \{ renderAppDialog \} from "\.\/components\/app-dialog\.js"/);
@@ -1114,7 +1121,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /event\.key !== "Escape"/);
   assert.match(app, /event\.key === "D" && event\.ctrlKey && event\.shiftKey/);
   assert.match(app, /!target\.closest\("\[data-account-menu\]"\)/);
-  assert.match(app, /Configuracion/);
+  assert.match(app, /Configuración/);
   assert.match(app, /renderLibraryPanel\(state\)[\s\S]*renderGamePanel\(state\)/);
   assert.equal(/renderQueuePanel\(state\)|advanced-entry|show-advanced-options/.test(app), false);
   assert.equal(/renderPlayerSummary/.test(app), false);
@@ -1127,12 +1134,13 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /theme-button--icon/);
   assert.match(header, /aria-label="\$\{themeLabel\}"/);
   assert.equal(/<span>\$\{themeLabel\}<\/span>/.test(header), false);
-  assert.match(header, /connection-dot/);
+  assert.match(header, /connection-status-icon/);
+  assert.match(header, /deriveConnectivityPresentation/);
   assert.equal(/renderIcon\(connection|status-online|status-offline|status-reconnecting/.test(header), false);
   assert.equal(/<p class="eyebrow">HSL<\/p>/.test(header), false);
   assert.equal(/data-action="refresh"/.test(header), false);
-  assert.match(header, /Conectado/);
-  assert.match(header, /Desconectado/);
+  assert.match(presentation, /"Conectado"/);
+  assert.match(presentation, /"Sin conexión"/);
   assert.match(header, /Conectando/);
   assert.match(header, /icon-slot-button/);
   assert.match(header, /data-action="toggle-account-menu"/);
@@ -1153,10 +1161,11 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /account-mini-avatar--empty/);
   assert.match(copy, /launcherSubtitle: "Tu compañero para jugar la liga\."/);
   assert.equal(/Cambio rápido disponible|Cambio rÃ¡pido disponible|Cuenta activa|badge badge-ok|No se guardan contrase|Las puntuaciones se guardan|No borra puntuaciones/.test(header), false);
-  assert.match(gamePanel, /data-action="play"/);
-  assert.match(gamePanel, /data-action="practice"/);
-  assert.match(gamePanel, /renderContentAction\("open-manual", "Manual"/);
-  assert.match(gamePanel, /renderContentAction\("open-ranking", "Ranking"/);
+  assert.match(gamePanel, /derivePrimaryActions/);
+  assert.match(gamePanel, /renderAvailabilityButton\(actions\.competition/);
+  assert.match(gamePanel, /renderAvailabilityButton\(actions\.practice/);
+  assert.match(gamePanel, /renderAvailabilityButton\(actions\.manual/);
+  assert.match(gamePanel, /renderAvailabilityButton\(actions\.ranking/);
   assert.match(gamePanel, /game-detail-card/);
   assert.match(gamePanel, /game-hero-stage/);
   assert.match(gamePanel, /game-hero-stage--with-logo/);
@@ -1186,8 +1195,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/"Empresa"|"Tiempo"/.test(gamePanel), false);
   assert.match(gamePanel, /"Sin datos"/);
   assert.match(gamePanel, /renderIcon\("calendar"/);
-  assert.match(gamePanel, /renderIcon\("play"/);
-  assert.match(gamePanel, /renderIcon\("practice"/);
+  assert.match(presentation, /"play", "Competición", "play"/);
+  assert.match(presentation, /"practice", "Práctica", "practice"/);
   assert.match(gamePanel, /<h2 title="\$\{escapeHtml\(game\.displayName\)\}"/);
   assert.match(gamePanel, /function renderDetailFavoriteMark\(game\)/);
   assert.match(gamePanel, /game-title-main/);
@@ -1200,21 +1209,19 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/<button[^>]*game-favorite-mark/.test(gamePanel), false);
   assert.equal(/game-favorite-chip|>Favorito</.test(gamePanel), false);
   assert.equal(/badge badge-muted week-chip/.test(gamePanel), false);
-  assert.match(gamePanel, /"manual"/);
-  assert.match(gamePanel, /renderStatusBadges/);
-  assert.match(gamePanel, /function renderPackErrors\(game, readiness\)/);
-  assert.match(gamePanel, /Pack duplicado/);
-  assert.match(gamePanel, /Este pack tiene errores/);
-  assert.match(gamePanel, /duplicatePaths/);
-  assert.match(gamePanel, /pack-error-paths/);
-  assert.match(gamePanel, /renderPackErrors\(game, readiness\)/);
-  assert.match(gamePanel, /\.slice\(0, 4\)/);
-  assert.match(gamePanel, /action-button-label/);
+  assert.match(presentation, /"open-manual", "Manual", "manual"/);
+  assert.match(gamePanel, /renderStatusBadge\(status\)/);
+  assert.match(gamePanel, /function renderPackErrors\(game, readiness, bridge\)/);
+  assert.match(presentation, /Pack duplicado/);
+  assert.doesNotMatch(gamePanel, /duplicatePaths|pack-error-paths/);
+  assert.match(gamePanel, /renderPackErrors\(game, data\.readiness, data\.bridge\)/);
+  assert.doesNotMatch(gamePanel, /\.slice\(0, 4\)/);
+  assert.match(gamePanel, /renderAvailabilityButton/);
   assert.match(gamePanel, /action-grid/);
   assert.match(gamePanel, /renderActivitySummaryCard\(state\)/);
-  assert.match(gamePanel, /Pack listo/);
-  assert.match(gamePanel, /Participas en la temporada/);
-  assert.match(gamePanel, /Auto-sync activo/);
+  assert.match(presentation, /Pack listo/);
+  assert.match(presentation, /Participas en la temporada/);
+  assert.doesNotMatch(`${gamePanel}\n${presentation}`, /Auto-sync activo/);
   assert.equal(/function renderPackLogo|class="pack-logo"|pack-title-row[\s\S]{0,220}renderHeroLogo/.test(gamePanel), false);
   assert.equal(/getReadyLabel|Competicion|Pack abierto|Ultimo pack cargado|Cola cuenta \+ pack|Pack abierto correctamente|Listo para competir|Sincronizacion automatica lista|data-action="check-membership"/.test(gamePanel), false);
   assert.equal(/game-panel__score/.test(gamePanel), false);
@@ -1226,9 +1233,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(queuePanel, /getActivitySummary/);
   assert.equal(/activity-summary-card__label/.test(queuePanel), false);
   assert.equal(/activity-summary-card__copy[\s\S]{0,90}Actividad local/.test(queuePanel), false);
-  assert.match(queuePanel, /icon: "sync-pending"/);
-  assert.match(queuePanel, /icon: "sync-ok"/);
-  assert.match(queuePanel, /icon: "sync-error"/);
+  assert.match(presentation, /icon: "sync-pending"/);
+  assert.match(presentation, /icon: "sync-ok"/);
+  assert.match(presentation, /icon: "sync-error"/);
   assert.match(queuePanel, /renderIcon\(summary\.icon/);
   assert.match(queuePanel, /renderIcon\("chevron-right"/);
   assert.match(queuePanel, /activity-details-button/);
@@ -1615,8 +1622,8 @@ test("renderer muestra fallback HSL limpio cuando falta la biblioteca", async ()
   assert.match(gameHtml, /src="\.\/assets\/hero_hsl\.png"/);
   assert.match(gameHtml, /data-hsl-fallback-hero/);
   assert.doesNotMatch(gameHtml, /High Score League Launcher|Elegir carpeta|Reintentar|data-action=|Space Invaders|data-action="play"|data-action="practice"|data-action="open-manual"|data-action="open-ranking"|badge-row|game-metadata-grid|pack-error-panel|activity-summary-card/);
-  assert.match(libraryHtml, /No se encuentra el directorio de packs/);
-  assert.match(libraryHtml, /Recupera la carpeta o cambia la ubicación de la biblioteca/);
+  assert.match(libraryHtml, /Biblioteca no encontrada/);
+  assert.match(libraryHtml, /Conecta de nuevo la unidad o elige otra ubicación/);
   assert.match(libraryHtml, /Cambiar ubicación/);
   assert.match(libraryHtml, /Reescanear/);
   assert.equal((libraryHtml.match(/data-action="choose-pack-directory"/g) || []).length, 1);
@@ -1635,7 +1642,7 @@ test("renderer muestra fallback HSL limpio cuando falta la biblioteca", async ()
       },
     },
   });
-  assert.match(inaccessibleHtml, /No puedo acceder al directorio de packs/);
+  assert.match(inaccessibleHtml, /Biblioteca inaccesible/);
   assert.match(inaccessibleHtml, /aria-expanded="false"[^>]*aria-disabled="true"[^>]*disabled/);
   assert.doesNotMatch(inaccessibleHtml, /id="library-filter-card"/);
 
@@ -2128,7 +2135,8 @@ test("launcher service and renderer expose account switcher without tokens", asy
   assert.match(header, /aria-label="\$\{escapeHtml\(sessionChipLabel\)\}"/);
   assert.equal(/Iniciar sesión/.test(header), false);
   assert.equal(/Cerrar sesión/.test(header), false);
-  assert.match(header, /sessionChipLabel = session\?\.hasSession \? accountAriaLabel\(activeAccount\) : SESSION_CHIP_EMPTY_LABEL/);
+  assert.match(header, /accountLabel = session\?\.hasSession \? accountAriaLabel\(activeAccount\) : SESSION_CHIP_EMPTY_LABEL/);
+  assert.match(header, /sessionChipLabel = `\$\{accountLabel\}\. \$\{sessionPresentation\.title\}`/);
   assert.match(app, /authEmail/);
   assert.match(app, /accountMenuOpen/);
   assert.match(app, /cleanAccountFormState/);

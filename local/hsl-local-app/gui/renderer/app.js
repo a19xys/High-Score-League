@@ -39,6 +39,8 @@ import {
 } from "./operation-feedback.js";
 import { assetIdentityMatches, createAssetPreloader } from "./asset-preloader.js";
 import { classifyStartupSnapshot, createStartupReadiness } from "./startup-readiness.js";
+import { deriveLiveAnnouncement } from "./product-presentation.js";
+import { createEphemeralLoginDraft } from "./login-draft.js";
 
 const root = document.getElementById("app");
 const savedTheme = window.__HSL_INITIAL_THEME__ === "light" ? "light" : "dark";
@@ -109,6 +111,10 @@ let currentOverlayType = null;
 let currentGameStructureKey = null;
 let currentLibraryStructureKey = null;
 let rendererMounted = false;
+const loginDraft = createEphemeralLoginDraft();
+let loginDraftOpen = false;
+let pendingLoginDraftSeed = null;
+let lastRenderedState = null;
 let dialogReturnFocus = null;
 let overlayReturnFocus = null;
 let busyRunSequence = 0;
@@ -690,11 +696,11 @@ function renderOverlay(state) {
 
   return `
     <div class="modal-layer" data-overlay-backdrop>
-      <aside class="drawer-layer" role="dialog" aria-modal="true" aria-label="${isActivity ? "Actividad local" : "Configuracion del launcher"}" data-drawer>
+      <aside class="drawer-layer" role="dialog" aria-modal="true" aria-label="${isActivity ? "Actividad local" : "Configuración del launcher"}" data-drawer>
         <div class="drawer-header">
           <div>
             <p class="eyebrow">${isActivity ? "Cola local" : "Launcher"}</p>
-            <h2>${isActivity ? "Actividad local" : "Configuracion"}</h2>
+            <h2>${isActivity ? "Actividad local" : "Configuración"}</h2>
           </div>
           <button class="icon-button" type="button" data-action="close-overlay" data-overlay-initial-focus title="Cerrar" aria-label="Cerrar">
             ${renderIcon("close", { className: "button-icon", size: "sm" })}
@@ -831,6 +837,7 @@ function mountRenderer(state) {
       </section>
     </main>
     ${renderStatusFooter()}
+    <div id="hsl-live-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
     <div class="render-region-contents" data-render-region="overlay">${renderOverlay(state)}</div>
     <div class="render-region-contents" data-render-region="dialog">${renderAppDialog(state)}</div>
     <div class="render-region-contents" data-render-region="busy-overlay">${renderBusyOverlay(state)}</div>
@@ -854,6 +861,35 @@ function mountRenderer(state) {
   rendererMounted = true;
 }
 
+function resetLoginDraft(email = "") {
+  loginDraft.clear();
+  pendingLoginDraftSeed = String(email || "");
+}
+
+function prepareLoginDraftForRender(state) {
+  if (pendingLoginDraftSeed !== null) {
+    loginDraft.seed(pendingLoginDraftSeed);
+    pendingLoginDraftSeed = null;
+  } else if (loginDraftOpen) {
+    loginDraft.capture(root.querySelector("[data-auth-form]"));
+  } else if (state.authFormOpen) {
+    loginDraft.seed(state.authEmail || "");
+  }
+
+  if (!state.authFormOpen) loginDraft.clear();
+}
+
+function finishLoginDraftRender(state) {
+  if (state.authFormOpen) loginDraft.restore(root.querySelector("[data-auth-form]"));
+  loginDraftOpen = Boolean(state.authFormOpen);
+}
+
+function syncLiveAnnouncement(previousState, state, changedKeys) {
+  const message = deriveLiveAnnouncement(previousState, state, changedKeys);
+  const region = root.querySelector("#hsl-live-status");
+  if (message && region && region.textContent !== message) region.textContent = message;
+}
+
 function render(nextState, changedKeys = []) {
   const state = nextState || store.getState();
   if (!rendererMounted || changedKeys.includes("theme")) {
@@ -861,13 +897,16 @@ function render(nextState, changedKeys = []) {
   }
 
   if (!rendererMounted) {
+    prepareLoginDraftForRender(state);
     mountRenderer(state);
+    finishLoginDraftRender(state);
     syncLibraryControlValues(state);
     syncGameMetadataLayout();
     syncFavoriteTitleMarks();
     syncResolvedVisualAssets();
     syncDialogFocus(state);
     syncOverlayFocus(state);
+    lastRenderedState = state;
     return;
   }
 
@@ -876,8 +915,10 @@ function render(nextState, changedKeys = []) {
     `${clampSidebarWidth(state.librarySidebarWidth)}px`,
   );
   if (changedKeys.length === 1 && changedKeys[0] === "librarySidebarWidth") {
+    lastRenderedState = state;
     return;
   }
+  prepareLoginDraftForRender(state);
   renderRegions({
     "header-account": renderAccountControl(state),
     "header-connection": renderConnectionControl(state),
@@ -926,6 +967,9 @@ function render(nextState, changedKeys = []) {
   syncResolvedVisualAssets();
   syncDialogFocus(state);
   syncOverlayFocus(state);
+  finishLoginDraftRender(state);
+  syncLiveAnnouncement(lastRenderedState, state, changedKeys);
+  lastRenderedState = state;
 }
 
 function visualAssetContext(image) {
@@ -1184,7 +1228,7 @@ async function toggleLibraryFavorite(packKey) {
 }
 
 function applyConnectivityState(connectivityState) {
-  if (!["offline", "connecting", "reconnecting", "connected"].includes(connectivityState?.displayStatus)) return;
+  if (!["unknown", "offline", "connecting", "reconnecting", "connected"].includes(connectivityState?.displayStatus)) return;
   const currentGeneration = Number(store.getState().connectivity?.reachabilityGeneration) || 0;
   const nextGeneration = Number(connectivityState.reachabilityGeneration) || 0;
   if (nextGeneration < currentGeneration) return;
@@ -1426,12 +1470,12 @@ function resultToLog(title, response) {
       : "No se pudo abrir la web."),
     "choose-pack-directory": response.summary || "Directorio de packs actualizado.",
     "choose-shared-mame-runtime": response.summary || "Runtime MAME actualizado.",
-    "check-membership": response.summary || "Comprobacion de temporada actualizada.",
+    "check-membership": ok ? "Participación en la temporada actualizada." : response.summary || "No se pudo actualizar la participación.",
     "import-pack": response.summary || (ok
       ? "Pack importado."
-      : "No se pudo completar la importacion. No se ha instalado nada."),
+      : "No se pudo completar la importación. No se ha instalado nada."),
     "open-pack-directory": response.summary || "Directorio de packs abierto.",
-    "open-manual": response.summary || (ok ? "Manual abierto." : "Este pack todavia no incluye manual local."),
+    "open-manual": response.summary || (ok ? "Manual abierto." : "Este pack todavía no incluye manual local."),
     "open-ranking": response.summary || (ok ? "Ranking abierto en la web." : "Ranking integrado pendiente."),
     "open-shared-mame-runtime": response.summary || "Carpeta MAME abierta.",
     "remove-known-account": response.summary || (ok
@@ -1441,8 +1485,8 @@ function resultToLog(title, response) {
       ? "Pack activado desde biblioteca."
       : "No se pudo activar el pack desde biblioteca."),
     "play-competition": ok
-      ? "MAME se cerro correctamente. La cola local se ha actualizado."
-      : "MAME termino con aviso. Si jugaste una partida, revisa la cola local.",
+      ? "MAME se cerró correctamente. La cola local se ha actualizado."
+      : "MAME terminó con aviso. Si jugaste una partida, revisa la cola local.",
     practice: ok
       ? "Práctica cerrada. No se activó el plugin de puntuación desde el launcher."
       : "La práctica terminó con aviso.",
@@ -1463,7 +1507,7 @@ function resultToLog(title, response) {
   return {
     details,
     ok,
-    summary: friendly[response.action] || (ok ? "Accion completada." : "La accion necesita revision."),
+    summary: friendly[response.action] || (ok ? "Acción completada." : "La acción necesita revisión."),
     title,
   };
 }
@@ -1553,9 +1597,7 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
 async function submitLogin(form) {
   if (store.getState().busy) return;
 
-  const fields = new FormData(form);
-  const email = String(fields.get("email") || "").trim();
-  const password = String(fields.get("password") || "");
+  const { email, password } = loginDraft.take(form);
 
   store.setState({ authError: null, busy: true, busyLabel: "Conectando" });
 
@@ -1598,11 +1640,13 @@ async function switchAccount(button) {
   const userId = button.dataset.userId;
 
   if (!userId) {
+    resetLoginDraft(email);
     store.setState(openAccountFormState(email));
     return;
   }
 
-  store.setState({ busy: true, busyLabel: "Cambiando cuenta" });
+  resetLoginDraft();
+  store.setState({ ...cleanAccountFormState(), busy: true, busyLabel: "Cambiando cuenta" });
 
   try {
     const response = await runWithOperationFeedback({
@@ -1934,10 +1978,12 @@ function bindActions() {
     }
 
     if (action === "show-login") {
+      resetLoginDraft();
       store.setState(openAccountFormState());
     }
 
     if (action === "add-account") {
+      resetLoginDraft();
       store.setState(openAccountFormState());
     }
 
@@ -2155,6 +2201,7 @@ function cleanupConnectivitySignals() {
 }
 
 function cleanupRendererLifecycle() {
+  loginDraft.clear();
   cleanupConnectivitySignals();
   metadataResizeObserver?.disconnect();
   favoriteTitleResizeObserver?.disconnect();

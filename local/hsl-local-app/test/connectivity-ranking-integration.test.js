@@ -34,11 +34,11 @@ test("Ranking follows the complete connection and capability matrix", async () =
     pathToFileURL(path.join(rendererRoot, "ranking-state.js")).href
   );
 
-  assert.match(getRankingActionState(state("offline"), { weekId: "week-1" }).reason, /Necesitas conexion/);
-  assert.match(getRankingActionState(state("connecting"), { weekId: "week-1" }).reason, /Comprobando conexion/);
+  assert.match(getRankingActionState(state("offline"), { weekId: "week-1" }).reason, /Necesitas conexión/);
+  assert.match(getRankingActionState(state("connecting"), { weekId: "week-1" }).reason, /Comprobando conexión/);
   assert.match(getRankingActionState(state("connected", { status: "checking" }), { weekId: "week-1" }).reason, /disponibilidad/);
   assert.match(getRankingActionState(state("connected", { status: "unknown" }), { weekId: "week-1" }).reason, /No se pudo comprobar/);
-  assert.match(getRankingActionState(state("connected", { status: "unavailable" }), { weekId: "week-1" }).reason, /todavia no esta disponible/);
+  assert.match(getRankingActionState(state("connected", { status: "unavailable" }), { weekId: "week-1" }).reason, /todavía no está disponible/);
   assert.equal(getRankingActionState(state("connected", {
     status: "available",
     url: "https://hsl.example/weeks/week-1",
@@ -135,7 +135,7 @@ test("header shows only stable states with natural width and accessible refresh"
   const connectionBlock = header.slice(header.indexOf("const headerStatus"), header.indexOf("const connectionChip"));
   assert.doesNotMatch(connectionBlock, /Conectando|Reconectando/);
   assert.match(header, /data-action="refresh-connectivity"/);
-  assert.match(header, /aria-label="Comprobar conexi\\u00f3n"/);
+  assert.match(header, /aria-label="Comprobar conexión"/);
   assert.match(header, /aria-disabled=/);
   assert.doesNotMatch(header, /connection-refresh-placeholder/);
   assert.doesNotMatch(header, /<button[^>]*connection-chip/);
@@ -151,26 +151,26 @@ test("header shows only stable states with natural width and accessible refresh"
   assert.match(busyOverlay, /Comprobando conexi\\u00f3n\.\.\./);
 });
 
-test("header selector hides unknown and ignores transient probe phases", async () => {
+test("header selector exposes semantic states without changing remote authority", async () => {
   const { deriveConnectivityHeaderState } = await import(
     pathToFileURL(path.join(rendererRoot, "connectivity-header-state.js")).href
   );
 
-  assert.equal(deriveConnectivityHeaderState(null), "hidden");
-  assert.equal(deriveConnectivityHeaderState(undefined), "hidden");
-  assert.equal(deriveConnectivityHeaderState({}), "hidden");
-  assert.equal(deriveConnectivityHeaderState({ reachability: "unknown" }), "hidden");
+  assert.equal(deriveConnectivityHeaderState(null), "unknown");
+  assert.equal(deriveConnectivityHeaderState(undefined), "unknown");
+  assert.equal(deriveConnectivityHeaderState({}), "unknown");
+  assert.equal(deriveConnectivityHeaderState({ reachability: "unknown" }), "unknown");
   assert.equal(deriveConnectivityHeaderState({
     reachability: "connected",
     probe: { phase: "manual", inFlight: true },
-  }), "connected");
+  }), "reconnecting");
   assert.equal(deriveConnectivityHeaderState({
     reachability: "offline",
     probe: { phase: "retry", inFlight: true },
-  }), "offline");
+  }), "reconnecting");
 });
 
-test("first header render tolerates null connectivity and keeps the chip hidden", async () => {
+test("first header render tolerates null connectivity and presents it as unconfirmed", async () => {
   const { renderHeader } = await import(
     pathToFileURL(path.join(rendererRoot, "components", "header.js")).href
   );
@@ -185,7 +185,7 @@ test("first header render tolerates null connectivity and keeps the chip hidden"
 
   assert.match(header, /High Score League Launcher/);
   assert.match(header, /data-action="toggle-theme"/);
-  assert.doesNotMatch(header, /data-connectivity-status=/);
+  assert.match(header, /data-connectivity-status="unknown"/);
   assert.doesNotMatch(header, /connection-chip--connected|connection-chip--offline/);
 });
 
@@ -208,7 +208,7 @@ test("remote configuration problems are explained without an offline chip", asyn
     theme: "dark",
   });
   assert.match(header, /data-remote-configuration-status="invalid"/);
-  assert.match(header, /Configuracion HSL invalida/);
+  assert.match(header, /Configuración HSL inválida/);
   assert.doesNotMatch(header, /data-connectivity-status="offline"|Desconectado/);
 });
 
@@ -252,7 +252,7 @@ test("renderer applies one committed connectivity snapshot to chip and Ranking",
   assert.match(applyBlock, /nextGeneration < currentGeneration/);
   assert.match(applyBlock, /deriveRemoteAvailability\(appliedState\.connectivity\)/);
   assert.match(applyBlock, /getRankingActionState\(appliedState/);
-  assert.match(header, /deriveRemoteAvailability/);
+  assert.match(header, /deriveConnectivityPresentation/);
   assert.match(ranking, /deriveRemoteAvailability/);
   assert.doesNotMatch(ranking, /displayStatus|expiresAt|Date\.now/);
 });
@@ -283,7 +283,7 @@ test("header and Ranking render the same committed gate for loss and recovery", 
 
   base.connectivity.displayStatus = "reconnecting";
   base.connectivity.probe = { phase: "retry", inFlight: true };
-  assert.match(renderHeader(base), /data-connectivity-status="connected"/);
+  assert.match(renderHeader(base), /data-connectivity-status="reconnecting"/);
   assert.doesNotMatch(renderGamePanel(base), /data-action="open-ranking"[^>]*disabled/);
 
   const offline = structuredClone(base);

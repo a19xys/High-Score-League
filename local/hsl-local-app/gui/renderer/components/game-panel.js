@@ -1,76 +1,17 @@
-import { COPY } from "./copy.js";
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
-import { getRankingActionState } from "../ranking-state.js";
+import {
+  deriveGameSummaryPresentation,
+  derivePackPresentation,
+  derivePrimaryActions,
+} from "../product-presentation.js";
 import { renderActivitySummaryCard } from "./queue-panel.js";
-
-function membershipBadge(membership) {
-  const labels = {
-    error: ["badge-warn", "Listo con avisos"],
-    invalid_week: ["badge-error", "Pack con errores"],
-    member: ["badge-ok", "Participas en la temporada"],
-    missing_week: ["badge-error", "Pack con errores"],
-    not_member: ["badge-error", "No participas en la temporada"],
-    unknown: ["badge-warn", "Listo con avisos"],
-  };
-
-  if (!membership || membership.status === "no_session" || membership.status === "unauthenticated") {
-    return "";
-  }
-
-  const [badgeClass, label] = labels[membership.status] || labels.unknown;
-
-  return `<span class="badge ${badgeClass}">${label}</span>`;
-}
-
-function autoSyncBadge(autoSync) {
-  const labels = {
-    blocked: ["badge-warn", "Pendiente de sincronizar"],
-    failed: ["badge-error", "Pendiente de sincronizar"],
-    idle: ["badge-ok", "Auto-sync activo"],
-    not_eligible: ["badge-muted", "Auto-sync activo"],
-    partial_failed: ["badge-warn", "Pendiente de sincronizar"],
-    synced: ["badge-ok", "Sincronizado"],
-    syncing: ["badge-accent", "Auto-sync activo"],
-  };
-  const [badgeClass, label] = labels[autoSync?.status] || labels.idle;
-
-  return `<span class="badge ${badgeClass}">${label}</span>`;
-}
-
-function readinessBadges(readiness, bridge) {
-  const legacy = bridge?.contractStatus === "deprecated" || bridge?.deprecated;
-  const classes = {
-    blocked: "badge-error",
-    ready: "badge-ok",
-    unknown: "badge-muted",
-    warning: "badge-warn",
-  };
-  const labels = {
-    blocked: "Pack con errores",
-    ready: "Pack listo",
-    unknown: "Listo con avisos",
-    warning: "Listo con avisos",
-  };
-  const status = readiness?.status || "unknown";
-  const displayStatus = legacy && status === "ready" ? "warning" : status;
-
-  return [
-    `<span class="badge ${classes[displayStatus] || classes.unknown}">${labels[displayStatus] || labels.unknown}</span>`,
-    legacy ? `<span class="badge badge-warn">Legacy</span>` : "",
-  ].filter(Boolean);
-}
-
-function renderStatusBadges(readiness, membership, autoSync, bridge) {
-  return [
-    ...readinessBadges(readiness, bridge),
-    membershipBadge(membership),
-    autoSyncBadge(autoSync),
-  ]
-    .filter(Boolean)
-    .slice(0, 4)
-    .join("");
-}
+import {
+  renderAvailabilityButton,
+  renderBlockingReasons,
+  renderContextNotice,
+  renderStatusBadge,
+} from "./status-primitives.js";
 
 function renderHeroLogo(game, selection) {
   const logo = game?.assets?.logo || game?.assets?.icon;
@@ -166,19 +107,6 @@ function renderPackMetadata(game) {
   `;
 }
 
-function renderContentAction(action, label, content, disabled) {
-  const unavailable = !content?.available;
-  const icon = action === "open-manual" ? "manual" : "ranking";
-  const title = unavailable ? content?.reason || `${label} no disponible para este pack.` : label;
-
-  return `
-    <button class="secondary-action compact-action action-tile" type="button" data-action="${action}" title="${escapeHtml(title)}" ${disabled || unavailable ? "disabled" : ""}>
-      ${renderIcon(icon, { className: `action-icon icon-slot icon-slot--${icon}` })}
-      <span class="action-button-label">${label}</span>
-    </button>
-  `;
-}
-
 function renderDetailFavoriteMark(game) {
   const favorite = Boolean(game?.favorite);
 
@@ -193,38 +121,13 @@ function renderDetailFavoriteMark(game) {
   `;
 }
 
-function renderPackErrors(game, readiness) {
-  const errors = [
-    ...(game?.errors || []),
-    ...(readiness?.blockers || []),
-  ].filter(Boolean);
-  const uniqueErrors = [...new Set(errors)];
-  const duplicatePaths = game?.duplicatePaths || [];
-
-  if (uniqueErrors.length === 0 && duplicatePaths.length === 0) {
+function renderPackErrors(game, readiness, bridge) {
+  const pack = derivePackPresentation({ game, readiness, bridge });
+  if (!["duplicate", "invalid", "mame-unavailable"].includes(pack.status)) {
     return "";
   }
 
-  const title = game?.duplicateGroup ? "Pack duplicado" : "Este pack tiene errores";
-  const intro = game?.duplicateGroup && duplicatePaths.length > 0
-    ? `Se han encontrado ${duplicatePaths.length} carpetas con el mismo packId:`
-    : "Corrige estos puntos antes de jugar:";
-
-  return `
-    <section class="pack-error-panel" aria-label="${escapeHtml(title)}">
-      <h3>${escapeHtml(title)}</h3>
-      <p>${escapeHtml(intro)}</p>
-      ${duplicatePaths.length > 0
-        ? `<ul class="pack-error-paths">${duplicatePaths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-        : ""}
-      ${uniqueErrors.length > 0
-        ? `<ul class="pack-error-list">${uniqueErrors.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-        : ""}
-      ${game?.duplicateGroup
-        ? `<p>El launcher no puede decidir cual usar. Elimina las copias o cambia el packId de los packs duplicados.</p>`
-        : ""}
-    </section>
-  `;
+  return renderContextNotice(pack, { className: "pack-error-panel" });
 }
 
 const HSL_FALLBACK_HERO_URL = "./assets/hero_hsl.png";
@@ -294,11 +197,11 @@ export function renderGameVisualRegion(state) {
 }
 
 export function renderGameStatusRegion(state) {
-  const data = state.data || {};
+  const status = deriveGameSummaryPresentation(state);
 
   return `
     <div class="badge-row">
-      ${renderStatusBadges(data.readiness, data.membership, data.autoSync, data.bridge)}
+      ${renderStatusBadge(status)}
     </div>
   `;
 }
@@ -321,35 +224,22 @@ export function renderGameIdentityRegion(state) {
     </div>
     ${description ? `<p class="ready-copy">${escapeHtml(description)}</p>` : ""}
     ${renderPackMetadata(game)}
-    ${renderPackErrors(game, data.readiness)}
+    ${renderPackErrors(game, data.readiness, data.bridge)}
   `;
 }
 
 export function renderGameActionsRegion(state) {
-  const data = state.data || {};
-  const game = data.game || {};
-  const membership = data.membership;
-  const readiness = data.readiness;
-  const disabled = state.busy ? "disabled" : "";
-  const membershipBlocksCompetition = membership?.canPlayCompetition === false;
-  const readinessBlocksCompetition = readiness?.canPlayCompetition === false;
-  const practiceDisabled = state.busy || readiness?.canPractice === false ? "disabled" : "";
-  const competitionDisabled = state.busy || !data.session?.hasSession || membershipBlocksCompetition || readinessBlocksCompetition ? "disabled" : "";
-  const ranking = getRankingActionState(state, game);
+  const actions = derivePrimaryActions(state);
+  const orderedActions = [actions.competition, actions.practice, actions.manual, actions.ranking];
 
   return `
     <div class="primary-actions action-grid">
-      <button class="play-button action-tile" type="button" data-action="play" ${competitionDisabled}>
-        ${renderIcon("play", { className: "action-icon icon-slot icon-slot--play" })}
-        <span class="action-button-label">${COPY.actions.play}</span>
-      </button>
-      <button class="secondary-action primary-action-tile action-tile" type="button" data-action="practice" ${practiceDisabled}>
-        ${renderIcon("practice", { className: "action-icon icon-slot icon-slot--practice" })}
-        <span class="action-button-label">${COPY.actions.practice}</span>
-      </button>
-      ${renderContentAction("open-manual", "Manual", game.manual, disabled)}
-      ${renderContentAction("open-ranking", "Ranking", ranking, disabled)}
+      ${renderAvailabilityButton(actions.competition, { className: "play-button action-tile" })}
+      ${renderAvailabilityButton(actions.practice, { className: "secondary-action primary-action-tile action-tile" })}
+      ${renderAvailabilityButton(actions.manual, { className: "secondary-action compact-action action-tile" })}
+      ${renderAvailabilityButton(actions.ranking, { className: "secondary-action compact-action action-tile" })}
     </div>
+    ${renderBlockingReasons(orderedActions)}
   `;
 }
 

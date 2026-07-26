@@ -4,6 +4,10 @@ import { renderLibraryEmptyState } from "./library-empty-state.js";
 import { renderPackCard } from "./pack-card.js";
 import { getLibraryCapabilities } from "../library-capabilities.js";
 import {
+  deriveLibraryPresentation,
+  deriveSupportingActions,
+} from "../product-presentation.js";
+import {
   comparePacks,
   normalizedYear,
   normalizeSortBy,
@@ -218,14 +222,16 @@ export function renderLibraryControls(state, packs) {
   const filterDisabled = filtersDisabled ? "disabled" : "";
   const hasDirectory = Boolean(state.data?.library?.directory?.path);
   const locationLabel = hasDirectory ? "Cambiar ubicación" : "Añadir ubicación";
+  const chooseLibrary = deriveSupportingActions(state).chooseLibrary;
 
   return `
     <div class="library-toolbar">
       <div class="library-control-row library-control-row--primary">
-        <button class="library-control-button" type="button" data-action="choose-pack-directory" ${disabled} aria-label="${locationLabel}" title="${locationLabel}">
+        <button class="library-control-button" type="button" data-action="choose-pack-directory" ${chooseLibrary.available ? disabled : "disabled"} aria-label="${locationLabel}" title="${escapeHtml(chooseLibrary.reason || locationLabel)}" ${!chooseLibrary.available && chooseLibrary.reason ? `aria-describedby="${chooseLibrary.reasonId}" aria-disabled="true"` : ""}>
           ${renderIcon("folder", { className: "library-control-icon" })}
           <span>${locationLabel}</span>
         </button>
+        ${!chooseLibrary.available && chooseLibrary.reason ? `<span class="sr-only" id="${chooseLibrary.reasonId}">${escapeHtml(chooseLibrary.reason)}</span>` : ""}
         <button class="library-control-button library-filter-toggle ${filtersOpen ? "library-filter-toggle--open" : ""}" type="button" data-action="toggle-library-filters" aria-label="Filtros" title="${filtersDisabled ? "Filtros no disponibles" : "Filtros"}" aria-expanded="${filtersOpen ? "true" : "false"}" aria-disabled="${filtersDisabled ? "true" : "false"}" aria-controls="library-filter-card" ${filterDisabled}>
           ${renderIcon("filter", { className: "library-control-icon" })}
           <span>Filtros</span>
@@ -244,6 +250,7 @@ export function renderLibraryControls(state, packs) {
 export function renderLibraryPacks(state) {
   const packs = state.data?.library?.packs || [];
   const directory = state.data?.library?.directory || {};
+  const library = deriveLibraryPresentation(state.data?.library, state.data?.selection);
 
   if (!directory.path) {
     return renderLibraryEmptyState({
@@ -251,9 +258,9 @@ export function renderLibraryPacks(state) {
         label: "Elegir directorio",
         type: "choose-pack-directory",
       },
-      body: "Elige una carpeta donde High Score League guardará y buscará tus packs locales.",
+      body: library.description,
       state,
-      title: "Todavía no has elegido un directorio de packs.",
+      title: library.title,
     });
   }
 
@@ -282,24 +289,18 @@ export function renderLibraryPacks(state) {
   }
 
   if (directory.configured && !directory.available) {
-    const inaccessible = directory.reason === "inaccessible";
-
     return renderLibraryEmptyState({
-      body: inaccessible
-        ? "Comprueba que la unidad esté conectada o cambia la ubicación de la biblioteca."
-        : "Recupera la carpeta o cambia la ubicación de la biblioteca.",
+      body: library.description,
       state,
-      title: inaccessible
-        ? "No puedo acceder al directorio de packs."
-        : "No se encuentra el directorio de packs.",
+      title: library.title,
     });
   }
 
   if (packs.length === 0) {
     return renderLibraryEmptyState({
-      body: "Importa un pack o cambia la ubicación de la biblioteca.",
+      body: library.description,
       state,
-      title: "Tu biblioteca está vacía.",
+      title: library.title,
     });
   }
 
@@ -356,17 +357,22 @@ export function renderLibraryHeading(state) {
   const disabled = state.busy ? "disabled" : "";
   const openDirectoryDisabled = !hasDirectory ? "disabled" : disabled;
   const rescanning = state.busy && state.busyLabel === "Reescaneando";
+  const actions = deriveSupportingActions(state);
+  const openFolder = actions.openLibraryFolder;
+  const rescan = actions.rescanLibrary;
 
   return `
       <div class="panel-heading compact">
         <div class="library-title-row">
-          <button class="library-open-control" type="button" data-action="open-pack-directory" ${openDirectoryDisabled} aria-label="Abrir carpeta de packs" title="Abrir carpeta de packs">
+          <button class="library-open-control" type="button" data-action="open-pack-directory" ${openFolder.available ? openDirectoryDisabled : "disabled"} aria-label="Abrir carpeta de packs" title="${escapeHtml(openFolder.reason || "Abrir carpeta de packs")}" ${!openFolder.available && openFolder.reason ? `aria-describedby="${openFolder.reasonId}" aria-disabled="true"` : ""}>
             ${renderIcon("library", { className: "library-heading-icon library-open-icon" })}
             <span class="library-open-label">Biblioteca</span>
           </button>
-          <button class="library-heading-button library-refresh-button ${rescanning ? "library-heading-button--spinning" : ""}" type="button" data-action="rescan-pack-directory" ${disabled} aria-label="Reescanear biblioteca" title="Reescanear biblioteca" aria-busy="${rescanning ? "true" : "false"}">
+          <button class="library-heading-button library-refresh-button ${rescanning ? "library-heading-button--spinning" : ""}" type="button" data-action="rescan-pack-directory" ${rescan.available ? disabled : "disabled"} aria-label="Reescanear biblioteca" title="${escapeHtml(rescan.reason || "Reescanear biblioteca")}" aria-busy="${rescanning ? "true" : "false"}" ${!rescan.available && rescan.reason ? `aria-describedby="${rescan.reasonId}" aria-disabled="true"` : ""}>
             ${renderIcon("refresh", { className: "library-heading-icon library-refresh-icon" })}
           </button>
+          ${!openFolder.available && openFolder.reason ? `<span class="sr-only" id="${openFolder.reasonId}">${escapeHtml(openFolder.reason)}</span>` : ""}
+          ${!rescan.available && rescan.reason ? `<span class="sr-only" id="${rescan.reasonId}">${escapeHtml(rescan.reason)}</span>` : ""}
           <span class="library-count-pill">${escapeHtml(renderLibraryCount(data))}</span>
         </div>
       </div>
