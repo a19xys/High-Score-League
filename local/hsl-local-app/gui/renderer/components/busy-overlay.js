@@ -224,11 +224,12 @@ export function busyMessageFromLabel(label) {
 }
 
 export function renderBusyOverlay(state) {
-  if (!state?.busy) {
+  const startupVisible = state?.startup?.visible === true;
+  if (!state?.busy && !startupVisible) {
     return "";
   }
 
-  const content = busyContentFromLabel(state.busyLabel);
+  const content = busyContentFromLabel(startupVisible ? "Iniciando" : state.busyLabel);
   const label = `${content.title} ${content.hint}`;
 
   return `

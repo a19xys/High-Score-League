@@ -76,12 +76,15 @@ test("bootstrap de tema se ejecuta antes del CSS y app reutiliza el valor normal
   assert.doesNotMatch(html, /<html[^>]*data-theme="dark"/);
   assert.ok(html.indexOf("theme-bootstrap.js") < html.indexOf("styles/tokens.css"));
   assert.match(bootstrap, /new Set\(\["light", "dark"\]\)/);
-  assert.match(bootstrap, /allowedThemes\.has\(storedTheme\) \? storedTheme : "dark"/);
+  assert.match(bootstrap, /window\.hslLauncher\?\.startupTheme/);
+  assert.match(bootstrap, /resolveThemeBootstrap/);
+  assert.match(bootstrap, /allowedThemes\.has\(bootstrap\.effectiveTheme\) \? bootstrap\.effectiveTheme : "dark"/);
   assert.match(bootstrap, /document\.documentElement\.style\.colorScheme = initialTheme/);
   assert.doesNotMatch(html, /https?:\/\//);
   assert.match(app, /window\.__HSL_INITIAL_THEME__ === "light" \? "light" : "dark"/);
   assert.match(app, /classList\.remove\("theme-bootstrap"\)/);
   assert.match(main, /show: false/);
+  assert.match(main, /backgroundColor: themeBackgroundColor\(theme\.effectiveTheme\)/);
   assert.match(main, /once\("ready-to-show"[\s\S]*mainWindow\?\.show\(\)/);
 });
 

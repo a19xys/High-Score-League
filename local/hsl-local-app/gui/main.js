@@ -1,6 +1,6 @@
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, safeStorage, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, powerMonitor, safeStorage, shell } = require("electron");
 const service = require("./launcher-service");
 const { createConnectivityService, isCommittedConnected } = require("../src/connectivity-service");
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
@@ -17,6 +17,11 @@ const {
   installRendererSecurity,
 } = require("./security-policy");
 const { installSingleInstancePolicy } = require("./single-instance");
+const {
+  createThemeAuthority,
+  themeBackgroundColor,
+  themePersistenceErrorCode,
+} = require("../src/theme-preferences");
 
 if (process.env.HSL_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.HSL_USER_DATA_DIR));
 
@@ -28,6 +33,8 @@ if (process.env.HSL_ELECTRON_VERBOSE_LOGGING === "1") {
 }
 
 let mainWindow = null;
+let themeAuthority = null;
+let localStartupPromise = Promise.resolve();
 let connectivity = null;
 let rankingCapabilities = null;
 let topologyMonitor = null;
@@ -65,6 +72,48 @@ const CONNECTIVITY_REFRESH_REASONS = new Set([
   "renderer-offline",
   "renderer-online",
 ]);
+const STARTUP_MILESTONES = new Set([
+  "assets-resolved",
+  "document-ready",
+  "first-snapshot",
+  "interactive",
+  "selection-stable",
+  "shell-mounted",
+  "startup-degraded",
+  "startup-ready",
+  "theme-resolved",
+  "window-created",
+  "window-shown",
+]);
+const startupStartedAt = Date.now();
+const startupTimings = {};
+
+function recordStartupMilestone(name, details = {}) {
+  if (!STARTUP_MILESTONES.has(name) || startupTimings[name]) return;
+  startupTimings[name] = {
+    elapsedMs: Math.max(0, Date.now() - startupStartedAt),
+    status: ["ready", "degraded", "fallback", "error", "timeout"].includes(details.status)
+      ? details.status
+      : null,
+  };
+}
+
+function readSystemTheme() {
+  return typeof nativeTheme.shouldUseDarkColors === "boolean"
+    ? nativeTheme.shouldUseDarkColors ? "dark" : "light"
+    : null;
+}
+
+function publicThemeState(state = themeAuthority?.getState()) {
+  return {
+    effectiveTheme: state?.effectiveTheme === "light" ? "light" : "dark",
+    lastSystemTheme: ["light", "dark"].includes(state?.lastSystemTheme) ? state.lastSystemTheme : null,
+    manualTheme: ["light", "dark"].includes(state?.manualTheme) ? state.manualTheme : null,
+    mode: state?.mode === "manual" ? "manual" : "system",
+    schemaVersion: Number(state?.schemaVersion) || 1,
+    warnings: Array.isArray(state?.warnings) ? state.warnings : [],
+  };
+}
 
 function handlePowerSuspend() {
   productOperationsController.abort("suspend");
@@ -227,6 +276,7 @@ function initializeRemoteServices() {
     },
     sessions: service.getAccountSessionDiagnostics(),
     sessionStorage: getSessionStorageDiagnostics(),
+    startup: { milestones: { ...startupTimings } },
     connectivity: {
       ...connectivity.getDiagnostics(),
       committedReachability: connectivity.getState().reachability,
@@ -323,15 +373,20 @@ async function prepareRemoteAction(source) {
 
 function createMainWindow() {
   const rendererDocumentPath = path.join(__dirname, "renderer", "index.html");
+  const theme = publicThemeState();
   mainWindow = new BrowserWindow({
     width: 1240,
     height: 820,
     minWidth: 1180,
     minHeight: 620,
-    backgroundColor: "#0f172a",
+    backgroundColor: themeBackgroundColor(theme.effectiveTheme),
     show: false,
     title: "High Score League Launcher",
     webPreferences: createSecureWebPreferences({
+      additionalArguments: [
+        `--hsl-startup-theme=${theme.effectiveTheme}`,
+        `--hsl-legacy-theme-migration=${themeAuthority?.canMigrateRendererLegacyTheme() ? "1" : "0"}`,
+      ],
       developerToolsEnabled,
       preload: path.join(__dirname, "preload.js"),
     }),
@@ -341,10 +396,13 @@ function createMainWindow() {
     developerToolsEnabled,
     expectedDocumentUrl: pathToFileURL(rendererDocumentPath).href,
   });
+  recordStartupMilestone("window-created");
+  mainWindow.webContents.once("dom-ready", () => recordStartupMilestone("document-ready"));
   mainWindow.loadFile(rendererDocumentPath);
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
+    recordStartupMilestone("window-shown");
   });
 
   mainWindow.on("focus", () => {
@@ -405,6 +463,48 @@ async function showImportFolderDialog(event) {
 
 function registerIpc() {
   registerLauncherStateHandler("launcher:get-state", () => withRemoteContext(service.getLauncherState()));
+  registerLauncherStateHandler("launcher:get-initial-state", async () => {
+    await localStartupPromise;
+    return withRemoteContext(service.getLauncherState({ deferRemoteMembership: true }));
+  });
+  ipcMain.on("launcher:resolve-theme-bootstrap", (event, legacyTheme) => {
+    let state = themeAuthority?.getState();
+    let legacyMigrationStatus = legacyTheme === "light" || legacyTheme === "dark" ? "ignored" : "not-needed";
+    try {
+      state = themeAuthority?.migrateRendererLegacyThemeSync(legacyTheme) || state;
+      if (state?.source === "renderer-legacy-migrated") legacyMigrationStatus = "persisted";
+    } catch (error) {
+      legacyMigrationStatus = "failed";
+      const publicState = publicThemeState(state);
+      event.returnValue = {
+        ...publicState,
+        legacyMigrationStatus,
+        persistenceError: themePersistenceErrorCode(error),
+      };
+      return;
+    }
+    const publicState = publicThemeState(state);
+    mainWindow?.setBackgroundColor?.(themeBackgroundColor(publicState.effectiveTheme));
+    event.returnValue = { ...publicState, legacyMigrationStatus };
+  });
+  ipcMain.handle("launcher:set-theme", async (_event, theme) => {
+    try {
+      const state = await themeAuthority.setManualTheme(theme);
+      const publicState = publicThemeState(state);
+      mainWindow?.setBackgroundColor?.(themeBackgroundColor(publicState.effectiveTheme));
+      return { ...publicState, ok: true };
+    } catch (error) {
+      return {
+        ...publicThemeState(),
+        ok: false,
+        persistenceError: themePersistenceErrorCode(error),
+      };
+    }
+  });
+  ipcMain.on("launcher:startup-milestone", (_event, milestone) => {
+    const name = String(milestone?.name || "");
+    recordStartupMilestone(name, { status: milestone?.status });
+  });
   ipcMain.handle("launcher:get-connectivity-state", () => connectivity.getState());
   ipcMain.on("launcher:connectivity-applied", (_event, timing) => {
     connectivityRendererTiming = {
@@ -665,10 +765,16 @@ if (!hasSingleInstanceLock) {
   app.quit();
 } else {
   app.whenReady().then(async () => {
+    themeAuthority = createThemeAuthority({
+      readSystemTheme,
+      userDataDir: app.getPath("userData"),
+    });
+    await themeAuthority.initialize();
+    recordStartupMilestone("theme-resolved");
     initializeSecureSessionStorage();
-    await service.migrateRememberedSessionsForGui().catch(() => []);
     initializeRemoteServices();
     registerIpc();
+    localStartupPromise = service.migrateRememberedSessionsForGui().catch(() => []);
     connectivity.start("startup").catch(() => {});
     topologyMonitor.start();
     sessionMaintenanceTimer = setInterval(() => schedulePendingAutoSubmit("session-maintenance"), 60 * 1000);

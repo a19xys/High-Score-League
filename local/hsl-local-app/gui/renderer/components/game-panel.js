@@ -72,21 +72,27 @@ function renderStatusBadges(readiness, membership, autoSync, bridge) {
     .join("");
 }
 
-function renderHeroLogo(game) {
+function renderHeroLogo(game, selection) {
   const logo = game?.assets?.logo || game?.assets?.icon;
+  const kind = game?.assets?.logo?.url ? "logo" : "icon";
 
   if (!logo?.url) {
     return "";
   }
 
   return `
-    <img class="game-hero__logo" src="${escapeHtml(logo.url)}" alt="">
+    <img class="game-hero__logo" src="${escapeHtml(logo.url)}" alt="" hidden
+      data-visual-asset data-asset-scope="detail" data-asset-kind="${kind}"
+      data-asset-url="${escapeHtml(logo.url)}" data-asset-selection="${escapeHtml(selection)}"
+      data-asset-generation="${escapeHtml(game.visualAssetGeneration || 0)}" data-asset-status="pending">
   `;
 }
 
-function renderPackVisuals(game) {
+function renderPackVisuals(game, activeSelection) {
   const hero = game?.assets?.hero || game?.assets?.cover;
   const logo = game?.assets?.logo || game?.assets?.icon;
+  const heroKind = game?.assets?.hero?.url ? "hero" : "cover";
+  const selection = activeSelection || game?.instanceKey || "none";
   const heroClass = [
     "game-hero-stage",
     hero?.url ? "game-hero-stage--image" : "game-hero-stage--fallback",
@@ -95,11 +101,15 @@ function renderPackVisuals(game) {
 
   return `
     <div class="${heroClass}" aria-hidden="true">
-      <div class="game-hero-media">
-        ${hero?.url
-          ? `<img class="game-panel__hero" src="${escapeHtml(hero.url)}" alt="">`
-          : `<div class="game-panel__placeholder"><span>High Score League</span><strong>HSL</strong></div>`}
-        ${renderHeroLogo(game)}
+      <div class="game-hero-media" data-asset-container>
+        <div class="game-panel__placeholder"><span>High Score League</span><strong>HSL</strong></div>
+        ${hero?.url ? `
+          <img class="game-panel__hero" src="${escapeHtml(hero.url)}" alt="" hidden
+            data-visual-asset data-asset-scope="detail" data-asset-kind="${heroKind}"
+            data-asset-url="${escapeHtml(hero.url)}" data-asset-selection="${escapeHtml(selection)}"
+            data-asset-generation="${escapeHtml(game.visualAssetGeneration || 0)}" data-asset-status="pending">
+        ` : ""}
+        ${renderHeroLogo(game, selection)}
       </div>
     </div>
   `;
@@ -280,7 +290,7 @@ export function shouldRenderLibraryBrandFallback(state) {
 }
 
 export function renderGameVisualRegion(state) {
-  return renderPackVisuals(state.data?.game);
+  return renderPackVisuals(state.data?.game, state.data?.selection?.activeInstanceKey);
 }
 
 export function renderGameStatusRegion(state) {
@@ -351,6 +361,13 @@ export function renderGamePanel(state) {
   const data = state.data;
 
   if (!data) {
+    if (state.initialLoadError) {
+      return renderBrandedEmptyPanel({
+        ariaLabel: "Estado local recuperable",
+        body: state.initialLoadError,
+        title: "El launcher sigue disponible",
+      });
+    }
     return `
       <section class="game-panel game-detail-card game-detail-card--empty" aria-busy="${state.busy ? "true" : "false"}">
         <div class="game-hero-stage game-hero-stage--empty" aria-hidden="true"></div>

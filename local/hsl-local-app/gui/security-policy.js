@@ -19,8 +19,9 @@ const RENDERER_CSP = [
   "form-action 'none'",
 ].join("; ");
 
-function createSecureWebPreferences({ developerToolsEnabled, preload }) {
+function createSecureWebPreferences({ additionalArguments, developerToolsEnabled, preload }) {
   return {
+    ...(Array.isArray(additionalArguments) ? { additionalArguments } : {}),
     allowRunningInsecureContent: false,
     contextIsolation: true,
     devTools: developerToolsEnabled === true,

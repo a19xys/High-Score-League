@@ -377,7 +377,9 @@ export function renderLibraryPanel(state) {
   const data = state.data;
 
   if (!data) {
-    return `<section class="panel library-panel skeleton-panel"></section>`;
+    return state.initialLoadError
+      ? `<section class="panel library-panel library-panel--recoverable"><div class="library-empty"><h2>Biblioteca local</h2><p>${escapeHtml(state.initialLoadError)}</p><button class="tool-button" type="button" data-action="refresh">Reintentar</button></div></section>`
+      : `<section class="panel library-panel skeleton-panel"></section>`;
   }
 
   const packs = data.library?.packs || [];

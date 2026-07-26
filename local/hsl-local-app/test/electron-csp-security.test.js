@@ -32,7 +32,7 @@ async function rendererCodeFiles() {
   return files;
 }
 
-function runThemeBootstrap(storedTheme, { storageError = false } = {}) {
+function runThemeBootstrap(startupTheme, { legacyThemeMigrationAllowed = false, storageError = false, storedTheme = null } = {}) {
   const documentElement = {
     classList: { values: [], add(value) { this.values.push(value); } },
     dataset: {},
@@ -45,8 +45,21 @@ function runThemeBootstrap(storedTheme, { storageError = false } = {}) {
         if (storageError) throw new Error("storage unavailable");
         return storedTheme;
       },
+      removeItem() {},
     },
-    window: {},
+    window: {
+      hslLauncher: {
+        resolveThemeBootstrap(legacyTheme) {
+          return {
+            effectiveTheme: legacyThemeMigrationAllowed && ["light", "dark"].includes(legacyTheme)
+              ? legacyTheme
+              : startupTheme,
+            mode: legacyTheme ? "manual" : "system",
+          };
+        },
+        startupTheme: { effectiveTheme: startupTheme, legacyThemeMigrationAllowed },
+      },
+    },
   };
   return fsp.readFile(path.join(rendererRoot, "theme-bootstrap.js"), "utf8").then((source) => {
     vm.runInNewContext(source, context);
@@ -114,14 +127,14 @@ test("renderer CSS uses only local fonts and no remote imports", async () => {
 });
 
 test("theme bootstrap preserves light, dark and fallback behavior", async () => {
-  for (const [stored, expected, storageError] of [
-    ["light", "light", false],
-    ["dark", "dark", false],
-    ["sepia", "dark", false],
-    [null, "dark", false],
-    [null, "dark", true],
+  for (const [startupTheme, expected, options] of [
+    ["light", "light", { storedTheme: "dark" }],
+    ["dark", "dark", { storedTheme: "light" }],
+    ["sepia", "dark", {}],
+    ["dark", "light", { legacyThemeMigrationAllowed: true, storedTheme: "light" }],
+    ["light", "light", { legacyThemeMigrationAllowed: true, storageError: true }],
   ]) {
-    const { context, documentElement } = await runThemeBootstrap(stored, { storageError });
+    const { context, documentElement } = await runThemeBootstrap(startupTheme, options);
     assert.equal(documentElement.dataset.theme, expected);
     assert.equal(documentElement.style.colorScheme, expected);
     assert.deepEqual(documentElement.classList.values, ["theme-bootstrap"]);

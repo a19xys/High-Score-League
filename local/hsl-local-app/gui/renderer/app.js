@@ -37,6 +37,8 @@ import {
   runWithOperationFeedback,
   waitForMinimumVisibleDuration,
 } from "./operation-feedback.js";
+import { assetIdentityMatches, createAssetPreloader } from "./asset-preloader.js";
+import { classifyStartupSnapshot, createStartupReadiness } from "./startup-readiness.js";
 
 const root = document.getElementById("app");
 const savedTheme = window.__HSL_INITIAL_THEME__ === "light" ? "light" : "dark";
@@ -44,7 +46,7 @@ const LIBRARY_SIDEBAR_MIN = 340;
 const LIBRARY_SIDEBAR_MAX = 600;
 const LIBRARY_SIDEBAR_DEFAULT = 440;
 const LAUNCHER_VERSION = "v1.0.0";
-const DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 600;
+const DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 1_200;
 const store = createStore({
   accountMenuOpen: false,
   activeDialog: null,
@@ -52,8 +54,8 @@ const store = createStore({
   authError: null,
   authEmail: "",
   authFormOpen: false,
-  busy: true,
-  busyLabel: "Iniciando",
+  busy: false,
+  busyLabel: null,
   connectivity: null,
   data: null,
   launcherStateDiagnostics: { highestRevision: null, legacySnapshotsIgnored: 0, staleSnapshotsIgnored: 0 },
@@ -67,12 +69,25 @@ const store = createStore({
   librarySortDirection: "asc",
   libraryStatus: "all",
   libraryView: "covers",
+  initialLoadError: null,
   logs: [],
   noticeIds: [],
   pendingFavoriteKeys: {},
   pendingLibraryPackId: null,
   rankingCapabilities: { entries: {}, generation: 0, inFlight: false },
   rankingOpening: false,
+  startup: {
+    phases: {
+      criticalAssets: "pending",
+      library: "pending",
+      localState: "pending",
+      selection: "pending",
+      shell: "pending",
+      theme: "ready",
+    },
+    status: "bootstrap",
+    visible: true,
+  },
   theme: savedTheme,
 });
 
@@ -98,10 +113,62 @@ let dialogReturnFocus = null;
 let overlayReturnFocus = null;
 let busyRunSequence = 0;
 let rankingOpenInProgress = false;
-const detailAssetPreloadCache = new Map();
+let detailAssetGeneration = 0;
+let detailAssetIdentity = null;
+let startupAssetSequence = 0;
+let startupCompletionLogged = false;
+let themeToggleQueue = Promise.resolve();
+const assetPreloader = createAssetPreloader({ timeoutMs: DETAIL_ASSET_PRELOAD_TIMEOUT_MS });
 const favoriteSyncByKey = new Map();
 const unavailableDirectoryPrompts = new Set();
 const launcherStateGate = createLauncherStateGate();
+const startupReadiness = createStartupReadiness({
+  onChange(startup) {
+    const current = store.getState();
+    const patch = { startup };
+    if (!startup.visible && startup.status === "degraded" && !current.data) {
+      patch.initialLoadError = startup.reason === "startup-timeout"
+        ? "El estado local está tardando más de lo esperado. Puedes seguir usando el launcher mientras termina."
+        : current.initialLoadError;
+    }
+    if (!startup.visible && !startupCompletionLogged) {
+      startupCompletionLogged = true;
+      window.hslLauncher.reportStartupMilestone?.({
+        name: startup.status === "degraded" ? "startup-degraded" : "startup-ready",
+        status: startup.status,
+      });
+      window.hslLauncher.reportStartupMilestone?.({ name: "interactive", status: startup.status });
+    }
+    store.setState(patch);
+  },
+});
+
+function detailAssetIdentityFromSnapshot(snapshot = {}) {
+  const game = snapshot.game || {};
+  const selection = snapshot.selection?.activeInstanceKey || game.instanceKey || "none";
+  return [
+    selection,
+    game.assets?.hero?.url || game.assets?.cover?.url || "",
+    game.assets?.logo?.url || game.assets?.icon?.url || "",
+  ].join("|");
+}
+
+function withDetailAssetAuthority(snapshot) {
+  if (!snapshot) return snapshot;
+  const identity = detailAssetIdentityFromSnapshot(snapshot);
+  if (identity !== detailAssetIdentity) {
+    detailAssetIdentity = identity;
+    detailAssetGeneration += 1;
+  }
+  if (!snapshot.game) return snapshot;
+  return {
+    ...snapshot,
+    game: {
+      ...snapshot.game,
+      visualAssetGeneration: detailAssetGeneration,
+    },
+  };
+}
 
 function evaluateLauncherSnapshot(snapshot) {
   if (!snapshot) return { accepted: false, patch: {} };
@@ -109,7 +176,7 @@ function evaluateLauncherSnapshot(snapshot) {
   return {
     accepted: decision.accepted,
     patch: {
-      ...(decision.accepted ? { data: snapshot } : {}),
+      ...(decision.accepted ? { data: withDetailAssetAuthority(snapshot) } : {}),
       launcherStateDiagnostics: launcherStateGate.getDiagnostics(),
     },
   };
@@ -201,7 +268,6 @@ function applyTheme(theme) {
   document.documentElement.dataset.theme = normalizedTheme;
   document.documentElement.style.colorScheme = normalizedTheme;
   document.documentElement.classList.remove("theme-bootstrap");
-  localStorage.setItem("hsl-launcher-theme", normalizedTheme);
 }
 
 function elementInteractionIdentity(element) {
@@ -535,32 +601,7 @@ function currentLibraryPreferencesPatch(patch = {}) {
 }
 
 function preloadImageUrl(url, timeoutMs = DETAIL_ASSET_PRELOAD_TIMEOUT_MS) {
-  if (!url) {
-    return Promise.resolve(true);
-  }
-
-  if (detailAssetPreloadCache.has(url)) {
-    return detailAssetPreloadCache.get(url);
-  }
-
-  const preload = new Promise((resolve) => {
-    const image = new Image();
-    let settled = false;
-    const finish = (ok) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      resolve(ok);
-    };
-    const timeout = window.setTimeout(() => finish(false), timeoutMs);
-
-    image.onload = () => finish(true);
-    image.onerror = () => finish(false);
-    image.src = url;
-  });
-
-  detailAssetPreloadCache.set(url, preload);
-  return preload;
+  return assetPreloader.preload(url, { timeoutMs });
 }
 
 function detailAssetUrlsFromGame(game = {}) {
@@ -585,6 +626,21 @@ function preloadDetailAssetUrls(urls) {
   }
 
   return Promise.all(uniqueUrls.map((url) => preloadImageUrl(url)));
+}
+
+async function resolveStartupCriticalAssets(data) {
+  if (!startupReadiness.getState().visible) return;
+  const requestId = ++startupAssetSequence;
+  const generation = data?.game?.visualAssetGeneration || 0;
+  const urls = detailAssetUrlsFromGame(data?.game);
+  const results = await preloadDetailAssetUrls(urls);
+  if (requestId !== startupAssetSequence || !startupReadiness.getState().visible) return;
+  if ((store.getState().data?.game?.visualAssetGeneration || 0) !== generation) return;
+  const status = results.some((result) => result.status === "timeout")
+    ? "timeout"
+    : results.some((result) => result.status === "error") || urls.length === 0 ? "fallback" : "ready";
+  startupReadiness.mark("criticalAssets", status);
+  window.hslLauncher.reportStartupMilestone?.({ name: "assets-resolved", status });
 }
 
 function findLibraryPack(packId) {
@@ -809,6 +865,7 @@ function render(nextState, changedKeys = []) {
     syncLibraryControlValues(state);
     syncGameMetadataLayout();
     syncFavoriteTitleMarks();
+    syncResolvedVisualAssets();
     syncDialogFocus(state);
     syncOverlayFocus(state);
     return;
@@ -866,8 +923,64 @@ function render(nextState, changedKeys = []) {
     syncGameMetadataLayout();
     syncFavoriteTitleMarks();
   }
+  syncResolvedVisualAssets();
   syncDialogFocus(state);
   syncOverlayFocus(state);
+}
+
+function visualAssetContext(image) {
+  const state = store.getState();
+  const kind = image.dataset.assetKind || "";
+  if (image.dataset.assetScope === "detail") {
+    const game = state.data?.game || {};
+    const byKind = {
+      cover: game.assets?.cover?.url,
+      hero: game.assets?.hero?.url,
+      icon: game.assets?.icon?.url,
+      logo: game.assets?.logo?.url,
+    };
+    return {
+      generation: game.visualAssetGeneration || 0,
+      kind,
+      selection: state.data?.selection?.activeInstanceKey || game.instanceKey || "none",
+      url: byKind[kind] || "",
+    };
+  }
+
+  const pack = state.data?.library?.packs?.find((item) => item.instanceKey === image.dataset.assetSelection);
+  const byKind = {
+    cover: pack?.cover?.url,
+    "cover-fallback": pack?.cover?.url,
+    icon: pack?.icon?.url,
+  };
+  return {
+    generation: image.dataset.assetGeneration || "",
+    kind,
+    selection: pack?.instanceKey || "",
+    url: byKind[kind] || "",
+  };
+}
+
+function settleVisualAsset(image, status) {
+  if (!image?.isConnected || !assetIdentityMatches(image, visualAssetContext(image))) return false;
+  const container = image.closest("[data-asset-container]");
+  image.dataset.assetStatus = status;
+  image.hidden = status !== "loaded";
+  container?.classList.toggle("asset-ready", status === "loaded");
+  container?.classList.toggle("asset-failed", status !== "loaded");
+  if (image.dataset.assetScope === "detail" && ["logo", "icon"].includes(image.dataset.assetKind)) {
+    const stage = container?.closest(".game-hero-stage");
+    stage?.classList.toggle("game-hero-stage--logo-ready", status === "loaded");
+    if (status !== "loaded") stage?.classList.remove("game-hero-stage--with-logo");
+  }
+  return true;
+}
+
+function syncResolvedVisualAssets(scope = root) {
+  for (const image of scope.querySelectorAll?.("img[data-visual-asset]") || []) {
+    if (!image.complete) continue;
+    settleVisualAsset(image, image.naturalWidth > 0 ? "loaded" : "error");
+  }
 }
 
 function syncDialogFocus(state) {
@@ -912,20 +1025,20 @@ function syncOverlayFocus(state) {
 }
 
 async function refreshState() {
-  const startedAt = Date.now();
   const startedWithLibraryPreferenceRevision = libraryPreferenceUserRevision;
-  let data;
-  try {
-    data = await window.hslLauncher.getState();
-  } catch (error) {
-    await waitForMinimumVisibleDuration({ startedAt });
-    throw error;
-  }
-  await waitForMinimumVisibleDuration({ startedAt });
+  const data = await window.hslLauncher.getInitialState();
   const current = store.getState();
   const snapshot = evaluateLauncherSnapshot(data);
   if (!snapshot.accepted) {
-    store.setState({ ...snapshot.patch, busy: false, busyLabel: null });
+    if (store.getState().data) {
+      store.setState(snapshot.patch);
+      return;
+    }
+    store.setState({ ...snapshot.patch, initialLoadError: "No se pudo aceptar el estado local inicial." });
+    startupReadiness.mark("localState", "error");
+    startupReadiness.mark("library", "degraded");
+    startupReadiness.mark("selection", "degraded");
+    startupReadiness.mark("criticalAssets", "fallback");
     return;
   }
   const allowLibraryPreferenceHydration = startedWithLibraryPreferenceRevision === libraryPreferenceUserRevision;
@@ -941,9 +1054,8 @@ async function refreshState() {
   store.setState({
     ...unavailableDirectoryDialogPatch(data),
     ...libraryUnavailableStatePatch(data),
-    busy: false,
-    busyLabel: null,
     ...snapshot.patch,
+    initialLoadError: null,
     libraryFavoriteFilter: data.session?.hasSession ? current.libraryFavoriteFilter : "all",
     ...libraryPreferencesStatePatch(data, current, allowLibraryPreferenceHydration),
     logs: noticeLogs.reduce((logs, notice) => appendLog(logs, notice), current.logs),
@@ -952,6 +1064,41 @@ async function refreshState() {
       ...(data.notices || []).map((notice) => notice.id),
     ],
   });
+  const acceptedData = snapshot.patch.data;
+  const startupPhases = classifyStartupSnapshot(acceptedData);
+  startupReadiness.mark("localState", "ready");
+  startupReadiness.mark("library", startupPhases.library);
+  startupReadiness.mark("selection", startupPhases.selection);
+  window.hslLauncher.reportStartupMilestone?.({ name: "first-snapshot", status: "ready" });
+  window.hslLauncher.reportStartupMilestone?.({
+    name: "selection-stable",
+    status: startupPhases.selection,
+  });
+  resolveStartupCriticalAssets(acceptedData).catch(() => {
+    startupReadiness.mark("criticalAssets", "fallback");
+  });
+}
+
+async function setManualTheme(theme) {
+  try {
+    const result = await window.hslLauncher.setTheme(theme);
+    if (result?.ok === false) {
+      const error = new Error("No se pudo persistir el tema. La apariencia actual se mantiene.");
+      error.code = result.persistenceError || "THEME_PERSISTENCE_FAILED";
+      throw error;
+    }
+    const effectiveTheme = result?.effectiveTheme === "light" ? "light" : result?.effectiveTheme === "dark" ? "dark" : null;
+    if (effectiveTheme) store.setState({ theme: effectiveTheme });
+  } catch (error) {
+    store.setState({
+      logs: appendLog(store.getState().logs, {
+        details: [error.message || String(error)],
+        ok: false,
+        summary: "No se pudo guardar el tema. La apariencia actual se mantiene.",
+        title: "Tema",
+      }),
+    });
+  }
 }
 
 async function persistLibraryPreferences(patch) {
@@ -1092,6 +1239,14 @@ function applyBackgroundLauncherState(payload) {
       }),
     } : {}),
   });
+  if (snapshot.accepted && startupReadiness.getState().visible) {
+    const acceptedData = snapshot.patch.data;
+    const startupPhases = classifyStartupSnapshot(acceptedData);
+    startupReadiness.mark("localState", "ready");
+    startupReadiness.mark("library", startupPhases.library);
+    startupReadiness.mark("selection", startupPhases.selection);
+    resolveStartupCriticalAssets(acceptedData).catch(() => startupReadiness.mark("criticalAssets", "fallback"));
+  }
 }
 
 async function openRankingWithoutGlobalBusy() {
@@ -1363,7 +1518,9 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
     if (response.state) {
       const snapshot = evaluateLauncherSnapshot(response.state);
       Object.assign(statePatch, snapshot.patch);
-      if (snapshot.accepted) Object.assign(statePatch, libraryUnavailableStatePatch(response.state));
+      if (snapshot.accepted) {
+        Object.assign(statePatch, libraryUnavailableStatePatch(response.state), { initialLoadError: null });
+      }
 
       if (snapshot.accepted && options.promptForUnavailableDirectory) {
         Object.assign(statePatch, unavailableDirectoryDialogPatch(response.state));
@@ -1568,11 +1725,15 @@ function bindActions() {
   root.addEventListener("load", (event) => {
     const image = event.target instanceof Element ? event.target.closest("[data-hsl-icon-image]") : null;
     if (image) markIconLoaded(image.closest("[data-icon]")?.dataset.icon || "info", image);
+    const visualAsset = event.target instanceof Element ? event.target.closest("[data-visual-asset]") : null;
+    if (visualAsset) settleVisualAsset(visualAsset, "loaded");
   }, true);
 
   root.addEventListener("error", (event) => {
     const iconImage = event.target instanceof Element ? event.target.closest("[data-hsl-icon-image]") : null;
     if (iconImage) markIconMissing(iconImage.closest("[data-icon]")?.dataset.icon || "info", iconImage);
+    const visualAsset = event.target instanceof Element ? event.target.closest("[data-visual-asset]") : null;
+    if (visualAsset) settleVisualAsset(visualAsset, "error");
     const loadingImage = event.target instanceof Element ? event.target.closest("[data-hsl-loading-image]") : null;
     if (loadingImage) {
       loadingImage.hidden = true;
@@ -1701,7 +1862,9 @@ function bindActions() {
     const action = button.dataset.action;
 
     if (action === "toggle-theme") {
-      store.setState({ theme: store.getState().theme === "dark" ? "light" : "dark" });
+      themeToggleQueue = themeToggleQueue.then(() => (
+        setManualTheme(store.getState().theme === "dark" ? "light" : "dark")
+      ));
     }
 
     if (action === "show-settings") {
@@ -1956,6 +2119,8 @@ function bindActions() {
 store.subscribe(render);
 render();
 bindActions();
+startupReadiness.mark("shell", "ready");
+window.hslLauncher.reportStartupMilestone?.({ name: "shell-mounted", status: "ready" });
 window.addEventListener("keydown", (event) => {
   if (event.key === "D" && event.ctrlKey && event.shiftKey) {
     event.preventDefault();
@@ -1999,28 +2164,30 @@ function cleanupRendererLifecycle() {
     window.clearTimeout(libraryPreferencesPersistTimer);
     libraryPreferencesPersistTimer = null;
   }
+  startupAssetSequence += 1;
+  startupReadiness.dispose();
+  assetPreloader.dispose();
+  removeRendererSubscriptions.forEach((remove) => remove?.());
 }
 
 window.addEventListener("offline", handleRendererOffline);
 window.addEventListener("online", handleRendererOnline);
 navigator.connection?.addEventListener?.("change", handleConnectionChange);
 window.addEventListener("beforeunload", cleanupRendererLifecycle, { once: true });
-window.hslLauncher.onConnectivityState?.(applyConnectivityState);
-window.hslLauncher.onLauncherState?.(applyBackgroundLauncherState);
-window.hslLauncher.onRankingCapabilitiesState?.(applyRankingCapabilitiesState);
+const removeRendererSubscriptions = [
+  window.hslLauncher.onConnectivityState?.(applyConnectivityState),
+  window.hslLauncher.onLauncherState?.(applyBackgroundLauncherState),
+  window.hslLauncher.onRankingCapabilitiesState?.(applyRankingCapabilitiesState),
+  window.hslLauncher.onBusyPhase?.((phase) => {
+    const label = String(phase?.label || "").trim();
+    if (label && store.getState().busy) store.setState({ busyLabel: label });
+  }),
+].filter(Boolean);
 window.hslLauncher.getConnectivityState?.().then(applyConnectivityState).catch(() => {});
 window.hslLauncher.getRankingCapabilitiesState?.().then(applyRankingCapabilitiesState).catch(() => {});
-window.hslLauncher.onBusyPhase?.((phase) => {
-  const label = String(phase?.label || "").trim();
-
-  if (label && store.getState().busy) {
-    store.setState({ busyLabel: label });
-  }
-});
 refreshState().catch((error) => {
   store.setState({
-    busy: false,
-    busyLabel: null,
+    initialLoadError: "No se pudo leer el estado local inicial. Puedes reintentar desde Biblioteca.",
     logs: appendLog(store.getState().logs, {
       details: [error.message || String(error)],
       ok: false,
@@ -2028,4 +2195,8 @@ refreshState().catch((error) => {
       title: "Carga inicial",
     }),
   });
+  startupReadiness.mark("localState", "error");
+  startupReadiness.mark("library", "degraded");
+  startupReadiness.mark("selection", "degraded");
+  startupReadiness.mark("criticalAssets", "fallback");
 });

@@ -3,7 +3,7 @@
   src: url("../assets/fonts/manrope/Manrope-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -11,7 +11,7 @@
   src: url("../assets/fonts/manrope/Manrope-Medium.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -19,7 +19,7 @@
   src: url("../assets/fonts/manrope/Manrope-SemiBold.woff2") format("woff2");
   font-weight: 600;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -27,7 +27,7 @@
   src: url("../assets/fonts/manrope/Manrope-Bold.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -35,7 +35,7 @@
   src: url("../assets/fonts/manrope/Manrope-ExtraBold.woff2") format("woff2");
   font-weight: 800;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -43,7 +43,7 @@
   src: url("../assets/fonts/sora/Sora-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -51,7 +51,7 @@
   src: url("../assets/fonts/sora/Sora-SemiBold.woff2") format("woff2");
   font-weight: 600;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -59,7 +59,7 @@
   src: url("../assets/fonts/sora/Sora-Bold.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -67,7 +67,7 @@
   src: url("../assets/fonts/sora/Sora-ExtraBold.woff2") format("woff2");
   font-weight: 800;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 
 * {
@@ -1977,6 +1977,12 @@ main,
   pointer-events: auto;
 }
 
+.busy-overlay--startup {
+  background: var(--background);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .busy-overlay__panel {
   display: grid;
   justify-items: center;
@@ -2452,10 +2458,12 @@ main,
 
 .game-hero-media {
   position: relative;
+  overflow: hidden;
 }
 
 .game-panel__hero {
-  position: static;
+  position: absolute;
+  inset: 0;
   display: block;
   object-fit: cover;
   opacity: 1;
@@ -2477,8 +2485,19 @@ main,
   transform: translate(-50%, -50%);
 }
 
+.game-panel__hero[data-asset-status="pending"],
+.game-hero__logo[data-asset-status="pending"] {
+  opacity: 0;
+}
+
+.game-panel__hero[data-asset-status="loaded"],
+.game-hero__logo[data-asset-status="loaded"] {
+  opacity: 1;
+}
+
 .game-panel__placeholder {
-  position: static;
+  position: absolute;
+  inset: 0;
   display: grid;
   height: 100%;
   place-items: center;
@@ -2502,8 +2521,8 @@ main,
   line-height: 1;
 }
 
-.game-hero-stage--with-logo .game-panel__placeholder span,
-.game-hero-stage--with-logo .game-panel__placeholder strong {
+.game-hero-stage--logo-ready .game-panel__placeholder span,
+.game-hero-stage--logo-ready .game-panel__placeholder strong {
   opacity: 0;
 }
 
@@ -6007,11 +6026,45 @@ html:not([data-theme="dark"]) .badge-error {
 }
 
 .pack-card--covers .pack-card__media {
+  position: relative;
   width: 100%;
   overflow: hidden;
   border: 0;
   border-radius: 6px;
   box-shadow: none;
+}
+
+.pack-card__asset-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  color: var(--text-inverse);
+  text-align: center;
+}
+
+.pack-card__asset-fallback span {
+  color: color-mix(in srgb, var(--text-inverse) 68%, transparent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.pack-card__asset-fallback strong {
+  font-family: var(--font-title);
+  font-size: clamp(18px, 2vw, 30px);
+}
+
+.pack-card__art[data-asset-status="loaded"] {
+  position: relative;
+  z-index: 1;
+  display: block;
+}
+
+.pack-card__media.asset-ready .pack-card__asset-fallback {
+  visibility: hidden;
 }
 
 .pack-card--covers .pack-card__media img {
@@ -6035,6 +6088,7 @@ html:not([data-theme="dark"]) .badge-error {
 
 .pack-card--list .pack-card__media,
 .pack-card--icons .pack-card__media {
+  position: relative;
   box-sizing: border-box;
   overflow: hidden;
   border: 1px solid var(--card-border);
@@ -6118,6 +6172,17 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
 .theme-bootstrap *::before,
 .theme-bootstrap *::after {
   transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 .app-dialog__actions--library-root [data-action="close-dialog"] {

@@ -999,7 +999,7 @@ test("renderer pack library groups years and developers without changing alphabe
 });
 
 test("renderer product hierarchy includes connection, player actions, activity and advanced options", async () => {
-  const [app, appDialog, busyOverlay, header, copy, gamePanel, queuePanel, devTools, styles] = await Promise.all([
+  const [app, appDialog, busyOverlay, header, copy, gamePanel, queuePanel, devTools, styles, assetPreloader] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "app-dialog.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "busy-overlay.js"), "utf8"),
@@ -1009,15 +1009,16 @@ test("renderer product hierarchy includes connection, player actions, activity a
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "queue-panel.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "dev-tools.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "asset-preloader.js"), "utf8"),
   ]);
 
   assert.match(app, /app-main/);
   assert.match(app, /import \{ renderAppDialog \} from "\.\/components\/app-dialog\.js"/);
   assert.match(app, /import \{ renderBusyOverlay \} from "\.\/components\/busy-overlay\.js"/);
   assert.match(app, /renderOverlay\(state\)[\s\S]*renderAppDialog\(state\)[\s\S]*renderBusyOverlay\(state\)/);
-  assert.match(app, /busy: true/);
-  assert.match(app, /busyLabel: "Iniciando"/);
-  assert.match(app, /busy: false,[\s\S]*busyLabel: null,[\s\S]*data,/);
+  assert.match(app, /busy: false/);
+  assert.match(app, /startup:[\s\S]*status: "bootstrap"[\s\S]*visible: true/);
+  assert.match(app, /window\.hslLauncher\.getInitialState\(\)/);
   assert.match(app, /--library-sidebar-width/);
   assert.match(app, /library-resizer/);
   assert.match(app, /data-sidebar-resizer/);
@@ -1082,9 +1083,10 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /delete latestPending\[packKey\]/);
   assert.match(app, /favorite: favoriteBeforeRequest/);
   assert.match(app, /summary: "No se pudo actualizar el favorito\."/);
-  assert.match(app, /DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 600/);
+  assert.match(app, /DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 1_200/);
   assert.match(app, /function preloadImageUrl\(url, timeoutMs = DETAIL_ASSET_PRELOAD_TIMEOUT_MS\)/);
-  assert.match(app, /new Image\(\)/);
+  assert.match(assetPreloader, /createImage = \(\) => new Image\(\)/);
+  assert.match(assetPreloader, /maxEntries = 128/);
   assert.match(app, /function detailAssetUrlsFromGame\(game = \{\}\)/);
   assert.match(app, /game\.assets\?\.hero\?\.url \|\| game\.assets\?\.cover\?\.url/);
   assert.match(app, /game\.assets\?\.logo\?\.url \|\| game\.assets\?\.icon\?\.url/);
@@ -1784,7 +1786,7 @@ test("renderer controla el dialogo missing una vez y permite reintento explicito
   assert.match(app, /function resetUnavailableDirectoryPrompt\(data\)/);
   assert.match(app, /function libraryUnavailableStatePatch\(data\)/);
   assert.match(app, /libraryUnavailableStatePatch\(data\)/);
-  assert.match(app, /Object\.assign\(statePatch, libraryUnavailableStatePatch\(response\.state\)\)/);
+  assert.match(app, /Object\.assign\(statePatch, libraryUnavailableStatePatch\(response\.state\), \{ initialLoadError: null \}\)/);
   assert.match(app, /action === "toggle-library-filters"[\s\S]*getLibraryCapabilities\(store\.getState\(\)\)\.filtersEnabled[\s\S]*return/);
   assert.match(app, /closest\("\[data-hsl-fallback-hero\]"\)[\s\S]*hero\.hidden = true/);
   assert.match(app, /action === "choose-unavailable-pack-directory"[\s\S]*window\.hslLauncher\.choosePackDirectory\(\)/);

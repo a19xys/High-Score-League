@@ -1,6 +1,13 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const invoke = (channel) => () => ipcRenderer.invoke(channel);
+const argumentValue = (name) => {
+  const prefix = `--${name}=`;
+  const argument = process.argv.find((value) => value.startsWith(prefix));
+  return argument ? argument.slice(prefix.length) : null;
+};
+const startupTheme = argumentValue("hsl-startup-theme") === "light" ? "light" : "dark";
+const legacyThemeMigrationAllowed = argumentValue("hsl-legacy-theme-migration") === "1";
 const onEvent = (channel, callback) => {
   if (typeof callback !== "function") {
     return () => {};
@@ -20,6 +27,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   getConnectivityState: invoke("launcher:get-connectivity-state"),
   getRankingCapabilitiesState: invoke("launcher:get-ranking-capabilities-state"),
   getState: invoke("launcher:get-state"),
+  getInitialState: invoke("launcher:get-initial-state"),
   forceAccountSync: invoke("launcher:force-account-sync"),
   importPackFolder: invoke("launcher:import-pack-folder"),
   importPackZip: invoke("launcher:import-pack-zip"),
@@ -41,10 +49,17 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   requestConnectivityRefresh: (reason) => ipcRenderer.invoke("launcher:request-connectivity-refresh", reason),
   reportConnectivityApplied: (timing) => ipcRenderer.send("launcher:connectivity-applied", timing),
   reportRankingApplied: (timing) => ipcRenderer.send("launcher:ranking-applied", timing),
+  reportStartupMilestone: (milestone) => ipcRenderer.send("launcher:startup-milestone", milestone),
+  resolveThemeBootstrap: (legacyTheme) => ipcRenderer.sendSync("launcher:resolve-theme-bootstrap", legacyTheme),
   requestRankingCapabilitiesRefresh: invoke("launcher:request-ranking-capabilities-refresh"),
   rescanPackDirectory: invoke("launcher:rescan-pack-directory"),
   restoreFailed: (filename) => ipcRenderer.invoke("launcher:restore-failed", filename),
   setLibraryPreferences: (patch) => ipcRenderer.invoke("launcher:set-library-preferences", patch),
+  setTheme: (theme) => ipcRenderer.invoke("launcher:set-theme", theme),
+  startupTheme: Object.freeze({
+    effectiveTheme: startupTheme,
+    legacyThemeMigrationAllowed,
+  }),
   switchAccount: (userId) => ipcRenderer.invoke("launcher:switch-account", userId),
   toggleLibraryFavorite: (packKey) => ipcRenderer.invoke("launcher:toggle-library-favorite", packKey),
   useSuggestedPackDirectory: (directoryPath) => ipcRenderer.invoke("launcher:use-suggested-pack-directory", directoryPath),

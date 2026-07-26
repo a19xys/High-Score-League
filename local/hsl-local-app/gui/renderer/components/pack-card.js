@@ -79,8 +79,15 @@ function renderPackVisual(pack, view) {
 
   if (asset?.url) {
     return `
-      <div class="pack-card__media pack-card__media--${escapeHtml(asset.kind)} has-asset">
-        <img class="pack-card__art" src="${escapeHtml(asset.url)}" alt="">
+      <div class="pack-card__media pack-card__media--${escapeHtml(asset.kind)} has-asset" data-asset-container>
+        <div class="pack-card__asset-fallback" aria-hidden="true">
+          <span>HSL</span>
+          <strong>${escapeHtml(getInitials(pack.title))}</strong>
+        </div>
+        <img class="pack-card__art" src="${escapeHtml(asset.url)}" alt="" hidden
+          data-visual-asset data-asset-scope="library" data-asset-kind="${escapeHtml(asset.kind)}"
+          data-asset-url="${escapeHtml(asset.url)}" data-asset-selection="${escapeHtml(pack.instanceKey || "")}"
+          data-asset-generation="library" data-asset-status="pending">
       </div>
     `;
   }
