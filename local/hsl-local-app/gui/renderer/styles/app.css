@@ -914,6 +914,8 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  inline-size: 118px;
+  justify-content: flex-start;
   padding-inline: 11px;
   color: var(--text-muted);
   font-size: 12px;
@@ -925,58 +927,6 @@ button:disabled {
   overflow: hidden;
   text-overflow: clip;
   white-space: nowrap;
-}
-
-.connection-refresh-button {
-  display: inline-grid;
-  width: 26px;
-  height: 26px;
-  border: 0;
-  border-radius: 999px;
-  margin-inline-start: -4px;
-  padding: 0;
-  place-items: center;
-  background: transparent;
-  color: currentColor;
-  cursor: pointer;
-}
-
-.connection-refresh-button:hover:not(:disabled) {
-  background: color-mix(in srgb, currentColor 10%, transparent);
-}
-
-.connection-refresh-button:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.connection-refresh-button:focus-visible {
-  outline: 2px solid var(--circuit);
-  outline-offset: 1px;
-}
-
-.connection-refresh-icon.ui-icon {
-  width: 15px;
-  height: 15px;
-}
-
-.connection-chip > i {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.connection-chip--connected {
-  color: var(--ok);
-}
-
-.connection-chip--offline {
-  color: var(--error);
-}
-
-.connection-chip--configuration {
-  color: var(--warning);
 }
 
 .known-accounts span {
@@ -6208,8 +6158,7 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   text-transform: none;
 }
 
-.state-badge .status-icon.ui-icon,
-.connection-status-icon.ui-icon {
+.state-badge .status-icon.ui-icon {
   width: var(--status-icon-size);
   height: var(--status-icon-size);
   flex: 0 0 auto;
@@ -6320,28 +6269,11 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   border-radius: 999px;
 }
 
-.connection-chip--neutral {
-  color: var(--state-neutral);
-}
-
-.connection-chip--info {
-  color: var(--state-info);
-}
-
-.connection-chip--progress {
-  color: var(--state-progress);
-}
-
-.connection-chip--success {
+.connection-chip--connected {
   color: var(--state-success);
 }
 
-.connection-chip--warning {
-  color: var(--state-warning);
-}
-
-.connection-chip--error,
-.connection-chip--blocked {
+.connection-chip--disconnected {
   color: var(--state-error);
 }
 

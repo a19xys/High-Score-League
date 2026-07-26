@@ -90,30 +90,67 @@ export function deriveConnectivityPresentation(connectivity, remoteConfiguration
   });
 }
 
+export function derivePublicConnectivityPresentation(connectivity, remoteConfiguration = null) {
+  const configurationUnavailable = ["invalid", "missing"].includes(remoteConfiguration?.status);
+  const connected = !configurationUnavailable && connectivity?.reachability === "connected";
+  return presentation(
+    "connectivity",
+    connected ? "connected" : "disconnected",
+    connected ? "success" : "error",
+    connected ? "Conectado" : "Desconectado",
+    connected
+      ? "La conexión con High Score League está confirmada."
+      : "La conexión con High Score League no está confirmada.",
+    { confirmed: connected },
+  );
+}
+
+const AUTO_RECOVERABLE_SESSION_STATUSES = new Set([
+  "cancelled",
+  "deferred",
+  "lock-timeout",
+  "refreshing",
+  "stale",
+  "storage-unavailable",
+  "temporary-failure",
+]);
+
+function isNonActionableStoredSession(session = {}) {
+  return session.hasSession === true
+    && session.requiresLogin !== true
+    && session.shouldRetry !== false
+    && session.terminal !== true
+    && AUTO_RECOVERABLE_SESSION_STATUSES.has(session.status);
+}
+
 export function deriveSessionPresentation(session = {}, accounts = {}, operation = {}) {
   session = session || {};
   accounts = accounts || {};
   operation = operation || {};
   if (operation.busy && operation.busyLabel === "Cambiando cuenta") {
-    return presentation("session", "switching", "progress", "Cambiando cuenta", "La cuenta activa se está actualizando.");
+    return presentation("session", "switching", "progress", "Cambiando cuenta", "La cuenta activa se está actualizando.", { actionRequired: false });
   }
   if (session.requiresLogin === true) {
-    return presentation("session", "requires-login", "blocked", "Vuelve a iniciar sesión", "La cuenta sigue recordada, pero necesita autenticarse de nuevo.");
+    return presentation("session", "requires-login", "blocked", "Vuelve a iniciar sesión", "La cuenta sigue recordada, pero necesita autenticarse de nuevo.", { actionRequired: true });
   }
-  if (session.status === "refreshing") {
-    return presentation("session", "refreshing", "progress", "Actualizando sesión", "La sesión local se conserva mientras termina la actualización.");
+  if (isNonActionableStoredSession(session)) {
+    return presentation("session", "active", "success", "Sesión activa", "La cuenta dispone de una sesión local válida.", {
+      actionRequired: false,
+      recoveryPending: true,
+      technicalStatus: session.status,
+    });
   }
-  if (session.hasSession && ["deferred", "temporary-failure", "cancelled"].includes(session.status)) {
-    return presentation("session", "deferred", "warning", "Sesión conservada", "La actualización está aplazada; la sesión local no se ha perdido.");
+  if (session.status === "error") {
+    return presentation("session", "error", "error", "No se pudo leer la sesión", "Vuelve a intentarlo o inicia sesión de nuevo si el problema continúa.", { actionRequired: true });
   }
   if (session.hasSession) {
-    return presentation("session", "active", "success", "Sesión activa", "La cuenta dispone de una sesión local válida.");
+    return presentation("session", "active", "success", "Sesión activa", "La cuenta dispone de una sesión local válida.", { actionRequired: false });
   }
   const hasRememberedAccount = (accounts?.knownAccounts || []).length > 0;
   if (hasRememberedAccount) {
-    return presentation("session", "remembered-without-session", "info", "Cuenta recordada sin sesión", "Selecciona la cuenta e inicia sesión para usar las funciones asociadas.");
+    return presentation("session", "remembered-without-session", "info", "Cuenta recordada sin sesión", "Selecciona la cuenta e inicia sesión para usar las funciones asociadas.", { actionRequired: true });
   }
-  return presentation("session", "no-session", "neutral", "No has iniciado sesión", "Inicia sesión para competir y ver la actividad de tu cuenta.");
+  return presentation("session", "no-session", "neutral", "No has iniciado sesión", "Inicia sesión para competir y ver la actividad de tu cuenta.", { actionRequired: false });
 }
 
 export function deriveRememberedAccountPresentation(account = {}) {
@@ -121,19 +158,28 @@ export function deriveRememberedAccountPresentation(account = {}) {
   if (account.requiresLogin) {
     return presentation("account", "requires-login", "blocked", "Requiere iniciar sesión", account.requiresLoginMessage || "Esta cuenta necesita autenticarse de nuevo.");
   }
+  if (account.hasLocalSession === true
+    && account.shouldRetry !== false
+    && account.terminal !== true
+    && AUTO_RECOVERABLE_SESSION_STATUSES.has(account.status)) {
+    return presentation("account", "available", "success", "Cuenta disponible", "La cuenta conserva una sesión local y no requiere ninguna acción.", {
+      recoveryPending: true,
+      technicalStatus: account.status,
+    });
+  }
   if (account.hasLocalSession === false || account.remoteUsable === false) {
     return presentation("account", "remembered-without-valid-session", "info", "Cuenta recordada", "La cuenta no se presenta como autenticada hasta tener una sesión válida.");
   }
   return presentation("account", "available", "success", "Cuenta disponible", "La cuenta dispone de una sesión local válida.");
 }
 
-export function deriveMembershipPresentation(membership = {}, session = {}) {
+export function deriveMembershipPresentation(membership = {}, session = {}, context = {}) {
   membership = membership || {};
   session = session || {};
   if (session.requiresLogin === true || membership.status === "unauthenticated") {
     return presentation("membership", "requires-login", "blocked", "Vuelve a iniciar sesión", "Necesitas autenticar esta cuenta antes de competir.");
   }
-  const status = membership.status || "checking";
+  const status = membership.status || "unknown";
   const models = {
     checking: ["progress", "Comprobando participación", "Todavía no se ha confirmado tu participación en esta temporada."],
     member: ["success", "Participas en la temporada", "Tu cuenta puede competir en esta semana."],
@@ -145,7 +191,13 @@ export function deriveMembershipPresentation(membership = {}, session = {}) {
     error: ["warning", "No se pudo consultar la participación", "La consulta falló temporalmente. Puedes volver a comprobarla."],
   };
   let normalizedStatus = status;
-  if (status === "unknown" && !membership.checkedAt && !membership.remoteFailure) normalizedStatus = "checking";
+  const activeCurrentRequest = membership.request?.inFlight === true
+    && membership.request?.contextCurrent === true
+    && membership.request?.generation === membership.generation
+    && membership.request?.accountId === context.accountId
+    && membership.request?.instanceKey === context.instanceKey
+    && membership.request?.weekId === context.weekId;
+  if (status === "checking" && !activeCurrentRequest) normalizedStatus = "unknown";
   if (status === "unknown" && membership.authDeferred) normalizedStatus = "deferred";
   if (normalizedStatus === "deferred") {
     return presentation("membership", "deferred", "warning", "Comprobación aplazada", "La sesión local se conserva y la participación se comprobará cuando sea posible.");
@@ -156,6 +208,68 @@ export function deriveMembershipPresentation(membership = {}, session = {}) {
       ? { action: "open-membership-url", label: "Ver temporada" }
       : null,
   });
+}
+
+const STABLE_MEMBERSHIP_PRESENTATION_STATUSES = new Set([
+  "error",
+  "invalid_week",
+  "member",
+  "missing_week",
+  "no_session",
+  "not_member",
+  "requires-login",
+  "unknown",
+]);
+
+function activeAccountId(state = {}) {
+  return state.data?.accounts?.activeUserId
+    || state.data?.session?.email
+    || state.data?.accounts?.knownAccounts?.find((account) => account.isActive)?.email
+    || null;
+}
+
+function membershipContext(state = {}) {
+  return {
+    accountId: activeAccountId(state),
+    instanceKey: state.data?.selection?.activeInstanceKey || state.data?.game?.instanceKey || null,
+    weekId: state.data?.game?.weekId || state.data?.membership?.weekId || null,
+  };
+}
+
+function sameMembershipContext(currentState, previousState) {
+  const current = membershipContext(currentState);
+  const previous = membershipContext(previousState);
+  return Boolean(current.accountId && current.instanceKey && current.weekId)
+    && current.accountId === previous.accountId
+    && current.instanceKey === previous.instanceKey
+    && current.weekId === previous.weekId;
+}
+
+function membershipPresentationIsPending(state = {}) {
+  const membership = state.data?.membership || {};
+  const derived = deriveMembershipPresentation(membership, state.data?.session, membershipContext(state));
+  return derived.status === "checking"
+    || derived.status === "deferred"
+    || (membership.status === "unknown" && membership.technicalReason === "deferred" && !membership.checkedAt);
+}
+
+export function shouldPreserveMembershipPresentation(currentState = {}, previousState = null) {
+  return Boolean(previousState)
+    && sameMembershipContext(currentState, previousState)
+    && membershipPresentationIsPending(currentState);
+}
+
+export function selectMembershipForPresentation(currentState = {}, previousState = null) {
+  const current = currentState.data?.membership || {};
+  if (!previousState || !sameMembershipContext(currentState, previousState)) return current;
+
+  if (!membershipPresentationIsPending(currentState)) {
+    return current;
+  }
+
+  const previous = previousState.data?.membership || {};
+  const previousPresentation = deriveMembershipPresentation(previous, previousState.data?.session, membershipContext(previousState));
+  return STABLE_MEMBERSHIP_PRESENTATION_STATUSES.has(previousPresentation.status) ? previous : current;
 }
 
 export function deriveQueuePresentation(queue = {}, autoSync = {}, session = {}) {
@@ -300,7 +414,7 @@ export function derivePrimaryActions(state = {}) {
   const game = data.game || null;
   const readiness = data.readiness || {};
   const session = data.session || {};
-  const membership = deriveMembershipPresentation(data.membership, session);
+  const membership = deriveMembershipPresentation(data.membership, session, membershipContext(state));
   const pack = derivePackPresentation({ game, readiness, bridge: data.bridge });
   const ranking = deriveRankingPresentation(state, game || {});
   const busyReason = state.busy ? state.busyLabel || "Hay otra operación en curso." : null;
@@ -360,7 +474,7 @@ export function deriveGameSummaryPresentation(state = {}) {
   const data = state.data || {};
   const pack = derivePackPresentation({ game: data.game, readiness: data.readiness, bridge: data.bridge });
   if (["duplicate", "invalid", "mame-unavailable", "legacy", "warning"].includes(pack.status)) return pack;
-  const membership = deriveMembershipPresentation(data.membership, data.session);
+  const membership = deriveMembershipPresentation(data.membership, data.session, membershipContext(state));
   if (["not_member", "missing_week", "invalid_week", "requires-login", "error", "unknown", "deferred", "checking"].includes(membership.status)) return membership;
   if (pack.status === "ready" && membership.status === "member") {
     return presentation("game", "competition-ready", "success", "Listo para competir", "El pack y tu participación están preparados.");
@@ -373,10 +487,10 @@ export function deriveLauncherPresentation(state = {}) {
   return {
     actions: derivePrimaryActions(state),
     supportingActions: deriveSupportingActions(state),
-    connectivity: deriveConnectivityPresentation(state.connectivity, data.remoteConfiguration),
+    connectivity: derivePublicConnectivityPresentation(state.connectivity, data.remoteConfiguration),
     game: deriveGameSummaryPresentation(state),
     library: deriveLibraryPresentation(data.library, data.selection),
-    membership: deriveMembershipPresentation(data.membership, data.session),
+    membership: deriveMembershipPresentation(data.membership, data.session, membershipContext(state)),
     pack: derivePackPresentation({ game: data.game, readiness: data.readiness, bridge: data.bridge }),
     queue: deriveQueuePresentation(data.queue, data.autoSync, data.session),
     ranking: deriveRankingPresentation(state, data.game || {}),
@@ -392,11 +506,9 @@ export function deriveLiveAnnouncement(previousState, nextState, changedKeys = [
   }
   if (changedKeys.includes("initialLoadError") && nextState.initialLoadError) return nextState.initialLoadError;
   if (changedKeys.includes("connectivity")) {
-    const current = deriveConnectivityPresentation(nextState.connectivity, nextState.data?.remoteConfiguration);
-    const previous = deriveConnectivityPresentation(previousState.connectivity, previousState.data?.remoteConfiguration);
-    if (!current.silent && current.status !== previous.status && ["connected", "offline", "probe-error"].includes(current.status)) {
-      return current.title;
-    }
+    const current = derivePublicConnectivityPresentation(nextState.connectivity, nextState.data?.remoteConfiguration);
+    const previous = derivePublicConnectivityPresentation(previousState.connectivity, previousState.data?.remoteConfiguration);
+    if (current.status !== previous.status) return current.title;
   }
   if (changedKeys.includes("data")) {
     const current = deriveQueuePresentation(nextState.data?.queue, nextState.data?.autoSync, nextState.data?.session);
@@ -404,4 +516,11 @@ export function deriveLiveAnnouncement(previousState, nextState, changedKeys = [
     if (current.status !== previous.status && ["failed", "synced"].includes(current.status)) return `${current.title}. ${current.description}`;
   }
   return null;
+}
+
+export function shouldSurfaceAccountSwitchResult(response) {
+  if (!response || typeof response !== "object") return true;
+  return response.ok === false
+    || response.requiresLogin === true
+    || response.action !== "switch-account";
 }

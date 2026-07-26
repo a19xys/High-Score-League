@@ -1122,7 +1122,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /event\.key === "D" && event\.ctrlKey && event\.shiftKey/);
   assert.match(app, /!target\.closest\("\[data-account-menu\]"\)/);
   assert.match(app, /Configuración/);
-  assert.match(app, /renderLibraryPanel\(state\)[\s\S]*renderGamePanel\(state\)/);
+  assert.match(app, /renderLibraryPanel\(state\)[\s\S]*renderGamePanel\(state(?:,|\))/);
   assert.equal(/renderQueuePanel\(state\)|advanced-entry|show-advanced-options/.test(app), false);
   assert.equal(/renderPlayerSummary/.test(app), false);
   assert.match(header, /High Score League Launcher/);
@@ -1134,8 +1134,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /theme-button--icon/);
   assert.match(header, /aria-label="\$\{themeLabel\}"/);
   assert.equal(/<span>\$\{themeLabel\}<\/span>/.test(header), false);
-  assert.match(header, /connection-status-icon/);
-  assert.match(header, /deriveConnectivityPresentation/);
+  assert.match(header, /connection-dot/);
+  assert.match(header, /derivePublicConnectivityPresentation/);
+  assert.doesNotMatch(header, /connection-status-icon|connection-refresh-icon/);
   assert.equal(/renderIcon\(connection|status-online|status-offline|status-reconnecting/.test(header), false);
   assert.equal(/<p class="eyebrow">HSL<\/p>/.test(header), false);
   assert.equal(/data-action="refresh"/.test(header), false);

@@ -50,7 +50,8 @@ test("all class A renderer controls use the shared remote selector", async () =>
     fsp.readFile(path.join(appRoot, "gui", "renderer", "components", "dev-tools.js"), "utf8"),
     fsp.readFile(path.join(appRoot, "gui", "renderer", "product-presentation.js"), "utf8"),
   ]);
-  assert.match(header, /deriveConnectivityPresentation/);
+  assert.match(header, /derivePublicConnectivityPresentation/);
+  assert.match(presentation, /deriveConnectivityPresentation/);
   assert.match(presentation, /deriveRemoteAvailability/);
   assert.match(ranking, /deriveRemoteAvailability/);
   assert.match(devTools, /deriveRemoteAvailability/);

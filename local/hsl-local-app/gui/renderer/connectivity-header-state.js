@@ -1,5 +1,5 @@
-import { deriveConnectivityPresentation } from "./product-presentation.js";
+import { derivePublicConnectivityPresentation } from "./product-presentation.js";
 
-export function deriveConnectivityHeaderState(connectivity) {
-  return deriveConnectivityPresentation(connectivity).status;
+export function deriveConnectivityHeaderState(connectivity, remoteConfiguration = null) {
+  return derivePublicConnectivityPresentation(connectivity, remoteConfiguration).status;
 }

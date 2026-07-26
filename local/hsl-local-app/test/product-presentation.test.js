@@ -98,19 +98,32 @@ test("only confirmed authority produces Connected and silent probes do not flick
   assert.equal(silent.silent, true);
 });
 
-test("session states distinguish deferral, login requirement and remembered accounts", async () => {
+test("session states silence non-actionable local recovery and preserve actionable accounts", async () => {
   const { deriveSessionPresentation } = await presentationApi();
-  assert.equal(deriveSessionPresentation({ hasSession: true, status: "deferred" }).status, "deferred");
-  assert.match(deriveSessionPresentation({ hasSession: true, status: "deferred" }).description, /no se ha perdido/);
+  const deferred = deriveSessionPresentation({ hasSession: true, requiresLogin: false, status: "deferred" });
+  assert.equal(deferred.status, "active");
+  assert.equal(deferred.actionRequired, false);
+  assert.equal(deferred.recoveryPending, true);
+  assert.equal(deferred.technicalStatus, "deferred");
   assert.equal(deriveSessionPresentation({ hasSession: true, requiresLogin: true }).status, "requires-login");
+  assert.equal(deriveSessionPresentation({ hasSession: true, requiresLogin: true }).actionRequired, true);
   assert.equal(deriveSessionPresentation({ hasSession: false }, { knownAccounts: [] }).status, "no-session");
   assert.equal(deriveSessionPresentation({ hasSession: false }, { knownAccounts: [{ userId: "remembered" }] }).status, "remembered-without-session");
   assert.equal(deriveSessionPresentation({}, {}, { busy: true, busyLabel: "Cambiando cuenta" }).status, "switching");
 });
 
-test("membership checking, not-member and temporary failure remain distinct", async () => {
+test("membership checking requires a current request and temporary failure is stable", async () => {
   const { deriveMembershipPresentation } = await presentationApi();
-  assert.equal(deriveMembershipPresentation({}, { hasSession: true }).status, "checking");
+  const context = { accountId: "user-1", instanceKey: "pack-1", weekId: "week-1" };
+  const checking = {
+    generation: 8,
+    request: { accountId: "user-1", contextCurrent: true, generation: 8, inFlight: true, instanceKey: "pack-1", weekId: "week-1" },
+    status: "checking",
+  };
+  assert.equal(deriveMembershipPresentation({}, { hasSession: true }).status, "unknown");
+  assert.equal(deriveMembershipPresentation({ status: "checking" }, { hasSession: true }, context).status, "unknown");
+  assert.equal(deriveMembershipPresentation(checking, { hasSession: true, userId: "user-1" }, context).status, "checking");
+  assert.equal(deriveMembershipPresentation({ ...checking, generation: 9 }, { hasSession: true, userId: "user-1" }, context).status, "unknown");
   const notMember = deriveMembershipPresentation({ status: "not_member", joinUrl: "https://hsl.example" }, { hasSession: true });
   assert.equal(notMember.status, "not_member");
   assert.equal(notMember.primaryAction.action, "open-membership-url");
@@ -217,7 +230,20 @@ test("live announcements are focused and ignore silent probes", async () => {
   });
   assert.equal(deriveLiveAnnouncement(previous, silent, ["connectivity"]), null);
   const offline = state({ connectivity: { displayStatus: "offline", probe: { inFlight: false }, reachability: "offline" } });
-  assert.equal(deriveLiveAnnouncement(previous, offline, ["connectivity"]), "Sin conexión");
+  assert.equal(deriveLiveAnnouncement(previous, offline, ["connectivity"]), "Desconectado");
   const logState = state({ logs: [{ summary: "Puntuación enviada" }] });
   assert.equal(deriveLiveAnnouncement(previous, logState, ["logs"]), "Puntuación enviada");
+});
+
+test("normal account switches stay silent while actionable outcomes remain visible", async () => {
+  const { shouldSurfaceAccountSwitchResult } = await presentationApi();
+
+  assert.equal(shouldSurfaceAccountSwitchResult({ action: "switch-account", ok: true }), false);
+  assert.equal(shouldSurfaceAccountSwitchResult({ action: "switch-account", ok: false }), true);
+  assert.equal(shouldSurfaceAccountSwitchResult({
+    action: "switch-account-login-required",
+    ok: false,
+    requiresLogin: true,
+  }), true);
+  assert.equal(shouldSurfaceAccountSwitchResult(null), true);
 });

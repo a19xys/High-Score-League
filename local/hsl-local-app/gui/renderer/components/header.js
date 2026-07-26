@@ -2,7 +2,7 @@ import { COPY } from "./copy.js";
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
 import {
-  deriveConnectivityPresentation,
+  derivePublicConnectivityPresentation,
   deriveRememberedAccountPresentation,
   deriveSessionPresentation,
   deriveSupportingActions,
@@ -176,7 +176,7 @@ function renderAccountMenu(state) {
           ${activeEmail ? `<p>${escapeHtml(activeEmail)}</p>` : ""}
         </div>
       </div>
-      ${!["active", "no-session"].includes(session.status) ? `<p class="account-session-state" data-severity="${escapeHtml(session.severity)}">${escapeHtml(session.title)}</p>` : ""}
+      ${session.actionRequired === true ? `<p class="account-session-state" data-severity="${escapeHtml(session.severity)}">${escapeHtml(session.title)}</p>` : ""}
       <div class="known-accounts known-accounts--menu">
         <strong>Cuentas</strong>
         ${accounts.length
@@ -226,22 +226,12 @@ export function renderAccountControl(state) {
 }
 
 export function renderConnectionControl(state) {
-  const status = deriveConnectivityPresentation(state.connectivity, state.data?.remoteConfiguration);
-  const refreshAction = deriveSupportingActions(state).refreshConnectivity;
-  const configurationProblem = status.domain === "remote-configuration";
-  const configurationAttribute = configurationProblem
-    ? `data-remote-configuration-status="${escapeHtml(status.status)}"`
-    : "";
-  const reasonReference = !refreshAction.available && refreshAction.reason
-    ? `aria-describedby="${refreshAction.reasonId}"`
-    : "";
+  const status = derivePublicConnectivityPresentation(state.connectivity, state.data?.remoteConfiguration);
 
   return `
-    <div class="connection-chip connection-chip--${escapeHtml(status.severity)}" data-connectivity-status="${escapeHtml(status.status)}" ${configurationAttribute} data-severity="${escapeHtml(status.severity)}" title="${escapeHtml(status.description)}">
-      ${renderIcon(status.icon, { className: "connection-status-icon", size: "sm" })}
+    <div class="connection-chip connection-chip--${escapeHtml(status.status)}" data-connectivity-status="${escapeHtml(status.status)}" data-severity="${escapeHtml(status.severity)}" title="${escapeHtml(status.description)}">
+      <span class="connection-dot" aria-hidden="true"></span>
       <span class="connection-label">${escapeHtml(status.title)}</span>
-      ${configurationProblem ? "" : `<button class="connection-refresh-button" type="button" data-action="refresh-connectivity" title="Comprobar conexión" aria-label="Comprobar conexión" ${reasonReference} ${refreshAction.available ? "" : "disabled aria-disabled=\"true\""}>${renderIcon("refresh", { className: "connection-refresh-icon", size: "sm" })}</button>`}
-      ${!refreshAction.available && refreshAction.reason ? `<span class="sr-only" id="${refreshAction.reasonId}">${escapeHtml(refreshAction.reason)}</span>` : ""}
     </div>
   `;
 }

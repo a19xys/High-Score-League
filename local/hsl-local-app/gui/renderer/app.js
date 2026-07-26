@@ -39,7 +39,12 @@ import {
 } from "./operation-feedback.js";
 import { assetIdentityMatches, createAssetPreloader } from "./asset-preloader.js";
 import { classifyStartupSnapshot, createStartupReadiness } from "./startup-readiness.js";
-import { deriveLiveAnnouncement } from "./product-presentation.js";
+import {
+  deriveLiveAnnouncement,
+  selectMembershipForPresentation,
+  shouldPreserveMembershipPresentation,
+  shouldSurfaceAccountSwitchResult,
+} from "./product-presentation.js";
 import { createEphemeralLoginDraft } from "./login-draft.js";
 
 const root = document.getElementById("app");
@@ -118,7 +123,7 @@ let lastRenderedState = null;
 let dialogReturnFocus = null;
 let overlayReturnFocus = null;
 let busyRunSequence = 0;
-let rankingOpenInProgress = false;
+let activeRankingFeedback = null;
 let detailAssetGeneration = 0;
 let detailAssetIdentity = null;
 let startupAssetSequence = 0;
@@ -179,10 +184,11 @@ function withDetailAssetAuthority(snapshot) {
 function evaluateLauncherSnapshot(snapshot) {
   if (!snapshot) return { accepted: false, patch: {} };
   const decision = launcherStateGate.accept(snapshot);
+  const nextData = decision.accepted ? withDetailAssetAuthority(snapshot) : null;
   return {
     accepted: decision.accepted,
     patch: {
-      ...(decision.accepted ? { data: withDetailAssetAuthority(snapshot) } : {}),
+      ...(decision.accepted ? { data: nextData, ...invalidateStaleRankingFeedback(nextData) } : {}),
       launcherStateDiagnostics: launcherStateGate.getDiagnostics(),
     },
   };
@@ -772,14 +778,18 @@ function libraryRegionHtml(state) {
   };
 }
 
-function gameRegionHtml(state) {
-  return {
+function gameRegionHtml(state, previousState = null) {
+  const membership = selectMembershipForPresentation(state, previousState);
+  const regions = {
     "game-actions": renderGameActionsRegion(state),
     "game-activity": renderGameActivityRegion(state),
     "game-identity": renderGameIdentityRegion(state),
-    "game-status": renderGameStatusRegion(state),
     "game-visual": renderGameVisualRegion(state),
   };
+  if (!shouldPreserveMembershipPresentation(state, previousState)) {
+    regions["game-status"] = renderGameStatusRegion(state, membership);
+  }
+  return regions;
 }
 
 function primeRegions(regions) {
@@ -832,7 +842,7 @@ function mountRenderer(state) {
       <div class="library-resizer" data-sidebar-resizer role="separator" aria-orientation="vertical" aria-label="Ajustar anchura de biblioteca" tabindex="0"></div>
       <section class="game-panel-region">
         <div class="game-scroll" data-render-region="game-panel">
-          ${renderGamePanel(state)}
+          ${renderGamePanel(state, selectMembershipForPresentation(state))}
         </div>
       </section>
     </main>
@@ -846,7 +856,7 @@ function mountRenderer(state) {
   primeRegions({
     "busy-overlay": renderBusyOverlay(state),
     dialog: renderAppDialog(state),
-    "game-panel": renderGamePanel(state),
+    "game-panel": renderGamePanel(state, selectMembershipForPresentation(state)),
     "header-account": renderAccountControl(state),
     "header-connection": renderConnectionControl(state),
     "header-theme": renderThemeControl(state),
@@ -936,21 +946,22 @@ function render(nextState, changedKeys = []) {
 
   const nextDetailScrollKey = detailScrollKeyFromState(state);
   const nextGameStructureKey = gameStructureKey(state);
+  const membership = selectMembershipForPresentation(state, lastRenderedState);
   let gameLayoutChanged = false;
   if (nextGameStructureKey !== currentGameStructureKey) {
-    regionRenderer.render("game-panel", renderGamePanel(state));
+    regionRenderer.render("game-panel", renderGamePanel(state, membership));
     currentGameStructureKey = nextGameStructureKey;
-    if (state.data?.game && nextDetailScrollKey) primeRegions(gameRegionHtml(state));
+    if (state.data?.game && nextDetailScrollKey) primeRegions(gameRegionHtml(state, lastRenderedState));
     if (currentDetailScrollKey && nextDetailScrollKey !== currentDetailScrollKey) {
       const gameScroll = root.querySelector(".game-scroll");
       if (gameScroll) gameScroll.scrollTop = 0;
     }
     gameLayoutChanged = true;
   } else if (nextGameStructureKey.startsWith("detail:") && state.data?.game && nextDetailScrollKey) {
-    const changed = renderRegions(gameRegionHtml(state));
+    const changed = renderRegions(gameRegionHtml(state, lastRenderedState));
     gameLayoutChanged = changed.has("game-identity") || changed.has("game-visual");
   } else {
-    gameLayoutChanged = regionRenderer.render("game-panel", renderGamePanel(state));
+    gameLayoutChanged = regionRenderer.render("game-panel", renderGamePanel(state, membership));
   }
   currentDetailScrollKey = nextDetailScrollKey;
 
@@ -1293,33 +1304,6 @@ function applyBackgroundLauncherState(payload) {
   }
 }
 
-async function openRankingWithoutGlobalBusy() {
-  if (rankingOpenInProgress) return;
-  rankingOpenInProgress = true;
-  store.setState({ rankingOpening: true });
-
-  try {
-    const response = await window.hslLauncher.openRanking();
-    store.setState({
-      ...launcherSnapshotPatch(response.state),
-      logs: appendLog(store.getState().logs, resultToLog("Ver ranking", response)),
-      rankingOpening: false,
-    });
-  } catch (error) {
-    store.setState({
-      logs: appendLog(store.getState().logs, {
-        details: [],
-        ok: false,
-        summary: "No se pudo comprobar el ranking.",
-        title: "Ver ranking",
-      }),
-      rankingOpening: false,
-    });
-  } finally {
-    rankingOpenInProgress = false;
-  }
-}
-
 async function syncLibraryFavorite(packKey) {
   while (favoriteSyncByKey.has(packKey)) {
     const sync = favoriteSyncByKey.get(packKey);
@@ -1427,6 +1411,71 @@ async function syncLibraryFavorite(packKey) {
       });
       return;
     }
+  }
+}
+
+function rankingFeedbackContextKey(data = store.getState().data) {
+  return [
+    data?.selection?.activeInstanceKey || data?.game?.instanceKey || "",
+    data?.game?.weekId || "",
+    data?.session?.userId || data?.accounts?.activeUserId || "",
+  ].join("\u001f");
+}
+
+function invalidateStaleRankingFeedback(nextData) {
+  if (!activeRankingFeedback) return {};
+  if (activeRankingFeedback.contextKey === rankingFeedbackContextKey(nextData)) return {};
+  activeRankingFeedback = null;
+  return { busy: false, busyLabel: null, rankingOpening: false };
+}
+
+async function openRankingWithOperationFeedback() {
+  if (activeRankingFeedback || store.getState().busy) return;
+  const contextKey = rankingFeedbackContextKey();
+
+  try {
+    await runWithOperationFeedback({
+      scope: "external",
+      isCurrent: (runId) => activeRankingFeedback?.runId === runId,
+      onStart: ({ runId }) => {
+        activeRankingFeedback = { contextKey, runId };
+        store.setState({ busy: true, busyLabel: "Abriendo ranking", rankingOpening: true });
+      },
+      operation: () => window.hslLauncher.openRanking(),
+      onFinish: ({ error, result, runId }) => {
+        const activeRun = activeRankingFeedback;
+        if (!activeRun || activeRun.runId !== runId) return;
+
+        const currentContextKey = rankingFeedbackContextKey();
+        const responseContextKey = result?.state
+          ? rankingFeedbackContextKey(result.state)
+          : currentContextKey;
+        const contextStillMatches = activeRun.contextKey === currentContextKey
+          && activeRun.contextKey === responseContextKey;
+        activeRankingFeedback = null;
+
+        if (!contextStillMatches) {
+          store.setState({ busy: false, busyLabel: null, rankingOpening: false });
+          return;
+        }
+
+        const nextState = { busy: false, busyLabel: null, rankingOpening: false };
+        if (error || !result || typeof result !== "object") {
+          nextState.logs = appendLog(store.getState().logs, {
+            details: [],
+            ok: false,
+            summary: "No se pudo abrir el ranking. Int\u00e9ntalo de nuevo.",
+            title: "Ver ranking",
+          });
+        } else {
+          Object.assign(nextState, launcherSnapshotPatch(result?.state));
+          nextState.logs = appendLog(store.getState().logs, resultToLog("Ver ranking", result || {}));
+        }
+        store.setState(nextState);
+      },
+    });
+  } catch {
+    // onFinish presenta el error si la ventana y el contexto siguen vigentes.
   }
 }
 
@@ -1656,8 +1705,11 @@ async function switchAccount(button) {
       busy: false,
       busyLabel: null,
       ...launcherSnapshotPatch(response.state),
-      logs: appendLog(store.getState().logs, resultToLog("Cambiar cuenta", response)),
     };
+
+    if (shouldSurfaceAccountSwitchResult(response)) {
+      nextState.logs = appendLog(store.getState().logs, resultToLog("Cambiar cuenta", response));
+    }
 
     if (response.requiresLogin) {
       nextState.accountMenuOpen = true;
@@ -2094,7 +2146,7 @@ function bindActions() {
     }
 
     if (action === "open-ranking") {
-      openRankingWithoutGlobalBusy();
+      openRankingWithOperationFeedback();
     }
 
     if (action === "refresh-connectivity") {
@@ -2202,6 +2254,7 @@ function cleanupConnectivitySignals() {
 
 function cleanupRendererLifecycle() {
   loginDraft.clear();
+  activeRankingFeedback = null;
   cleanupConnectivitySignals();
   metadataResizeObserver?.disconnect();
   favoriteTitleResizeObserver?.disconnect();
