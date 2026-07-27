@@ -8,7 +8,16 @@ function isLauncherSnapshot(value) {
 
 function createLauncherStateAuthority() {
   let revision = 0;
+  let latestEffectRevision = 0;
   let publishedSnapshots = 0;
+
+  function acceptEffects(reservedRevision) {
+    const nextRevision = Number(reservedRevision);
+    if (!Number.isSafeInteger(nextRevision) || nextRevision <= 0 || nextRevision > revision) return false;
+    if (nextRevision <= latestEffectRevision) return false;
+    latestEffectRevision = nextRevision;
+    return true;
+  }
 
   function reserveRevision() {
     revision += 1;
@@ -38,6 +47,7 @@ function createLauncherStateAuthority() {
   }
 
   return {
+    acceptEffects,
     getDiagnostics() {
       return { currentRevision: revision, publishedSnapshots };
     },

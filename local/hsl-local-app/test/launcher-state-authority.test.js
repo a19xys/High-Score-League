@@ -22,6 +22,20 @@ test("main authority reserves request order even when IPC responses finish out o
   assert.deepEqual(authority.getDiagnostics(), { currentRevision: 2, publishedSnapshots: 2 });
 });
 
+test("state side effects obey the same causal revision order as renderer snapshots", () => {
+  const authority = createLauncherStateAuthority();
+  const older = authority.reserveRevision();
+  const newer = authority.reserveRevision();
+
+  assert.equal(authority.acceptEffects(newer), true);
+  assert.equal(authority.acceptEffects(older), false);
+  assert.equal(authority.acceptEffects(newer), false);
+  assert.equal(authority.acceptEffects(0), false);
+
+  const newest = authority.reserveRevision();
+  assert.equal(authority.acceptEffects(newest), true);
+});
+
 test("renderer gate is the single monotonic rule for full launcher snapshots", async () => {
   const { createLauncherStateGate } = await import("../gui/renderer/launcher-state-gate.js");
   const gate = createLauncherStateGate();

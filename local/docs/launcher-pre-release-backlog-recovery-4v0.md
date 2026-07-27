@@ -4,7 +4,7 @@
 
 Este documento reconstruye el backlog visual y funcional del launcher a partir
 de **todos** los archivos actuales de `local/docs`, su cadena documental y las
-siete peticiones externas recuperadas de la conversación. No es una auditoría
+diez peticiones externas recuperadas de la conversación. No es una auditoría
 del runtime ni una autorización para implementar todo lo citado como futuro.
 
 Base de lectura: commit
@@ -13,13 +13,14 @@ producto`), rama `master`. Al iniciar 4V.0 había cambios preexistentes en web y
 en `docs/`, fuera de `local/docs`; se preservan y no se usan para inferir el
 estado del launcher.
 
-Se localizaron 102 archivos físicos bajo `local/docs`; los 102 están
-versionados, todos fueron legibles y todos se leyeron completos. No existen
-archivos físicos extra ni archivos versionados ausentes. El historial de
-`local/docs` no contiene eliminaciones ni renombres; sí contiene cadenas de
-actualización que sustituyen contratos anteriores.
+En el censo original de 4V.0 se localizaron 102 archivos fuente bajo
+`local/docs`; los 102 estaban versionados, fueron legibles y se leyeron
+completos. El apéndice conserva ese censo histórico sin renumerarlo. Los
+documentos de continuidad creados por 4V.0, 4V.1, 4V.1A y 4V.1B quedan fuera de
+esas 102 filas y actualizan el estado de los candidatos sin falsear la cobertura
+de partida.
 
-El resultado principal es un conjunto de 48 candidatos. Solo 19 forman backlog
+El resultado actualizado es un conjunto de 51 candidatos. Solo 22 forman backlog
 antes o dentro de Release Candidate. Los restantes son trabajo posterior,
 propuestas sin aprobación, contratos ya resueltos, decisiones obsoletas o
 contradicciones que deben aclararse antes de editar.
@@ -44,9 +45,9 @@ contradicciones que deben aclararse antes de editar.
 
 | Métrica | Resultado |
 | --- | --- |
-| Archivos físicos bajo `local/docs` | 102 |
-| Archivos versionados bajo `local/docs` | 102 |
-| Leídos completamente | 102 |
+| Archivos físicos del censo fuente 4V.0 | 102 |
+| Archivos versionados del censo fuente 4V.0 | 102 |
+| Leídos completamente en el censo fuente | 102 |
 | No legibles | 0 |
 | Físicos no versionados | 0 |
 | Versionados ausentes físicamente | 0 |
@@ -54,7 +55,9 @@ contradicciones que deben aclararse antes de editar.
 | Referencias `.md` sin basename actual en `local/docs` | `docs/launcher-api.md`, referencia externa a esta carpeta, no documento perdido |
 
 La cobertura archivo por archivo figura en el apéndice. `Leído: sí` significa
-lectura completa, no que se haya comprobado la implementación descrita.
+lectura completa, no que se haya comprobado la implementación descrita. Los
+documentos de continuidad posteriores no se insertan retroactivamente en esas
+filas ni cambian su numeración.
 
 ## 4. Fuentes externas aportadas por el usuario
 
@@ -67,9 +70,25 @@ adicional explícita:
 | B. Cuatro iconos por fila | PR-002 | Las correcciones 7–10 documentan 122 px, gap 8 px y cuatro columnas a 600 px. |
 | C. Readiness de imágenes del primer viewport | PR-003 | 3B.2 espera solo hero/logo del detalle inicial; no cubre todas las imágenes visibles de la vista inicial. |
 | D. Flujo unificado de ubicación | PR-004 | El contrato de raíz y recuperación cubre clasificación/rechazo, no documenta íntegramente un popup único ni la regla completa de `defaultPath`. |
-| E. Loader de doce frames | RC-004 | La especificación exacta no aparece en los 102 archivos actuales. |
+| E. Loader de doce frames | RC-004 | La especificación exacta no aparece en los 102 archivos del censo fuente. |
 | F. Sesiones silenciosamente renovables | SOL-002 y PR-005 | El contrato está documentado; la validación real de staging y política Supabase sigue pendiente. |
 | G. Badges iniciales de Space Invaders v2 | PR-006 | 3B.2 y 3B.3 aportan mitigaciones documentadas, pero no existe QA real específica de ese recorrido. |
+| H. Selector de Biblioteca: continuidad y espaciado | PR-011 | Conservar `scrollTop` del panel izquierdo al cambiar de pack y reducir el hueco entre `Biblioteca` y ubicación/filtros; se agrupa con 4V.2 y PR-002. |
+| I. Favorito y `Pack listo` en el hero | PR-012 | Retirar la estrella junto al título y reservar para 4V.3 la composición adaptable de favorito y readiness en la esquina inferior derecha del hero. |
+| J. Presentación de `Olvidar cuenta` | PR-013 | Reservar para 4V.4 un hover/foco redondeado y azul, manteniendo la semántica destructiva por nombre accesible y comportamiento. |
+
+### Continuidad 4V.1–4V.1B
+
+- PR-001 permanece implementado por 4V.1 y con QA visual física pendiente; no se
+  reclasifica como cerrado por sus pruebas automatizadas.
+- 4V.1A corrigió el aviso no accionable de sesión y el falso checking de
+  membership, pero su fallback `unknown -> Desconectado`, la retirada del botón
+  refresh y la falta de convergencia inicial fueron decisiones incompletas.
+- 4V.1B corrige esas tres partes, restaura `Jugar` y `Pack listo`, y termina con
+  210/210 pruebas dirigidas, 740/740 del launcher y 9/9 raíz. El smoke confirmó
+  arranque/cierre y ausencia de procesos residuales, pero no expuso una ventana;
+  primer frame, click real y membership real de Space Invaders v2 siguen QA
+  pendiente. Por ello PR-006 y PR-008 no se cierran para release.
 
 ## Matriz canónica de candidatos
 
@@ -77,7 +96,7 @@ adicional explícita:
 
 | Clasificación | Número |
 | --- | ---: |
-| Petición explícita recuperada | 2 |
+| Petición explícita recuperada | 5 |
 | Contrato documentado vigente | 1 |
 | Regresión documental probable | 1 |
 | Parcialmente resuelto | 4 |
@@ -88,22 +107,25 @@ adicional explícita:
 | Solucionado documentalmente | 8 |
 | Requiere contraste técnico posterior | 2 |
 | Requiere confirmación del usuario | 3 |
-| **Total** | **48** |
+| **Total** | **51** |
 
 ### Antes de Release Candidate
 
 | ID y título | Descripción | Fuente exacta y posición | Clasificación | Fase · estado · confianza | Dependencia y región | Riesgo de parche · agrupación | Criterio mínimo futuro | Procedencia |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | PR-001 Feedback de acción Ranking | La pulsación explícita debe mostrar comprobando/abriendo/error, impedir doble apertura y cerrar feedback sin alterar conectividad; el batch automático sigue silencioso. | Conversación A; `operation-feedback-lifecycle-1.md`, “Scopes” y cierre; `ranking-session-verification-1.md`, triggers; `ranking-interactive-feedback-account-notice-4v1.md`, contrato y cobertura. Externa posterior a 3B.3. | Petición explícita recuperada | antes de RC · implementado; QA visual pendiente · alta | 3B.3 + gate Ranking; botón, overlay y live region | Mitigado en 4V.1 con runner común, runId e identidad pack/semana/cuenta; no se tocó health | Feedback inmediato solo para intención del usuario; runId; error/cierre; sin doble apertura ni falso estado global. Cubierto por pruebas; pendiente recorrido visual real. | conversación + apoyo documental + implementación 4V.1 |
-| PR-002 Cuatro Iconos en ancho máximo | Restaurar cuatro tiles por fila en el máximo razonable revisando tile, gap, padding, scrollbar y gutter antes de ampliar sidebar. | Conversación B; `library-micropolish-sort-scroll-7.md`, “Iconos”; correcciones 9–10; hotfix de shell posterior. | Regresión documental probable | antes de RC · requiere contraste · alta para intención/media para runtime | 3B.1; sidebar, grid y preferencias | Alto si se aumenta solo el ancho · tarea de geometría de biblioteca | Cuatro tiles en máximo, panel derecho utilizable, `Home` restaura default y la preferencia no rebota. | conversación + documentación |
+| PR-002 Cuatro Iconos en ancho máximo | Restaurar cuatro tiles por fila en el máximo razonable revisando tile, gap, padding, scrollbar y gutter antes de ampliar sidebar. | Conversación B; `library-micropolish-sort-scroll-7.md`, “Iconos”; correcciones 9–10; hotfix de shell posterior. | Regresión documental probable | antes de RC · requiere contraste · alta para intención/media para runtime | 3B.1; sidebar, grid y preferencias | Alto si se aumenta solo el ancho · agrupar con PR-011 en 4V.2 | Cuatro tiles en máximo, panel derecho utilizable, `Home` restaura default y la preferencia no rebota. | conversación + documentación |
 | PR-003 Readiness del primer viewport | Startup debe esperar imágenes realmente visibles de Portadas/Lista/Iconos, cargadas/decodificadas/renderizadas o con fallback, sin esperar fuera del viewport. | Conversación C; `launcher-startup-theme-assets-3b2.md`, pasos 7–11 y “Readiness”; `hero-logo-list-preload-13.md`. 3B.2 solo cubre detalle. | Parcialmente resuelto | antes de RC · parcial · alta | 3B.2 + 3B.1; startup, viewport y assets | P0 si se reabre autoridad generacional · tarea readiness viewport | Gate acotada por vista y viewport, decode/fallback definitivo, timeout degradado y cleanup; sin red/remount. | conversación + documentación |
 | PR-004 Flujo unificado de ubicación | Un único flujo debe tratar raíz, pack-root, inside-pack, missing e invalid; solo una aceptación cambia la raíz y `defaultPath` siempre nace de la raíz canónica. | Conversación D; `library-root-contract-1.md`, clasificación/rechazo; `pack-directory-missing-flow-1.md`; `pack-directory-model-1.md`. | Parcialmente resuelto | antes de RC · parcial · alta | 3A/3B.1; selector, diálogos, raíz y selección | P0 si pack activo y raíz se mezclan · tarea ubicación/recuperación | Un diálogo coherente; cancel/rechazo no escriben; pack seleccionado no cambia raíz ni siguiente `defaultPath`; pruebas de todos los candidatos. | conversación + documentación |
 | PR-005 Protocolo Auth real de staging | Ejecutar los 17 pasos con expiración, rotación, dos consumidores, red, revoke, relogin y pending, además del checklist Supabase. | `canonical-account-sessions-stabilization-2.md`, “Protocolo exacto de staging”; `persistent-account-sessions-1.md`, checklist; risk register. Julio 2026. | QA o validación pendiente | antes de RC · pendiente · alta | autoridad de sesiones; app empaquetada + Supabase staging | P0 si se “arregla” código antes de medir · tarea QA Auth | Tabla sanitaria de 17 pasos, revisiones monotónicas, una rotación ganadora y pending nunca perdido. | documentación |
-| PR-006 Estado inicial Space Invaders v2 | Confirmar que no aparece indefinidamente ni transita por badges duplicados `Listo con avisos`/`Auto-sync activo` antes del estado estable. | Conversación G; `launcher-startup-theme-assets-3b2.md`; `launcher-product-state-presentation-3b3.md`, badges/cola; `account-membership-connectivity-presentation-4v1a.md`; cierre sin ventana visual. | QA o validación pendiente | antes de RC · fix de checking implementado; QA visual pendiente · alta | 3B.2/3B.3; startup, detalle, cola | Alto si se parchea con delay o copy local · QA de estado real | El falso checking sin request y la recomprobación con flicker quedan cubiertos por 4V.1A; sigue pendiente el recorrido real completo, sin falso listo ni duplicados. | conversación + documentación + implementación 4V.1A |
+| PR-006 Estado inicial Space Invaders v2 | Confirmar que el pipeline automático termina sin badges provisionales permanentes ni duplicados antes del estado estable. | Conversación G; `launcher-startup-theme-assets-3b2.md`; `launcher-product-state-presentation-3b3.md`; `account-membership-connectivity-presentation-4v1a.md`; `connectivity-membership-startup-4v1b.md`. | QA o validación pendiente | antes de RC · convergencia implementada en 4V.1B; QA visual y membership real pendientes · alta | 3B.2/3B.3 + coordinador 4V.1B; startup, detalle, cola | Alto si se parchea con delay o copy local · QA de estado real | Tests cubren checking real, deduplicación, `Pack listo` y gate `Jugar`; falta observar el recorrido completo con pack y cuenta miembro reales, sin falso listo ni duplicados. | conversación + documentación + implementación 4V.1A/4V.1B |
 | PR-007 Backend seguro de sesiones por plataforma | Verificar `safeStorage` y keyring real; el fallback `basic_text`/0600 no debe presentarse como cifrado ni cerrar release sin decisión. | `secure-session-storage-1.md`; `canonical-account-sessions-stabilization-2.md`, riesgos; `connectivity-final-risk-register-3.md`, P0 condicional. | QA o validación pendiente | antes de RC · pendiente · alta | sesiones canónicas; packaging Windows/macOS/Linux | P0 de secretos si se oculta el degradado · tarea QA seguridad | Matriz por SO/backend, recuperación de `storage-unavailable`, diagnóstico sin secretos y criterio release explícito. | documentación |
-| PR-008 Conectividad, deployment y cooldown físicos | Validar deploy con SHA, Ethernet foco/sin foco/minimizado, 429/503, suspend/resume y recuperación conjunta de controles. | `deployment-fingerprint-1.md`; `connectivity-ranking-reliability-2.md`, validación; `connectivity-final-risk-register-3.md`, protocolos; `offline-recovery-canary-1.md`. | QA o validación pendiente | antes de RC · pendiente · alta | conectividad + Ranking + autoenvío | P0/P1 si una simulación se trata como autoridad · tarea QA remota | SHA esperado coincide; medianas físicas registradas; cooldown no se salta; un solo retry; controles convergen tras health 204. | documentación |
+| PR-008 Conectividad, deployment y cooldown físicos | Validar deploy con SHA, primer frame, refresh manual, Ethernet foco/sin foco/minimizado, 429/503, suspend/resume y recuperación conjunta de controles. | `deployment-fingerprint-1.md`; `connectivity-ranking-reliability-2.md`; risk register; `offline-recovery-canary-1.md`; `connectivity-membership-startup-4v1b.md`. | QA o validación pendiente | antes de RC · precompromiso y refresh implementados en 4V.1B; QA física pendiente · alta | conectividad + Ranking + autoenvío + header | P0/P1 si una simulación se trata como autoridad · tarea QA remota | Observar que no existe falso `Desconectado`; probar click/teclado y red real; SHA esperado coincide; cooldown no se salta; un solo retry; controles convergen tras health 204. | documentación + implementación 4V.1B |
 | PR-009 MAME y pack v2 reales | Verificar flags, `-listxml`, BGFX/artwork, practice sin plugin, competition con staging/adopción y cierre real. | `shared-mame-runtime-1.md`, flags pendientes; `space-invaders-pack-v2-real-1.md`, validación MAME; `mame-pack-plugin-loading-2.md`. | QA o validación pendiente | antes de RC · pendiente · alta | runtime MAME, pack v2, plugin y cola scoped | P0 competitivo si se “corrige” sin pack real · tarea QA Space Invaders | Args reales correctos por modo; una captura adoptada al scope; práctica no captura; fallos conservan run/pending. | documentación |
 | PR-010 Decisión sobre `file://` | Auditor externo debe decidir si aceptar residual o migrar documento/assets a protocolo allowlisted. | `electron-custom-protocol-backlog-1.md`, “Decisión pendiente”; risk register, `Documento Electron en file://`. | Pendiente técnico documentado | antes de RC · pendiente de auditoría · alta | seguridad Electron, CSP y assets | P0/P1 si se introduce protocolo parcial · tarea de auditoría separada | Decisión firmada; si se migra, traversal/symlink/MIME/CSP/cache/navegación probados sin abrir red. | documentación |
+| PR-011 Selector de Biblioteca: continuidad y espaciado | Al cambiar de pack, conservar el `scrollTop` del panel izquierdo; reducir el hueco excesivo entre `Biblioteca` y `Cambiar ubicación`, `Filtros` o la variante visible. No cambiar ahora el scroll del panel derecho. | Fuente: petición del usuario recuperada de la conversación. Externa posterior a 4V.1B. | Petición explícita recuperada | antes de RC · reservada para 4V.2 · alta | 3B.1; scroll regional, cabecera y controles de biblioteca | Alto si se remonta la región o se mezcla scroll izquierdo/derecho · agrupar PR-002/CON-001 en 4V.2 | Cambiar de pack no mueve la posición explorada de la biblioteca; cabecera y selector/filtros forman un bloque compacto; cuatro iconos se validan en la misma matriz geométrica. | conversación |
+| PR-012 Favorito y `Pack listo` en el hero | Quitar la estrella junto al título sin eliminar favoritos de biblioteca. Situar favorito y `Pack listo` abajo a la derecha del hero con corazón/check: badges con espacio, círculos elegantes sin él; ocultar corazón si no es favorito. | Fuente: petición del usuario recuperada de la conversación. Externa posterior a 4V.1B. | Petición explícita recuperada | antes de RC · reservada para 4V.3 · alta | 3B.2/3B.3; hero, assets y resumen de producto | Alto si duplica el badge principal o rompe fallback responsive · tarea hero 4V.3 | Una sola indicación de favorito; `Pack listo` deriva del estado canónico; composición responsive probada; sin corazón cuando no es favorito y sin cambiar persistencia de favoritos. | conversación |
+| PR-013 Presentación de `Olvidar cuenta` | El hover no debe ser un cuadrado rojo. Usar esquinas coherentes y azul de cuenta/sistema en hover/foco, preservando la semántica destructiva por nombre accesible y comportamiento, no por una mancha roja. | Fuente: petición del usuario recuperada de la conversación. Externa posterior a 4V.1B. | Petición explícita recuperada | antes de RC · reservada para 4V.4 · alta | 3B.1/3B.3; menú de cuenta y foco | Medio si se elimina la señal destructiva o se reabre el flujo de sesión · tarea cuenta 4V.4 | Hover/foco redondeados y coherentes en ambos temas; nombre accesible inequívoco; teclado y confirmación funcional preservados; no reaparece aviso no accionable. | conversación |
 
 ### Dentro de Release Candidate
 
@@ -171,23 +193,26 @@ adicional explícita:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | CON-001 Geometría de ventana/sidebar/tile | Se documentan mínimo 920→1180, sidebar 280–520→340–600, otros docs 320–600 y tile 128→122. La cadena más tardía favorece 1180x620, 340–600/440 y 122, pero el runtime no se auditó. | shell detail polish→hotfix (30 jun); library refinement→micropolish→correcciones (28–29 jun); inventario 3B.3 vuelve a citar 920. | Requiere contraste técnico posterior | antes de RC · requiere contraste · alta sobre contradicción | 3B.1; window/sidebar/grid | Alto si se elige un número por conveniencia · agrupar PR-002 | Contrastar constantes/CSS/tests una vez; declarar valores canónicos y probar mínimo/default/máximo sin inutilizar detalle. | documentación |
 | CON-002 Altura máxima del hero | Audit/preload citan 220 px; shell polish/hotfix posterior cita 340/330 px. | `render-state-stability-audit-12.md`; `hero-logo-list-preload-13.md`; `shell-detail-polish-2.md` y hotfix 3. | Requiere contraste técnico posterior | dentro de RC · requiere contraste · alta | 3B.2; detalle/hero | Medio si se añade otra override · geometría detalle | Identificar valor runtime vigente, conservar ratio/crop/fallback y documentar una sola autoridad. | documentación |
-| CON-003 Punto o SVG para conectividad | Icon visual polish declara punto+texto sin SVG; icon system enumera SVG de estado; 3B.3 exige icono/texto/borde semánticos sin fijar asset. | `icon-visual-polish-2.md`, “Aplicado”; `icon-system-1.md`, usos; 3B.3 severidades; `account-membership-connectivity-presentation-4v1a.md`. | Solucionado documentalmente | dentro de RC · punto CSS y proyección binaria implementados; QA visual pendiente · alta | 3B.3; header/status primitives | Bajo; no duplicar la proyección pública con la gate técnica · guardrail | Texto `Conectado`/`Desconectado`, punto CSS decorativo, sin SVG ni tercer estado; validar contraste en ambos temas. | documentación + implementación 4V.1A |
+| CON-003 Punto o SVG para conectividad | El estado usa punto+texto sin SVG; el icon system permite un SVG local cuando representa la acción independiente de refresh. 3B.3 exige semántica sin convertir el asset en autoridad. | `icon-visual-polish-2.md`; `icon-system-1.md`; 3B.3; `account-membership-connectivity-presentation-4v1a.md`; `connectivity-membership-startup-4v1b.md`. | Solucionado documentalmente | dentro de RC · distinción estado/acción implementada en 4V.1B; QA visual pendiente · alta | 3B.3; header/status primitives | Bajo; no fusionar botón y estado ni duplicar la gate técnica · guardrail | Precompromiso oculto; después texto `Conectado`/`Desconectado` y punto CSS; SVG `refresh` solo en botón separado; validar contraste, foco y primer frame. | documentación + implementación 4V.1A/4V.1B |
 
 ## 5. Backlog pre-release
 
-Prioridad documental propuesta, sin equivaler a estimación:
+4V.1, 4V.1A y 4V.1B están implementadas; PR-001 permanece en QA visual y
+PR-006/PR-008 en QA real. La siguiente prioridad documental, sin equivaler a
+estimación, es:
 
-1. PR-001, feedback de Ranking, porque completa una intención explícita sin
-   cambiar la gate.
-2. PR-002 y CON-001, geometría de Iconos/sidebar, porque la documentación
-   afirma un resultado que el usuario pide recuperar.
-3. PR-003, readiness del primer viewport, sobre la autoridad 3B.2 existente.
-4. PR-004, flujo único de ubicación, preservando raíz y selección separadas.
-5. PR-005 y PR-007, validación Auth/almacenamiento seguro; son gates de release,
+1. PR-002, PR-011 y CON-001, como una sola 4V.2 de geometría, continuidad de
+   biblioteca, cuatro Iconos y espaciado de cabecera/selector.
+2. PR-012, composición de favorito y `Pack listo` en hero, reservada para 4V.3.
+3. PR-013, presentación coherente de `Olvidar cuenta`, reservada para 4V.4.
+4. PR-003, readiness del primer viewport, sobre la autoridad 3B.2 existente.
+5. PR-004, flujo único de ubicación, preservando raíz y selección separadas.
+6. PR-005 y PR-007, validación Auth/almacenamiento seguro; son gates de release,
    no trabajo visual.
-6. PR-008, QA de deployment/conectividad/cooldowns.
-7. PR-009 y PR-006, recorrido MAME/Space Invaders real y estado inicial.
-8. PR-010, decisión de auditoría sobre `file://`; no debe colarse dentro de una
+7. PR-008, QA física de primer frame, refresh, deployment, conectividad y
+   cooldowns.
+8. PR-009 y PR-006, recorrido MAME/Space Invaders real y estado inicial.
+9. PR-010, decisión de auditoría sobre `file://`; no debe colarse dentro de una
    tarea de assets.
 
 ## 6. Backlog de Release Candidate
@@ -220,6 +245,10 @@ estados/acciones remotas y CLI scoped. PB-006 necesita una especificación del
 usuario. Ninguna debe aparecer como “pendiente comprometido” en una siguiente
 tarea por el mero hecho de figurar en un blueprint o `Fuera de alcance`.
 
+PR-011, PR-012 y PR-013 no son propuestas de Codex: proceden de peticiones
+explícitas recuperadas y están comprometidas para 4V.2, 4V.3 y 4V.4
+respectivamente. Registrarlas no autoriza implementarlas dentro de 4V.1B.
+
 ## 10. Elementos solucionados que no deben reabrirse
 
 SOL-001 a SOL-008 forman los guardrails: autoridades 3A–3B.3, continuidad de
@@ -227,12 +256,17 @@ sesión, cola/outcomes, raíz/selección/import, gate de Ranking, menú de cuent
 pack v2/runtime y sistema local de assets. OBS-001 a OBS-006 son contratos
 históricos ya sustituidos. Solo una regresión reproducible permite reabrirlos.
 
+4V.1B amplía esos guardrails sin sustituirlos: precompromiso de conectividad
+oculto, refresh explícito separado, coordinador inicial de membership y gate
+`Jugar`. Su implementación automatizada no cierra PR-006 ni PR-008 sin QA real.
+
 ## 11. Contradicciones documentales
 
 - CON-001: geometría; el orden histórico no coincide con algunos resúmenes
   posteriores.
 - CON-002: hero 220 frente a 330 px.
-- CON-003: punto de conectividad frente a SVG/primitiva semántica.
+- CON-003 queda resuelta por la distinción de 4V.1B: punto CSS para estado y SVG
+  `refresh` únicamente para el botón de acción separado.
 - OBS-003, OBS-004 y OBS-005 parecen contradicciones si se leen documentos
   aislados, pero su cronología permite clasificarlas como sustituciones claras.
 - `pack-distribution-mvp-1.md` conserva “importación ZIP segura” en una lista
@@ -241,9 +275,10 @@ históricos ya sustituidos. Solo una regresión reproducible permite reabrirlos.
 
 ## 12. Requisitos que necesitan contraste técnico
 
-CON-001 a CON-003 necesitan una tarea posterior de contraste acotado con
-constantes, CSS y tests. PR-002, RC-002 y RC-003 también requieren contraste de
-su estado real antes de implementar. Esta 4V.0 no abrió código para cerrarlos.
+CON-001 y CON-002 necesitan una tarea posterior de contraste acotado con
+constantes, CSS y tests. CON-003 ya tiene contrato e implementación, pero su QA
+visual física continúa pendiente. PR-002, PR-011, RC-002 y RC-003 también
+requieren contraste de su estado real antes de implementar.
 
 La referencia `docs/launcher-api.md` aparece en el blueprint, pero está fuera de
 la fuente obligatoria `local/docs` y no se trató como documento perdido. Sus
@@ -262,26 +297,33 @@ contratos no se usan para declarar backlog en esta reconstrucción.
 
 El orden evita una tarea genérica de “pulido completo”:
 
-1. **4V.1 — Feedback interactivo de Ranking.** Solo botón, operación, overlay,
-   live region y doble apertura; batch y gate permanecen intactos.
-2. **4V.2 — Geometría y densidad de biblioteca.** Contrastar CON-001 y resolver
-   PR-002 en mínimo/default/máximo, con preferencia y panel derecho.
-3. **4V.3 — Readiness de imágenes del primer viewport.** Ampliar 3B.2 por vista
+1. **4V.1/4V.1A/4V.1B — Implementadas, QA real residual.** Ranking explícito,
+   cuenta silenciosa, conectividad manual e inicialización de membership; no se
+   cierran PR-001/PR-006/PR-008 sin sus recorridos físicos.
+2. **4V.2 — Biblioteca.** Contrastar CON-001 y resolver conjuntamente PR-002 y
+   PR-011: cuatro Iconos, continuidad de `scrollTop` izquierdo y espaciado entre
+   cabecera, ubicación y filtros.
+3. **4V.3 — Hero.** PR-012: favorito y `Pack listo` adaptables en la esquina
+   inferior derecha, sin tocar la persistencia de favoritos.
+4. **4V.4 — Cuenta.** PR-013: hover/foco de `Olvidar cuenta`, sin reabrir
+   sesiones ni el aviso no accionable.
+5. **4V.5 — Readiness de imágenes del primer viewport.** Ampliar 3B.2 por vista
    y viewport sin esperar assets no visibles.
-4. **4V.4 — Ubicación y recuperación unificadas.** PR-004, diálogos de raíz y
+6. **4V.6 — Ubicación y recuperación unificadas.** PR-004, diálogos de raíz y
    `defaultPath`; no mezclar con importador ni catálogo.
-5. **4V.5 — QA Auth y secure storage.** PR-005/PR-007 por plataforma y staging;
+7. **4V.7 — QA Auth y secure storage.** PR-005/PR-007 por plataforma y staging;
    principalmente validación, con fixes separados si aparece un fallo.
-6. **4V.6 — QA remota y deployment.** PR-008, con Ethernet, cooldown y SHA.
-7. **4V.7 — QA Space Invaders v2 real.** PR-009/PR-006: MAME, captura, estado
-   inicial y salida; cualquier fix se deriva como tarea nueva acotada.
-8. **4V.8 — Drawers y diálogos.** RC-001 y solo contradicciones visuales que
-   compartan esas regiones; no incluye ubicación ni Ranking.
-9. **4V.9 — Resumen posterior a MAME.** RC-002, apoyado en estado/cola canónicos.
-10. **4V.10 — Footer y versión.** RC-003; no implementar updater.
-11. **4V.11 — Branding y loader.** RC-004 sobre el overlay 3B.2, con
+8. **4V.8 — QA remota y deployment.** PR-008, con primer frame, refresh,
+   Ethernet, cooldown y SHA.
+9. **4V.9 — QA Space Invaders v2 real.** PR-009/PR-006: membership, MAME,
+   captura, estado inicial y salida; cualquier fix se deriva como tarea acotada.
+10. **4V.10 — Drawers y diálogos.** RC-001; no incluye ubicación ni Ranking.
+11. **4V.11 — Resumen posterior a MAME.** RC-002, apoyado en estado/cola
+    canónicos.
+12. **4V.12 — Footer y versión.** RC-003; no implementar updater.
+13. **4V.13 — Branding y loader.** RC-004 sobre el overlay 3B.2, con
     reduced-motion.
-12. **4V.12 — QA visual física de RC.** RC-005–RC-007 tras cerrar los cambios
+14. **4V.14 — QA visual física de RC.** RC-005–RC-007 tras cerrar los cambios
     anteriores.
 
 Watcher, integridad, hardening, legacy, instalador y catálogo permanecen en su
@@ -399,8 +441,10 @@ como elementos derivados aunque no sean backlog abierto.
 | 101 | `typography-manrope-1.md` | sí | no | no | no | SOL-008 | Dirección tipográfica vigente. |
 | 102 | `web-ranking-capabilities-1.md` | sí | no | sí | sí | SOL-005, OBS-004 | Contrato servidor vigente salvo TTL Electron, sustituido posteriormente. |
 
-**Control de suma:** 102 filas, igual a los 102 archivos físicos y
-versionados enumerados.
+**Control de suma del censo original:** 102 filas, igual a los 102 archivos
+fuente físicos y versionados enumerados entonces. Los documentos de continuidad
+4V.0–4V.1B se citan en las actualizaciones, pero no se insertan ni renumeran en
+este apéndice histórico.
 
 ## 16. Documentos eliminados o renombrados recuperados desde Git
 
@@ -436,6 +480,10 @@ un documento histórico.
 | --- | --- | --- |
 | Ranking interactivo | Busy global, doble apertura o reachability falsa | gate SOL-005 + operation feedback + 3B.3 |
 | Geometría biblioteca | Aumentar ancho y romper detalle/preferencia | regiones 3B.1 + valores contrastados CON-001 |
+| Continuidad biblioteca | Resetear el scroll izquierdo o conservar el nodo equivocado al cambiar de pack | renderer regional 3B.1 + PR-011 |
+| Hero favorito/readiness | Duplicar estado, romper fallback o confundir favorito con autoridad de pack | assets 3B.2 + presentación 3B.3 + PR-012 |
+| Olvidar cuenta | Ocultar semántica destructiva o reabrir lifecycle de sesión por un cambio de hover | cuenta SOL-006 + foco 3B.1/3B.3 + PR-013 |
+| Membership inicial | Crear segunda autoridad, polling o checking sin operación real | coordinador 4V.1B + revisiones 3A |
 | Startup viewport | Segundo gate, espera infinita o callbacks stale | readiness y generación 3B.2 |
 | Ubicación biblioteca | Confundir raíz, pack y selección; escribir al cancelar | root classifier + selección SOL-004 |
 | Auth/secure storage | Borrar material ambiguo o prometer cifrado inexistente | repositorio canónico SOL-002 |
@@ -449,7 +497,9 @@ un documento histórico.
 | Integridad/catálogo | Seguridad parcial, overwrite o rollback imposible | PC-002 antes de PC-006 |
 | Legacy | Romper packs/CLI/dev bridge aún dependientes | condiciones de deprecación PC-004 |
 
-Regla de mantenimiento: una tarea futura debe citar los IDs que pretende mover,
-actualizar su estado y evidencia, y añadir al apéndice cualquier documento nuevo.
-No debe reclasificar una propuesta como requisito sin fuente aprobada ni cerrar
-un QA mediante inspección estática.
+Regla de mantenimiento: una tarea futura debe citar los IDs que pretende mover y
+actualizar su estado y evidencia. Los documentos de continuidad se registran en
+la sección correspondiente sin renumerar el apéndice histórico, salvo que una
+nueva tarea autorice expresamente otro censo completo. No debe reclasificar una
+propuesta como requisito sin fuente aprobada ni cerrar un QA mediante inspección
+estática.

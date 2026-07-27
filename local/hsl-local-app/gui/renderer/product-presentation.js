@@ -93,6 +93,7 @@ export function deriveConnectivityPresentation(connectivity, remoteConfiguration
 export function derivePublicConnectivityPresentation(connectivity, remoteConfiguration = null) {
   const configurationUnavailable = ["invalid", "missing"].includes(remoteConfiguration?.status);
   const connected = !configurationUnavailable && connectivity?.reachability === "connected";
+  const committed = configurationUnavailable || ["connected", "offline"].includes(connectivity?.reachability);
   return presentation(
     "connectivity",
     connected ? "connected" : "disconnected",
@@ -101,7 +102,7 @@ export function derivePublicConnectivityPresentation(connectivity, remoteConfigu
     connected
       ? "La conexión con High Score League está confirmada."
       : "La conexión con High Score League no está confirmada.",
-    { confirmed: connected },
+    { committed, confirmed: connected },
   );
 }
 
@@ -187,17 +188,19 @@ export function deriveMembershipPresentation(membership = {}, session = {}, cont
     no_session: ["neutral", "Inicia sesión para competir", "La participación se comprueba por cuenta."],
     missing_week: ["blocked", "Falta la semana del pack", "El pack no está asociado a una semana y no puede competir."],
     invalid_week: ["blocked", "Semana del pack no válida", "High Score League no reconoce la semana configurada por este pack."],
-    unknown: ["warning", "Participación sin confirmar", "No se pudo comprobar ahora. Puedes jugar y la puntuación quedará guardada localmente."],
+    unknown: ["warning", "No se pudo consultar la participación", "No se pudo comprobar ahora. Si juegas, la puntuación quedará guardada localmente."],
     error: ["warning", "No se pudo consultar la participación", "La consulta falló temporalmente. Puedes volver a comprobarla."],
   };
   let normalizedStatus = status;
-  const activeCurrentRequest = membership.request?.inFlight === true
-    && membership.request?.contextCurrent === true
-    && membership.request?.generation === membership.generation
-    && membership.request?.accountId === context.accountId
-    && membership.request?.instanceKey === context.instanceKey
-    && membership.request?.weekId === context.weekId;
-  if (status === "checking" && !activeCurrentRequest) normalizedStatus = "unknown";
+  const resolution = membership.resolution?.active === true ? membership.resolution : membership.request;
+  const activeCurrentResolution = Boolean(resolution)
+    && (resolution.active === true || resolution.inFlight === true)
+    && resolution.contextCurrent === true
+    && resolution.generation === membership.generation
+    && resolution.accountId === context.accountId
+    && resolution.instanceKey === context.instanceKey
+    && resolution.weekId === context.weekId;
+  if (status === "checking" && !activeCurrentResolution) normalizedStatus = "unknown";
   if (status === "unknown" && membership.authDeferred) normalizedStatus = "deferred";
   if (normalizedStatus === "deferred") {
     return presentation("membership", "deferred", "warning", "Comprobación aplazada", "La sesión local se conserva y la participación se comprobará cuando sea posible.");
@@ -222,10 +225,7 @@ const STABLE_MEMBERSHIP_PRESENTATION_STATUSES = new Set([
 ]);
 
 function activeAccountId(state = {}) {
-  return state.data?.accounts?.activeUserId
-    || state.data?.session?.email
-    || state.data?.accounts?.knownAccounts?.find((account) => account.isActive)?.email
-    || null;
+  return state.data?.accounts?.activeUserId || null;
 }
 
 function membershipContext(state = {}) {
@@ -254,9 +254,18 @@ function membershipPresentationIsPending(state = {}) {
 }
 
 export function shouldPreserveMembershipPresentation(currentState = {}, previousState = null) {
-  return Boolean(previousState)
-    && sameMembershipContext(currentState, previousState)
-    && membershipPresentationIsPending(currentState);
+  if (!previousState || !sameMembershipContext(currentState, previousState) || !membershipPresentationIsPending(currentState)) {
+    return false;
+  }
+  const current = currentState.data?.membership || {};
+  const currentPresentation = deriveMembershipPresentation(current, currentState.data?.session, membershipContext(currentState));
+  if (currentPresentation.status === "checking") return false;
+  const previous = previousState.data?.membership || {};
+  const previousPresentation = deriveMembershipPresentation(previous, previousState.data?.session, membershipContext(previousState));
+  const previousWasInitialDeferred = previous.status === "unknown"
+    && previous.technicalReason === "deferred"
+    && !previous.checkedAt;
+  return STABLE_MEMBERSHIP_PRESENTATION_STATUSES.has(previousPresentation.status) && !previousWasInitialDeferred;
 }
 
 export function selectMembershipForPresentation(currentState = {}, previousState = null) {
@@ -266,10 +275,17 @@ export function selectMembershipForPresentation(currentState = {}, previousState
   if (!membershipPresentationIsPending(currentState)) {
     return current;
   }
+  const currentPresentation = deriveMembershipPresentation(current, currentState.data?.session, membershipContext(currentState));
+  if (currentPresentation.status === "checking") return current;
 
   const previous = previousState.data?.membership || {};
   const previousPresentation = deriveMembershipPresentation(previous, previousState.data?.session, membershipContext(previousState));
-  return STABLE_MEMBERSHIP_PRESENTATION_STATUSES.has(previousPresentation.status) ? previous : current;
+  const previousWasInitialDeferred = previous.status === "unknown"
+    && previous.technicalReason === "deferred"
+    && !previous.checkedAt;
+  return STABLE_MEMBERSHIP_PRESENTATION_STATUSES.has(previousPresentation.status) && !previousWasInitialDeferred
+    ? previous
+    : current;
 }
 
 export function deriveQueuePresentation(queue = {}, autoSync = {}, session = {}) {
@@ -425,6 +441,7 @@ export function derivePrimaryActions(state = {}) {
   else if (["duplicate", "invalid", "mame-unavailable"].includes(pack.status)) competitionReason = pack.description;
   else if (session.requiresLogin) competitionReason = "Vuelve a iniciar sesión con esta cuenta para competir.";
   else if (!session.hasSession) competitionReason = "Inicia sesión para competir.";
+  else if (membership.status === "checking") competitionReason = membership.title;
   else if (data.membership?.canPlayCompetition === false) competitionReason = membership.description;
   else if (readiness.canPlayCompetition === false) competitionReason = firstReadinessBlocker(readiness, "Este pack todavía no está preparado para competir.");
 
@@ -441,7 +458,7 @@ export function derivePrimaryActions(state = {}) {
   const rankingReason = busyReason || (ranking.available ? null : ranking.description);
 
   return {
-    competition: actionPresentation("play", "Competición", "play", !competitionReason, competitionReason),
+    competition: actionPresentation("play", "Jugar", "play", !competitionReason, competitionReason),
     practice: actionPresentation("practice", "Práctica", "practice", !practiceReason, practiceReason),
     manual: actionPresentation("open-manual", "Manual", "manual", !manualReason, manualReason),
     ranking: actionPresentation("open-ranking", "Ranking", "ranking", !rankingReason, rankingReason),
@@ -453,15 +470,21 @@ export function deriveSupportingActions(state = {}) {
   const session = data.session || {};
   const remote = deriveRemoteAvailability(state.connectivity);
   const connectivity = deriveConnectivityPresentation(state.connectivity, data.remoteConfiguration);
+  const publicConnectivity = derivePublicConnectivityPresentation(state.connectivity, data.remoteConfiguration);
   const busyReason = state.busy ? state.busyLabel || "Hay otra operación en curso." : null;
   const manualProbe = state.connectivity?.probe?.phase === "manual" && state.connectivity?.probe?.inFlight;
+  const refreshReason = busyReason
+    || (connectivity.domain === "remote-configuration" ? connectivity.description : null)
+    || (state.connectivity?.activity === "suspended" ? "La comprobación se reanudará al volver a la aplicación." : null)
+    || (!publicConnectivity.committed ? "Espera al primer resultado de conexión." : null)
+    || (manualProbe ? "Ya se está comprobando la conexión." : null);
   const loginReason = busyReason || (connectivity.domain === "remote-configuration" || !remote.available ? connectivity.description : null);
   const directoryAvailable = data.library?.directory?.available === true;
   return {
     login: actionPresentation("login", "Entrar", "user", !loginReason, loginReason),
     switchAccount: actionPresentation("switch-account", "Cambiar cuenta", "user", !busyReason, busyReason),
     restoreFailed: actionPresentation("restore-failed", "Restaurar a pendientes", "refresh", !busyReason, busyReason),
-    refreshConnectivity: actionPresentation("refresh-connectivity", "Comprobar conexión", "refresh", !manualProbe, manualProbe ? "Ya se está comprobando la conexión." : null),
+    refreshConnectivity: actionPresentation("refresh-connectivity", "Comprobar conexión", "refresh", !refreshReason, refreshReason),
     checkMembership: actionPresentation("check-membership", "Comprobar de nuevo", "refresh", !busyReason && session.hasSession && remote.available && connectivity.domain !== "remote-configuration", busyReason || (!session.hasSession ? "Inicia sesión para comprobar tu participación." : connectivity.domain === "remote-configuration" ? connectivity.description : !remote.available ? "Recupera la conexión para comprobar tu participación." : null)),
     chooseLibrary: actionPresentation("choose-pack-directory", "Cambiar biblioteca", "folder", !busyReason, busyReason),
     rescanLibrary: actionPresentation("rescan-pack-directory", "Reescanear", "refresh", !busyReason && directoryAvailable, busyReason || (!directoryAvailable ? "Configura una biblioteca accesible antes de reescanear." : null)),
@@ -475,9 +498,9 @@ export function deriveGameSummaryPresentation(state = {}) {
   const pack = derivePackPresentation({ game: data.game, readiness: data.readiness, bridge: data.bridge });
   if (["duplicate", "invalid", "mame-unavailable", "legacy", "warning"].includes(pack.status)) return pack;
   const membership = deriveMembershipPresentation(data.membership, data.session, membershipContext(state));
-  if (["not_member", "missing_week", "invalid_week", "requires-login", "error", "unknown", "deferred", "checking"].includes(membership.status)) return membership;
+  if (["not_member", "no_session", "missing_week", "invalid_week", "requires-login", "error", "unknown", "deferred", "checking"].includes(membership.status)) return membership;
   if (pack.status === "ready" && membership.status === "member") {
-    return presentation("game", "competition-ready", "success", "Listo para competir", "El pack y tu participación están preparados.");
+    return presentation("game", "competition-ready", "success", "Pack listo", "El pack y tu participación están preparados.");
   }
   return pack;
 }
@@ -508,7 +531,8 @@ export function deriveLiveAnnouncement(previousState, nextState, changedKeys = [
   if (changedKeys.includes("connectivity")) {
     const current = derivePublicConnectivityPresentation(nextState.connectivity, nextState.data?.remoteConfiguration);
     const previous = derivePublicConnectivityPresentation(previousState.connectivity, previousState.data?.remoteConfiguration);
-    if (current.status !== previous.status) return current.title;
+    const manualFeedbackVisible = nextState.busy === true && nextState.busyLabel === "Comprobando conexión";
+    if (!manualFeedbackVisible && current.committed && (!previous.committed || current.status !== previous.status)) return current.title;
   }
   if (changedKeys.includes("data")) {
     const current = deriveQueuePresentation(nextState.data?.queue, nextState.data?.autoSync, nextState.data?.session);

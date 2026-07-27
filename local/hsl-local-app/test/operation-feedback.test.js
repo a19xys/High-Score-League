@@ -116,3 +116,43 @@ test("stale operations cannot finish a newer feedback run", async () => {
   });
   assert.equal(finished, false);
 });
+
+test("manual connectivity uses one guarded IPC call and the common overlay lifecycle", async () => {
+  const [app, header, overlay] = await Promise.all([
+    fsp.readFile(path.join(rendererRoot, "app.js"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "components", "header.js"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "components", "busy-overlay.js"), "utf8"),
+  ]);
+  const manualBlock = app.slice(
+    app.indexOf('if (action === "refresh-connectivity")'),
+    app.indexOf('if (action === "check-membership")'),
+  );
+
+  assert.match(manualBlock, /runAction\(action, "Comprobando conexi\\u00f3n"/);
+  assert.equal((manualBlock.match(/requestConnectivityRefresh\("manual"\)/g) || []).length, 1);
+  assert.doesNotMatch(manualBlock, /setTimeout|activeOverlay|membership|pack/);
+  assert.match(app, /async function runAction[\s\S]*if \(store\.getState\(\)\.busy\) return;[\s\S]*const runId = \+\+busyRunSequence/);
+  assert.match(app, /busy: true,[\s\S]*busyLabel/);
+  assert.match(app, /runId !== busyRunSequence/);
+  assert.match(app, /cleanupRendererLifecycle[\s\S]*busyRunSequence \+= 1;[\s\S]*clearTimeout\(activeBusyPhaseTimer\)/);
+  assert.match(manualBlock, /restoreTriggerFocus: true/);
+  assert.match(app, /const restoreTriggerFocus = \(\) =>[\s\S]*trigger\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(header, /data-action="refresh-connectivity"[\s\S]*aria-label="Comprobar conexión"[\s\S]*aria-busy=/);
+  assert.match(header, /disabled aria-disabled=/);
+  assert.match(overlay, /title: "Comprobando conexi\\u00f3n\.\.\."/);
+  assert.match(overlay, /Verificando la conexión con High Score League\./);
+});
+
+test("automatic connectivity signals stay outside operation feedback", async () => {
+  const app = await fsp.readFile(path.join(rendererRoot, "app.js"), "utf8");
+  for (const [handler, reason] of [
+    ["handleRendererOffline", "renderer-offline"],
+    ["handleRendererOnline", "renderer-online"],
+    ["handleConnectionChange", "connection-change"],
+  ]) {
+    const start = app.indexOf(`function ${handler}`);
+    const block = app.slice(start, app.indexOf("}\n", start) + 2);
+    assert.match(block, new RegExp(`requestConnectivityRefresh\\?\\.\\(\"${reason}\"\\)`));
+    assert.doesNotMatch(block, /runAction|runWithOperationFeedback|busyLabel/);
+  }
+});

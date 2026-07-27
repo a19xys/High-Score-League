@@ -81,7 +81,7 @@ function productState(overrides = {}) {
 
 function checkingMembership(overrides = {}) {
   return {
-    canPlayCompetition: true,
+    canPlayCompetition: false,
     generation: 12,
     request: {
       accountId: "user-1",
@@ -215,7 +215,7 @@ test("checking requires a live request for the exact account, pack, week and gen
   assert.equal(deriveMembershipPresentation({ status: "unknown", technicalReason: "deferred" }, session, context).status, "unknown");
 });
 
-test("background membership refresh preserves a stable result only in the same context", async () => {
+test("deferred snapshots preserve stable membership but a real checking pipeline remains visible", async () => {
   const { selectMembershipForPresentation, shouldPreserveMembershipPresentation } = await presentationApi();
   const previousMember = productState();
   const previousNotMember = productState({
@@ -227,10 +227,12 @@ test("background membership refresh preserves a stable result only in the same c
   const checking = productState({ data: { membership: checkingMembership() } });
 
   assert.equal(selectMembershipForPresentation(deferred, previousMember).status, "member");
-  assert.equal(selectMembershipForPresentation(checking, previousNotMember).status, "not_member");
+  assert.equal(selectMembershipForPresentation(checking, previousNotMember).status, "checking");
+  assert.equal(selectMembershipForPresentation(checking, deferred).status, "checking");
   assert.equal(shouldPreserveMembershipPresentation(deferred, previousMember), true);
-  assert.equal(shouldPreserveMembershipPresentation(deferred, deferred), true);
-  assert.equal(shouldPreserveMembershipPresentation(checking, previousNotMember), true);
+  assert.equal(shouldPreserveMembershipPresentation(deferred, deferred), false);
+  assert.equal(shouldPreserveMembershipPresentation(checking, deferred), false);
+  assert.equal(shouldPreserveMembershipPresentation(checking, previousNotMember), false);
 
   const otherAccount = productState({
     data: {
@@ -298,25 +300,31 @@ test("stable membership outcomes replace checking and remain retryable through e
 test("public connectivity projection is binary across every internal state", async () => {
   const { derivePublicConnectivityPresentation } = await presentationApi();
   const cases = [
-    [null, "disconnected"],
-    [{ reachability: "unknown", displayStatus: "connecting", probe: { inFlight: true, phase: "startup" } }, "disconnected"],
-    [{ reachability: "offline", displayStatus: "reconnecting", probe: { inFlight: true, phase: "retry" } }, "disconnected"],
-    [{ reachability: "offline", activity: "suspended", displayStatus: "offline" }, "disconnected"],
-    [{ reachability: "unknown", reason: "timeout" }, "disconnected"],
-    [{ reachability: "connected", displayStatus: "reconnecting", probe: { inFlight: true, phase: "manual" } }, "connected"],
-    [{ reachability: "connected", activity: "suspended" }, "connected"],
+    [null, "disconnected", false],
+    [{ reachability: "unknown", displayStatus: "connecting", probe: { inFlight: true, phase: "startup" } }, "disconnected", false],
+    [{ reachability: "offline", displayStatus: "reconnecting", probe: { inFlight: true, phase: "retry" } }, "disconnected", true],
+    [{ reachability: "offline", activity: "suspended", displayStatus: "offline" }, "disconnected", true],
+    [{ reachability: "unknown", reason: "timeout" }, "disconnected", false],
+    [{ reachability: "connected", displayStatus: "reconnecting", probe: { inFlight: true, phase: "manual" } }, "connected", true],
+    [{ reachability: "connected", activity: "suspended" }, "connected", true],
   ];
 
-  for (const [connectivity, expected] of cases) {
+  for (const [connectivity, expected, committed] of cases) {
     const result = derivePublicConnectivityPresentation(connectivity);
     assert.equal(result.status, expected);
+    assert.equal(result.committed, committed);
     assert.ok(["Conectado", "Desconectado"].includes(result.title));
   }
-  assert.equal(derivePublicConnectivityPresentation({ reachability: "connected" }, { status: "missing" }).status, "disconnected");
-  assert.equal(derivePublicConnectivityPresentation({ reachability: "connected" }, { status: "invalid" }).status, "disconnected");
+  assert.deepEqual(
+    ["missing", "invalid"].map((status) => {
+      const result = derivePublicConnectivityPresentation({ reachability: "unknown" }, { status });
+      return [result.status, result.committed];
+    }),
+    [["disconnected", true], ["disconnected", true]],
+  );
 });
 
-test("normal connectivity markup uses text and a decorative CSS dot without SVG", async () => {
+test("normal connectivity separates the CSS status dot from the SVG refresh action", async () => {
   const { renderConnectionControl } = await headerApi();
   const connected = renderConnectionControl(productState());
   const disconnected = renderConnectionControl(productState({
@@ -329,7 +337,29 @@ test("normal connectivity markup uses text and a decorative CSS dot without SVG"
   assert.match(connected, />Conectado</);
   assert.match(disconnected, /connection-chip--disconnected/);
   assert.match(disconnected, />Desconectado</);
-  assert.doesNotMatch(`${connected}${disconnected}`, /renderIcon|ui-icon|\.svg|<img|<svg|refresh|check|cross/i);
+  for (const html of [connected, disconnected]) {
+    const chip = html.slice(html.indexOf("<div class=\"connection-chip"), html.indexOf("</div>") + 6);
+    assert.doesNotMatch(chip, /ui-icon|\.svg|<img|<svg|check|cross/i);
+    assert.match(html, /data-action="refresh-connectivity"/);
+    assert.match(html, /aria-label="Comprobar conexión"/);
+    assert.match(html, /data-icon="refresh"/);
+  }
+});
+
+test("uncommitted connectivity reserves geometry without text, dot, status or live announcement", async () => {
+  const [{ renderConnectionControl }, { deriveLiveAnnouncement }] = await Promise.all([headerApi(), presentationApi()]);
+  const initial = productState({
+    connectivity: { displayStatus: "connecting", probe: { inFlight: true, phase: "startup" }, reachability: "unknown" },
+  });
+  const html = renderConnectionControl(initial);
+  const previous = productState({ connectivity: null });
+
+  assert.match(html, /data-connectivity-committed="false"/);
+  assert.match(html, /connection-chip--unresolved"[\s\S]*aria-hidden="true"/);
+  assert.doesNotMatch(html, /data-connectivity-status=/);
+  assert.doesNotMatch(html, /connection-dot|>Conectado<|>Desconectado<|Comprobando conexión|Reconectando/);
+  assert.match(html, /connection-refresh-button[\s\S]*disabled aria-disabled="true" aria-hidden="true" tabindex="-1"/);
+  assert.equal(deriveLiveAnnouncement(previous, initial, ["connectivity"]), null);
 });
 
 test("probes keep identical header HTML and live output until committed reachability changes", async () => {

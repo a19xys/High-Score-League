@@ -1025,49 +1025,49 @@ async function getScopedGuiConfig(baseConfig, session) {
 
 async function getLauncherContext(options = {}) {
   const runtimeConfig = options.config || loadRuntimeConfig();
-  const session = await getAuthState(runtimeConfig, {
-    deferRemote: options.connected !== true,
-  });
-  const [library, libraryPreferences] = await Promise.all([
-    scanPackLibrary(runtimeConfig),
-    readLibraryPreferences(runtimeConfig, session),
-  ]);
-  const selection = await reconcileLibrarySelection(runtimeConfig, library, libraryPreferences);
-  const baseConfig = selection.activeInstanceKey
-    ? getEffectiveConfig(runtimeConfig)
-    : deriveNoActivePackConfig(runtimeConfig);
-  const accountsStore = await readKnownAccounts(baseConfig);
-  const membershipSignal = combineAbortSignals([
+  const remoteSignal = combineAbortSignals([
     options.signal,
     getRemoteOperationSignal(),
     interactiveRemoteController.signal,
   ]);
-  let membership;
   try {
-    membership = await checkSeasonMembership(baseConfig, session, {
-      deferRemote: options.deferRemoteMembership === true,
-      signal: membershipSignal.signal,
+    const session = await getAuthState(runtimeConfig, {
+      deferRemote: options.connected !== true,
+      signal: remoteSignal.signal,
     });
-  } finally {
-    membershipSignal.dispose();
-  }
-  const scoped = await getScopedGuiConfig(baseConfig, session);
-  const queue = scoped.scope
-    ? await getQueueState(scoped.config)
-    : getEmptyQueueState(baseConfig, scoped.reason);
+    const [library, libraryPreferences] = await Promise.all([
+      scanPackLibrary(runtimeConfig),
+      readLibraryPreferences(runtimeConfig, session),
+    ]);
+    const selection = await reconcileLibrarySelection(runtimeConfig, library, libraryPreferences);
+    const baseConfig = selection.activeInstanceKey
+      ? getEffectiveConfig(runtimeConfig)
+      : deriveNoActivePackConfig(runtimeConfig);
+    const accountsStore = await readKnownAccounts(baseConfig);
+    const membership = await checkSeasonMembership(baseConfig, session, {
+      deferRemote: options.deferRemoteMembership === true,
+      signal: remoteSignal.signal,
+    });
+    const scoped = await getScopedGuiConfig(baseConfig, session);
+    const queue = scoped.scope
+      ? await getQueueState(scoped.config)
+      : getEmptyQueueState(baseConfig, scoped.reason);
 
-  return {
-    accountsStore,
-    baseConfig,
-    config: scoped.config,
-    library,
-    libraryPreferences,
-    membership,
-    queue,
-    scoped,
-    selection,
-    session,
-  };
+    return {
+      accountsStore,
+      baseConfig,
+      config: scoped.config,
+      library,
+      libraryPreferences,
+      membership,
+      queue,
+      scoped,
+      selection,
+      session,
+    };
+  } finally {
+    remoteSignal.dispose();
+  }
 }
 
 async function stateFromContext(context) {
@@ -1901,16 +1901,24 @@ function getEmptyBridgeState(library) {
 }
 
 async function getLauncherState(options = {}) {
+  const deferRemoteMembership = options.connected !== true && options.deferRemoteMembership !== false;
   const context = await getLauncherContext({
+    connected: options.connected === true,
     config: options.config || null,
-    deferRemoteMembership: options.deferRemoteMembership === true,
+    deferRemoteMembership,
+    signal: options.signal,
   });
 
   if (options.attemptAutoSync) {
     const result = await runAutoSyncIfEligible(context);
 
     if (result.attempted) {
-      return stateFromContext(await getLauncherContext({ config: options.config || null }));
+      return stateFromContext(await getLauncherContext({
+        connected: options.connected === true,
+        config: options.config || null,
+        deferRemoteMembership,
+        signal: options.signal,
+      }));
     }
   }
 
@@ -1928,7 +1936,7 @@ async function recheckSeasonMembership() {
     lines: ["Comprobacion de temporada actualizada."],
     ok: true,
     summary: "Comprobacion de temporada actualizada.",
-    state: await getLauncherState(),
+    state: await getLauncherState({ connected: true }),
   };
 }
 
@@ -2097,7 +2105,7 @@ async function playCompetition() {
       lines: ["Inicia sesion para jugar en competicion y guardar puntuaciones en tu cola local."],
       ok: false,
       summary: "Inicia sesion para jugar en competicion.",
-      state: await getLauncherState(),
+      state: await getLauncherState({ connected: true }),
     };
   }
 
@@ -2107,7 +2115,7 @@ async function playCompetition() {
       lines: [membership.message],
       ok: false,
       summary: membership.message,
-      state: await getLauncherState(),
+      state: await getLauncherState({ connected: true }),
     };
   }
 
@@ -2119,7 +2127,7 @@ async function playCompetition() {
       lines: [scoped.reason || "No se pudo preparar la cola local de esta cuenta."],
       ok: false,
       summary: "No se pudo preparar la cola local.",
-      state: await getLauncherState(),
+      state: await getLauncherState({ connected: true }),
     };
   }
 
@@ -2137,7 +2145,7 @@ async function playCompetition() {
   if (readinessBlock) {
     return {
       ...readinessBlock,
-      state: await getLauncherState(),
+      state: await getLauncherState({ connected: true }),
     };
   }
 
@@ -2159,7 +2167,7 @@ async function playCompetition() {
         lines: [normalizeMessage(error)],
         ok: false,
         summary: "No se pudo preparar la captura competitiva.",
-        state: await getLauncherState(),
+        state: await getLauncherState({ connected: true }),
       };
     }
   }
@@ -2206,13 +2214,13 @@ async function playCompetition() {
     ],
     ok: exitCode === 0,
     result: captured.result || null,
-    state: await getLauncherState(),
+    state: await getLauncherState({ connected: true }),
   };
 }
 
 async function playPractice() {
   await ensureRememberedPackLoaded();
-  const context = await getLauncherContext();
+  const context = await getLauncherContext({ deferRemoteMembership: true });
   const autoSync = getAutoSyncDisplayState({
     autoSyncInProgress,
     membership: context.membership,

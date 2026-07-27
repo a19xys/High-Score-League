@@ -15,7 +15,7 @@ test("Electron quit and suspend use bounded session drains without a quit loop",
   assert.match(service, /\.drain\(options\)/);
   assert.match(service, /async function shutdownAccountSessions/);
   assert.match(service, /\.shutdown\(options\)/);
-  assert.match(main, /syncRemoteContext\(state, \{ scheduleAutoSubmit: false \}\)/);
+  assert.match(main, /coordinateMembershipResult\([\s\S]*`auto-submit:\$\{context\?\.trigger \|\| "result"\}`,[\s\S]*\{ scheduleAutoSubmit: false \}/);
 });
 
 test("CLI installs signal cleanup and awaits the final bounded repository drain", async () => {

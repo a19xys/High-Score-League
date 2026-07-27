@@ -128,6 +128,7 @@ test("membership checking requires a current request and temporary failure is st
   assert.equal(notMember.status, "not_member");
   assert.equal(notMember.primaryAction.action, "open-membership-url");
   assert.equal(deriveMembershipPresentation({ status: "error" }, { hasSession: true }).status, "error");
+  assert.equal(deriveMembershipPresentation({ status: "unknown", checkedAt: "2026-07-27" }, { hasSession: true }).title, "No se pudo consultar la participación");
   assert.equal(deriveMembershipPresentation({ status: "unknown", authDeferred: true }, { hasSession: true }).status, "deferred");
   assert.equal(deriveMembershipPresentation({ status: "no_session" }, { hasSession: false }).status, "no_session");
 });
@@ -179,6 +180,7 @@ test("primary actions use deterministic competition precedence and preserve prac
   const { derivePrimaryActions } = await presentationApi();
   const busy = derivePrimaryActions(state({ busy: true, busyLabel: "Actualizando" }));
   assert.equal(busy.competition.reason, "Actualizando");
+  assert.equal(busy.competition.label, "Jugar");
   const duplicate = state({
     data: {
       game: { ...state().data.game, duplicateGroup: true },
@@ -195,6 +197,44 @@ test("primary actions use deterministic competition precedence and preserve prac
   assert.match(derivePrimaryActions(requiresLogin).competition.reason, /Vuelve a iniciar sesión/);
   const membership = state({ data: { membership: { canPlayCompetition: false, status: "not_member" }, readiness: { ...state().data.readiness, canPlayCompetition: false } } });
   assert.match(derivePrimaryActions(membership).competition.reason, /Únete desde la web/);
+
+  const checking = state({
+    data: {
+      accounts: { activeUserId: "user-1", knownAccounts: [{ isActive: true, userId: "user-1" }] },
+      game: { ...state().data.game, instanceKey: "pack-1" },
+      membership: {
+        canPlayCompetition: false,
+        generation: 2,
+        resolution: { active: true, accountId: "user-1", contextCurrent: true, generation: 2, instanceKey: "pack-1", weekId: "week-1" },
+        status: "checking",
+      },
+      readiness: { ...state().data.readiness, canPlayCompetition: false },
+      session: { ...state().data.session, userId: "user-1" },
+    },
+  });
+  const checkingActions = derivePrimaryActions(checking);
+  assert.equal(checkingActions.competition.available, false);
+  assert.equal(checkingActions.competition.reason, "Comprobando participación");
+});
+
+test("confirmed member plus ready pack uses the exact Pack listo success summary", async () => {
+  const { deriveGameSummaryPresentation } = await presentationApi();
+  const summary = deriveGameSummaryPresentation(state());
+  assert.equal(summary.title, "Pack listo");
+  assert.equal(summary.severity, "success");
+  assert.notEqual(summary.title, "Listo para competir");
+});
+
+test("a ready pack without a session keeps the membership action visible", async () => {
+  const { deriveGameSummaryPresentation } = await presentationApi();
+  const summary = deriveGameSummaryPresentation(state({
+    data: {
+      membership: { status: "no_session" },
+      session: { hasSession: false, remoteUsable: false, requiresLogin: false, status: "no_session" },
+    },
+  }));
+  assert.equal(summary.title, "Inicia sesión para competir");
+  assert.notEqual(summary.title, "Pack listo");
 });
 
 test("manual and ranking expose reasons and actions re-enable after busy", async () => {
@@ -229,8 +269,12 @@ test("live announcements are focused and ignore silent probes", async () => {
     },
   });
   assert.equal(deriveLiveAnnouncement(previous, silent, ["connectivity"]), null);
+  const unresolved = state({ connectivity: { displayStatus: "connecting", probe: { inFlight: true, phase: "startup" }, reachability: "unknown" } });
+  assert.equal(deriveLiveAnnouncement(state({ connectivity: null }), unresolved, ["connectivity"]), null);
   const offline = state({ connectivity: { displayStatus: "offline", probe: { inFlight: false }, reachability: "offline" } });
   assert.equal(deriveLiveAnnouncement(previous, offline, ["connectivity"]), "Desconectado");
+  const manual = state({ busy: true, busyLabel: "Comprobando conexión", connectivity: offline.connectivity });
+  assert.equal(deriveLiveAnnouncement(previous, manual, ["connectivity"]), null);
   const logState = state({ logs: [{ summary: "Puntuación enviada" }] });
   assert.equal(deriveLiveAnnouncement(previous, logState, ["logs"]), "Puntuación enviada");
 });

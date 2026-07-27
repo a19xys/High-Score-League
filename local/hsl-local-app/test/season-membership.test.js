@@ -26,6 +26,11 @@ function sessionState() {
   };
 }
 
+test("the canonical backend guard rejects checking before MAME can launch", () => {
+  assert.equal(shouldBlockCompetition({ status: "checking" }), true);
+  assert.equal(shouldBlockSubmit({ status: "checking", canSubmit: false }), true);
+});
+
 function storedSession(token = "secret-access-token") {
   return {
     supabaseUrl: "https://project.supabase.co",

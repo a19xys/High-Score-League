@@ -242,6 +242,26 @@ test("membership unknown permite competir con warning pero no subir", async () =
   });
 });
 
+test("membership checking bloquea Jugar con la misma razon de participacion", async () => {
+  await withTempDir(async (root) => {
+    const fixture = await createReadyFixture(root, {
+      membership: {
+        canPlayCompetition: false,
+        canSubmit: false,
+        status: "checking",
+      },
+    });
+    const result = evaluatePackReadiness(fixture);
+    const membership = result.checks.find((item) => item.id === "membership");
+
+    assert.equal(result.canPlayCompetition, false);
+    assert.equal(result.status, "blocked");
+    assert.equal(membership.level, "error");
+    assert.equal(membership.message, "Comprobando participación.");
+    assert.match(result.blockers.join(" "), /Comprobando participación/);
+  });
+});
+
 test("falta weekId permite practica pero bloquea competicion y sync", async () => {
   await withTempDir(async (dir) => {
     const context = await createReadyFixture(dir);

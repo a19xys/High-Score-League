@@ -227,11 +227,28 @@ export function renderAccountControl(state) {
 
 export function renderConnectionControl(state) {
   const status = derivePublicConnectivityPresentation(state.connectivity, state.data?.remoteConfiguration);
+  const action = deriveSupportingActions(state).refreshConnectivity;
+  const committed = status.committed === true;
+  const manualProbe = state.connectivity?.probe?.phase === "manual" && state.connectivity?.probe?.inFlight === true;
+  const disabled = !committed || !action.available;
+  const actionTitle = action.reason || action.label;
 
   return `
-    <div class="connection-chip connection-chip--${escapeHtml(status.status)}" data-connectivity-status="${escapeHtml(status.status)}" data-severity="${escapeHtml(status.severity)}" title="${escapeHtml(status.description)}">
-      <span class="connection-dot" aria-hidden="true"></span>
-      <span class="connection-label">${escapeHtml(status.title)}</span>
+    <div class="connection-control" data-connectivity-committed="${committed ? "true" : "false"}" ${!committed ? "aria-hidden=\"true\"" : ""}>
+      <div class="connection-chip ${committed ? `connection-chip--${escapeHtml(status.status)}` : "connection-chip--unresolved"}"
+        ${committed
+          ? `data-connectivity-status="${escapeHtml(status.status)}" data-severity="${escapeHtml(status.severity)}" title="${escapeHtml(status.description)}"`
+          : "aria-hidden=\"true\""}>
+        ${committed ? `
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span class="connection-label">${escapeHtml(status.title)}</span>
+        ` : ""}
+      </div>
+      <button class="theme-button theme-button--icon connection-refresh-button" type="button" data-action="refresh-connectivity"
+        title="${escapeHtml(actionTitle)}" aria-label="Comprobar conexión" aria-busy="${manualProbe ? "true" : "false"}"
+        ${disabled ? "disabled aria-disabled=\"true\"" : ""} ${!committed ? "aria-hidden=\"true\" tabindex=\"-1\"" : ""}>
+        ${renderIcon("refresh", { className: "button-icon connection-refresh-icon", size: "sm" })}
+      </button>
     </div>
   `;
 }

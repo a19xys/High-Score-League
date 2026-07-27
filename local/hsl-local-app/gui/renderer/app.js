@@ -123,6 +123,7 @@ let lastRenderedState = null;
 let dialogReturnFocus = null;
 let overlayReturnFocus = null;
 let busyRunSequence = 0;
+let activeBusyPhaseTimer = null;
 let activeRankingFeedback = null;
 let detailAssetGeneration = 0;
 let detailAssetIdentity = null;
@@ -1539,6 +1540,9 @@ function resultToLog(title, response) {
     practice: ok
       ? "Práctica cerrada. No se activó el plugin de puntuación desde el launcher."
       : "La práctica terminó con aviso.",
+    "refresh-connectivity": response.summary || (ok
+      ? "Conexión con High Score League confirmada."
+      : "No se pudo conectar con High Score League."),
     refresh: "Estado local actualizado.",
     "rescan-pack-directory": response.summary || "Biblioteca reescaneada.",
     "restore-failed": ok
@@ -1566,7 +1570,15 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
 
   const runId = ++busyRunSequence;
   const busyStartedAt = Date.now();
-  let phaseTimer = null;
+  const shouldRestoreTriggerFocus = options.restoreTriggerFocus === true
+    && document.activeElement?.closest?.(`[data-action="${action}"]`);
+  const restoreTriggerFocus = () => {
+    if (!shouldRestoreTriggerFocus) return;
+    const trigger = root.querySelector(`[data-action="${action}"]`);
+    if (trigger && !trigger.disabled) trigger.focus({ preventScroll: true });
+  };
+  if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
+  activeBusyPhaseTimer = null;
   store.setState({
     ...closeAccountMenuState(),
     busy: true,
@@ -1574,7 +1586,7 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
   });
 
   if (options.runningLabel) {
-    phaseTimer = window.setTimeout(() => {
+    activeBusyPhaseTimer = window.setTimeout(() => {
       const current = store.getState();
 
       if (runId === busyRunSequence && current.busy) {
@@ -1590,7 +1602,8 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
       startedAt: busyStartedAt,
       operation: async () => {
         const value = await fn();
-        window.clearTimeout(phaseTimer);
+        if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
+        activeBusyPhaseTimer = null;
 
         if (options.closingLabel) {
           store.setState({ busyLabel: options.closingLabel });
@@ -1625,8 +1638,10 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
     }
 
     store.setState(statePatch);
+    restoreTriggerFocus();
   } catch (error) {
-    window.clearTimeout(phaseTimer);
+    if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
+    activeBusyPhaseTimer = null;
 
     if (runId !== busyRunSequence) return;
 
@@ -1640,6 +1655,7 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
         title,
       }),
     });
+    restoreTriggerFocus();
   }
 }
 
@@ -2159,7 +2175,7 @@ function bindActions() {
           ok,
           summary: ok ? "Conexi\u00f3n con High Score League confirmada." : "No se pudo conectar con High Score League.",
         };
-      });
+      }, { restoreTriggerFocus: true });
     }
 
     if (action === "check-membership") {
@@ -2254,6 +2270,9 @@ function cleanupConnectivitySignals() {
 
 function cleanupRendererLifecycle() {
   loginDraft.clear();
+  busyRunSequence += 1;
+  if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
+  activeBusyPhaseTimer = null;
   activeRankingFeedback = null;
   cleanupConnectivitySignals();
   metadataResizeObserver?.disconnect();

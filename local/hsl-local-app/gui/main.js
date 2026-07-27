@@ -6,7 +6,8 @@ const { createConnectivityService, isCommittedConnected } = require("../src/conn
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
 const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
-const { createLauncherStateAuthority } = require("../src/launcher-state-authority");
+const { createMembershipStartupCoordinator, membershipResolutionContext } = require("../src/membership-startup-coordinator");
+const { createLauncherStateAuthority, isLauncherSnapshot } = require("../src/launcher-state-authority");
 const { safeMembershipJoinUrl } = require("../src/season-membership");
 const { configureSessionProtection, getSessionStorageDiagnostics } = require("../src/secure-session-storage");
 const { deriveDeveloperToolsEnabled, runDeveloperOnlyOperation } = require("../src/developer-tools");
@@ -45,6 +46,11 @@ let previousReachability = "unknown";
 let lastCommittedAt = null;
 let activeUserId = null;
 let pendingAutoSubmitCoordinator = null;
+let membershipStartupCoordinator = null;
+let activeManualMembershipRun = null;
+let manualMembershipRunSequence = 0;
+const activeMembershipContextMutations = new Set();
+let membershipContextMutationSequence = 0;
 const launcherStateAuthority = createLauncherStateAuthority();
 let connectivityRendererTiming = { appliedAt: null, emittedAt: null, receivedAt: null };
 let rankingRendererTiming = { appliedAt: null, receivedAt: null, stateSequence: 0 };
@@ -52,6 +58,34 @@ let sessionMaintenanceTimer = null;
 let quitAfterSessionDrain = false;
 let quitDrainPromise = null;
 let suspendDrainPromise = null;
+
+function cancelManualMembershipRun(reason = "context-change") {
+  manualMembershipRunSequence += 1;
+  activeManualMembershipRun = null;
+  service.invalidateInteractiveRemoteOperations(reason);
+}
+
+function invalidateMembershipContext(reason = "context-change") {
+  membershipStartupCoordinator?.invalidate(reason);
+  cancelManualMembershipRun(reason);
+}
+
+function membershipCoordinationPaused() {
+  return activeManualMembershipRun !== null || activeMembershipContextMutations.size > 0;
+}
+
+async function withMembershipContextMutation(reason, operation) {
+  invalidateMembershipContext(reason);
+  service.cancelPendingAutoSubmit(reason);
+  pendingAutoSubmitCoordinator?.cancelCurrentRun(reason);
+  const runId = ++membershipContextMutationSequence;
+  activeMembershipContextMutations.add(runId);
+  try {
+    return await operation();
+  } finally {
+    activeMembershipContextMutations.delete(runId);
+  }
+}
 let productOperationsController = new AbortController();
 const developerToolsEnabled = deriveDeveloperToolsEnabled({
   environment: process.env,
@@ -117,6 +151,7 @@ function publicThemeState(state = themeAuthority?.getState()) {
 
 function handlePowerSuspend() {
   productOperationsController.abort("suspend");
+  cancelManualMembershipRun("suspend");
   service.cancelAccountSessionOperations(null, "suspend");
   service.cancelPendingAutoSubmit("suspend");
   pendingAutoSubmitCoordinator?.cancelCurrentRun("suspend");
@@ -132,8 +167,9 @@ function handlePowerResume() {
   suspendDrainPromise = null;
   productOperationsController = new AbortController();
   connectivity?.setActivity("active", "resume");
+  if (!membershipCoordinationPaused()) membershipStartupCoordinator?.resume("resume");
   topologyMonitor?.start();
-  pendingAutoSubmitCoordinator?.resume("resume").catch(() => {});
+  if (!membershipCoordinationPaused()) pendingAutoSubmitCoordinator?.resume("resume").catch(() => {});
   connectivity?.signalPossibleRecovery("resume").catch(() => {});
 }
 
@@ -149,6 +185,7 @@ function sendRendererEvent(channel, payload) {
 }
 
 function schedulePendingAutoSubmit(trigger) {
+  if (membershipCoordinationPaused()) return;
   pendingAutoSubmitCoordinator?.request(trigger).catch(() => {});
 }
 
@@ -184,24 +221,42 @@ function syncRemoteContext(state, options = {}) {
     requestConnectivityConfirmation("membership-product-signal");
   }
 
-  if (options.scheduleAutoSubmit !== false) {
+  if (options.scheduleAutoSubmit !== false && !membershipCoordinationPaused()) {
     schedulePendingAutoSubmit(accountChanged ? "account-change" : "state-ready");
   }
 
-  return state;
+  return options.coordinateMembership === false || membershipCoordinationPaused()
+    ? state
+    : membershipStartupCoordinator?.observeState(state, options.membershipTrigger || "launcher-state") || state;
 }
 
 async function withRemoteContext(promise) {
-  const value = await promise;
-  syncRemoteContext(value?.state || value);
-  return value;
+  return promise;
+}
+
+function coordinateMembershipResult(value, trigger, revision, options = {}) {
+  const nestedState = isLauncherSnapshot(value?.state) ? value.state : null;
+  const directState = nestedState ? null : isLauncherSnapshot(value) ? value : null;
+  const sourceState = nestedState || directState;
+  if (!sourceState) return value;
+  const numericRevision = Number(revision);
+  if (!launcherStateAuthority.acceptEffects(numericRevision)) return value;
+  if (membershipCoordinationPaused()) return value;
+  const state = syncRemoteContext(sourceState, {
+    membershipTrigger: trigger,
+    scheduleAutoSubmit: options.scheduleAutoSubmit,
+  });
+  return nestedState ? { ...value, state } : state;
 }
 
 function registerLauncherStateHandler(channel, handler) {
   ipcMain.handle(channel, (event, ...args) => {
     const revision = launcherStateAuthority.reserveRevision();
     return Promise.resolve(handler(event, ...args))
-      .then((value) => launcherStateAuthority.publishResult(value, revision));
+      .then((value) => launcherStateAuthority.publishResult(
+        coordinateMembershipResult(value, `ipc:${channel}`, revision),
+        revision,
+      ));
   });
 }
 
@@ -235,6 +290,23 @@ function initializeRemoteServices() {
       }).catch(() => {});
     },
   });
+  membershipStartupCoordinator = createMembershipStartupCoordinator({
+    connectivityTimeoutMs: connectivity.config.healthTimeoutMs,
+    execute: ({ signal }) => service.getLauncherState({ connected: true, signal }),
+    getConnectivityState: () => connectivity.getState(),
+    publish(state, resolution) {
+      if (!launcherStateAuthority.acceptEffects(resolution.revision)) return;
+      const syncedState = syncRemoteContext(state, {
+        coordinateMembership: false,
+        membershipTrigger: resolution.phase,
+      });
+      sendRendererEvent("launcher:state", {
+        membershipResolution: { phase: resolution.phase },
+        state: launcherStateAuthority.publishSnapshot(syncedState, resolution.revision),
+      });
+    },
+    reserveRevision: () => launcherStateAuthority.reserveRevision(),
+  });
   pendingAutoSubmitCoordinator = createPendingAutoSubmitCoordinator({
     autoScheduleSessionRetry: true,
     inspect: () => service.getPendingAutoSubmitContexts({
@@ -242,14 +314,22 @@ function initializeRemoteServices() {
       connection: connectivity.getState(),
     }),
     async onResult(result, context) {
+      if (membershipCoordinationPaused()) return;
       if (result?.transportFailure) requestConnectivityConfirmation("auto-submit-product-signal");
       const state = await service.getLauncherState({ deferRemoteMembership: true });
-      syncRemoteContext(state, { scheduleAutoSubmit: false });
+      if (membershipCoordinationPaused()) return;
+      const revision = result.launcherStateRevision || launcherStateAuthority.reserveRevision();
+      const coordinatedState = coordinateMembershipResult(
+        state,
+        `auto-submit:${context?.trigger || "result"}`,
+        revision,
+        { scheduleAutoSubmit: false },
+      );
       sendRendererEvent("launcher:state", {
         autoSubmit: result,
         state: launcherStateAuthority.publishSnapshot(
-          state,
-          result.launcherStateRevision || launcherStateAuthority.reserveRevision(),
+          coordinatedState,
+          revision,
         ),
       });
     },
@@ -260,7 +340,8 @@ function initializeRemoteServices() {
         connectedGeneration: context.connection.reachabilityGeneration,
         shouldContinue: () => {
           const latest = connectivity.getState();
-          return latest.reachability === "connected" &&
+          return !membershipCoordinationPaused()
+            && latest.reachability === "connected" &&
             latest.reachabilityGeneration === context.connection.reachabilityGeneration;
         },
         trigger: context.trigger,
@@ -275,6 +356,7 @@ function initializeRemoteServices() {
       coordinator: pendingAutoSubmitCoordinator.getDiagnostics(),
     },
     sessions: service.getAccountSessionDiagnostics(),
+    membershipResolution: membershipStartupCoordinator.getDiagnostics(),
     sessionStorage: getSessionStorageDiagnostics(),
     startup: { milestones: { ...startupTimings } },
     connectivity: {
@@ -308,6 +390,18 @@ function initializeRemoteServices() {
     previousReachability = state.reachability;
     rankingCapabilities.updateDeployment();
     sendRendererEvent("launcher:connectivity-state", state);
+    if (activeManualMembershipRun && activeManualMembershipRun.connectionGeneration !== null && (
+      state.reachability !== "connected"
+      || Number(state.reachabilityGeneration) !== Number(activeManualMembershipRun.connectionGeneration)
+    )) {
+      cancelManualMembershipRun("manual-membership-connectivity-change");
+    }
+    if (!membershipCoordinationPaused()) {
+      membershipStartupCoordinator?.updateConnectivity(
+        state,
+        becameConnected ? "connectivity-restored" : "connectivity-change",
+      );
+    }
     if (isCommittedConnected(state)) {
       rankingCapabilities.refresh(becameConnected ? "connectivity-restored" : "connectivity-confirmed").catch(() => {});
       if (becameConnected) schedulePendingAutoSubmit(state.source === "startup" ? "startup" : "connectivity-restored");
@@ -340,6 +434,8 @@ function initializeSecureSessionStorage() {
 
 async function stopRemoteServices() {
   productOperationsController.abort("shutdown");
+  membershipStartupCoordinator?.shutdown("shutdown");
+  cancelManualMembershipRun("shutdown");
   const sessionDrain = service.shutdownAccountSessions({ reason: "shutdown", timeoutMs: 3000 });
   service.cancelPendingAutoSubmit("shutdown");
   pendingAutoSubmitCoordinator?.cancelCurrentRun("shutdown");
@@ -442,7 +538,10 @@ async function showImportZipDialog(event) {
   }
 
   sendBusyPhase(event, "Importando pack");
-  return service.importPackFromZipForGui(result.filePaths[0]);
+  return withMembershipContextMutation(
+    "import-pack",
+    () => service.importPackFromZipForGui(result.filePaths[0]),
+  );
 }
 
 async function showImportFolderDialog(event) {
@@ -458,11 +557,14 @@ async function showImportFolderDialog(event) {
   }
 
   sendBusyPhase(event, "Importando pack");
-  return service.importPackFromFolderForGui(result.filePaths[0]);
+  return withMembershipContextMutation(
+    "import-pack",
+    () => service.importPackFromFolderForGui(result.filePaths[0]),
+  );
 }
 
 function registerIpc() {
-  registerLauncherStateHandler("launcher:get-state", () => withRemoteContext(service.getLauncherState()));
+  registerLauncherStateHandler("launcher:get-state", () => withRemoteContext(service.getLauncherState({ deferRemoteMembership: true })));
   registerLauncherStateHandler("launcher:get-initial-state", async () => {
     await localStartupPromise;
     return withRemoteContext(service.getLauncherState({ deferRemoteMembership: true }));
@@ -538,7 +640,7 @@ function registerIpc() {
   ipcMain.handle("launcher:get-ranking-capabilities-state", () => rankingCapabilities.getState());
   registerLauncherStateHandler("launcher:request-ranking-capabilities-refresh", async () => {
     const guarded = await runDeveloperOnlyOperation(developerToolsEnabled, () => rankingCapabilities.forceRefresh());
-    const state = syncRemoteContext(await service.getLauncherState({ deferRemoteMembership: true }));
+    const state = await service.getLauncherState({ deferRemoteMembership: true });
     if (!guarded.allowed) {
       return {
         action: "force-ranking-refresh",
@@ -562,13 +664,12 @@ function registerIpc() {
     };
   });
   ipcMain.handle("launcher:get-auth-state", () => service.getAuthStateForGui());
-  registerLauncherStateHandler("launcher:login", async (_event, credentials) => {
-    service.invalidateInteractiveRemoteOperations("login");
+  registerLauncherStateHandler("launcher:login", (_event, credentials) => withMembershipContextMutation("login", async () => {
     service.cancelPendingAutoSubmit("login");
     pendingAutoSubmitCoordinator?.cancelCurrentRun("login");
     await prepareRemoteAction("login");
     return withRemoteContext(service.loginWithPassword(credentials));
-  });
+  }));
   registerLauncherStateHandler("launcher:open-pack", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       buttonLabel: "Abrir pack",
@@ -581,7 +682,10 @@ function registerIpc() {
       return service.cancelOpenPack();
     }
 
-    return withRemoteContext(service.openPackDirectory(result.filePaths[0]));
+    return withMembershipContextMutation(
+      "open-pack",
+      () => withRemoteContext(service.openPackDirectory(result.filePaths[0])),
+    );
   });
   registerLauncherStateHandler("launcher:choose-pack-directory", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -595,10 +699,16 @@ function registerIpc() {
       return service.cancelChoosePackDirectory();
     }
 
-    return withRemoteContext(service.choosePackDirectoryFromGui(result.filePaths[0]));
+    return withMembershipContextMutation(
+      "pack-directory-change",
+      () => withRemoteContext(service.choosePackDirectoryFromGui(result.filePaths[0])),
+    );
   });
   registerLauncherStateHandler("launcher:use-suggested-pack-directory", (_event, directoryPath) => (
-    withRemoteContext(service.choosePackDirectoryFromGui(directoryPath))
+    withMembershipContextMutation(
+      "pack-directory-change",
+      () => withRemoteContext(service.choosePackDirectoryFromGui(directoryPath)),
+    )
   ));
   registerLauncherStateHandler("launcher:import-pack-zip", (event) => withRemoteContext(showImportZipDialog(event)));
   registerLauncherStateHandler("launcher:import-pack-folder", (event) => withRemoteContext(showImportFolderDialog(event)));
@@ -625,28 +735,31 @@ function registerIpc() {
   registerLauncherStateHandler("launcher:open-shared-mame-runtime", () => service.openSharedMameRuntimeDirectory({
     openPathImpl: (directoryPath) => shell.openPath(directoryPath),
   }));
-  registerLauncherStateHandler("launcher:rescan-pack-directory", () => withRemoteContext(service.rescanPackDirectory()));
+  registerLauncherStateHandler("launcher:rescan-pack-directory", () => (
+    withMembershipContextMutation(
+      "pack-rescan",
+      () => withRemoteContext(service.rescanPackDirectory()),
+    )
+  ));
   registerLauncherStateHandler("launcher:set-library-preferences", (_event, patch) => service.setLibraryPreferencesFromGui(patch));
   registerLauncherStateHandler("launcher:toggle-library-favorite", (_event, packKey) => service.toggleLibraryFavoriteFromGui(packKey));
-  registerLauncherStateHandler("launcher:remove-known-account", (_event, userId) => {
+  registerLauncherStateHandler("launcher:remove-known-account", (_event, userId) => withMembershipContextMutation("remove-account", () => {
     service.cancelPendingAutoSubmit("remove-account");
     pendingAutoSubmitCoordinator?.cancelCurrentRun("remove-account");
     return withRemoteContext(service.removeKnownAccountFromGui(userId));
-  });
-  registerLauncherStateHandler("launcher:switch-account", (_event, userId) => {
-    service.invalidateInteractiveRemoteOperations("switch-account");
-    return withRemoteContext(service.switchKnownAccountFromGui(userId, {
+  }));
+  registerLauncherStateHandler("launcher:switch-account", (_event, userId) => withMembershipContextMutation("switch-account", () => (
+    withRemoteContext(service.switchKnownAccountFromGui(userId, {
       connected: isCommittedConnected(connectivity?.getState()),
-    }));
-  });
-  registerLauncherStateHandler("launcher:use-library-pack", (_event, packId) => {
-    service.invalidateInteractiveRemoteOperations("account-change");
-    return withRemoteContext(service.activateLibraryPack(packId, {
+    }))
+  )));
+  registerLauncherStateHandler("launcher:use-library-pack", (_event, packId) => withMembershipContextMutation("pack-change", () => (
+    withRemoteContext(service.activateLibraryPack(packId, {
       deferRemoteMembership: true,
-    }));
-  });
+    }))
+  )));
   registerLauncherStateHandler("launcher:open-membership-url", async () => {
-    const state = await service.getLauncherState();
+    const state = await service.getLauncherState({ deferRemoteMembership: true });
     const url = safeMembershipJoinUrl(
       { webBaseUrl: trustedHslOrigin },
       state.membership?.joinUrl || trustedHslOrigin,
@@ -677,8 +790,7 @@ function registerIpc() {
     openPathImpl: (filePath) => shell.openPath(filePath),
   }));
   registerLauncherStateHandler("launcher:open-ranking", async () => {
-    const state = await service.getLauncherState();
-    syncRemoteContext(state);
+    const state = await service.getLauncherState({ deferRemoteMembership: true });
     const weekId = state.game?.weekId || null;
     const webBaseUrl = trustedHslOrigin;
 
@@ -720,11 +832,66 @@ function registerIpc() {
     };
   });
   registerLauncherStateHandler("launcher:check-membership", async () => {
-    await prepareRemoteAction("membership");
-    return withRemoteContext(service.recheckSeasonMembership());
+    const stableState = membershipStartupCoordinator?.invalidate("manual-membership") || null;
+    cancelManualMembershipRun("manual-membership");
+    service.cancelPendingAutoSubmit("manual-membership");
+    pendingAutoSubmitCoordinator?.cancelCurrentRun("manual-membership");
+    const runId = ++manualMembershipRunSequence;
+    activeManualMembershipRun = { connectionGeneration: null, contextKey: null, runId };
+    const staleResult = () => ({
+      action: "check-membership",
+      lines: ["La comprobación anterior se descartó porque cambió la cuenta o el pack."],
+      ok: false,
+      stale: true,
+      state: null,
+      summary: "Comprobación de participación descartada.",
+    });
+    try {
+      const initialState = stableState || await service.getLauncherState({ deferRemoteMembership: true });
+      if (activeManualMembershipRun?.runId !== runId) return staleResult();
+      const contextKey = membershipResolutionContext(initialState).key;
+      activeManualMembershipRun.contextKey = contextKey;
+      const preparedConnection = await prepareRemoteAction("membership");
+      if (activeManualMembershipRun?.runId !== runId) return staleResult();
+      if (preparedConnection?.reachability !== "connected") {
+        return {
+          action: "check-membership",
+          lines: ["Recupera la conexión para comprobar tu participación."],
+          ok: false,
+          state: initialState,
+          summary: "No hay conexión confirmada.",
+        };
+      }
+      activeManualMembershipRun.connectionGeneration = Number(preparedConnection.reachabilityGeneration) || 0;
+      const result = await service.recheckSeasonMembership();
+      const resultContextKey = membershipResolutionContext(result?.state).key;
+      const finalConnection = connectivity.getState();
+      if (activeManualMembershipRun?.runId !== runId
+        || (contextKey && resultContextKey !== contextKey)
+        || finalConnection.reachability !== "connected"
+        || Number(finalConnection.reachabilityGeneration) !== Number(activeManualMembershipRun.connectionGeneration)) {
+        return staleResult();
+      }
+      return result;
+    } finally {
+      if (activeManualMembershipRun?.runId === runId) activeManualMembershipRun = null;
+    }
   });
   registerLauncherStateHandler("launcher:diagnose", () => service.runDiagnose());
-  registerLauncherStateHandler("launcher:play-competition", () => withRemoteContext(service.playCompetition()));
+  registerLauncherStateHandler("launcher:play-competition", async () => {
+    if (membershipStartupCoordinator?.isActive() || membershipCoordinationPaused()) {
+      const state = membershipStartupCoordinator?.getCurrentState()
+        || await service.getLauncherState({ deferRemoteMembership: true });
+      return {
+        action: "play-competition",
+        lines: ["Comprobando participación."],
+        ok: false,
+        state,
+        summary: "Comprobando participación.",
+      };
+    }
+    return withRemoteContext(service.playCompetition());
+  });
   registerLauncherStateHandler("launcher:practice", () => service.playPractice());
   registerLauncherStateHandler("launcher:force-account-sync", async () => {
     const guarded = await runDeveloperOnlyOperation(developerToolsEnabled, async () => {
@@ -737,7 +904,7 @@ function registerIpc() {
         action: "force-account-sync",
         lines: ["La sincronizacion forzada de cuentas solo esta disponible en desarrollo."],
         ok: false,
-        state: syncRemoteContext(await service.getLauncherState({ deferRemoteMembership: true })),
+        state: await service.getLauncherState({ deferRemoteMembership: true }),
         summary: "Accion disponible solo en desarrollo.",
       };
     }
@@ -746,17 +913,17 @@ function registerIpc() {
       action: "force-account-sync",
       lines: [`Cuentas procesadas: ${Number(result?.processedAccounts) || 0}.`],
       ok: result?.status !== "deferred",
-      state: syncRemoteContext(await service.getLauncherState({ deferRemoteMembership: true })),
+      state: await service.getLauncherState({ deferRemoteMembership: true }),
       summary: result?.status === "deferred" ? "La sincronizacion queda pendiente." : "Sincronizacion de cuentas completada.",
     };
   });
   registerLauncherStateHandler("launcher:restore-failed", (_event, filename) => withRemoteContext(service.restoreFailedSubmission(filename)));
   registerLauncherStateHandler("launcher:sync-plugin", () => service.syncPlugin());
-  registerLauncherStateHandler("launcher:logout", () => {
+  registerLauncherStateHandler("launcher:logout", () => withMembershipContextMutation("logout", () => {
     service.cancelPendingAutoSubmit("logout");
     pendingAutoSubmitCoordinator?.cancelCurrentRun("logout");
     return withRemoteContext(service.logoutSession());
-  });
+  }));
 }
 
 const hasSingleInstanceLock = installSingleInstancePolicy(app, () => mainWindow);

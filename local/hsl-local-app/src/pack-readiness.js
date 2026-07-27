@@ -372,6 +372,8 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
 
   if (membership?.status === "member") {
     checks.push(check("membership", "ok", "Participacion", "Participas en la temporada."));
+  } else if (membership?.status === "checking") {
+    checks.push(check("membership", "error", "Participacion", "Comprobando participación."));
   } else if (membership?.status === "unknown" || membership?.status === "error") {
     checks.push(check("membership", "warning", "Participacion", membership.message || "No se pudo comprobar la participacion.", [membership.technicalReason]));
   } else {

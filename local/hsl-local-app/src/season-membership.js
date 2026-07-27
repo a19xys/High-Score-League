@@ -11,7 +11,7 @@ const {
 
 const NETWORK_STATUSES = new Set(["unknown", "error"]);
 const SAFE_BODY_STATUSES = new Set(["member", "not_member", "unauthenticated", "invalid_week", "error", "unknown"]);
-const BLOCKING_STATUSES = new Set(["no_session", "missing_week", "invalid_week", "not_member", "unauthenticated"]);
+const BLOCKING_STATUSES = new Set(["checking", "no_session", "missing_week", "invalid_week", "not_member", "unauthenticated"]);
 const PLAYER_MESSAGES = {
   member: "Participas en esta temporada. Puedes jugar competicion.",
   not_member: "No participas en esta temporada. Unete desde la web para competir.",

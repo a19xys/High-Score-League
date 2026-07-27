@@ -42,7 +42,7 @@ export function renderAvailabilityButton(model, { className = "", iconClassName 
   const reasonReference = disabled && model.reason ? `aria-describedby="${escapeHtml(model.reasonId)}"` : "";
   const title = disabled && model.reason ? model.reason : model.label;
   return `
-    <button class="${escapeHtml(className)}" type="${escapeHtml(type)}" data-action="${escapeHtml(model.action)}" title="${escapeHtml(title)}" ${reasonReference} ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
+    <button class="${escapeHtml(className)}" type="${escapeHtml(type)}" data-action="${escapeHtml(model.action)}" title="${escapeHtml(title)}" aria-label="${escapeHtml(model.label)}" ${reasonReference} ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
       ${renderIcon(model.icon, { className: `${iconClassName} icon-slot icon-slot--${model.icon}` })}
       <span class="${escapeHtml(labelClassName)}">${escapeHtml(model.label)}</span>
     </button>

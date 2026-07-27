@@ -26,15 +26,27 @@ test("unavailable action has native disabled state and an accessible reason", as
     action: "play",
     available: false,
     icon: "play",
-    label: "Competición",
+    label: "Jugar",
     reason: "Inicia sesión para competir.",
     reasonId: "action-block-play",
   };
   const html = `${renderAvailabilityButton(action)}${renderBlockingReasons([action])}`;
   assert.match(html, /disabled aria-disabled="true"/);
+  assert.match(html, /aria-label="Jugar"/);
   assert.match(html, /aria-describedby="action-block-play"/);
   assert.match(html, /id="action-block-play"/);
   assert.match(html, /Inicia sesión para competir/);
+});
+
+test("connectivity refresh is a separate native keyboard action with visible focus support", async () => {
+  const [header, styles] = await Promise.all([
+    fsp.readFile(path.join(rendererRoot, "components", "header.js"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
+  ]);
+  assert.match(header, /<button class="[^"]*connection-refresh-button" type="button" data-action="refresh-connectivity"/);
+  assert.match(header, /title="\$\{escapeHtml\(actionTitle\)\}" aria-label="Comprobar conexión" aria-busy=/);
+  assert.match(header, /disabled aria-disabled=/);
+  assert.match(styles, /button:focus-visible[\s\S]*outline: 2px solid var\(--circuit\)/);
 });
 
 test("live region is focused and the app root is not live", async () => {

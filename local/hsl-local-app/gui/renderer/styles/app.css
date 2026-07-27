@@ -910,6 +910,14 @@ button:disabled {
   white-space: nowrap;
 }
 
+.connection-control {
+  display: inline-flex;
+  width: 164px;
+  min-width: 164px;
+  align-items: center;
+  gap: 8px;
+}
+
 .connection-chip {
   display: inline-flex;
   align-items: center;
@@ -920,6 +928,15 @@ button:disabled {
   color: var(--text-muted);
   font-size: 12px;
   white-space: nowrap;
+}
+
+.connection-chip--unresolved,
+.connection-control[data-connectivity-committed="false"] .connection-refresh-button {
+  visibility: hidden;
+}
+
+.connection-refresh-button {
+  flex: 0 0 38px;
 }
 
 .connection-label {

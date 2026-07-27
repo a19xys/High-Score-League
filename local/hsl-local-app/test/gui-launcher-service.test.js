@@ -1136,7 +1136,10 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/<span>\$\{themeLabel\}<\/span>/.test(header), false);
   assert.match(header, /connection-dot/);
   assert.match(header, /derivePublicConnectivityPresentation/);
-  assert.doesNotMatch(header, /connection-status-icon|connection-refresh-icon/);
+  assert.doesNotMatch(header, /connection-status-icon/);
+  assert.match(header, /connection-refresh-icon/);
+  assert.match(header, /renderIcon\("refresh"/);
+  assert.match(header, /data-action="refresh-connectivity"/);
   assert.equal(/renderIcon\(connection|status-online|status-offline|status-reconnecting/.test(header), false);
   assert.equal(/<p class="eyebrow">HSL<\/p>/.test(header), false);
   assert.equal(/data-action="refresh"/.test(header), false);
@@ -1196,7 +1199,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/"Empresa"|"Tiempo"/.test(gamePanel), false);
   assert.match(gamePanel, /"Sin datos"/);
   assert.match(gamePanel, /renderIcon\("calendar"/);
-  assert.match(presentation, /"play", "Competición", "play"/);
+  assert.match(presentation, /"play", "Jugar", "play"/);
+  assert.doesNotMatch(presentation, /"play", "Competición", "play"|Listo para competir/);
   assert.match(presentation, /"practice", "Práctica", "practice"/);
   assert.match(gamePanel, /<h2 title="\$\{escapeHtml\(game\.displayName\)\}"/);
   assert.match(gamePanel, /function renderDetailFavoriteMark\(game\)/);
