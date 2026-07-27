@@ -394,7 +394,7 @@ export function renderLibraryPanel(state) {
     <section class="panel library-panel">
       <div class="render-region-contents" data-render-region="library-heading">${renderLibraryHeading(state)}</div>
       <div class="render-region-contents" data-render-region="library-controls">${renderLibraryControls(state, packs)}</div>
-      <div class="library-section library-section--packs" data-render-region="library-packs">
+      <div class="library-section library-section--packs" data-render-region="library-packs" data-preserve-scroll="library-packs">
         ${renderLibraryPacks(state)}
       </div>
     </section>

@@ -31,7 +31,13 @@ import { getLibraryCapabilities } from "./library-capabilities.js";
 import { deriveRemoteAvailability } from "./remote-availability.js";
 import { getRankingActionState } from "./ranking-state.js";
 import { createLauncherStateGate } from "./launcher-state-gate.js";
-import { createRegionRenderer } from "./region-renderer.js";
+import {
+  clampLibrarySidebarWidth,
+  LIBRARY_SIDEBAR_DEFAULT,
+  LIBRARY_SIDEBAR_MAX,
+  LIBRARY_SIDEBAR_MIN,
+} from "./library-geometry.js";
+import { createRegionRenderer, preservedScrollElements } from "./region-renderer.js";
 import {
   DEFAULT_OPERATION_MIN_VISIBLE_MS,
   runWithOperationFeedback,
@@ -49,9 +55,6 @@ import { createEphemeralLoginDraft } from "./login-draft.js";
 
 const root = document.getElementById("app");
 const savedTheme = window.__HSL_INITIAL_THEME__ === "light" ? "light" : "dark";
-const LIBRARY_SIDEBAR_MIN = 340;
-const LIBRARY_SIDEBAR_MAX = 600;
-const LIBRARY_SIDEBAR_DEFAULT = 440;
 const LAUNCHER_VERSION = "v1.0.0";
 const DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 1_200;
 const store = createStore({
@@ -266,16 +269,6 @@ function resetUnavailableDirectoryPrompt(data) {
   }
 }
 
-function clampSidebarWidth(value) {
-  const numeric = Number(value);
-
-  if (!Number.isFinite(numeric)) {
-    return LIBRARY_SIDEBAR_DEFAULT;
-  }
-
-  return Math.min(LIBRARY_SIDEBAR_MAX, Math.max(LIBRARY_SIDEBAR_MIN, Math.round(numeric)));
-}
-
 function applyTheme(theme) {
   const normalizedTheme = theme === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = normalizedTheme;
@@ -307,7 +300,7 @@ function captureRegionInteraction(region) {
     selectionStart: Number.isInteger(active.selectionStart) ? active.selectionStart : null,
     value: "value" in active ? active.value : null,
   } : null;
-  const scroll = [...region.querySelectorAll("[data-preserve-scroll]")].map((element) => ({
+  const scroll = preservedScrollElements(region).map((element) => ({
     key: element.dataset.preserveScroll,
     left: element.scrollLeft,
     top: element.scrollTop,
@@ -318,7 +311,7 @@ function captureRegionInteraction(region) {
 
 function restoreRegionInteraction(region, interaction) {
   for (const saved of interaction.scroll) {
-    const element = [...region.querySelectorAll("[data-preserve-scroll]")]
+    const element = preservedScrollElements(region)
       .find((candidate) => candidate.dataset.preserveScroll === saved.key);
     if (!element) continue;
     element.scrollLeft = saved.left;
@@ -594,7 +587,7 @@ function libraryPreferencesStatePatch(data, current, allowHydration = true) {
   hydratedLibraryPreferencesScopeKey = scopeKey;
 
   return {
-    librarySidebarWidth: clampSidebarWidth(preferences.sidebarWidth || current.librarySidebarWidth),
+    librarySidebarWidth: clampLibrarySidebarWidth(preferences.sidebarWidth || current.librarySidebarWidth),
     librarySortBy: preferences.librarySortBy || current.librarySortBy,
     librarySortDirection: preferences.librarySortDirection || current.librarySortDirection,
     libraryView: preferences.libraryView || current.libraryView,
@@ -831,7 +824,7 @@ function syncLibraryControlValues(state) {
 }
 
 function mountRenderer(state) {
-  const sidebarWidth = clampSidebarWidth(state.librarySidebarWidth);
+  const sidebarWidth = clampLibrarySidebarWidth(state.librarySidebarWidth);
   root.innerHTML = `
     ${renderHeader(state)}
     <main class="app-main" style="--library-sidebar-width: ${sidebarWidth}px">
@@ -840,7 +833,7 @@ function mountRenderer(state) {
           ${renderLibraryPanel(state)}
         </div>
       </aside>
-      <div class="library-resizer" data-sidebar-resizer role="separator" aria-orientation="vertical" aria-label="Ajustar anchura de biblioteca" tabindex="0"></div>
+      <div class="library-resizer" data-sidebar-resizer role="separator" aria-orientation="vertical" aria-label="Ajustar anchura de biblioteca" aria-valuemin="${LIBRARY_SIDEBAR_MIN}" aria-valuemax="${LIBRARY_SIDEBAR_MAX}" aria-valuenow="${sidebarWidth}" tabindex="0"></div>
       <section class="game-panel-region">
         <div class="game-scroll" data-render-region="game-panel">
           ${renderGamePanel(state, selectMembershipForPresentation(state))}
@@ -923,7 +916,11 @@ function render(nextState, changedKeys = []) {
 
   root.querySelector(".app-main")?.style.setProperty(
     "--library-sidebar-width",
-    `${clampSidebarWidth(state.librarySidebarWidth)}px`,
+    `${clampLibrarySidebarWidth(state.librarySidebarWidth)}px`,
+  );
+  root.querySelector("[data-sidebar-resizer]")?.setAttribute(
+    "aria-valuenow",
+    String(clampLibrarySidebarWidth(state.librarySidebarWidth)),
   );
   if (changedKeys.length === 1 && changedKeys[0] === "librarySidebarWidth") {
     lastRenderedState = state;
@@ -1481,7 +1478,7 @@ async function openRankingWithOperationFeedback() {
 }
 
 function updateSidebarWidth(width, save = false) {
-  const nextWidth = clampSidebarWidth(width);
+  const nextWidth = clampLibrarySidebarWidth(width);
 
   markLibraryPreferenceUserChange();
   store.setState({ librarySidebarWidth: nextWidth });
@@ -1894,7 +1891,7 @@ function bindActions() {
     event.preventDefault();
     sidebarResize = {
       startX: event.clientX,
-      startWidth: clampSidebarWidth(store.getState().librarySidebarWidth),
+      startWidth: clampLibrarySidebarWidth(store.getState().librarySidebarWidth),
     };
     document.body.classList.add("is-resizing-library");
   });
@@ -1960,6 +1957,7 @@ function bindActions() {
     if (
       current.accountMenuOpen &&
       target &&
+      !target.closest("[data-dialog]") &&
       !target.closest("[data-account-menu]") &&
       !target.closest("[data-action='toggle-account-menu']")
     ) {
@@ -2217,7 +2215,28 @@ function bindActions() {
 
     if (action === "remove-known-account") {
       const userId = button.dataset.userId;
-      runAction(action, "Quitando cuenta", "Quitar cuenta", () => window.hslLauncher.removeKnownAccount(userId));
+      const account = current.data?.accounts?.knownAccounts?.find((item) => item.userId === userId);
+
+      if (userId && !button.disabled) {
+        store.setState({
+          activeDialog: {
+            email: account?.email || "",
+            type: "forget-account",
+            userId,
+          },
+        });
+      }
+    }
+
+    if (action === "confirm-forget-account") {
+      const userId = current.activeDialog?.type === "forget-account"
+        ? current.activeDialog.userId
+        : null;
+
+      if (userId) {
+        store.setState({ activeDialog: null });
+        runAction("remove-known-account", "Quitando cuenta", "Quitar cuenta", () => window.hslLauncher.removeKnownAccount(userId));
+      }
     }
 
     if (action === "sync-plugin") {

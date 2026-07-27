@@ -148,8 +148,22 @@ test("sidebar resize has a render fast path and does not rebuild the shell", () 
 
 test("library scroll container has persistent identity", () => {
   const app = source("app.js");
-  assert.match(source(path.join("components", "library-panel.js")), /class="library-section library-section--packs" data-render-region="library-packs"/);
+  assert.match(source(path.join("components", "library-panel.js")), /data-render-region="library-packs" data-preserve-scroll="library-packs"/);
+  assert.match(app, /preservedScrollElements\(region\)/);
   assert.doesNotMatch(app, /function readMainScrollState/);
+});
+
+test("the regional scroll contract includes the region itself and bounded descendants", async () => {
+  const { preservedScrollElements } = await import(pathToFileURL(path.join(appDir, "region-renderer.js")));
+  const child = { dataset: { preserveScroll: "child" } };
+  const region = {
+    dataset: { preserveScroll: "library-packs" },
+    matches: (selector) => selector === "[data-preserve-scroll]",
+    querySelectorAll: () => [child],
+  };
+
+  assert.deepEqual(preservedScrollElements(region), [region, child]);
+  assert.equal(preservedScrollElements({ matches: () => false, querySelectorAll: () => [] }).length, 0);
 });
 
 test("detail scroll remains mounted for updates to the same pack", () => {
@@ -163,6 +177,7 @@ test("changing pack resets only detail scroll", () => {
   assert.match(app, /currentDetailScrollKey && nextDetailScrollKey !== currentDetailScrollKey/);
   assert.match(app, /gameScroll\.scrollTop = 0/);
   assert.doesNotMatch(app, /libraryScroll\.scrollTop = 0/);
+  assert.doesNotMatch(app, /scrollIntoView/);
 });
 
 test("stale full snapshots remain rejected", async () => {

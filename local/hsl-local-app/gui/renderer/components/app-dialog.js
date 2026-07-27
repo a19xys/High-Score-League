@@ -42,6 +42,31 @@ function renderImportPackDialog() {
   `;
 }
 
+function renderForgetAccountDialog(dialog) {
+  const titleId = "app-dialog-forget-account-title";
+  const descriptionId = "app-dialog-forget-account-description";
+  const accountLabel = dialog.email ? ` (${dialog.email})` : "";
+  const buttons = [
+    { action: "close-dialog", autofocus: true, label: "Cancelar", variant: "secondary" },
+    { action: "confirm-forget-account", label: "Olvidar cuenta", variant: "primary" },
+  ];
+
+  return `
+    <div class="app-dialog-layer" data-dialog-backdrop>
+      <section class="app-dialog app-dialog--forget-account" role="dialog" aria-modal="true" aria-labelledby="${titleId}" aria-describedby="${descriptionId}" data-dialog>
+        <div class="app-dialog__header">
+          <p class="eyebrow">Cuenta recordada</p>
+          <h2 id="${titleId}">¿Olvidar esta cuenta?</h2>
+          <p id="${descriptionId}">Se quitará la cuenta${escapeHtml(accountLabel)} y su sesión guardada de este dispositivo. Las puntuaciones y colas locales se conservarán.</p>
+        </div>
+        <div class="app-dialog__actions app-dialog__actions--forget-account">
+          ${buttons.map(renderDialogButton).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 function renderUnavailablePackDirectoryDialog() {
   const titleId = "app-dialog-pack-directory-title";
   const descriptionId = "app-dialog-pack-directory-description";
@@ -118,6 +143,10 @@ function renderRejectedLibraryRootDialog(dialog) {
 }
 
 export function renderAppDialog(state) {
+  if (state?.activeDialog?.type === "forget-account") {
+    return renderForgetAccountDialog(state.activeDialog);
+  }
+
   if (state?.activeDialog?.type === "library-root-rejected") {
     return renderRejectedLibraryRootDialog(state.activeDialog);
   }

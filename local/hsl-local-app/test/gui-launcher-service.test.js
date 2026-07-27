@@ -727,7 +727,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.pack-error-panel/);
   assert.match(styles, /\.library-count-pill/);
   assert.match(styles, /\.library-panel[\s\S]*gap: 8px/);
-  assert.match(styles, /\.library-panel > \.panel-heading[\s\S]*margin-bottom: 0/);
+  assert.match(styles, /\.library-panel \.panel-heading[\s\S]*margin-bottom: 0/);
   assert.match(styles, /\.library-control-row--primary[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(styles, /\.library-filter-card/);
   assert.match(styles, /\.library-filter-card[\s\S]*padding: 8px/);
@@ -1005,7 +1005,7 @@ test("renderer pack library groups years and developers without changing alphabe
 });
 
 test("renderer product hierarchy includes connection, player actions, activity and advanced options", async () => {
-  const [app, appDialog, busyOverlay, header, copy, gamePanel, queuePanel, devTools, styles, assetPreloader] = await Promise.all([
+  const [app, appDialog, busyOverlay, header, copy, gamePanel, queuePanel, devTools, styles, assetPreloader, libraryGeometry] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "app-dialog.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "busy-overlay.js"), "utf8"),
@@ -1016,6 +1016,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "components", "dev-tools.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "asset-preloader.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "library-geometry.js"), "utf8"),
   ]);
   const presentation = await fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "product-presentation.js"), "utf8");
 
@@ -1069,9 +1070,12 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /persistLibraryPreferencesSoon\(\{ libraryView \}\)/);
   assert.match(app, /await window\.hslLauncher\.setLibraryPreferences\(currentLibraryPreferencesPatch\(patch\)\)/);
   assert.equal(/response\.state[\s\S]{0,400}libraryView/.test(app), false);
-  assert.match(app, /LIBRARY_SIDEBAR_MIN = 340/);
-  assert.match(app, /LIBRARY_SIDEBAR_MAX = 600/);
-  assert.match(app, /LIBRARY_SIDEBAR_DEFAULT = 440/);
+  assert.match(libraryGeometry, /LIBRARY_SIDEBAR_MIN = 340/);
+  assert.match(libraryGeometry, /LIBRARY_SIDEBAR_MAX = 600/);
+  assert.match(libraryGeometry, /LIBRARY_SIDEBAR_DEFAULT = 440/);
+  assert.match(app, /aria-valuemin="\$\{LIBRARY_SIDEBAR_MIN\}"/);
+  assert.match(app, /aria-valuemax="\$\{LIBRARY_SIDEBAR_MAX\}"/);
+  assert.match(app, /aria-valuenow="\$\{sidebarWidth\}"/);
   assert.match(app, /pendingFavoriteKeys: \{\}/);
   assert.match(app, /const favoriteSyncByKey = new Map\(\)/);
   assert.match(app, /function withFavoritePatch\(data, packKey, patch\)/);

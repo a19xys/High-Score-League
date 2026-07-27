@@ -2,6 +2,13 @@ function defaultWriteRegion(region, html) {
   region.innerHTML = html;
 }
 
+export function preservedScrollElements(region) {
+  return [
+    ...(region.matches?.("[data-preserve-scroll]") ? [region] : []),
+    ...region.querySelectorAll("[data-preserve-scroll]"),
+  ];
+}
+
 export function createRegionRenderer({ findRegion, writeRegion = defaultWriteRegion }) {
   if (typeof findRegion !== "function") {
     throw new TypeError("findRegion must be a function");
