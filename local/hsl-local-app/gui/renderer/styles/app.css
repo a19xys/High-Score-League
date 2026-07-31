@@ -6359,30 +6359,102 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   }
 }
 
-/* LOCAL-PRE-BETA-HERO-FAVORITE-READY-4V.3: independent responsive hero indicators. */
+/* LOCAL-PRE-BETA-HERO-FAVORITE-READY-4V.3A: logo-aware hero indicators and pack state. */
 .game-hero-shell {
+  --hero-indicator-edge-inset: 16px;
+  --hero-indicator-gap: 8px;
+  --hero-indicator-lane-min: var(--hero-indicator-edge-inset);
   position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 150px;
+  max-height: 320px;
   min-width: 0;
+  overflow: hidden;
+  grid-template-columns:
+    minmax(var(--hero-indicator-lane-min), 1fr)
+    minmax(0, auto)
+    minmax(var(--hero-indicator-lane-min), 1fr);
+  aspect-ratio: 1920 / 620;
+  border-bottom: 1px solid color-mix(in srgb, var(--circuit) 22%, var(--border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-strong) 88%, var(--circuit)), var(--surface-strong)),
+    var(--surface-strong);
+  box-shadow: inset 0 -34px 58px rgb(2 6 23 / 0.32);
   container: game-hero / inline-size;
 }
 
-.game-hero-indicators-region {
-  position: absolute;
-  z-index: 3;
-  inset: 0;
-  overflow: hidden;
+.game-hero-shell:has(.game-hero-indicators[data-indicator-count="1"]) {
+  --hero-indicator-lane-min: 56px;
+}
+
+.game-hero-shell:has(.game-hero-indicators[data-indicator-count="2"]) {
+  --hero-indicator-lane-min: 104px;
+}
+
+.game-hero-shell::after {
+  content: "";
+  z-index: 1;
+  grid-area: 1 / 1 / 2 / -1;
+  background:
+    radial-gradient(circle at 50% 48%, rgb(255 255 255 / 0.08), transparent 36%),
+    linear-gradient(180deg, rgb(2 6 23 / 0.14), rgb(2 6 23 / 0.48)),
+    linear-gradient(90deg, rgb(2 6 23 / 0.38), transparent 45%, rgb(2 6 23 / 0.32));
   pointer-events: none;
+}
+
+.game-hero-shell .game-hero-stage {
+  display: contents;
+}
+
+.game-hero-shell .game-hero-media {
+  z-index: 0;
+  min-width: 0;
+  grid-area: 1 / 1 / 2 / -1;
+}
+
+.game-hero-shell .game-hero__logo {
+  position: relative;
+  z-index: 2;
+  inset: auto;
+  width: auto;
+  max-width: min(76cqi, calc(100cqi - (2 * var(--hero-indicator-lane-min))));
+  height: 58%;
+  max-height: 70%;
+  min-width: 0;
+  align-self: center;
+  justify-self: center;
+  grid-area: 1 / 2;
+  transform: none;
+}
+
+.game-hero-indicators-region {
+  position: relative;
+  z-index: 3;
+  min-width: 0;
+  overflow: hidden;
+  grid-area: 1 / 3;
+  pointer-events: none;
+  container: hero-indicator-lane / inline-size;
+}
+
+.game-hero-shell:not(:has(.game-hero-stage--with-logo)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.game-hero-shell:not(:has(.game-hero-stage--with-logo)) .game-hero-indicators-region {
+  grid-area: 1 / 1;
 }
 
 .game-hero-indicators {
   position: absolute;
-  right: 16px;
-  bottom: 16px;
+  right: var(--hero-indicator-edge-inset);
+  bottom: var(--hero-indicator-edge-inset);
   display: flex;
-  max-width: calc(100% - 32px);
+  max-width: calc(100% - var(--hero-indicator-edge-inset));
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--hero-indicator-gap);
   pointer-events: none;
 }
 
@@ -6409,11 +6481,24 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
 }
 
 .game-hero-indicator--favorite {
+  min-width: 104px;
   color: var(--circuit);
 }
 
+.game-hero-indicator--status {
+  min-width: 132px;
+}
+
 .game-hero-indicator--ready {
-  color: var(--ok);
+  color: var(--state-success);
+}
+
+.game-hero-indicator--checking {
+  color: var(--state-progress);
+}
+
+.game-hero-indicator--error {
+  color: var(--state-error);
 }
 
 .game-hero-indicator__icon.ui-icon {
@@ -6423,8 +6508,16 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   color: currentColor;
 }
 
-@container game-hero (max-width: 520px) {
+html:not([data-theme="dark"]) .game-hero-indicator {
+  border-color: color-mix(in srgb, currentColor 38%, var(--border));
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: 0 8px 22px rgb(15 39 66 / 18%);
+}
+
+/* 272px covers 104px favorite + the observed 144px maximum status + 8px gap + 16px inset. */
+@container hero-indicator-lane (max-width: 271px) {
   .game-hero-indicators[data-indicator-count="2"] .game-hero-indicator {
+    min-width: 0;
     width: 40px;
     height: 40px;
     gap: 0;
@@ -6442,15 +6535,38 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   }
 }
 
-@container game-hero (max-width: 360px) {
-  .game-hero-indicator {
+/* A single status reserves the same conservative 144px width plus the 16px inset. */
+@container hero-indicator-lane (max-width: 159px) {
+  .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--status {
+    min-width: 0;
     width: 40px;
     height: 40px;
     gap: 0;
     padding: 0;
   }
 
-  .game-hero-indicator__label {
+  .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--status .game-hero-indicator__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* A single favorite pill needs 104px plus the same 16px edge inset. */
+@container hero-indicator-lane (max-width: 119px) {
+  .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--favorite {
+    min-width: 0;
+    width: 40px;
+    height: 40px;
+    gap: 0;
+    padding: 0;
+  }
+
+  .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--favorite .game-hero-indicator__label {
     position: absolute;
     width: 1px;
     height: 1px;

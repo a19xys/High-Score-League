@@ -41,7 +41,7 @@ function renderPackVisuals(game, activeSelection) {
   ].filter(Boolean).join(" ");
 
   return `
-    <div class="${heroClass}" aria-hidden="true">
+    <div class="${heroClass}" aria-hidden="true" data-asset-container>
       <div class="game-hero-media" data-asset-container>
         <div class="game-panel__placeholder"><span>High Score League</span><strong>HSL</strong></div>
         ${hero?.url ? `
@@ -50,8 +50,8 @@ function renderPackVisuals(game, activeSelection) {
             data-asset-url="${escapeHtml(hero.url)}" data-asset-selection="${escapeHtml(selection)}"
             data-asset-generation="${escapeHtml(game.visualAssetGeneration || 0)}" data-asset-status="pending">
         ` : ""}
-        ${renderHeroLogo(game, selection)}
       </div>
+      ${renderHeroLogo(game, selection)}
     </div>
   `;
 }
@@ -182,10 +182,63 @@ export function renderGameVisualRegion(state) {
   return renderPackVisuals(state.data?.game, state.data?.selection?.activeInstanceKey);
 }
 
+const HERO_PACK_ERROR_IGNORED_CHECK_IDS = new Set([
+  "membership",
+  "session",
+  "scope",
+  "web-base-url",
+]);
+
+export function deriveGameHeroStatusPresentation(state) {
+  const data = state.data || {};
+  const game = data.game;
+
+  if (!game) return null;
+
+  const readiness = data.readiness || {};
+  const pack = derivePackPresentation({ game, readiness, bridge: data.bridge });
+  const summary = deriveGameSummaryPresentation(state);
+  const hasCanonicalPackError = ["duplicate", "invalid", "mame-unavailable"].includes(pack.status)
+    || ["error", "invalid"].includes(readiness.status)
+    || (game.errors || []).length > 0
+    || (readiness.checks || []).some((check) => (
+      check?.level === "error" && !HERO_PACK_ERROR_IGNORED_CHECK_IDS.has(check.id)
+    ));
+
+  if (hasCanonicalPackError) {
+    return {
+      icon: "error",
+      label: "Con errores",
+      severity: "error",
+      status: "error",
+    };
+  }
+
+  if (summary.status === "checking") {
+    return {
+      icon: "refresh",
+      label: "Comprobando",
+      severity: "progress",
+      status: "checking",
+    };
+  }
+
+  if (summary.status === "competition-ready") {
+    return {
+      icon: "check",
+      label: "Pack listo",
+      severity: "success",
+      status: "ready",
+    };
+  }
+
+  return null;
+}
+
 export function renderGameHeroIndicatorsRegion(state) {
   const favorite = state.data?.game?.favorite === true;
-  const ready = deriveGameSummaryPresentation(state).status === "competition-ready";
-  const count = Number(favorite) + Number(ready);
+  const packStatus = deriveGameHeroStatusPresentation(state);
+  const count = Number(favorite) + Number(Boolean(packStatus));
 
   if (count === 0) return "";
 
@@ -197,10 +250,10 @@ export function renderGameHeroIndicatorsRegion(state) {
           <span class="game-hero-indicator__label" aria-hidden="true">Favorito</span>
         </span>
       ` : ""}
-      ${ready ? `
-        <span class="game-hero-indicator game-hero-indicator--ready" role="img" aria-label="Pack listo" title="Pack listo">
-          ${renderIcon("check", { className: "game-hero-indicator__icon", size: "sm" })}
-          <span class="game-hero-indicator__label" aria-hidden="true">Pack listo</span>
+      ${packStatus ? `
+        <span class="game-hero-indicator game-hero-indicator--status game-hero-indicator--${escapeHtml(packStatus.status)}" role="img" aria-label="${escapeHtml(packStatus.label)}" title="${escapeHtml(packStatus.label)}" data-severity="${escapeHtml(packStatus.severity)}">
+          ${renderIcon(packStatus.icon, { className: "game-hero-indicator__icon", size: "sm" })}
+          <span class="game-hero-indicator__label" aria-hidden="true">${escapeHtml(packStatus.label)}</span>
         </span>
       ` : ""}
     </div>
@@ -215,7 +268,7 @@ function stateWithMembershipPresentation(state, membership) {
 export function renderGameStatusRegion(state, membership = state.data?.membership) {
   const status = deriveGameSummaryPresentation(stateWithMembershipPresentation(state, membership));
 
-  if (status.status === "competition-ready") return "";
+  if (["checking", "competition-ready", "duplicate", "invalid", "mame-unavailable"].includes(status.status)) return "";
 
   return `
     <div class="badge-row">
