@@ -41,7 +41,7 @@ export type PlayerOfficialResult = {
 
 export type PlayerCompetitiveProfile = {
   stats: PlayerProfileStats;
-  recentSubmissions: PlayerProfileSubmission[];
+  ownerSubmissions: PlayerProfileSubmission[];
   bestScores: PlayerBestScore[];
   recentResults: PlayerOfficialResult[];
   hasDataWarning: boolean;
@@ -73,7 +73,7 @@ export function emptyPlayerCompetitiveProfile(
 ): PlayerCompetitiveProfile {
   return {
     stats: emptyPlayerProfileStats(),
-    recentSubmissions: [],
+    ownerSubmissions: [],
     bestScores: [],
     recentResults: [],
     hasDataWarning,
@@ -192,9 +192,9 @@ export async function getPlayerCompetitiveProfile(
       isSubmissionPublic(row, weeksById.get(row.week_id))
     );
   });
-  const recentSubmissions =
+  const ownerSubmissions =
     visibility === "owner"
-      ? visibleSubmissionRows.slice(0, 8).map((row) => {
+      ? visibleSubmissionRows.map((row) => {
           const week = weeksById.get(row.week_id);
           const submission = mapSubmissionRowToSubmission(row, week);
 
@@ -252,7 +252,7 @@ export async function getPlayerCompetitiveProfile(
       participations: participationWeekIds.size,
       officialResults: playerResults.length,
     },
-    recentSubmissions,
+    ownerSubmissions,
     bestScores: buildBestScores(
       visibleSubmissionRows,
       weeksById,

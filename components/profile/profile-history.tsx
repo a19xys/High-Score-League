@@ -187,8 +187,8 @@ export function ProfileHistory({
             showPlayer={false}
             showSource
             showWeek
-            submissions={data.recentSubmissions}
-            title="Tus envíos recientes"
+            submissions={data.ownerSubmissions}
+            title="Tu historial de envíos"
           />
         </section>
       ) : null}

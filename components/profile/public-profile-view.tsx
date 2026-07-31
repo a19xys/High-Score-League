@@ -21,7 +21,7 @@ export function PublicProfileView({
       <nav aria-label="Ruta de navegación" className="text-sm theme-text-muted">
         <Link
           className="rounded font-bold transition hover:text-circuit focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
-          href="/seasons"
+          href="/archive?section=seasons"
         >
           Liga
         </Link>

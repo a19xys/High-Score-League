@@ -288,7 +288,7 @@ export default async function RealDataTestPage() {
               {visibleWeeks.length} visibles · {hiddenDraftWeeks} ocultas por draft
             </p>
             <div className="mt-3 flex flex-wrap gap-3 text-sm">
-              <Link className="font-semibold text-circuit hover:underline" href="/weeks">
+              <Link className="font-semibold text-circuit hover:underline" href="/archive">
                 Abrir archivo semanal
               </Link>
               <Link className="font-semibold text-circuit hover:underline" href="/game">

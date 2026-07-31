@@ -24,7 +24,7 @@ export type NavProfile = {
 type NavLink = {
   href: string;
   label: string;
-  id: "home" | "leaderboard" | "classification" | "weeks" | "seasons";
+  id: "home" | "leaderboard" | "classification" | "archive";
 };
 
 type SiteNavClientProps = {
@@ -33,8 +33,7 @@ type SiteNavClientProps = {
 
 const baseLinks: NavLink[] = [
   { href: "/", label: "INICIO", id: "home" },
-  { href: "/weeks", label: "SEMANAS", id: "weeks" },
-  { href: "/seasons", label: "TEMPORADAS", id: "seasons" },
+  { href: "/archive", label: "ARCHIVO", id: "archive" },
 ];
 
 function navLinkClass(active: boolean) {
@@ -118,16 +117,10 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
       return activeSeasonPaths.includes(pathname);
     }
 
-    if (link.id === "weeks") {
+    if (link.id === "archive") {
       return (
-        pathname === "/weeks" ||
-        (pathname.startsWith("/weeks/") && pathname !== activeWeekPath)
-      );
-    }
-
-    if (link.id === "seasons") {
-      return (
-        pathname === "/seasons" ||
+        pathname === "/archive" ||
+        (pathname.startsWith("/weeks/") && pathname !== activeWeekPath) ||
         (pathname.startsWith("/seasons/") && !activeSeasonPaths.includes(pathname))
       );
     }

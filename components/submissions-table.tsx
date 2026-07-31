@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   formatExactDateTime,
   formatLongDateWithoutYear,
@@ -8,9 +8,16 @@ import {
   formatScore,
 } from "@/lib/format";
 import type { Game, Player, Submission, Week } from "@/types";
+import {
+  clampPage,
+  getTotalPages,
+  paginateItems,
+  type TablePageSize,
+} from "@/lib/pagination";
 import { PlayerPill } from "./player-pill";
 import { EmptyState } from "./ui/state";
 import { DataTable } from "./ui/table";
+import { TablePagination } from "./ui/table-pagination";
 
 type SubmissionRow = Submission & {
   player?: Player;
@@ -374,6 +381,8 @@ export function SubmissionsTable({
   const [sortKey, setSortKey] = useState<SortKey>("submittedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [ownHiddenScoresRevealed, setOwnHiddenScoresRevealed] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<TablePageSize>(20);
 
   const decoratedSubmissions = useMemo(
     () =>
@@ -389,12 +398,26 @@ export function SubmissionsTable({
     () => sortSubmissions(decoratedSubmissions, sortKey, sortDirection),
     [decoratedSubmissions, sortDirection, sortKey],
   );
+  const totalPages = getTotalPages(sortedSubmissions.length, pageSize);
+  const safePage = clampPage(page, totalPages);
+  const visibleSubmissions = useMemo(
+    () => paginateItems(sortedSubmissions, safePage, pageSize),
+    [pageSize, safePage, sortedSubmissions],
+  );
   const hiddenScoreNote = useMemo(
     () => getHiddenScoreNote(decoratedSubmissions, showWeek),
     [decoratedSubmissions, showWeek],
   );
 
+  useEffect(() => {
+    if (page !== safePage) {
+      setPage(safePage);
+    }
+  }, [page, safePage]);
+
   function toggleSort(nextSortKey: SortKey) {
+    setPage(1);
+
     if (nextSortKey === sortKey) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
       return;
@@ -507,7 +530,7 @@ export function SubmissionsTable({
           </tr>
         </thead>
         <tbody className="divide-y theme-border theme-surface">
-          {sortedSubmissions.map((submission) => {
+          {visibleSubmissions.map((submission) => {
             const ownHiddenScoreIsRevealed =
               submission.hideScore && submission.isOwn && ownHiddenScoresRevealed;
             const scoreIsHiddenFromViewer =
@@ -607,6 +630,16 @@ export function SubmissionsTable({
           })}
         </tbody>
       </DataTable>
+      <TablePagination
+        onPageChange={setPage}
+        onPageSizeChange={(nextPageSize) => {
+          setPageSize(nextPageSize);
+          setPage(1);
+        }}
+        page={safePage}
+        pageSize={pageSize}
+        totalItems={sortedSubmissions.length}
+      />
       {hiddenScoreNote ? (
         <div className="flex items-start gap-2 rounded-lg border border-circuit/20 bg-circuit/10 px-3 py-2 text-sm theme-text-muted">
           <MaskIcon className="mt-0.5 h-4 w-4 bg-circuit" src="/icons/info.png" />

@@ -56,8 +56,8 @@ export default async function GamePage() {
       </CardHeader>
       <EmptyState
         action={
-          <Link className="font-semibold text-circuit hover:underline" href="/weeks">
-            Ver archivo de semanas
+          <Link className="font-semibold text-circuit hover:underline" href="/archive">
+            Ver archivo
           </Link>
         }
         description="Cuando se abra una semana, esta ruta redirigirá automáticamente a su leaderboard."

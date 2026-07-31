@@ -125,9 +125,9 @@ Usuario registrado:
 
 - login y logout.
 - `/profile`
-- `/weeks`
+- `/archive` y `/archive?section=seasons`
+- redirecciones permanentes desde `/weeks`, `/seasons` y `/season`
 - `/weeks/[weekId]`
-- `/seasons`
 - `/seasons/[seasonId]`
 - `/game`
 - chat de liga.
@@ -149,6 +149,10 @@ Admin:
 
 Submissions:
 
+- comprobar historiales de 20, 50 y 100 filas, navegación en extremos y retorno
+  a página 1 al cambiar orden o tamaño;
+- confirmar que intentos, mejor score y scores ocultos se calculan sobre todo el
+  conjunto antes de paginar;
 - probar `POST /api/submissions/ingest` con token real.
 - confirmar que un usuario no unido a la temporada recibe
   `NOT_SEASON_MEMBER`.
@@ -198,9 +202,10 @@ manual en el entorno real.
 
 - `POSTDEPLOY-PROFILE-1`: implementar eliminacion de cuenta por anonimizacion
   de perfil y bloqueo de acceso, sin borrar actividad historica.
-- `POSTDEPLOY-ARCHIVE-1`: fusionar `Semanas` y `Temporadas` en una seccion
-  `ARCHIVO` con pestañas `Semanas` y `Temporadas`. No hacerlo antes del primer
-  deploy porque afecta navegacion, rutas y estado activo.
+- `POSTDEPLOY-ARCHIVE-1` completado: `ARCHIVO` reúne `Semanas` y `Temporadas`
+  mediante URLs canónicas y conserva compatibilidad con los índices anteriores.
+- `SUBMISSIONS-SERVER-PAGINATION-1`: evaluar consultas paginadas, conteos e
+  índices cuando cargar el conjunto completo deje de ser viable.
 - `POSTDEPLOY-MIGRATIONS-1`: consolidar migraciones para instalacion limpia.
   No reescribir la historia de migraciones aplicada a produccion sin estrategia,
   backup y posible ruta separada de fresh install o snapshot.

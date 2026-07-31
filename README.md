@@ -45,10 +45,11 @@ http://localhost:3000
 
 - `/`: landing publica sin sesion; home real con sesion.
 - `/game`: redirige a la semana activa real.
-- `/weeks`: archivo real de semanas.
+- `/archive`: archivo unificado; muestra semanas por defecto y temporadas con
+  `?section=seasons`.
+- `/weeks` y `/seasons`: redirecciones permanentes de compatibilidad al archivo.
 - `/weeks/[weekId]`: detalle real de semana con leaderboard, submissions,
   benchmarks y resultados oficiales cuando existen.
-- `/seasons`: archivo real de temporadas.
 - `/seasons/[seasonId]`: detalle real de temporada con clasificacion y podio.
 - `/players/[username]`: perfil competitivo público para miembros autenticados.
 - `/submit`: herramienta legacy/interna para admins; el flujo normal de
@@ -76,6 +77,7 @@ Supabase Storage queda reservado para contenido dinamico futuro.
 - [Supabase setup](docs/supabase-setup.md)
 - [Auth setup](docs/auth-setup.md)
 - [Carga de datos](docs/data-loading.md)
+- [Archivo y paginación de envíos](docs/archive.md)
 - [Arquitectura de submissions](docs/submission-architecture.md)
 - [Ingest API](docs/ingest-api.md)
 - [Resultados semanales](docs/weekly-results.md)

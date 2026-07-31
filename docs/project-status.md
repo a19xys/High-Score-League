@@ -36,7 +36,12 @@ normal.
   `Sin juego asignado`; ya no se usa un juego placeholder real.
 - `/game` redirige a la semana activa real.
 - `/week` y `/leaderboard` redirigen a `/game`.
-- `/season` redirige a `/seasons`.
+- `/archive` reúne semanas y temporadas con sección persistida en URL. `/weeks`,
+  `/seasons` y `/season` mantienen compatibilidad mediante redirección
+  permanente a la sección canónica.
+- Todos los historiales basados en `SubmissionsTable` se paginan después de los
+  cálculos y el orden global, con tamaños 20, 50 y 100. El perfil propio ya no
+  limita el historial a ocho envíos y el público no recibe filas privadas.
 - `/submit` se conserva como herramienta legacy/interna para admins. El flujo
   normal de puntuaciones sera la app local/MAME.
 - `lib/mock-data.ts` fue eliminado y ya no existe fallback de producto a datos
@@ -85,6 +90,7 @@ normal.
   `docs/admin-seasons.md`.
 - Cuestionario de Home: `docs/home-polls.md`.
 - Perfiles y decisiones futuras de privacidad/media: `docs/profile-revamp.md`.
+- Archivo unificado y paginación: `docs/archive.md`.
 - Automatizacion: `docs/automation.md`.
 - Checklist de despliegue: `docs/deploy-checklist.md`.
 
@@ -109,8 +115,8 @@ manual de `docs/deploy-checklist.md` en el entorno real de Vercel y Supabase.
   `/api/cron/process-schedule`.
 - Comentarios del cuestionario, historial de cuestionarios y múltiples
   cuestionarios simultáneos.
-- `POSTDEPLOY-ARCHIVE-1`: fusionar Semanas y Temporadas en una seccion
-  `ARCHIVO` con pestañas.
+- `SUBMISSIONS-SERVER-PAGINATION-1`: estudiar consultas paginadas, conteos e
+  índices cuando el volumen ya no permita cargar historiales completos.
 - `POSTDEPLOY-MIGRATIONS-1`: consolidar migraciones para instalacion limpia con
   estrategia de fresh install o snapshot, sin alterar produccion sin backup.
 
@@ -118,3 +124,6 @@ manual de `docs/deploy-checklist.md` en el entorno real de Vercel y Supabase.
 
 Diseñar `MEDIA-UPLOADS-1` como sistema universal antes de sustituir el editor URL
 del avatar o añadir nuevas superficies de carga de imágenes.
+
+`POSTDEPLOY-ARCHIVE-1` está completado: la navegación usa `ARCHIVO`, mantiene las
+rutas de detalle y conserva los índices antiguos como redirecciones permanentes.

@@ -32,8 +32,8 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
   if (!detail) {
     return (
       <div className="space-y-6">
-        <ActionLink href="/weeks" icon="back" variant="primary">
-          Volver a semanas
+        <ActionLink href="/archive" icon="back" variant="primary">
+          Volver al archivo
         </ActionLink>
         <Card>
           <CardHeader title="Semana no disponible" eyebrow="Semana">
@@ -50,8 +50,8 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
 
   return (
     <WeekDetailView
-      backHref="/weeks"
-      backLabel="Volver a semanas"
+      backHref="/archive"
+      backLabel="Volver al archivo"
       benchmarks={detail.benchmarks}
       currentUserId={session.userId}
       dataMode={detail.mode}

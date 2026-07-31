@@ -25,7 +25,7 @@ avatar y estados vacíos, pero no recibe datos ni controles privados.
   cuando la imagen remota falla.
 - `components/profile/profile-stats.tsx`: banda compartida de métricas reales.
 - `components/profile/profile-history.tsx`: resultados y mejores marcas; añade
-  los envíos recientes únicamente en el perfil propio.
+  el historial paginado completo de envíos únicamente en el perfil propio.
 - `components/profile/profile-navigation.tsx`: navegación interna accesible del
   perfil propio.
 - `components/profile/profile-editor.tsx` y
@@ -52,7 +52,8 @@ Se muestran:
 - cantidad de resultados oficiales;
 - resultados oficiales recientes;
 - mejor score válido por semana;
-- envíos recientes propios, incluidos los que RLS permite ver solo al dueño;
+- historial completo de envíos propios ya cargados, incluidos los que RLS
+  permite ver solo al dueño, paginado a 20, 50 o 100 filas;
 - email únicamente dentro del bloque privado de sesión;
 - preferencia real `track_play_time` como permiso de recopilación;
 - tema Claro, Oscuro o Sistema;
@@ -205,8 +206,8 @@ URL solo cuando todos los consumidores estén preparados.
 - No hay controles de visibilidad adicionales ni schema nuevo.
 - El archivo de mejores marcas depende de submissions que RLS y el estado de
   semana permiten leer.
-- La trayectoria muestra las ocho entradas más recientes para mantener una
-  lectura compacta; no implementa paginación.
+- El historial privado pagina en cliente el conjunto completo ya cargado. La
+  paginación en servidor queda reservada para `SUBMISSIONS-SERVER-PAGINATION-1`.
 - El centro admin no incorpora gestión de usuarios.
 
 No se modifican schema, puntos, generación de `weekly_results`, ingest, cron,
