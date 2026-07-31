@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Manrope, Sora } from "next/font/google";
+import { PlayerHoverCardProvider } from "@/components/player-hover-card";
 import { SiteNav } from "@/components/site-nav";
+import { getServerSession } from "@/lib/auth/session";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -99,7 +101,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
+  const [cookieStore, session] = await Promise.all([
+    cookies(),
+    getServerSession(),
+  ]);
   const themePreference = normalizeThemePreference(
     cookieStore.get("hsl-theme")?.value,
   );
@@ -118,7 +123,11 @@ export default async function RootLayout({
       </head>
       <body className={`${manrope.variable} ${sora.variable}`}>
         <SiteNav />
-        <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+        <PlayerHoverCardProvider
+          currentUserId={session.status === "signed-in" ? session.userId : null}
+        >
+          <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+        </PlayerHoverCardProvider>
       </body>
     </html>
   );

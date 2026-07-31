@@ -22,10 +22,12 @@ function renderHeroLogo(game, selection) {
   }
 
   return `
-    <img class="game-hero__logo" src="${escapeHtml(logo.url)}" alt="" hidden
-      data-visual-asset data-asset-scope="detail" data-asset-kind="${kind}"
-      data-asset-url="${escapeHtml(logo.url)}" data-asset-selection="${escapeHtml(selection)}"
-      data-asset-generation="${escapeHtml(game.visualAssetGeneration || 0)}" data-asset-status="pending">
+    <div class="game-hero-logo-safe-area">
+      <img class="game-hero__logo" src="${escapeHtml(logo.url)}" alt="" hidden
+        data-visual-asset data-asset-scope="detail" data-asset-kind="${kind}"
+        data-asset-url="${escapeHtml(logo.url)}" data-asset-selection="${escapeHtml(selection)}"
+        data-asset-generation="${escapeHtml(game.visualAssetGeneration || 0)}" data-asset-status="pending">
+    </div>
   `;
 }
 

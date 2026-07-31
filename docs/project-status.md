@@ -9,6 +9,10 @@ normal.
 - Landing publica para visitantes sin sesion.
 - Rutas privadas protegidas con `AccessRequired`.
 - Auth real con email/password y perfiles reales.
+- Los avatares han recuperado el tratamiento anterior al revamp, sin aro
+  multicolor. Las identidades compartidas de jugadores muestran en escritorio
+  una preview pública tras 600 ms de intención de hover, con portal, colisiones,
+  caché por jugador y navegación propia a `/profile`.
 - Perfiles propio y público comparten una tarjeta de jugador finalista, métricas
   competitivas reales, trayectoria y fallbacks de avatar. Las identidades de
   leaderboard, clasificación, podios, historial, archivos y chat enlazan al

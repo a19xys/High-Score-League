@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import type { Player } from "@/types";
+import { PlayerHoverCard } from "./player-hover-card";
 
 type PlayerPillProps = {
   player: Player;
@@ -42,12 +42,12 @@ export function PlayerPill({
   }
 
   return (
-    <Link
+    <PlayerHoverCard
       aria-label={`Ver perfil de @${player.username}`}
       className={`-m-1 flex min-w-0 items-center rounded-xl p-1 transition hover:bg-[var(--hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit ${gapClass}`}
-      href={`/players/${encodeURIComponent(player.username)}`}
+      player={player}
     >
       {content}
-    </Link>
+    </PlayerHoverCard>
   );
 }

@@ -1,10 +1,10 @@
 export const DEFAULT_OPERATION_MIN_VISIBLE_MS = 600;
 
 let feedbackRunSequence = 0;
+let activeFeedbackController = null;
 
-export function minimumVisibleMsForScope(scope = "transient", minVisibleMs) {
-  if (Number.isFinite(minVisibleMs)) return Math.max(0, minVisibleMs);
-  return scope === "transient" ? DEFAULT_OPERATION_MIN_VISIBLE_MS : 0;
+export function minimumVisibleMsForScope() {
+  return DEFAULT_OPERATION_MIN_VISIBLE_MS;
 }
 
 export function remainingMinimumVisibleMs(startedAt, minVisibleMs, now = Date.now()) {
@@ -22,21 +22,37 @@ export function remainingMinimumVisibleMs(startedAt, minVisibleMs, now = Date.no
 export async function waitForMinimumVisibleDuration({
   minVisibleMs = DEFAULT_OPERATION_MIN_VISIBLE_MS,
   now = Date.now,
+  signal,
   startedAt,
-  wait = (duration) => new Promise((resolve) => globalThis.setTimeout(resolve, duration)),
+  wait = (duration, { signal: waitSignal } = {}) => new Promise((resolve) => {
+    let timer = null;
+    const finish = () => {
+      if (timer !== null) globalThis.clearTimeout(timer);
+      waitSignal?.removeEventListener?.("abort", finish);
+      timer = null;
+      resolve();
+    };
+    timer = globalThis.setTimeout(finish, duration);
+    if (waitSignal?.aborted) finish();
+    else waitSignal?.addEventListener?.("abort", finish, { once: true });
+  }),
 } = {}) {
   const remaining = remainingMinimumVisibleMs(startedAt, minVisibleMs, now());
 
   if (remaining > 0) {
-    await wait(remaining);
+    await wait(remaining, { signal });
   }
 
   return remaining;
 }
 
+export function cancelActiveOperationFeedback() {
+  activeFeedbackController?.abort();
+  activeFeedbackController = null;
+}
+
 export async function runWithOperationFeedback({
   isCurrent = () => true,
-  minVisibleMs,
   now = Date.now,
   onFinish,
   onStart,
@@ -46,29 +62,43 @@ export async function runWithOperationFeedback({
   wait,
 } = {}) {
   if (typeof operation !== "function") throw new TypeError("operation must be a function");
+  activeFeedbackController?.abort();
+  const feedbackController = new AbortController();
+  activeFeedbackController = feedbackController;
   const runId = ++feedbackRunSequence;
-  const startedAt = Number.isFinite(providedStartedAt) ? providedStartedAt : now();
-  const context = { runId, scope, startedAt };
+  const startContext = { runId, scope, startedAt: null };
   let result;
   let error;
 
-  await onStart?.(context);
   try {
-    result = await operation(context);
-  } catch (operationError) {
-    error = operationError;
-  }
+    await onStart?.(startContext);
+    const startedAt = Number.isFinite(providedStartedAt) ? providedStartedAt : now();
+    const context = { ...startContext, startedAt };
+    try {
+      result = await operation(context);
+    } catch (operationError) {
+      error = operationError;
+    }
 
-  await waitForMinimumVisibleDuration({
-    minVisibleMs: minimumVisibleMsForScope(scope, minVisibleMs),
-    now,
-    startedAt,
-    ...(wait ? { wait } : {}),
-  });
+    if (feedbackController.signal.aborted || !isCurrent(runId)) {
+      if (error) throw error;
+      return result;
+    }
 
-  if (isCurrent(runId)) {
-    await onFinish?.({ ...context, error, result, status: error ? "error" : "success" });
+    await waitForMinimumVisibleDuration({
+      minVisibleMs: minimumVisibleMsForScope(scope),
+      now,
+      signal: feedbackController.signal,
+      startedAt,
+      ...(wait ? { wait } : {}),
+    });
+
+    if (!feedbackController.signal.aborted && isCurrent(runId)) {
+      await onFinish?.({ ...context, error, result, status: error ? "error" : "success" });
+    }
+    if (error) throw error;
+    return result;
+  } finally {
+    if (activeFeedbackController === feedbackController) activeFeedbackController = null;
   }
-  if (error) throw error;
-  return result;
 }

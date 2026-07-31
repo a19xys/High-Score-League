@@ -915,28 +915,57 @@ button:disabled {
   width: 164px;
   min-width: 164px;
   align-items: center;
-  gap: 8px;
 }
 
 .connection-chip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  inline-size: 118px;
+  inline-size: 164px;
   justify-content: flex-start;
-  padding-inline: 11px;
+  padding: 0 5px 0 11px;
   color: var(--text-muted);
   font-size: 12px;
   white-space: nowrap;
 }
 
-.connection-chip--unresolved,
-.connection-control[data-connectivity-committed="false"] .connection-refresh-button {
+.connection-chip--unresolved {
   visibility: hidden;
 }
 
 .connection-refresh-button {
-  flex: 0 0 38px;
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  margin-inline-start: auto;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.connection-refresh-button:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.connection-refresh-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+.connection-refresh-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.connection-refresh-icon.ui-icon {
+  width: 16px;
+  height: 16px;
+  color: currentColor;
 }
 
 .connection-label {
@@ -6364,6 +6393,7 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   --hero-indicator-edge-inset: 16px;
   --hero-indicator-gap: 8px;
   --hero-indicator-lane-min: var(--hero-indicator-edge-inset);
+  --hero-safe-block-inset: 16px;
   position: relative;
   display: grid;
   width: 100%;
@@ -6375,6 +6405,7 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
     minmax(var(--hero-indicator-lane-min), 1fr)
     minmax(0, auto)
     minmax(var(--hero-indicator-lane-min), 1fr);
+  grid-template-rows: minmax(0, 1fr);
   aspect-ratio: 1920 / 620;
   border-bottom: 1px solid color-mix(in srgb, var(--circuit) 22%, var(--border));
   background:
@@ -6413,18 +6444,37 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   grid-area: 1 / 1 / 2 / -1;
 }
 
-.game-hero-shell .game-hero__logo {
+.game-hero-shell .game-hero-logo-safe-area {
   position: relative;
   z-index: 2;
-  inset: auto;
+  display: grid;
   width: auto;
-  max-width: min(76cqi, calc(100cqi - (2 * var(--hero-indicator-lane-min))));
-  height: 58%;
-  max-height: 70%;
+  height: 100%;
   min-width: 0;
-  align-self: center;
+  min-height: 0;
+  max-width: min(76cqi, calc(100cqi - (2 * var(--hero-indicator-lane-min))));
+  max-height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  align-items: end;
   justify-self: center;
+  justify-items: center;
   grid-area: 1 / 2;
+  padding-block: var(--hero-safe-block-inset);
+}
+
+.game-hero-shell .game-hero__logo {
+  position: static;
+  z-index: 2;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  align-self: end;
+  justify-self: center;
+  object-fit: contain;
   transform: none;
 }
 
@@ -6432,6 +6482,7 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   position: relative;
   z-index: 3;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   grid-area: 1 / 3;
   pointer-events: none;
@@ -6444,6 +6495,10 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
 
 .game-hero-shell:not(:has(.game-hero-stage--with-logo)) .game-hero-indicators-region {
   grid-area: 1 / 1;
+}
+
+.game-hero-shell:not(:has(.game-hero-stage--with-logo)) .game-hero-logo-safe-area {
+  display: none;
 }
 
 .game-hero-indicators {

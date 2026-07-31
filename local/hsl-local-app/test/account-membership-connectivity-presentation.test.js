@@ -324,7 +324,7 @@ test("public connectivity projection is binary across every internal state", asy
   );
 });
 
-test("normal connectivity separates the CSS status dot from the SVG refresh action", async () => {
+test("normal connectivity composes the CSS status dot, label and refresh button in one chip", async () => {
   const { renderConnectionControl } = await headerApi();
   const connected = renderConnectionControl(productState());
   const disconnected = renderConnectionControl(productState({
@@ -339,8 +339,10 @@ test("normal connectivity separates the CSS status dot from the SVG refresh acti
   assert.match(disconnected, />Desconectado</);
   for (const html of [connected, disconnected]) {
     const chip = html.slice(html.indexOf("<div class=\"connection-chip"), html.indexOf("</div>") + 6);
-    assert.doesNotMatch(chip, /ui-icon|\.svg|<img|<svg|check|cross/i);
-    assert.match(html, /data-action="refresh-connectivity"/);
+    assert.match(chip, /connection-dot[\s\S]*connection-label[\s\S]*<button class="connection-refresh-button"/);
+    assert.match(chip, /data-action="refresh-connectivity"/);
+    assert.doesNotMatch(chip, /ui-icon--(?:check|error|cross)|data-icon="(?:check|error|cross)"/i);
+    assert.doesNotMatch(html, /theme-button[^\n]*connection-refresh-button/);
     assert.match(html, /aria-label="Comprobar conexión"/);
     assert.match(html, /data-icon="refresh"/);
   }

@@ -229,7 +229,8 @@ export function renderConnectionControl(state) {
   const status = derivePublicConnectivityPresentation(state.connectivity, state.data?.remoteConfiguration);
   const action = deriveSupportingActions(state).refreshConnectivity;
   const committed = status.committed === true;
-  const manualProbe = state.connectivity?.probe?.phase === "manual" && state.connectivity?.probe?.inFlight === true;
+  const manualProbe = (state.connectivity?.probe?.phase === "manual" && state.connectivity?.probe?.inFlight === true)
+    || (state.busy === true && state.busyLabel === "Comprobando conexión");
   const disabled = !committed || !action.available;
   const actionTitle = action.reason || action.label;
 
@@ -243,12 +244,12 @@ export function renderConnectionControl(state) {
           <span class="connection-dot" aria-hidden="true"></span>
           <span class="connection-label">${escapeHtml(status.title)}</span>
         ` : ""}
+        <button class="connection-refresh-button" type="button" data-action="refresh-connectivity"
+          title="${escapeHtml(actionTitle)}" aria-label="Comprobar conexión" aria-busy="${manualProbe ? "true" : "false"}"
+          ${disabled ? "disabled aria-disabled=\"true\"" : ""} ${!committed ? "aria-hidden=\"true\" tabindex=\"-1\"" : ""}>
+          ${renderIcon("refresh", { className: "connection-refresh-icon", size: "sm" })}
+        </button>
       </div>
-      <button class="theme-button theme-button--icon connection-refresh-button" type="button" data-action="refresh-connectivity"
-        title="${escapeHtml(actionTitle)}" aria-label="Comprobar conexión" aria-busy="${manualProbe ? "true" : "false"}"
-        ${disabled ? "disabled aria-disabled=\"true\"" : ""} ${!committed ? "aria-hidden=\"true\" tabindex=\"-1\"" : ""}>
-        ${renderIcon("refresh", { className: "button-icon connection-refresh-icon", size: "sm" })}
-      </button>
     </div>
   `;
 }

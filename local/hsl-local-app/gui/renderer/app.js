@@ -40,9 +40,8 @@ import {
 } from "./library-geometry.js";
 import { createRegionRenderer, preservedScrollElements } from "./region-renderer.js";
 import {
-  DEFAULT_OPERATION_MIN_VISIBLE_MS,
+  cancelActiveOperationFeedback,
   runWithOperationFeedback,
-  waitForMinimumVisibleDuration,
 } from "./operation-feedback.js";
 import { assetIdentityMatches, createAssetPreloader } from "./asset-preloader.js";
 import { classifyStartupSnapshot, createStartupReadiness } from "./startup-readiness.js";
@@ -1299,6 +1298,7 @@ function rankingFeedbackContextKey(data = store.getState().data) {
 function invalidateStaleRankingFeedback(nextData) {
   if (!activeRankingFeedback) return {};
   if (activeRankingFeedback.contextKey === rankingFeedbackContextKey(nextData)) return {};
+  cancelActiveOperationFeedback();
   activeRankingFeedback = null;
   return { busy: false, busyLabel: null, rankingOpening: false };
 }
@@ -1442,7 +1442,6 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
   if (store.getState().busy) return;
 
   const runId = ++busyRunSequence;
-  const busyStartedAt = Date.now();
   const shouldRestoreTriggerFocus = options.restoreTriggerFocus === true
     && document.activeElement?.closest?.(`[data-action="${action}"]`);
   const restoreTriggerFocus = () => {
@@ -1450,29 +1449,29 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
     const trigger = root.querySelector(`[data-action="${action}"]`);
     if (trigger && !trigger.disabled) trigger.focus({ preventScroll: true });
   };
-  if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
-  activeBusyPhaseTimer = null;
-  store.setState({
-    ...closeAccountMenuState(),
-    busy: true,
-    busyLabel,
-  });
-
-  if (options.runningLabel) {
-    activeBusyPhaseTimer = window.setTimeout(() => {
-      const current = store.getState();
-
-      if (runId === busyRunSequence && current.busy) {
-        store.setState({ busyLabel: options.runningLabel });
-      }
-    }, options.runningDelayMs || 1200);
-  }
-
   try {
     const response = await runWithOperationFeedback({
-      minVisibleMs: options.minVisibleMs,
+      isCurrent: () => runId === busyRunSequence,
       scope: options.scope || "transient",
-      startedAt: busyStartedAt,
+      onStart: () => {
+        if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
+        activeBusyPhaseTimer = null;
+        store.setState({
+          ...closeAccountMenuState(),
+          busy: true,
+          busyLabel,
+        });
+
+        if (options.runningLabel) {
+          activeBusyPhaseTimer = window.setTimeout(() => {
+            const current = store.getState();
+
+            if (runId === busyRunSequence && current.busy) {
+              store.setState({ busyLabel: options.runningLabel });
+            }
+          }, options.runningDelayMs || 1200);
+        }
+      },
       operation: async () => {
         const value = await fn();
         if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
@@ -1637,36 +1636,33 @@ async function activateLibraryPackWithPreload(packId) {
   if (!safePackId) return;
 
   const requestId = ++libraryPackSelectionSequence;
-  const activationStartedAt = Date.now();
   const optimisticPack = findLibraryPack(safePackId);
   const optimisticPreload = preloadDetailAssetUrls(detailAssetUrlsFromLibraryPack(optimisticPack));
 
-  store.setState({
-    ...closeAccountMenuState(),
-    busy: true,
-    busyLabel: "Activando pack",
-    libraryActivationInProgress: true,
-    pendingLibraryPackId: safePackId,
-  });
-
   try {
-    const response = await window.hslLauncher.useLibraryPack(safePackId);
+    const response = await runWithOperationFeedback({
+      isCurrent: () => requestId === libraryPackSelectionSequence,
+      onStart: () => {
+        store.setState({
+          ...closeAccountMenuState(),
+          busy: true,
+          busyLabel: "Activando pack",
+          libraryActivationInProgress: true,
+          pendingLibraryPackId: safePackId,
+        });
+      },
+      operation: async () => {
+        const result = await window.hslLauncher.useLibraryPack(safePackId);
 
-    if (requestId !== libraryPackSelectionSequence) {
-      return;
-    }
+        if (requestId !== libraryPackSelectionSequence) return result;
+        await optimisticPreload;
 
-    await optimisticPreload;
-
-    if (response.state) {
-      await preloadDetailAssetUrls(detailAssetUrlsFromGame(response.state.game));
-    }
-
-    if (requestId !== libraryPackSelectionSequence) {
-      return;
-    }
-
-    await waitForMinimumVisibleDuration({ minVisibleMs: DEFAULT_OPERATION_MIN_VISIBLE_MS, startedAt: activationStartedAt });
+        if (result.state) {
+          await preloadDetailAssetUrls(detailAssetUrlsFromGame(result.state.game));
+        }
+        return result;
+      },
+    });
 
     if (requestId !== libraryPackSelectionSequence) return;
 
@@ -1686,10 +1682,6 @@ async function activateLibraryPackWithPreload(packId) {
     if (requestId !== libraryPackSelectionSequence) {
       return;
     }
-
-    await waitForMinimumVisibleDuration({ minVisibleMs: DEFAULT_OPERATION_MIN_VISIBLE_MS, startedAt: activationStartedAt });
-
-    if (requestId !== libraryPackSelectionSequence) return;
 
     store.setState({
       busy: false,
@@ -2166,6 +2158,7 @@ function cleanupConnectivitySignals() {
 function cleanupRendererLifecycle() {
   loginDraft.clear();
   busyRunSequence += 1;
+  cancelActiveOperationFeedback();
   if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
   activeBusyPhaseTimer = null;
   activeRankingFeedback = null;

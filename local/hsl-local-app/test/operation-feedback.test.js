@@ -6,24 +6,93 @@ const { pathToFileURL } = require("node:url");
 
 const rendererRoot = path.join(__dirname, "..", "gui", "renderer");
 
-test("minimum visible feedback waits only for the remaining duration", async () => {
+function createFakeClock(start = 1_000) {
+  let now = start;
+  let sequence = 0;
+  const timers = new Map();
+
+  function setTimeoutFake(callback, delay) {
+    const id = ++sequence;
+    timers.set(id, { callback, dueAt: now + Math.max(0, delay) });
+    return id;
+  }
+
+  function tick(duration) {
+    const target = now + duration;
+
+    while (true) {
+      const due = [...timers.entries()]
+        .filter(([, timer]) => timer.dueAt <= target)
+        .sort((left, right) => left[1].dueAt - right[1].dueAt || left[0] - right[0])[0];
+      if (!due) break;
+      const [id, timer] = due;
+      timers.delete(id);
+      now = timer.dueAt;
+      timer.callback();
+    }
+    now = target;
+  }
+
+  return {
+    elapse(duration) { now += duration; },
+    now: () => now,
+    pendingCount: () => timers.size,
+    pendingDurations: () => [...timers.values()].map((timer) => timer.dueAt - now).sort((a, b) => a - b),
+    tick,
+    wait: (duration, { signal } = {}) => new Promise((resolve) => {
+      let settled = false;
+      let timerId = null;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (timerId !== null) timers.delete(timerId);
+        signal?.removeEventListener?.("abort", finish);
+        resolve();
+      };
+      timerId = setTimeoutFake(finish, duration);
+      if (signal?.aborted) finish();
+      else signal?.addEventListener?.("abort", finish, { once: true });
+    }),
+  };
+}
+
+async function flushMicrotasks() {
+  for (let index = 0; index < 6; index += 1) await Promise.resolve();
+}
+
+function deferred() {
+  let reject;
+  let resolve;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+}
+
+test("minimum visible feedback waits only for the remaining duration with a fake clock", async () => {
   const { remainingMinimumVisibleMs, waitForMinimumVisibleDuration } = await import(
     pathToFileURL(path.join(rendererRoot, "operation-feedback.js")).href
   );
-  const waits = [];
+  const clock = createFakeClock();
 
   assert.equal(remainingMinimumVisibleMs(1000, 600, 1150), 450);
   assert.equal(remainingMinimumVisibleMs(1000, 600, 1700), 0);
 
-  const waited = await waitForMinimumVisibleDuration({
+  clock.elapse(150);
+  const pending = waitForMinimumVisibleDuration({
     minVisibleMs: 600,
-    now: () => 1150,
+    now: clock.now,
     startedAt: 1000,
-    wait: async (duration) => waits.push(duration),
+    wait: clock.wait,
   });
-
-  assert.equal(waited, 450);
-  assert.deepEqual(waits, [450]);
+  await flushMicrotasks();
+  assert.deepEqual(clock.pendingDurations(), [450]);
+  clock.tick(449);
+  assert.equal(clock.pendingCount(), 1);
+  clock.tick(1);
+  assert.equal(await pending, 450);
+  assert.equal(clock.pendingCount(), 0);
 
   const completedWithoutTimer = await waitForMinimumVisibleDuration({
     minVisibleMs: 600,
@@ -34,87 +103,192 @@ test("minimum visible feedback waits only for the remaining duration", async () 
   assert.equal(completedWithoutTimer, 0);
 });
 
-test("explicit rescan integrates shared minimum feedback on success and error", async () => {
-  const [app, overlay] = await Promise.all([
-    fsp.readFile(path.join(rendererRoot, "app.js"), "utf8"),
-    fsp.readFile(path.join(rendererRoot, "components", "busy-overlay.js"), "utf8"),
-  ]);
-
-  assert.match(app, /runWithOperationFeedback/);
-  assert.match(app, /const busyStartedAt = Date\.now\(\)/);
-  assert.match(app, /await runWithOperationFeedback\(\{[\s\S]*startedAt: busyStartedAt/);
-  assert.match(app, /scope: options\.scope \|\| "transient"/);
-  assert.doesNotMatch(app, /action === "rescan-pack-directory"[\s\S]{0,250}minVisibleMs: 600/);
-  assert.match(app, /runId !== busyRunSequence/);
-  assert.match(app, /Creando diagn\\u00f3stico/);
-  assert.match(app, /scope: "interactive"/);
-  assert.match(app, /scope: "external"/);
-  assert.match(overlay, /Creando diagn\\u00f3stico\.\.\./);
-});
-
-test("operation lifecycle applies the global minimum on success and error", async () => {
+test("the common lifecycle covers sync, resolved, success, error, abort and every duration", async () => {
   const {
     DEFAULT_OPERATION_MIN_VISIBLE_MS,
+    minimumVisibleMsForScope,
     runWithOperationFeedback,
   } = await import(pathToFileURL(path.join(rendererRoot, "operation-feedback.js")).href);
   assert.equal(DEFAULT_OPERATION_MIN_VISIBLE_MS, 600);
-
-  for (const elapsed of [50, 599, 600, 4_000]) {
-    let now = 1_000;
-    const waits = [];
-    const result = await runWithOperationFeedback({
-      now: () => now,
-      operation: async () => {
-        now += elapsed;
-        return "ok";
-      },
-      wait: async (duration) => {
-        waits.push(duration);
-        now += duration;
-      },
-    });
-    assert.equal(result, "ok");
-    assert.deepEqual(waits, elapsed < 600 ? [600 - elapsed] : []);
+  for (const scope of ["transient", "interactive", "external", "background"]) {
+    assert.equal(minimumVisibleMsForScope(scope), 600);
   }
 
-  let now = 2_000;
-  const waits = [];
-  await assert.rejects(runWithOperationFeedback({
-    now: () => now,
-    operation: async () => {
-      now += 100;
-      throw new Error("failure");
-    },
-    wait: async (duration) => waits.push(duration),
-  }), /failure/);
-  assert.deepEqual(waits, [500]);
-});
-
-test("interactive, external and background scopes do not add delay", async () => {
-  const { runWithOperationFeedback } = await import(
-    pathToFileURL(path.join(rendererRoot, "operation-feedback.js")).href
-  );
-  for (const scope of ["interactive", "external", "background"]) {
-    await runWithOperationFeedback({
-      operation: async () => {},
-      scope,
-      wait: async () => assert.fail(`${scope} must not wait`),
+  for (const [label, elapsed, operation] of [
+    ["sync", 0, () => "sync"],
+    ["already-resolved", 0, () => Promise.resolve("resolved")],
+    ["short", 150, (clock) => { clock.elapse(150); return "short"; }],
+    ["exact", 600, (clock) => { clock.elapse(600); return "exact"; }],
+    ["long", 1_200, (clock) => { clock.elapse(1_200); return "long"; }],
+  ]) {
+    const clock = createFakeClock();
+    let finished = false;
+    const pending = runWithOperationFeedback({
+      now: clock.now,
+      onFinish: () => { finished = true; },
+      operation: () => operation(clock),
+      scope: label === "already-resolved" ? "external" : "transient",
+      wait: clock.wait,
     });
+    await flushMicrotasks();
+    const remaining = Math.max(0, 600 - elapsed);
+    assert.deepEqual(clock.pendingDurations(), remaining ? [remaining] : [], label);
+    assert.equal(finished, remaining === 0, label);
+    if (remaining) clock.tick(remaining);
+    assert.equal(await pending, label === "already-resolved" ? "resolved" : label);
+    assert.equal(finished, true, label);
+    assert.equal(clock.pendingCount(), 0, label);
   }
-});
 
-test("stale operations cannot finish a newer feedback run", async () => {
-  const { runWithOperationFeedback } = await import(
-    pathToFileURL(path.join(rendererRoot, "operation-feedback.js")).href
-  );
-  let finished = false;
-  await runWithOperationFeedback({
-    isCurrent: () => false,
-    minVisibleMs: 0,
-    onFinish: () => { finished = true; },
-    operation: async () => "stale",
+  for (const [label, error] of [
+    ["error", new Error("failure")],
+    ["abort", Object.assign(new Error("cancelled"), { name: "AbortError" })],
+  ]) {
+    const clock = createFakeClock();
+    let finishStatus = null;
+    const pending = runWithOperationFeedback({
+      now: clock.now,
+      onFinish: ({ status }) => { finishStatus = status; },
+      operation: () => { throw error; },
+      wait: clock.wait,
+    });
+    await flushMicrotasks();
+    assert.deepEqual(clock.pendingDurations(), [600], label);
+    clock.tick(600);
+    await assert.rejects(pending, error);
+    assert.equal(finishStatus, "error", label);
+    assert.equal(clock.pendingCount(), 0, label);
+  }
+
+  const presentationClock = createFakeClock();
+  const presented = runWithOperationFeedback({
+    now: presentationClock.now,
+    onStart: () => presentationClock.elapse(250),
+    operation: () => "presented",
+    wait: presentationClock.wait,
   });
-  assert.equal(finished, false);
+  await flushMicrotasks();
+  assert.deepEqual(presentationClock.pendingDurations(), [600]);
+  presentationClock.tick(600);
+  assert.equal(await presented, "presented");
+  assert.equal(presentationClock.pendingCount(), 0);
+});
+
+test("stale and consecutive runs never close each other or retain timers", async () => {
+  const { cancelActiveOperationFeedback, runWithOperationFeedback } = await import(
+    pathToFileURL(path.join(rendererRoot, "operation-feedback.js")).href
+  );
+  const clock = createFakeClock();
+  const firstOperation = deferred();
+  let currentRunId = null;
+  const finishes = [];
+
+  const first = runWithOperationFeedback({
+    isCurrent: (runId) => currentRunId === runId,
+    now: clock.now,
+    onFinish: ({ runId }) => finishes.push(runId),
+    onStart: ({ runId }) => { currentRunId = runId; },
+    operation: () => firstOperation.promise,
+    wait: clock.wait,
+  });
+  await flushMicrotasks();
+
+  const second = runWithOperationFeedback({
+    isCurrent: (runId) => currentRunId === runId,
+    now: clock.now,
+    onFinish: ({ runId }) => finishes.push(runId),
+    onStart: ({ runId }) => { currentRunId = runId; },
+    operation: () => "second",
+    wait: clock.wait,
+  });
+  await flushMicrotasks();
+  assert.deepEqual(clock.pendingDurations(), [600]);
+
+  firstOperation.resolve("stale");
+  await flushMicrotasks();
+  assert.equal(await first, "stale");
+  assert.deepEqual(clock.pendingDurations(), [600]);
+  assert.deepEqual(finishes, []);
+
+  clock.tick(600);
+  assert.equal(await second, "second");
+  assert.equal(finishes.length, 1);
+  assert.equal(clock.pendingCount(), 0);
+
+  let waitingFinished = false;
+  const waiting = runWithOperationFeedback({
+    now: clock.now,
+    onFinish: () => { waitingFinished = true; },
+    operation: () => "waiting",
+    wait: clock.wait,
+  });
+  await flushMicrotasks();
+  assert.deepEqual(clock.pendingDurations(), [600]);
+  cancelActiveOperationFeedback();
+  await flushMicrotasks();
+  assert.equal(await waiting, "waiting");
+  assert.equal(waitingFinished, false);
+  assert.equal(clock.pendingCount(), 0);
+});
+
+test("every automatic busy overlay entry point uses the common lifecycle", async () => {
+  const [app, dialogs] = await Promise.all([
+    fsp.readFile(path.join(rendererRoot, "app.js"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "components", "app-dialog.js"), "utf8"),
+  ]);
+  const blocks = [
+    ["ranking", "async function openRankingWithOperationFeedback", "function updateSidebarWidth"],
+    ["actions", "async function runAction", "async function submitLogin"],
+    ["login", "async function submitLogin", "async function switchAccount"],
+    ["account switch", "async function switchAccount", "async function activateLibraryPackWithPreload"],
+    ["pack activation", "async function activateLibraryPackWithPreload", "function bindActions"],
+  ];
+
+  for (const [label, startMarker, endMarker] of blocks) {
+    const block = app.slice(app.indexOf(startMarker), app.indexOf(endMarker));
+    assert.match(block, /runWithOperationFeedback\(\{/, label);
+  }
+  assert.equal((app.match(/busy:\s*true/g) || []).length, blocks.length);
+  assert.doesNotMatch(app, /waitForMinimumVisibleDuration|DEFAULT_OPERATION_MIN_VISIBLE_MS|busyStartedAt|activationStartedAt/);
+  assert.match(app, /cleanupRendererLifecycle[\s\S]*cancelActiveOperationFeedback\(\)/);
+
+  for (const action of [
+    "refresh", "open-pack", "choose-pack-directory", "choose-unavailable-pack-directory",
+    "choose-other-library-root", "use-suggested-library-root", "import-pack-zip", "import-pack-folder",
+    "choose-shared-mame-runtime", "open-pack-directory", "open-shared-mame-runtime", "rescan-pack-directory",
+    "open-membership-url", "open-manual", "refresh-connectivity", "check-membership", "diagnose", "play",
+    "practice", "force-account-sync", "force-ranking-refresh", "restore-failed", "confirm-forget-account",
+    "sync-plugin", "logout",
+  ]) {
+    const start = app.indexOf(`if (action === "${action}")`);
+    const next = app.indexOf('\n    if (action === "', start + 1);
+    const block = app.slice(start, next < 0 ? app.length : next);
+    assert.ok(start >= 0, action);
+    assert.match(block, /runAction\(/, action);
+  }
+
+  for (const action of ["import-pack", "remove-known-account"]) {
+    const start = app.indexOf(`if (action === "${action}")`);
+    const next = app.indexOf('\n    if (action === "', start + 1);
+    const block = app.slice(start, next);
+    assert.match(block, /activeDialog:/, action);
+    assert.doesNotMatch(block, /runAction\(/, action);
+  }
+
+  const rankingBlock = app.slice(app.indexOf("async function openRankingWithOperationFeedback"), app.indexOf("function updateSidebarWidth"));
+  const manualBlock = app.slice(app.indexOf('if (action === "open-manual")'), app.indexOf('if (action === "open-ranking")'));
+  const connectionBlock = app.slice(app.indexOf('if (action === "refresh-connectivity")'), app.indexOf('if (action === "check-membership")'));
+  const rescanBlock = app.slice(app.indexOf('if (action === "rescan-pack-directory")'), app.indexOf('if (action === "use-library-pack")'));
+  assert.match(rankingBlock, /runWithOperationFeedback/);
+  assert.match(manualBlock, /runAction/);
+  assert.match(connectionBlock, /runAction/);
+  assert.match(rescanBlock, /runAction/);
+  assert.doesNotMatch(`${rankingBlock}\n${manualBlock}\n${connectionBlock}\n${rescanBlock}`, /setTimeout\([^)]*600|minVisibleMs/);
+
+  assert.match(dialogs, /role="dialog"/);
+  assert.doesNotMatch(dialogs, /runWithOperationFeedback|waitForMinimumVisibleDuration|setTimeout/);
+  const overlayBlock = app.slice(app.indexOf("function renderOverlay"), app.indexOf("function renderStatusFooter"));
+  assert.doesNotMatch(overlayBlock, /runWithOperationFeedback|waitForMinimumVisibleDuration|setTimeout/);
 });
 
 test("manual connectivity uses one guarded IPC call and the common overlay lifecycle", async () => {
@@ -132,7 +306,8 @@ test("manual connectivity uses one guarded IPC call and the common overlay lifec
   assert.equal((manualBlock.match(/requestConnectivityRefresh\("manual"\)/g) || []).length, 1);
   assert.doesNotMatch(manualBlock, /setTimeout|activeOverlay|membership|pack/);
   assert.match(app, /async function runAction[\s\S]*if \(store\.getState\(\)\.busy\) return;[\s\S]*const runId = \+\+busyRunSequence/);
-  assert.match(app, /busy: true,[\s\S]*busyLabel/);
+  assert.match(app, /isCurrent: \(\) => runId === busyRunSequence/);
+  assert.match(app, /onStart: \(\) => \{[\s\S]*busy: true,[\s\S]*busyLabel/);
   assert.match(app, /runId !== busyRunSequence/);
   assert.match(app, /cleanupRendererLifecycle[\s\S]*busyRunSequence \+= 1;[\s\S]*clearTimeout\(activeBusyPhaseTimer\)/);
   assert.match(manualBlock, /restoreTriggerFocus: true/);
@@ -143,7 +318,7 @@ test("manual connectivity uses one guarded IPC call and the common overlay lifec
   assert.match(overlay, /Verificando la conexión con High Score League\./);
 });
 
-test("automatic connectivity signals stay outside operation feedback", async () => {
+test("automatic connectivity signals stay silent and outside operation feedback", async () => {
   const app = await fsp.readFile(path.join(rendererRoot, "app.js"), "utf8");
   for (const [handler, reason] of [
     ["handleRendererOffline", "renderer-offline"],
@@ -153,6 +328,6 @@ test("automatic connectivity signals stay outside operation feedback", async () 
     const start = app.indexOf(`function ${handler}`);
     const block = app.slice(start, app.indexOf("}\n", start) + 2);
     assert.match(block, new RegExp(`requestConnectivityRefresh\\?\\.\\(\"${reason}\"\\)`));
-    assert.doesNotMatch(block, /runAction|runWithOperationFeedback|busyLabel/);
+    assert.doesNotMatch(block, /runAction|runWithOperationFeedback|busyLabel|setTimeout/);
   }
 });

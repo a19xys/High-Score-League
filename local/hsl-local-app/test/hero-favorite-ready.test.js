@@ -297,15 +297,26 @@ test("hero indicators are a sibling region and never alter visual asset HTML", a
   assert.doesNotMatch(renderGamePanel(errors), /data-render-region="game-status">\s*<div class="badge-row"/);
 });
 
-test("responsive indicators use CSS pills and icon-only circles without interaction", () => {
+test("the hero gives every logo ratio a bounded safe area beside the indicator lane", () => {
   const panel = source(path.join("components", "game-panel.js"));
   const styles = source(path.join("styles", "app.css"));
 
   assert.match(styles, /\.game-hero-shell[\s\S]*grid-template-columns:[\s\S]*--hero-indicator-lane-min/);
-  assert.match(styles, /\.game-hero-shell \.game-hero__logo[\s\S]*grid-area: 1 \/ 2/);
+  assert.match(styles, /\.game-hero-shell[\s\S]*grid-template-rows: minmax\(0, 1fr\)/);
+  assert.match(panel, /game-hero-logo-safe-area[\s\S]*game-hero__logo/);
+  assert.match(styles, /\.game-hero-shell \.game-hero-logo-safe-area[\s\S]*height: 100%[\s\S]*min-height: 0[\s\S]*max-width: min\(76cqi,[\s\S]*max-height: 100%[\s\S]*overflow: hidden[\s\S]*align-items: end[\s\S]*grid-area: 1 \/ 2[\s\S]*padding-block: var\(--hero-safe-block-inset\)/);
+  assert.match(styles, /\.game-hero-shell \.game-hero__logo[\s\S]*width: auto[\s\S]*height: auto[\s\S]*max-width: 100%[\s\S]*max-height: 100%[\s\S]*align-self: end[\s\S]*object-fit: contain/);
   assert.match(styles, /\.game-hero-indicators-region[\s\S]*grid-area: 1 \/ 3[\s\S]*container: hero-indicator-lane \/ inline-size/);
   assert.match(styles, /not\(:has\(\.game-hero-stage--with-logo\)\)[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styles, /not\(:has\(\.game-hero-stage--with-logo\)\) \.game-hero-logo-safe-area[\s\S]*display: none/);
   assert.match(styles, /\.game-hero-indicators[\s\S]*right: var\(--hero-indicator-edge-inset\)[\s\S]*bottom: var\(--hero-indicator-edge-inset\)/);
+  assert.doesNotMatch(`${panel}\n${styles}`, /Space Invaders|space-invaders|ResizeObserver|getBoundingClientRect|naturalWidth|naturalHeight/);
+});
+
+test("responsive indicators remain CSS pills and icon-only circles without interaction", () => {
+  const panel = source(path.join("components", "game-panel.js"));
+  const styles = source(path.join("styles", "app.css"));
+
   assert.match(styles, /\.game-hero-indicator[\s\S]*height: 38px[\s\S]*border-radius: 999px[\s\S]*white-space: nowrap/);
   assert.match(styles, /@container hero-indicator-lane \(max-width: 271px\)[\s\S]*data-indicator-count="2"[\s\S]*width: 40px[\s\S]*height: 40px/);
   assert.match(styles, /@container hero-indicator-lane \(max-width: 159px\)[\s\S]*game-hero-indicator--status/);

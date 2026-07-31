@@ -1329,7 +1329,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-title-main h2[\s\S]*box-sizing: border-box[\s\S]*overflow-wrap: anywhere/);
   assert.doesNotMatch(styles, /game-favorite-mark|favorite-star-safe-space|favorite-mark-left|favorite-mark-top/);
   assert.match(styles, /\.game-hero-shell[\s\S]*grid-template-columns:[\s\S]*--hero-indicator-lane-min/);
-  assert.match(styles, /\.game-hero-shell \.game-hero__logo[\s\S]*grid-area: 1 \/ 2/);
+  assert.match(styles, /\.game-hero-shell \.game-hero-logo-safe-area[\s\S]*grid-area: 1 \/ 2[\s\S]*padding-block: var\(--hero-safe-block-inset\)/);
+  assert.match(styles, /\.game-hero-shell \.game-hero__logo[\s\S]*max-width: 100%[\s\S]*max-height: 100%[\s\S]*object-fit: contain/);
   assert.match(styles, /\.game-hero-indicators-region[\s\S]*grid-area: 1 \/ 3[\s\S]*container: hero-indicator-lane \/ inline-size/);
   assert.match(styles, /\.game-hero-indicators[\s\S]*right: var\(--hero-indicator-edge-inset\)[\s\S]*bottom: var\(--hero-indicator-edge-inset\)/);
   assert.match(styles, /\.game-hero-indicator--favorite[\s\S]*color: var\(--circuit\)/);
@@ -1347,7 +1348,11 @@ test("renderer product hierarchy includes connection, player actions, activity a
   );
   assert.equal(/\.game-metadata-icon\.ui-icon[\s\S]*display: none/.test(metadataFallbackStyles), false);
   assert.equal(/game-metadata-grid--no-icons|metadata--no-icons/.test(styles + app), false);
-  assert.equal(/@container \(max-width: 360px\)[\s\S]*\.game-metadata-icon\.ui-icon[\s\S]*display: none/.test(styles), false);
+  const metadataTinyStyles = styles.slice(
+    styles.indexOf("@container (max-width: 360px)"),
+    styles.indexOf(".game-detail-card .ready-copy"),
+  );
+  assert.equal(/\.game-metadata-icon\.ui-icon[\s\S]*display: none/.test(metadataTinyStyles), false);
   assert.match(styles, /@container \(max-width: 560px\)[\s\S]*\.game-metadata-item--year[\s\S]*border-right: 1px solid var\(--border\)[\s\S]*border-bottom: 0/);
   assert.match(styles, /\.game-metadata-item[\s\S]*border-right: 1px solid var\(--border\)/);
   assert.match(styles, /\.game-metadata-icon \.ui-icon__fallback[\s\S]*display: none !important/);

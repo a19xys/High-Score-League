@@ -10,6 +10,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { PlayerHoverCard } from "@/components/player-hover-card";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatExactDateTime, formatRelativeTime } from "@/lib/format";
 import type { LeagueChatMessage } from "@/types";
@@ -183,24 +185,19 @@ function ExternalAvatar({ message }: { message: LeagueChatMessage }) {
   }
 
   return (
-    <Link
+    <PlayerHoverCard
       aria-label={`Ver perfil de @${message.author.username}`}
       className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
-      href={`/players/${encodeURIComponent(message.author.username)}`}
+      player={message.author}
     >
-      {message.author.avatarUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          alt=""
-          className="h-7 w-7 rounded-full border object-cover theme-border"
-          src={message.author.avatarUrl}
-        />
-      ) : (
-        <span className="flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-black theme-border theme-surface theme-text">
-          {message.author.initials}
-        </span>
-      )}
-    </Link>
+      <ProfileAvatar
+        avatarUrl={message.author.avatarUrl}
+        decorative
+        initials={message.author.initials}
+        size="chat"
+        username={message.author.username}
+      />
+    </PlayerHoverCard>
   );
 }
 
@@ -839,16 +836,14 @@ export function LeagueChat({
                         : "min-w-0 truncate text-xs font-black uppercase leading-none theme-text"
                     }
                   >
-                    {isOwn ? (
-                      "YOU"
-                    ) : message.author?.username ? (
-                      <Link
+                    {message.author?.username ? (
+                      <PlayerHoverCard
                         aria-label={`Ver perfil de @${message.author.username}`}
                         className="rounded transition hover:text-circuit focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
-                        href={`/players/${encodeURIComponent(message.author.username)}`}
+                        player={message.author}
                       >
-                        {message.author.initials}
-                      </Link>
+                        {isOwn ? "YOU" : message.author.initials}
+                      </PlayerHoverCard>
                     ) : (
                       "???"
                     )}

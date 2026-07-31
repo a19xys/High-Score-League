@@ -93,6 +93,42 @@ La misma navegación se aplica a leaderboards, clasificaciones, podios,
 resultados oficiales, historial visible, ganadores de archivos y autores del
 chat. Ningún enlace de jugador se anida dentro de otro anchor.
 
+## Hover card compartida
+
+`PlayerHoverCard` envuelve las identidades compartidas en escritorio. Espera
+600 ms de hover continuo antes de abrir y cancela el timer si el puntero sale;
+una vez abierta se cierra en el siguiente ciclo de eventos al abandonar trigger
+y tarjeta, sin una espera perceptible. Un puente transparente permite recorrer
+el pequeño espacio entre ambos sin cerrar. El contenido usa un portal a
+`document.body`, medición real, ajuste horizontal y cambio arriba/abajo para no
+quedar recortado por tablas o bordes del viewport. No se añadió una dependencia:
+la implementación propia cubre el alcance con portal, `ResizeObserver` y
+listeners de scroll/resize que se limpian al cerrar.
+
+La preview contiene solo avatar, siglas, username, bio pública, victorias,
+podios y cantidad de resultados oficiales. Se solicita a
+`/api/players/[username]/preview` únicamente al abrir tras confirmar intención;
+el endpoint exige sesión, valida el username, usa el cliente Supabase del
+usuario y RLS, y selecciona solo campos públicos y tres conteos ligeros de
+`weekly_results`. El cliente cachea por ID de jugador, deduplica solicitudes
+simultáneas e ignora respuestas de instancias desmontadas. Un fallo conserva la
+identidad y el enlace sin mostrar detalles técnicos.
+
+El ID autenticado se distribuye una vez desde el layout para reconocer la
+identidad propia sin prop drilling. Sus triggers y botón llevan a `/profile`,
+muestran `Este eres tú` e `Ir a mi perfil`; los demás llevan a
+`/players/[username]` y muestran `Ver perfil`. La tarjeta aparece en
+`PlayerPill`, top 3, podios y autores del chat, cubriendo leaderboards,
+clasificaciones, submissions, resultados e historiales que reutilizan esas
+identidades.
+
+No se aplica al hero grande de `/profile` o `/players/[username]`, a la preview
+del editor de avatar ni al control de cuenta del header. En dispositivos sin
+hover no se programa la apertura y el tap sigue el enlace en un solo paso. Con
+teclado, el foco abre inmediatamente, Tab entra en la acción de la tarjeta,
+Mayús+Tab vuelve al trigger y Escape cierra sin perder el foco. Las transiciones
+respetan `prefers-reduced-motion`.
+
 ## Avatar actual
 
 `avatar_url` sigue siendo compatible con todas las imágenes existentes. El
@@ -103,6 +139,13 @@ botón de subida falso.
 
 La frontera `ProfileAvatarEditor` permite reemplazar el control URL por un
 uploader futuro sin rediseñar el editor ni los perfiles.
+
+El aro multicolor introducido por el revamp se retiró tras auditar el estado
+inmediatamente anterior (`a56976f`). `ProfileAvatar` vuelve a centralizar el
+tratamiento previo: círculo sin borde, gradiente ni sombra; foto con
+`object-cover`; y fallback de siglas con `theme-surface-strong`. Los mismos
+tokens responden a Claro, Oscuro y Sistema. El cambio se limita a la superficie
+del avatar y conserva tamaños, composición del hero y el resto del revamp.
 
 ## Privacidad actual
 

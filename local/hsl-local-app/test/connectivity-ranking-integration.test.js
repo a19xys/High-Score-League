@@ -125,7 +125,7 @@ test("IPC is narrow, subscribable and exposes no arbitrary fetch", async () => {
   assert.doesNotMatch(preload, /request\(url|arbitrary|ipcRenderer\.invoke\([^,]+,\s*url/);
 });
 
-test("header keeps a binary CSS status and restores a separate refresh action", async () => {
+test("header keeps a binary CSS status and integrates refresh in the same chip", async () => {
   const [header, styles, app, busyOverlay] = await Promise.all([
     fsp.readFile(path.join(rendererRoot, "components", "header.js"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
@@ -134,24 +134,26 @@ test("header keeps a binary CSS status and restores a separate refresh action", 
   ]);
 
   const connectionBlock = header.slice(header.indexOf("export function renderConnectionControl"), header.indexOf("export function renderHeader"));
-  assert.doesNotMatch(connectionBlock, /Comprobando|Conectando|Reconectando|Suspendido/);
+  assert.doesNotMatch(connectionBlock, />Comprobando|>Conectando|>Reconectando|>Suspendido/);
   assert.match(connectionBlock, /class="connection-dot" aria-hidden="true"/);
+  assert.match(connectionBlock, /connection-label[\s\S]*connection-refresh-button/);
   assert.match(connectionBlock, /data-action="refresh-connectivity"/);
   assert.match(connectionBlock, /aria-label="Comprobar conexión"/);
   assert.match(connectionBlock, /renderIcon\("refresh"/);
   assert.match(styles, /\.connection-chip\s*\{[\s\S]*?display: inline-flex/);
-  assert.match(styles, /\.connection-chip\s*\{[\s\S]*?inline-size: 118px/);
+  assert.match(styles, /\.connection-chip\s*\{[\s\S]*?inline-size: 164px/);
   assert.match(styles, /\.connection-control\s*\{[\s\S]*?width: 164px;[\s\S]*?min-width: 164px/);
   assert.match(styles, /\.connection-label[\s\S]*white-space: nowrap/);
   assert.match(styles, /\.connection-dot\s*\{[\s\S]*?width: 8px;[\s\S]*?height: 8px;[\s\S]*?border-radius: 999px/);
   assert.match(styles, /\.connection-chip--connected\s*\{[\s\S]*?var\(--state-success\)/);
   assert.match(styles, /\.connection-chip--disconnected\s*\{[\s\S]*?var\(--state-error\)/);
   assert.match(styles, /connection-chip--unresolved[\s\S]*visibility: hidden/);
-  assert.match(styles, /connection-refresh-button/);
+  assert.match(styles, /\.connection-refresh-button\s*\{[\s\S]*?border: 0[\s\S]*?background: transparent[\s\S]*?color: inherit/);
+  assert.match(styles, /\.connection-refresh-button:focus-visible[\s\S]*outline:/);
+  assert.match(styles, /\.connection-refresh-icon\.ui-icon[\s\S]*color: currentColor/);
   assert.doesNotMatch(styles, /connection-status-icon/);
   assert.match(app, /refresh-connectivity/);
   assert.match(app, /runWithOperationFeedback/);
-  assert.match(app, /DEFAULT_OPERATION_MIN_VISIBLE_MS/);
   assert.match(busyOverlay, /Comprobando conexi\\u00f3n\.\.\./);
   assert.match(busyOverlay, /Verificando la conexión con High Score League\./);
 });
@@ -230,7 +232,8 @@ test("pack activation preserves the previous snapshot and uses shared minimum fe
   ]);
 
   const activationBlock = app.slice(app.indexOf("async function activateLibraryPackWithPreload"), app.indexOf("function bindActions"));
-  assert.match(activationBlock, /waitForMinimumVisibleDuration\(\{ minVisibleMs: DEFAULT_OPERATION_MIN_VISIBLE_MS/);
+  assert.match(activationBlock, /runWithOperationFeedback\(\{[\s\S]*isCurrent: \(\) => requestId === libraryPackSelectionSequence[\s\S]*busyLabel: "Activando pack"/);
+  assert.doesNotMatch(activationBlock, /waitForMinimumVisibleDuration|DEFAULT_OPERATION_MIN_VISIBLE_MS|setTimeout/);
   assert.doesNotMatch(activationBlock, /data:\s*null|game:\s*null|activePack:\s*null/);
   assert.doesNotMatch(app, /neutralizeActivePackData|neutralizeActivePack/);
   assert.match(activationBlock, /refreshRemoteStateAfterPackActivation/);
