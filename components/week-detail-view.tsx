@@ -4,7 +4,6 @@ import { LeaderboardTable } from "@/components/leaderboard-table";
 import { PlayerPill } from "@/components/player-pill";
 import { SubmissionsTable } from "@/components/submissions-table";
 import { Card, CardHeader } from "@/components/ui/card";
-import { ActionLink } from "@/components/ui/action-link";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable, TableHead } from "@/components/ui/table";
 import { WeekCountdown } from "@/components/week-countdown";
@@ -135,10 +134,6 @@ type WeekDetailViewProps = {
   submissionsPending?: boolean;
   warning?: string | null;
   statusHelp?: string | null;
-  backHref?: string;
-  backLabel?: string;
-  seasonBackHref?: string;
-  seasonBackLabel?: string;
 };
 
 export function WeekDetailView({
@@ -155,10 +150,6 @@ export function WeekDetailView({
   leaderboardPending = false,
   submissionsPending = false,
   warning,
-  backHref,
-  backLabel,
-  seasonBackHref,
-  seasonBackLabel,
 }: WeekDetailViewProps) {
   const showOfficialResults = dataMode === "supabase" && week.status === "published";
   const instructionLines = getInstructionLines(week, game);
@@ -168,20 +159,6 @@ export function WeekDetailView({
 
   return (
     <div className="space-y-6">
-      {backHref || seasonBackHref ? (
-        <div className="flex flex-wrap gap-3 text-sm font-semibold">
-          {backHref ? (
-            <ActionLink href={backHref} icon="back" variant="primary">
-              {backLabel ?? "Volver"}
-            </ActionLink>
-          ) : null}
-          {seasonBackHref ? (
-            <ActionLink href={seasonBackHref} icon="back">
-              {seasonBackLabel ?? `Volver a ${season.name}`}
-            </ActionLink>
-          ) : null}
-        </div>
-      ) : null}
       <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <GameHero game={game} />
         <Card>

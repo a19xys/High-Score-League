@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminWeekSummaries } from "@/lib/data/admin-weeks";
 import { formatCompactDateRange } from "@/lib/format";
 import { Card, CardHeader } from "@/components/ui/card";
-import { ActionLink } from "@/components/ui/action-link";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable, TableHead } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -54,9 +54,12 @@ export default async function AdminWeeksPage() {
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/profile" icon="back" variant="primary">
-        Volver al perfil
-      </ActionLink>
+      <Breadcrumbs
+        items={[
+          { href: "/admin", label: "Administración" },
+          { label: "Semanas" },
+        ]}
+      />
       <Card>
         <CardHeader title="Semanas" eyebrow="Administración">
           Gestión mínima del flujo semanal: estado, envíos y resultados

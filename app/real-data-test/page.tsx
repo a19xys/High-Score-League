@@ -3,6 +3,7 @@ import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable } from "@/components/ui/table";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getRealGames } from "@/lib/data/games";
 import { getRealSeasonStandings } from "@/lib/data/season-standings";
@@ -243,6 +244,12 @@ export default async function RealDataTestPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { href: "/admin", label: "Administración" },
+          { label: "Diagnóstico de datos" },
+        ]}
+      />
       <Card>
         <CardHeader
           title="Datos reales"
@@ -288,7 +295,7 @@ export default async function RealDataTestPage() {
               {visibleWeeks.length} visibles · {hiddenDraftWeeks} ocultas por draft
             </p>
             <div className="mt-3 flex flex-wrap gap-3 text-sm">
-              <Link className="font-semibold text-circuit hover:underline" href="/archive">
+              <Link className="font-semibold text-circuit hover:underline" href="/archive/weeks">
                 Abrir archivo semanal
               </Link>
               <Link className="font-semibold text-circuit hover:underline" href="/game">

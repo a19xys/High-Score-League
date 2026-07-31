@@ -1,6 +1,7 @@
 import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { SubmitFallbackForm } from "@/components/submit-fallback-form";
 import { Card, CardHeader } from "@/components/ui/card";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { EmptyState, PlaceholderSection } from "@/components/ui/state";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getActiveWeekDetailData } from "@/lib/data/week-detail";
@@ -32,6 +33,12 @@ export default async function SubmitPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { href: "/admin", label: "Administración" },
+          { label: "Subida manual" },
+        ]}
+      />
       <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
         <Card>
           {activeWeek.status === "ok" ? (

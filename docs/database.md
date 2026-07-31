@@ -33,7 +33,10 @@ normal no puede promocionarse a si mismo mediante las politicas iniciales.
 Desde `0010_profile_preferences.sql` incluye:
 
 - `bio`: descripción pública opcional del jugador. Puede ser `null`, pero si
-  existe no puede quedar en blanco.
+  existe no puede quedar en blanco. Desde `0023_profile_bio_max_length.sql`
+  tampoco puede superar 150 caracteres (`char_length(bio) <= 150`). La
+  migración comprueba primero los datos existentes y falla de forma explícita
+  si encuentra valores incompatibles; nunca los trunca.
 - `track_play_time`: preferencia para permitir registrar tiempo de juego desde
   la futura app local. Por defecto es `true`.
 

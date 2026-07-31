@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { formatDate } from "@/lib/format";
+import { formatFullDate } from "@/lib/format";
 import type { PublicPlayerProfile } from "@/lib/data/player-profile";
+import { getProfileBioDisplay } from "@/lib/profile";
 import type { RealProfile } from "@/types/supabase";
 import { ProfileAvatar } from "./profile-avatar";
 
@@ -35,14 +36,11 @@ export function ProfileHero({ profile, mode }: ProfileHeroProps) {
             @{profile.username}
           </p>
           <p className="mt-5 max-w-2xl whitespace-pre-wrap break-words text-sm leading-6 text-white/85 sm:text-base sm:leading-7">
-            {profile.bio?.trim() ||
-              (mode === "owner"
-                ? "Añade una bio para contarle a la liga cómo juegas."
-                : "Este jugador todavía no ha añadido una bio pública.")}
+            {getProfileBioDisplay(profile.bio)}
           </p>
           {profile.created_at ? (
             <p className="mt-4 text-xs font-semibold uppercase tracking-[0.08em] text-white/55">
-              En la liga desde {formatDate(profile.created_at)}
+              En la liga desde el {formatFullDate(profile.created_at)}
             </p>
           ) : null}
         </div>

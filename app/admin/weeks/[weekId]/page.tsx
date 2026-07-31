@@ -7,6 +7,7 @@ import {
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ActionLink } from "@/components/ui/action-link";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { EmptyState } from "@/components/ui/state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTable, TableHead } from "@/components/ui/table";
@@ -105,10 +106,14 @@ export default async function AdminWeekPage({ params }: AdminWeekPageProps) {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { href: "/admin", label: "Administración" },
+          { href: "/admin/weeks", label: "Semanas" },
+          { label: `Semana ${data.week.number}` },
+        ]}
+      />
       <div className="flex flex-wrap gap-3 text-sm font-semibold">
-        <ActionLink href="/admin/weeks" icon="back" variant="primary">
-          Volver a semanas
-        </ActionLink>
         <ActionLink href={`/weeks/${data.week.id}`}>
           Ver página pública
         </ActionLink>

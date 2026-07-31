@@ -6,13 +6,14 @@ type ProfileAvatarProps = {
   avatarUrl?: string | null;
   initials: string;
   username?: string | null;
-  size?: "chat" | "pill" | "small" | "medium" | "large" | "hero";
+  size?: "chat" | "submission" | "pill" | "small" | "medium" | "large" | "hero";
   decorative?: boolean;
   className?: string;
 };
 
 const sizeClasses = {
   chat: "h-7 w-7 text-[10px]",
+  submission: "h-7 w-7 text-[9px]",
   pill: "h-8 w-8 text-[10px] sm:h-9 sm:w-9 sm:text-xs",
   small: "h-10 w-10 text-xs",
   medium: "h-14 w-14 text-base",

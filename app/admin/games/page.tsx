@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { AdminGamesTable } from "@/components/admin-games-table";
 import { Card, CardHeader } from "@/components/ui/card";
-import { ActionLink } from "@/components/ui/action-link";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminGames } from "@/lib/data/admin-games";
 
@@ -28,9 +28,12 @@ export default async function AdminGamesPage() {
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/profile" icon="back" variant="primary">
-        Volver al perfil
-      </ActionLink>
+      <Breadcrumbs
+        items={[
+          { href: "/admin", label: "Administración" },
+          { label: "Juegos" },
+        ]}
+      />
       <Card>
         <CardHeader title="Catálogo de juegos" eyebrow="Administración">
           Gestiona el catálogo de juegos de la liga: datos básicos,

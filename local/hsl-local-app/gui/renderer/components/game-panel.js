@@ -209,8 +209,9 @@ export function deriveGameHeroStatusPresentation(state) {
 
   if (hasCanonicalPackError) {
     return {
+      accessibleLabel: "Pack con errores",
       icon: "error",
-      label: "Con errores",
+      label: "Error",
       severity: "error",
       status: "error",
     };
@@ -218,8 +219,9 @@ export function deriveGameHeroStatusPresentation(state) {
 
   if (summary.status === "checking") {
     return {
+      accessibleLabel: "Comprobando",
       icon: "refresh",
-      label: "Comprobando",
+      label: "...",
       severity: "progress",
       status: "checking",
     };
@@ -227,8 +229,9 @@ export function deriveGameHeroStatusPresentation(state) {
 
   if (summary.status === "competition-ready") {
     return {
+      accessibleLabel: "Pack listo",
       icon: "check",
-      label: "Pack listo",
+      label: "Listo",
       severity: "success",
       status: "ready",
     };
@@ -253,7 +256,7 @@ export function renderGameHeroIndicatorsRegion(state) {
         </span>
       ` : ""}
       ${packStatus ? `
-        <span class="game-hero-indicator game-hero-indicator--status game-hero-indicator--${escapeHtml(packStatus.status)}" role="img" aria-label="${escapeHtml(packStatus.label)}" title="${escapeHtml(packStatus.label)}" data-severity="${escapeHtml(packStatus.severity)}">
+        <span class="game-hero-indicator game-hero-indicator--status game-hero-indicator--${escapeHtml(packStatus.status)}" role="img" aria-label="${escapeHtml(packStatus.accessibleLabel)}" title="${escapeHtml(packStatus.accessibleLabel)}" data-severity="${escapeHtml(packStatus.severity)}">
           ${renderIcon(packStatus.icon, { className: "game-hero-indicator__icon", size: "sm" })}
           <span class="game-hero-indicator__label" aria-hidden="true">${escapeHtml(packStatus.label)}</span>
         </span>

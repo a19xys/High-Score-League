@@ -46,6 +46,7 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 0020_home_polls.sql
 0021_home_poll_votes_realtime.sql
 0022_home_poll_option_images.sql
+0023_profile_bio_max_length.sql
 ```
 
 Comprobar despues:
@@ -54,6 +55,9 @@ Comprobar despues:
 - Primer usuario admin creado manualmente en `profiles.is_admin = true`.
 - Datos reales minimos: temporada, juegos, semanas y memberships.
 - `types/supabase.ts` contiene las tablas y columnas usadas por la app.
+- Antes de `0023`, ejecutar la consulta previa de bios y confirmar que devuelve
+  cero filas con `char_length(bio) > 150`. Si devuelve alguna, revisar esos
+  perfiles antes de reintentar; no truncar datos automáticamente.
 
 ## 3. Realtime
 
@@ -125,8 +129,8 @@ Usuario registrado:
 
 - login y logout.
 - `/profile`
-- `/archive` y `/archive?section=seasons`
-- redirecciones permanentes desde `/weeks`, `/seasons` y `/season`
+- `/archive/weeks` y `/archive/seasons`
+- redirecciones permanentes desde `/archive`, `/weeks`, `/seasons` y `/season`
 - `/weeks/[weekId]`
 - `/seasons/[seasonId]`
 - `/game`
@@ -149,7 +153,7 @@ Admin:
 
 Submissions:
 
-- comprobar historiales de 20, 50 y 100 filas, navegación en extremos y retorno
+- comprobar historiales de 10, 25 y 50 filas, navegación en extremos y retorno
   a página 1 al cambiar orden o tamaño;
 - confirmar que intentos, mejor score y scores ocultos se calculan sobre todo el
   conjunto antes de paginar;

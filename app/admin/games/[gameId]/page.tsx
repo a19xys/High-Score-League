@@ -5,7 +5,7 @@ import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { AdminGameForm } from "@/components/admin-game-form";
 import { AdminGameDeleteButton } from "@/components/admin-game-delete-button";
 import { Card, CardHeader } from "@/components/ui/card";
-import { ActionLink } from "@/components/ui/action-link";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminGameById } from "@/lib/data/admin-games";
 
@@ -51,9 +51,13 @@ export default async function AdminGamePage({ params }: AdminGamePageProps) {
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/admin/games" icon="back" variant="primary">
-        Volver a juegos
-      </ActionLink>
+      <Breadcrumbs
+        items={[
+          { href: "/admin", label: "Administración" },
+          { href: "/admin/games", label: "Juegos" },
+          { label: row.title },
+        ]}
+      />
       <Card>
         <CardHeader title={row.title} eyebrow="Editar juego">
           Edita los datos del juego. Los juegos asociados a semanas existentes

@@ -33,7 +33,7 @@ type SiteNavClientProps = {
 
 const baseLinks: NavLink[] = [
   { href: "/", label: "INICIO", id: "home" },
-  { href: "/archive", label: "ARCHIVO", id: "archive" },
+  { href: "/archive/weeks", label: "ARCHIVO", id: "archive" },
 ];
 
 function navLinkClass(active: boolean) {
@@ -120,6 +120,7 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
     if (link.id === "archive") {
       return (
         pathname === "/archive" ||
+        pathname.startsWith("/archive/") ||
         (pathname.startsWith("/weeks/") && pathname !== activeWeekPath) ||
         (pathname.startsWith("/seasons/") && !activeSeasonPaths.includes(pathname))
       );

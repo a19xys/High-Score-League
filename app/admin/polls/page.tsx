@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AdminGateMessage } from "@/components/admin/admin-gate-message";
 import { AdminHomePollForm } from "@/components/admin-home-poll-form";
 import { Card, CardHeader } from "@/components/ui/card";
-import { ActionLink } from "@/components/ui/action-link";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getAdminHomePoll } from "@/lib/data/admin-polls";
 
@@ -28,9 +28,12 @@ export default async function AdminPollsPage() {
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/profile" icon="back" variant="primary">
-        Volver al perfil
-      </ActionLink>
+      <Breadcrumbs
+        items={[
+          { href: "/admin", label: "Administración" },
+          { label: "Cuestionarios" },
+        ]}
+      />
       <Card>
         <CardHeader title="Cuestionarios" eyebrow="Administración">
           Gestiona el cuestionario que puede aparecer en Home para usuarios

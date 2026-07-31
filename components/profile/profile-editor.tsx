@@ -1,13 +1,16 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type ClipboardEvent, type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   humanizeSupabaseError,
   normalizeInitials,
+  PROFILE_BIO_MAX_LENGTH,
   validateInitials,
+  validateProfileBio,
   validateUsername,
 } from "@/lib/auth/validation";
+import { invalidatePlayerProfilePreview } from "@/lib/player-profile-preview-cache";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { RealProfile } from "@/types/supabase";
 import type { ProfileAuthData } from "./profile-types";
@@ -46,6 +49,20 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  function handleBioPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const pastedText = event.clipboardData.getData("text");
+    const selectionLength =
+      event.currentTarget.selectionEnd - event.currentTarget.selectionStart;
+    const nextLength = bio.length - selectionLength + pastedText.length;
+
+    if (nextLength > PROFILE_BIO_MAX_LENGTH) {
+      event.preventDefault();
+      setError(
+        `La bio no puede superar los ${PROFILE_BIO_MAX_LENGTH} caracteres. No se ha pegado el texto.`,
+      );
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -57,9 +74,10 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
     const cleanAvatarUrl = avatarUrl.trim();
     const usernameError = validateUsername(cleanUsername);
     const initialsError = validateInitials(cleanInitials);
+    const bioError = validateProfileBio(cleanBio);
 
-    if (usernameError || initialsError) {
-      setError(usernameError ?? initialsError);
+    if (usernameError || initialsError || bioError) {
+      setError(usernameError ?? initialsError ?? bioError);
       return;
     }
 
@@ -115,6 +133,14 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
     }
 
     const profile = response.data as RealProfile;
+    invalidatePlayerProfilePreview({
+      playerId: userData.user.id,
+      usernames: [
+        auth.profile?.username,
+        auth.metadataUsername,
+        profile.username,
+      ],
+    });
     const metadataUpdate = await supabase.auth.updateUser({
       data: {
         username: profile.username,
@@ -189,16 +215,25 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
           </label>
         </div>
 
-        <label className="block">
+        <label className="block" htmlFor="profile-bio">
           <span className="text-sm font-bold theme-text">Bio pública</span>
           <textarea
+            aria-describedby="profile-bio-help profile-bio-count"
             className="mt-2 min-h-32 w-full resize-y rounded-xl border px-3 py-2.5 theme-input"
+            id="profile-bio"
+            maxLength={PROFILE_BIO_MAX_LENGTH}
             onChange={(event) => setBio(event.target.value)}
+            onPaste={handleBioPaste}
             placeholder="Cuéntale a los demás sobre ti…"
             value={bio}
           />
-          <span className="mt-2 block text-xs leading-5 theme-text-muted">
-            Es opcional y aparecerá en tu perfil público.
+          <span className="mt-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-1 text-xs leading-5 theme-text-muted">
+            <span id="profile-bio-help">
+              Máximo {PROFILE_BIO_MAX_LENGTH} caracteres. Es opcional y aparecerá en tu perfil público.
+            </span>
+            <span className="shrink-0 tabular-nums" id="profile-bio-count">
+              {bio.length} / {PROFILE_BIO_MAX_LENGTH}
+            </span>
           </span>
         </label>
 

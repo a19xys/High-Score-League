@@ -1,4 +1,4 @@
-export const TABLE_PAGE_SIZES = [20, 50, 100] as const;
+export const TABLE_PAGE_SIZES = [10, 25, 50] as const;
 
 export type TablePageSize = (typeof TABLE_PAGE_SIZES)[number];
 
@@ -10,7 +10,7 @@ export function normalizePageSize(value: unknown): TablePageSize {
 
   return TABLE_PAGE_SIZES.includes(numericValue as TablePageSize)
     ? (numericValue as TablePageSize)
-    : 20;
+    : 10;
 }
 
 export function getTotalPages(totalItems: number, pageSize: unknown): number {

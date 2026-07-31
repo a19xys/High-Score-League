@@ -517,14 +517,18 @@ p {
   border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
+}
+
+.play-button {
   transition: filter 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
 }
 
-.play-button:hover:not(:disabled),
-.secondary-action:hover:not(:disabled),
-.tool-button:hover:not(:disabled),
-.theme-button:hover,
-.icon-button:hover {
+.secondary-action,
+.tool-button {
+  transition: border-color 0.16s ease, color 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
+}
+
+.play-button:hover:not(:disabled) {
   filter: brightness(1.06);
 }
 
@@ -921,7 +925,7 @@ button:disabled {
 .connection-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   inline-size: max-content;
   max-inline-size: 100%;
   justify-content: flex-start;
@@ -940,7 +944,6 @@ button:disabled {
   width: 28px;
   height: 28px;
   flex: 0 0 28px;
-  margin-inline-start: 2px;
   place-items: center;
   border: 0;
   border-radius: 999px;
@@ -1002,10 +1005,6 @@ button:disabled {
 
 .mini-action.muted {
   color: var(--text-muted);
-}
-
-.mini-action:hover:not(:disabled) {
-  filter: brightness(1.08);
 }
 
 .queue-list,
@@ -2159,7 +2158,6 @@ main,
 
 .app-dialog__button--secondary:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--circuit) 38%, var(--dialog-secondary-border));
-  background: var(--dialog-secondary-hover);
   color: var(--dialog-secondary-text);
 }
 
@@ -2479,7 +2477,6 @@ main,
   width: auto;
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 18px 24px rgb(2 6 23 / 0.64));
   transform: translate(-50%, -50%);
 }
 
@@ -4072,10 +4069,6 @@ button:disabled .ui-icon,
   white-space: nowrap;
 }
 
-.activity-details-button:hover:not(:disabled) {
-  filter: brightness(1.06);
-}
-
 .details-chevron.ui-icon {
   width: 13px;
   height: 13px;
@@ -4249,8 +4242,8 @@ button:disabled .ui-icon,
   padding: 0 10px;
 }
 
-.library-control-button:hover:not(:disabled),
-.view-button:hover:not(:disabled) {
+.library-control-button:not(.library-filter-toggle--open):hover:not(:disabled),
+.view-button:not(.view-button--active):hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--circuit) 42%, var(--border));
 }
 
@@ -4537,7 +4530,7 @@ button:disabled .ui-icon,
 }
 
 .library-sort-direction-button:hover:not(:disabled),
-.library-favorite-filter-button:hover:not(:disabled) {
+.library-favorite-filter-button:not(.library-favorite-filter-button--active):hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--circuit) 42%, var(--border));
 }
 
@@ -5235,7 +5228,6 @@ button:disabled .ui-icon,
 }
 
 .library-heading-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--circuit) 12%, transparent);
   color: var(--circuit);
 }
 
@@ -5786,19 +5778,18 @@ html:not([data-theme="dark"]) .icon-button {
   color: var(--text);
 }
 
-html:not([data-theme="dark"]) .library-control-button:hover:not(:disabled),
-html:not([data-theme="dark"]) .view-button:hover:not(:disabled),
+html:not([data-theme="dark"]) .library-control-button:not(.library-filter-toggle--open):hover:not(:disabled),
+html:not([data-theme="dark"]) .view-button:not(.view-button--active):hover:not(:disabled),
 html:not([data-theme="dark"]) .secondary-action:hover:not(:disabled),
 html:not([data-theme="dark"]) .tool-button:hover:not(:disabled),
 html:not([data-theme="dark"]) .theme-button:hover:not(:disabled),
 html:not([data-theme="dark"]) .icon-button:hover {
-  border-color: color-mix(in srgb, var(--circuit) 48%, var(--border));
-  background: var(--hover);
-  color: var(--circuit-strong);
+  border-color: var(--circuit);
+  color: var(--circuit);
 }
 
-/* LOCAL-PRE-BETA-HERO-CONTROLS-THEME-4V.3C: scoped neutral hover language. */
-html[data-theme="dark"] :is(
+/* LOCAL-PRE-BETA-HERO-HOVER-LOGO-BADGES-4V.3D: one neutral hover language in both themes. */
+:is(
   .theme-button,
   .icon-button,
   .library-heading-button:not(.library-heading-button--spinning),
@@ -5806,18 +5797,34 @@ html[data-theme="dark"] :is(
   .view-button:not(.view-button--active),
   .library-sort-direction-button,
   .library-favorite-filter-button:not(.library-favorite-filter-button--active),
-  .secondary-action:not(.primary-action-tile),
+  .secondary-action,
+  .tool-button:not(.account-primary):not([data-action="logout"]),
+  .mini-action:not(.muted),
+  .activity-details-button,
+  .app-dialog__button--secondary
+):not(:disabled):not([aria-disabled="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-severity="error"]):not([data-severity="success"]) {
+  transition: border-color 0.16s ease, color 0.16s ease;
+}
+
+:is(
+  .theme-button,
+  .icon-button,
+  .library-heading-button:not(.library-heading-button--spinning),
+  .library-control-button:not(.library-filter-toggle--open),
+  .view-button:not(.view-button--active),
+  .library-sort-direction-button,
+  .library-favorite-filter-button:not(.library-favorite-filter-button--active),
+  .secondary-action,
   .tool-button:not(.account-primary):not([data-action="logout"]),
   .mini-action:not(.muted),
   .activity-details-button,
   .app-dialog__button--secondary
 ):not(:disabled):not([aria-disabled="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-severity="error"]):not([data-severity="success"]):hover {
-  border-color: color-mix(in srgb, var(--circuit) 54%, var(--border));
-  background: color-mix(in srgb, var(--circuit) 13%, var(--surface-muted));
+  border-color: var(--circuit);
   color: var(--circuit);
 }
 
-html[data-theme="dark"] :is(
+:is(
   .theme-button,
   .icon-button,
   .library-heading-button:not(.library-heading-button--spinning),
@@ -5825,31 +5832,13 @@ html[data-theme="dark"] :is(
   .view-button:not(.view-button--active),
   .library-sort-direction-button,
   .library-favorite-filter-button:not(.library-favorite-filter-button--active),
-  .secondary-action:not(.primary-action-tile),
+  .secondary-action,
   .tool-button:not(.account-primary):not([data-action="logout"]),
   .mini-action:not(.muted),
   .activity-details-button,
   .app-dialog__button--secondary
 ):not(:disabled):not([aria-disabled="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-severity="error"]):not([data-severity="success"]):hover :is(.ui-icon, .action-button-label, small) {
   color: currentColor;
-}
-
-html[data-theme="dark"] .view-button--active:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--circuit) 60%, var(--border));
-  background: color-mix(in srgb, var(--circuit) 14%, var(--surface));
-  color: var(--circuit);
-}
-
-html[data-theme="dark"] .library-control-button.library-filter-toggle--open:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--circuit) 54%, var(--border));
-  background: color-mix(in srgb, var(--circuit) 15%, var(--surface));
-  color: var(--circuit);
-}
-
-html[data-theme="dark"] .library-favorite-filter-button--active:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--circuit) 68%, var(--border));
-  background: color-mix(in srgb, var(--circuit) 18%, var(--surface));
-  color: var(--circuit);
 }
 
 html:not([data-theme="dark"]) .app-dialog__button.app-dialog__button--primary {
@@ -6513,7 +6502,7 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   max-height: 100%;
   box-sizing: border-box;
   overflow: hidden;
-  align-items: end;
+  align-items: center;
   justify-self: center;
   justify-items: center;
   grid-area: 1 / 2;
@@ -6529,7 +6518,7 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   min-height: 0;
   max-inline-size: min(100%, 520px);
   max-block-size: min(58%, 166px);
-  align-self: end;
+  align-self: center;
   justify-self: center;
   object-fit: contain;
   transform: none;
@@ -6593,12 +6582,7 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
 }
 
 .game-hero-indicator--favorite {
-  min-width: 104px;
   color: var(--circuit);
-}
-
-.game-hero-indicator--status {
-  min-width: 132px;
 }
 
 .game-hero-indicator--ready {
@@ -6626,8 +6610,8 @@ html:not([data-theme="dark"]) .game-hero-indicator {
   box-shadow: 0 8px 22px rgb(15 39 66 / 18%);
 }
 
-/* 272px covers 104px favorite + the observed 144px maximum status + 8px gap + 16px inset. */
-@container hero-indicator-lane (max-width: 271px) {
+/* 214px rounds up the measured Favorito + Error pills, their shared gap and edge inset. */
+@container hero-indicator-lane (max-width: 213px) {
   .game-hero-indicators[data-indicator-count="2"] .game-hero-indicator {
     min-width: 0;
     width: 40px;
@@ -6647,8 +6631,8 @@ html:not([data-theme="dark"]) .game-hero-indicator {
   }
 }
 
-/* A single status reserves the same conservative 144px width plus the 16px inset. */
-@container hero-indicator-lane (max-width: 159px) {
+/* Error is the widest short status copy; include its content width and the edge inset. */
+@container hero-indicator-lane (max-width: 101px) {
   .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--status {
     min-width: 0;
     width: 40px;
@@ -6668,8 +6652,8 @@ html:not([data-theme="dark"]) .game-hero-indicator {
   }
 }
 
-/* A single favorite pill needs 104px plus the same 16px edge inset. */
-@container hero-indicator-lane (max-width: 119px) {
+/* A single content-sized Favorito pill plus the same edge inset. */
+@container hero-indicator-lane (max-width: 120px) {
   .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--favorite {
     min-width: 0;
     width: 40px;

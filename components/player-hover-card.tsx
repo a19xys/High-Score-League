@@ -16,14 +16,17 @@ import {
 import { createPortal } from "react-dom";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import type { PlayerProfilePreview } from "@/lib/data/player-profile-preview";
+import {
+  getCachedPlayerProfilePreview,
+  requestCachedPlayerProfilePreview,
+} from "@/lib/player-profile-preview-cache";
+import { getProfileBioDisplay } from "@/lib/profile";
 import type { Player } from "@/types";
 
 const hoverOpenDelayMs = 600;
 const viewportPadding = 12;
 const cardGap = 8;
 
-const previewCache = new Map<string, PlayerProfilePreview>();
-const previewRequests = new Map<string, Promise<PlayerProfilePreview>>();
 const CurrentPlayerContext = createContext<string | null>(null);
 
 type PlayerHoverCardProviderProps = {
@@ -55,48 +58,32 @@ function playerCacheKey(player: Player) {
 }
 
 async function requestPlayerPreview(player: Player) {
-  const key = playerCacheKey(player);
-  const cached = previewCache.get(key);
+  return requestCachedPlayerProfilePreview(
+    { playerId: player.id, username: player.username },
+    async (signal) => {
+      const response = await fetch(
+        `/api/players/${encodeURIComponent(player.username)}/preview`,
+        {
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+          signal,
+        },
+      );
 
-  if (cached) {
-    return cached;
-  }
+      if (!response.ok) {
+        throw new Error("player-preview-unavailable");
+      }
 
-  const pending = previewRequests.get(key);
+      const payload = (await response.json()) as PreviewPayload;
 
-  if (pending) {
-    return pending;
-  }
+      if (!payload.ok || !payload.preview) {
+        throw new Error("player-preview-invalid");
+      }
 
-  const request = fetch(
-    `/api/players/${encodeURIComponent(player.username)}/preview`,
-    {
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
+      return payload.preview;
     },
-  ).then(async (response) => {
-    if (!response.ok) {
-      throw new Error("player-preview-unavailable");
-    }
-
-    const payload = (await response.json()) as PreviewPayload;
-
-    if (!payload.ok || !payload.preview) {
-      throw new Error("player-preview-invalid");
-    }
-
-    previewCache.set(key, payload.preview);
-    return payload.preview;
-  });
-
-  previewRequests.set(key, request);
-  void request.then(
-    () => previewRequests.delete(key),
-    () => previewRequests.delete(key),
   );
-
-  return request;
 }
 
 function getTriggerElement(wrapper: HTMLSpanElement | null) {
@@ -165,7 +152,10 @@ export function PlayerHoverCard({
   const lastPointerTypeRef = useRef<string | null>(null);
   const cardId = `player-card-${useId().replace(/:/g, "")}`;
   const key = playerCacheKey(player);
-  const cachedPreview = previewCache.get(key) ?? null;
+  const cachedPreview = getCachedPlayerProfilePreview({
+    playerId: player.id,
+    username: player.username,
+  });
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<CardPosition | null>(null);
@@ -250,18 +240,24 @@ export function PlayerHoverCard({
   }, []);
 
   useEffect(() => {
-    const cached = previewCache.get(key) ?? null;
+    const cached = getCachedPlayerProfilePreview({
+      playerId: player.id,
+      username: player.username,
+    });
     setPreview(cached);
     setPreviewState(cached ? "ready" : "idle");
     setOpen(false);
-  }, [key]);
+  }, [key, player.id, player.username]);
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
-    const cached = previewCache.get(key);
+    const cached = getCachedPlayerProfilePreview({
+      playerId: player.id,
+      username: player.username,
+    });
 
     if (cached) {
       setPreview(cached);
@@ -270,6 +266,7 @@ export function PlayerHoverCard({
     }
 
     let active = true;
+    setPreview(null);
     setPreviewState("loading");
 
     void requestPlayerPreview(player).then(
@@ -435,7 +432,7 @@ export function PlayerHoverCard({
     >
       <div
         aria-label={`Vista previa del perfil de @${player.username}`}
-        className="max-h-[calc(100vh-1.5rem)] min-h-[15.5rem] overflow-y-auto rounded-2xl border p-4 shadow-[0_20px_55px_rgba(2,6,23,0.24)] theme-border theme-surface"
+        className="max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-2xl border p-4 shadow-[0_20px_55px_rgba(2,6,23,0.24)] theme-border theme-surface"
         data-player-hover-card-panel
         id={cardId}
         onClick={(event) => event.stopPropagation()}
@@ -461,7 +458,7 @@ export function PlayerHoverCard({
           </div>
         </div>
 
-        <div className="mt-4 min-h-[3.75rem]">
+        <div className="mt-4">
           {previewState === "loading" ? (
             <div
               aria-label="Cargando resumen del perfil"
@@ -470,19 +467,15 @@ export function PlayerHoverCard({
             >
               <LoadingLine className="h-3 w-full" />
               <LoadingLine className="h-3 w-5/6" />
-              <LoadingLine className="h-3 w-2/3" />
             </div>
           ) : (
-            <p className="[display:-webkit-box] overflow-hidden text-sm leading-5 theme-text-muted [-webkit-box-orient:vertical] [-webkit-line-clamp:3]">
-              {identity.bio?.trim() ||
-                (isCurrentUser
-                  ? "Aún no has añadido una bio pública."
-                  : "Este jugador aún no ha añadido una bio pública.")}
+            <p className="whitespace-pre-wrap break-words text-sm leading-5 theme-text-muted">
+              {getProfileBioDisplay(identity.bio)}
             </p>
           )}
         </div>
 
-        <div className="mt-4 grid min-h-[3.75rem] grid-cols-3 gap-2 border-y py-3 theme-border">
+        <div className="mt-4 grid grid-cols-3 gap-2 border-y py-3 theme-border">
           {previewState === "loading" ? (
             ["victories", "podiums", "results"].map((item) => (
               <div className="space-y-2 text-center" key={item}>
@@ -512,18 +505,13 @@ export function PlayerHoverCard({
           )}
         </div>
 
-        <p className="mt-3 text-xs font-bold text-circuit">
-          {isCurrentUser
-            ? "Este eres tú · Tu trayectoria competitiva"
-            : "Trayectoria competitiva"}
-        </p>
         <Link
           aria-label={
             isCurrentUser
               ? "Ir a mi perfil"
               : `Ver perfil de @${identity.username}`
           }
-          className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-circuit px-4 py-2 text-sm font-extrabold text-slate-950 transition hover:bg-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit focus-visible:ring-offset-2 motion-reduce:transition-none"
+          className="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-circuit px-4 py-2 text-sm font-extrabold text-slate-950 transition hover:bg-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit focus-visible:ring-offset-2 motion-reduce:transition-none"
           href={profileHref}
           ref={primaryLinkRef}
         >

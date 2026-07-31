@@ -1,5 +1,6 @@
 export const usernamePattern = /^[a-z][a-z0-9_]{2,19}$/;
 export const initialsPattern = /^[A-Z0-9]{3}$/;
+export const PROFILE_BIO_MAX_LENGTH = 150;
 
 export function normalizeInitials(value: string) {
   return value.trim().toUpperCase();
@@ -16,6 +17,14 @@ export function validateUsername(value: string) {
 export function validateInitials(value: string) {
   if (!initialsPattern.test(normalizeInitials(value))) {
     return "Las siglas deben tener exactamente 3 caracteres: letras A-Z o números.";
+  }
+
+  return null;
+}
+
+export function validateProfileBio(value: string) {
+  if (value.trim().length > PROFILE_BIO_MAX_LENGTH) {
+    return `La bio no puede superar los ${PROFILE_BIO_MAX_LENGTH} caracteres.`;
   }
 
   return null;

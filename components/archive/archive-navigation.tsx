@@ -6,9 +6,9 @@ const sections: Array<{
   id: ArchiveSection;
   label: string;
 }> = [
-  { href: "/archive", id: "weeks", label: "Semanas" },
+  { href: "/archive/weeks", id: "weeks", label: "Semanas" },
   {
-    href: "/archive?section=seasons",
+    href: "/archive/seasons",
     id: "seasons",
     label: "Temporadas",
   },

@@ -164,14 +164,16 @@ test("titulo monotono, LED, ring unico y subtitulo estructural comparten primiti
   assert.doesNotMatch(calendar, /512px|translateY|#f9faf9/);
 });
 
-test("controles neutros heredan el hover y las cards cambian de tema sin interpolar color", async () => {
-  const [styles, header] = await Promise.all([
+test("controles neutros usan solo borde y contenido azules sin alterar fondos ni seleccionados", async () => {
+  const [styles, header, gamePanel] = await Promise.all([
     fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "components", "header.js"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "components", "game-panel.js"), "utf8"),
   ]);
-  const marker = "LOCAL-PRE-BETA-HERO-CONTROLS-THEME-4V.3C";
+  const marker = "LOCAL-PRE-BETA-HERO-HOVER-LOGO-BADGES-4V.3D";
   const markerIndex = styles.indexOf(marker);
-  const darkHoverCss = styles.slice(markerIndex, styles.indexOf('html:not([data-theme="dark"]) .app-dialog__button', markerIndex));
+  const neutralHoverCss = styles.slice(markerIndex, styles.indexOf('html:not([data-theme="dark"]) .app-dialog__button', markerIndex));
+  const lightHoverRule = styles.match(/html:not\(\[data-theme="dark"\]\) \.library-control-button:not\(\.library-filter-toggle--open\):hover:not\(:disabled\),([\s\S]*?)\n\}/)?.[0] || "";
   const packRules = [...styles.matchAll(/(?:^|\n)\.pack-card \{([^}]*)\}/g)];
   const finalPackRule = packRules.at(-1)?.[1] || "";
   const packTransitionRules = [...styles.matchAll(/([^{}]*\.pack-card[^{}]*)\{([^{}]*transition:[^{}]*)\}/g)];
@@ -182,24 +184,34 @@ test("controles neutros heredan el hover y las cards cambian de tema sin interpo
   assert.match(styles, /\.theme-icon\.ui-icon\s*\{[\s\S]*?color: currentColor/);
   assert.match(styles, /\.theme-icon\.ui-icon--moon\s*\{[\s\S]*?color: currentColor/);
   assert.match(styles, /\.theme-icon\.ui-icon--sun\s*\{[\s\S]*?color: currentColor/);
-  assert.match(styles, /html:not\(\[data-theme="dark"\]\) \.theme-button:hover:not\(:disabled\)[\s\S]*?color: var\(--circuit-strong\)/);
+  assert.match(styles, /html:not\(\[data-theme="dark"\]\) \.theme-button:hover:not\(:disabled\)[\s\S]*?color: var\(--circuit\)/);
   assert.match(styles, /button:focus-visible,[\s\S]*?outline: 2px solid var\(--circuit\)/);
 
-  assert.match(darkHoverCss, /\.theme-button/);
-  assert.match(darkHoverCss, /\.library-control-button:not\(\.library-filter-toggle--open\)/);
-  assert.match(darkHoverCss, /\.view-button:not\(\.view-button--active\)/);
-  assert.match(darkHoverCss, /\.secondary-action:not\(\.primary-action-tile\)/);
-  assert.match(darkHoverCss, /\.tool-button:not\(\.account-primary\):not\(\[data-action="logout"\]\)/);
-  assert.match(darkHoverCss, /\.app-dialog__button--secondary/);
-  assert.match(darkHoverCss, /:not\(\[aria-disabled="true"\]\):not\(\[aria-pressed="true"\]\):not\(\[aria-expanded="true"\]\)/);
-  assert.match(darkHoverCss, /:not\(\[data-severity="error"\]\):not\(\[data-severity="success"\]\)/);
-  assert.match(darkHoverCss, /border-color: color-mix\(in srgb, var\(--circuit\)/);
-  assert.match(darkHoverCss, /color: var\(--circuit\)/);
-  assert.match(darkHoverCss, /:hover :is\(\.ui-icon, \.action-button-label, small\)[\s\S]*?color: currentColor/);
-  assert.doesNotMatch(darkHoverCss, /play-button|connection-refresh|favorite-slot|account-forget-button|pack-card/);
-  assert.match(darkHoverCss, /\.view-button--active:hover:not\(:disabled\)[\s\S]*?var\(--circuit\) 60%/);
-  assert.match(darkHoverCss, /\.library-control-button\.library-filter-toggle--open:hover:not\(:disabled\)[\s\S]*?var\(--circuit\) 54%/);
-  assert.match(darkHoverCss, /\.library-favorite-filter-button--active:hover:not\(:disabled\)[\s\S]*?var\(--circuit\) 68%/);
+  assert.match(neutralHoverCss, /\.theme-button/);
+  assert.match(neutralHoverCss, /\.library-control-button:not\(\.library-filter-toggle--open\)/);
+  assert.match(neutralHoverCss, /\.view-button:not\(\.view-button--active\)/);
+  assert.match(neutralHoverCss, /\.secondary-action,/);
+  assert.doesNotMatch(neutralHoverCss, /\.secondary-action:not\(\.primary-action-tile\)/);
+  assert.match(gamePanel, /actions\.practice, \{ className: "secondary-action primary-action-tile action-tile" \}/);
+  assert.match(gamePanel, /actions\.manual, \{ className: "secondary-action compact-action action-tile" \}/);
+  assert.match(gamePanel, /actions\.ranking, \{ className: "secondary-action compact-action action-tile" \}/);
+  assert.match(gamePanel, /actions\.competition, \{ className: "play-button action-tile" \}/);
+  assert.match(neutralHoverCss, /\.tool-button:not\(\.account-primary\):not\(\[data-action="logout"\]\)/);
+  assert.match(neutralHoverCss, /\.app-dialog__button--secondary/);
+  assert.match(neutralHoverCss, /:not\(\[aria-disabled="true"\]\):not\(\[aria-pressed="true"\]\):not\(\[aria-expanded="true"\]\)/);
+  assert.match(neutralHoverCss, /:not\(\[data-severity="error"\]\):not\(\[data-severity="success"\]\)/);
+  assert.match(neutralHoverCss, /transition: border-color 0\.16s ease, color 0\.16s ease/);
+  assert.match(neutralHoverCss, /border-color: var\(--circuit\)/);
+  assert.match(neutralHoverCss, /color: var\(--circuit\)/);
+  assert.match(neutralHoverCss, /:hover :is\(\.ui-icon, \.action-button-label, small\)[\s\S]*?color: currentColor/);
+  assert.doesNotMatch(neutralHoverCss, /background:|filter:|brightness|play-button|connection-refresh|favorite-slot|account-forget-button|pack-card/);
+  assert.match(lightHoverRule, /border-color: var\(--circuit\)/);
+  assert.match(lightHoverRule, /color: var\(--circuit\)/);
+  assert.doesNotMatch(lightHoverRule, /background:|filter:|brightness/);
+  assert.doesNotMatch(styles, /\.view-button--active:hover|\.library-control-button\.library-filter-toggle--open:hover|\.library-favorite-filter-button--active:hover/);
+  assert.match(styles, /\.view-button--active\s*\{[\s\S]*?background:/);
+  assert.match(styles, /\.library-control-button\.library-filter-toggle--open\s*\{[\s\S]*?background:/);
+  assert.match(styles, /\.library-favorite-filter-button--active\s*\{[\s\S]*?background:/);
 
   assert.match(finalPackRule, /transition: box-shadow 0\.16s ease/);
   assert.doesNotMatch(finalPackRule, /transition:[^;]*(?:background|border-color|\bcolor\b)/);

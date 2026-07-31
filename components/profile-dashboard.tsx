@@ -8,6 +8,7 @@ import { ProfileHero } from "@/components/profile/profile-hero";
 import { ProfileHistory } from "@/components/profile/profile-history";
 import { ProfileNavigation } from "@/components/profile/profile-navigation";
 import { ProfileStats } from "@/components/profile/profile-stats";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import type {
   AdminCenterData,
   ProfileAuthData,
@@ -33,7 +34,9 @@ function ProfileAccessState({
   const notConfigured = status === "not-configured";
 
   return (
-    <section className="profile-hero relative overflow-hidden rounded-[1.75rem] border border-white/10 p-6 text-white shadow-[0_28px_70px_rgba(2,6,23,0.24)] sm:p-10">
+    <div className="space-y-6">
+      <Breadcrumbs items={[{ label: "Mi perfil" }]} />
+      <section className="profile-hero relative overflow-hidden rounded-[1.75rem] border border-white/10 p-6 text-white shadow-[0_28px_70px_rgba(2,6,23,0.24)] sm:p-10">
       <div aria-hidden="true" className="profile-hero-grid" />
       <div className="relative z-[1] max-w-2xl">
         <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-cyan-200">
@@ -58,7 +61,8 @@ function ProfileAccessState({
           </Link>
         ) : null}
       </div>
-    </section>
+      </section>
+    </div>
   );
 }
 
@@ -71,6 +75,7 @@ function ProfileOnboarding({
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[{ label: "Mi perfil" }]} />
       <section className="profile-hero relative overflow-hidden rounded-[1.75rem] border border-white/10 p-6 text-white shadow-[0_28px_70px_rgba(2,6,23,0.24)] sm:p-9">
         <div aria-hidden="true" className="profile-hero-grid" />
         <div className="relative z-[1] flex flex-col gap-6 sm:flex-row sm:items-center">
@@ -116,6 +121,7 @@ export function ProfileDashboard({
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[{ label: "Mi perfil" }]} />
       <ProfileNavigation showAdmin={adminCenter.isAdmin} />
       <ProfileHero mode="owner" profile={auth.profile} />
       <ProfileStats stats={competitive.stats} />

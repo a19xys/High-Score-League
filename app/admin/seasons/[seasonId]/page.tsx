@@ -4,6 +4,7 @@ import { AdminSeasonDeleteButton } from "@/components/admin-season-delete-button
 import { AdminSeasonForm } from "@/components/admin-season-form";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ActionLink } from "@/components/ui/action-link";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { EmptyState } from "@/components/ui/state";
 import { DataTable, TableHead } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -72,10 +73,14 @@ export default async function AdminSeasonPage({ params }: AdminSeasonPageProps) 
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { href: "/admin", label: "Administración" },
+          { href: "/admin/seasons", label: "Temporadas" },
+          { label: data.season.name },
+        ]}
+      />
       <div className="flex flex-wrap gap-3 text-sm font-semibold">
-        <ActionLink href="/admin/seasons" icon="back" variant="primary">
-          Volver a temporadas
-        </ActionLink>
         <ActionLink href={`/seasons/${data.season.slug}`}>
           Ver página pública
         </ActionLink>

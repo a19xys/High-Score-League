@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/state";
 import { DataTable } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SeasonJoinButton } from "@/components/season-join-button";
-import { ActionLink } from "@/components/ui/action-link";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { formatCompactDateRange, formatWeekCount, formatWeekRange } from "@/lib/format";
 import { getSeasonDetailData } from "@/lib/data/season-detail";
 import { getServerSession } from "@/lib/auth/session";
@@ -150,9 +150,13 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
 
   return (
     <div className="space-y-6">
-      <ActionLink href="/archive?section=seasons" icon="back" variant="primary">
-        Volver al archivo
-      </ActionLink>
+      <Breadcrumbs
+        items={[
+          { href: "/archive/weeks", label: "Archivo" },
+          { href: "/archive/seasons", label: "Temporadas" },
+          { label: season.name },
+        ]}
+      />
       <Card>
         <CardHeader
           eyebrow="Detalle de temporada"

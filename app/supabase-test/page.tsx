@@ -1,6 +1,7 @@
 ﻿import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
 import { AdminGateMessage } from "@/components/admin/admin-gate-message";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -127,6 +128,12 @@ export default async function SupabaseTestPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { href: "/admin", label: "Administración" },
+          { label: "Diagnóstico Supabase" },
+        ]}
+      />
       <Card>
         <CardHeader
           title="Supabase test"

@@ -382,7 +382,7 @@ export function SubmissionsTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [ownHiddenScoresRevealed, setOwnHiddenScoresRevealed] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<TablePageSize>(20);
+  const [pageSize, setPageSize] = useState<TablePageSize>(10);
 
   const decoratedSubmissions = useMemo(
     () =>
@@ -499,10 +499,10 @@ export function SubmissionsTable({
               <SortableHeader
                 currentDirection={sortDirection}
                 isActive={sortKey === "attempt"}
-                label="Ordenar por intento"
+                label="Ordenar por intentos"
                 onClick={() => toggleSort("attempt")}
               >
-                {showPlayer ? "Jugador / intento" : "Intento"}
+                Intentos
               </SortableHeader>
             </th>
             <th className="whitespace-nowrap px-3 py-2.5 text-right" scope="col">
@@ -550,7 +550,7 @@ export function SubmissionsTable({
                 key={submission.id}
               >
                 {showWeek ? (
-                  <td className="min-w-0 max-w-[10rem] px-3 py-3 theme-text-muted">
+                  <td className="min-w-0 max-w-[10rem] px-3 py-2 theme-text-muted">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold theme-text">
                         {submission.week
@@ -565,12 +565,12 @@ export function SubmissionsTable({
                     </div>
                   </td>
                 ) : null}
-                <td className="whitespace-nowrap px-3 py-3 font-semibold theme-text">
-                  <div className="inline-flex min-w-0 items-center gap-2">
+                <td className="whitespace-nowrap px-3 py-2 font-semibold theme-text">
+                  <div className="inline-flex min-w-0 items-center gap-1.5">
                     {showPlayer && submission.player ? (
                       <PlayerPill
-                        compactOnMobile
                         player={submission.player}
+                        variant="submission"
                       />
                     ) : (
                       <span>{submission.playerInitials}</span>
@@ -596,7 +596,7 @@ export function SubmissionsTable({
                     ) : null}
                   </div>
                 </td>
-                <td className="whitespace-nowrap px-3 py-3 text-right font-semibold theme-text">
+                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold theme-text">
                   {scoreIsHiddenFromViewer ? (
                     <span className="inline-flex min-w-20 justify-end">
                       {submission.showHiddenUi ? (
@@ -620,7 +620,7 @@ export function SubmissionsTable({
                   )}
                 </td>
                 <td
-                  className="hidden whitespace-nowrap px-3 py-3 text-right theme-text-muted sm:table-cell"
+                  className="hidden whitespace-nowrap px-3 py-2 text-right theme-text-muted sm:table-cell"
                   title={formatExactDateTime(submission.createdAt)}
                 >
                   {formatRelativeTime(submission.createdAt)}

@@ -1,5 +1,6 @@
 import { LoginForm } from "@/components/auth/login-form";
 import { Card, CardHeader } from "@/components/ui/card";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -8,13 +9,16 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <div className="mx-auto max-w-xl">
-      <Card>
-        <CardHeader title="Iniciar sesión" eyebrow="Auth">
-          Accede con email y contraseña para entrar en la liga privada.
-        </CardHeader>
-        <LoginForm />
-      </Card>
+    <div className="space-y-6">
+      <Breadcrumbs items={[{ label: "Iniciar sesión" }]} />
+      <div className="mx-auto max-w-xl">
+        <Card>
+          <CardHeader title="Iniciar sesión" eyebrow="Auth">
+            Accede con email y contraseña para entrar en la liga privada.
+          </CardHeader>
+          <LoginForm />
+        </Card>
+      </div>
     </div>
   );
 }

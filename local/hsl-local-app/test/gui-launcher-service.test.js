@@ -1222,9 +1222,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /icon: "error"/);
   assert.equal(/star-empty/.test(gamePanel), false);
   assert.match(gamePanel, /role="img" aria-label="Juego favorito"/);
-  assert.match(gamePanel, /label: "Pack listo"/);
-  assert.match(gamePanel, /label: "Comprobando"/);
-  assert.match(gamePanel, /label: "Con errores"/);
+  assert.match(gamePanel, /accessibleLabel: "Pack listo"[\s\S]*label: "Listo"/);
+  assert.match(gamePanel, /accessibleLabel: "Comprobando"[\s\S]*label: "\.\.\."/);
+  assert.match(gamePanel, /accessibleLabel: "Pack con errores"[\s\S]*label: "Error"/);
   assert.equal(/renderIcon\("heart|game-favorite-chip/.test(gamePanel), false);
   assert.equal(/badge badge-muted week-chip/.test(gamePanel), false);
   assert.match(presentation, /"open-manual", "Manual", "manual"/);
@@ -1337,7 +1337,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-hero-indicator--ready[\s\S]*color: var\(--state-success\)/);
   assert.match(styles, /\.game-hero-indicator--checking[\s\S]*color: var\(--state-progress\)/);
   assert.match(styles, /\.game-hero-indicator--error[\s\S]*color: var\(--state-error\)/);
-  assert.match(styles, /@container hero-indicator-lane \(max-width: 271px\)[\s\S]*data-indicator-count="2"/);
+  assert.match(styles, /@container hero-indicator-lane \(max-width: 213px\)[\s\S]*data-indicator-count="2"/);
   assert.match(styles, /html:not\(\[data-theme="dark"\]\) \.game-hero-indicator[\s\S]*var\(--surface\)/);
   assert.match(styles, /\.game-week-subtitle[\s\S]*text-transform: uppercase/);
   assert.match(styles, /\.game-metadata-icon\.ui-icon,\s*\n\.game-week-icon\.ui-icon[\s\S]*color: color-mix\(in srgb, var\(--text-muted\) 82%, var\(--text\)\)/);

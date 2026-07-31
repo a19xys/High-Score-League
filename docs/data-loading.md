@@ -18,18 +18,18 @@ Las rutas privadas siguen esta regla:
 `/` muestra landing publica sin sesion. Con sesion iniciada lee semana activa,
 temporada activa, leaderboard y chat real.
 
-`/archive?section=seasons` lee `public.seasons` y cuenta semanas desde
+`/archive/seasons` lee `public.seasons` y cuenta semanas desde
 `public.weeks`. Las temporadas `draft` no aparecen publicamente.
 
 `/seasons/[seasonId]` acepta id o slug real. Muestra semanas reales,
 clasificacion real desde `weekly_results` y podio real cuando existen
 resultados oficiales.
 
-`/archive` lee `public.weeks`, `public.seasons` y `public.games`. Las semanas de
+`/archive/weeks` lee `public.weeks`, `public.seasons` y `public.games`. Las semanas de
 temporadas `draft` no aparecen. Las semanas secretas, futuras o sin `game_id`
-no revelan juego y se muestran como `Por anunciar`. La página carga solo la
-fuente correspondiente a la sección seleccionada. Los índices `/weeks` y
-`/seasons` redirigen permanentemente a su sección canónica del archivo.
+no revelan juego y se muestran como `Por anunciar`. Cada ruta carga solo su
+fuente. `/archive`, `/weeks`, `/seasons` y `/season` redirigen permanentemente
+a la sección canónica correspondiente.
 
 `/weeks/[weekId]` lee semana, temporada, juego, submissions, benchmarks y
 `weekly_results` reales. Si la semana no existe o esta oculta, muestra estado

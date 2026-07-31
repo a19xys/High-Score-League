@@ -6,31 +6,36 @@ type PlayerPillProps = {
   player: Player;
   compactOnMobile?: boolean;
   linkToProfile?: boolean;
+  variant?: "default" | "submission";
 };
 
 export function PlayerPill({
   compactOnMobile = false,
   linkToProfile = true,
   player,
+  variant = "default",
 }: PlayerPillProps) {
+  const isSubmission = variant === "submission";
   const nameClass = compactOnMobile ? "hidden sm:block" : "";
-  const gapClass = compactOnMobile ? "gap-2" : "gap-3";
+  const gapClass = isSubmission ? "gap-1.5" : compactOnMobile ? "gap-2" : "gap-3";
   const content = (
     <>
       <ProfileAvatar
         avatarUrl={player.avatarUrl}
         decorative
         initials={player.initials}
-        size="pill"
+        size={isSubmission ? "submission" : "pill"}
         username={player.username}
       />
       <span className="min-w-0">
-        <span className="block truncate font-semibold theme-text">
+        <span className={`block truncate font-semibold theme-text ${isSubmission ? "text-sm" : ""}`}>
           {player.initials}
         </span>
-        <span className={`block truncate text-xs theme-text-muted ${nameClass}`}>
-          @{player.username}
-        </span>
+        {isSubmission ? null : (
+          <span className={`block truncate text-xs theme-text-muted ${nameClass}`}>
+            @{player.username}
+          </span>
+        )}
       </span>
     </>
   );
@@ -44,7 +49,9 @@ export function PlayerPill({
   return (
     <PlayerHoverCard
       aria-label={`Ver perfil de @${player.username}`}
-      className={`-m-1 flex min-w-0 items-center rounded-xl p-1 transition hover:bg-[var(--hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit ${gapClass}`}
+      className={`flex min-w-0 items-center rounded-xl transition hover:bg-[var(--hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit ${
+        isSubmission ? "-my-1 -ml-1 min-h-10 p-1" : "-m-1 p-1"
+      } ${gapClass}`}
       player={player}
     >
       {content}

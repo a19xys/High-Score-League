@@ -1,40 +1,53 @@
-# Archivo unificado y paginación de envíos
+# Archivo canónico y paginación de envíos
 
 ## Archivo público de la liga
 
-La navegación autenticada reúne el historial de la liga bajo un único acceso
-`ARCHIVO`. La URL canónica es `/archive` y muestra `Semanas` de forma
-predeterminada. `Temporadas` usa `/archive?section=seasons`.
+La navegación autenticada reúne el historial bajo un único acceso `ARCHIVO` y
+dos rutas canónicas independientes:
 
-La selección pertenece a la URL y se valida en servidor. Solo se aceptan
-`weeks` y `seasons`; una sección ausente, `section=weeks`, un array o cualquier
-valor inesperado cae de forma segura en `weeks`. Los enlaces reales del selector
-permiten recargar, copiar la dirección y usar Atrás/Adelante sin depender de
-estado React ni de hashes.
+- `/archive/weeks`: Semanas;
+- `/archive/seasons`: Temporadas.
 
-La página consulta únicamente los datos de la sección activa y reutiliza las
-tablas existentes con sus filtros, orden, avisos y estados vacíos. Sus títulos
-de documento son `Semanas | Archivo | High Score League` y
-`Temporadas | Archivo | High Score League`.
+Cada página consulta únicamente los datos de su sección y reutiliza las tablas,
+filtros, orden, avisos y estados vacíos existentes. El selector usa enlaces
+reales, de modo que recarga, URLs copiadas y Atrás/Adelante funcionan sin estado
+React ni parámetros de consulta.
 
-Compatibilidad:
+Compatibilidad mediante redirecciones permanentes:
 
-- `/weeks` redirige permanentemente a `/archive`;
-- `/seasons` y la ruta legacy `/season` redirigen permanentemente a
-  `/archive?section=seasons`;
-- `/weeks/[weekId]` y `/seasons/[seasonId]` conservan sus URLs;
-- las rutas `/admin/weeks`, `/admin/seasons`, APIs y enlaces del launcher no
-  cambian.
+- `/archive` y `/weeks` → `/archive/weeks`;
+- `/seasons` y `/season` → `/archive/seasons`;
+- `/archive?section=seasons` → `/archive/seasons`;
+- `/archive?section=weeks` o un valor desconocido → `/archive/weeks`.
 
-En los detalles históricos, `ARCHIVO` aparece activo. La semana activa mantiene
-la prioridad de `LEADERBOARD` y la temporada activa conserva la de
-`CLASIFICACIÓN`.
+Los detalles conservan `/weeks/[weekId]` y `/seasons/[seasonId]`. En ellos,
+`ARCHIVO` aparece activo, salvo que la semana activa deba dar prioridad a
+`LEADERBOARD` o la temporada activa a `CLASIFICACIÓN`.
 
-## Paginación de historiales de envíos
+## Breadcrumbs
 
-`SubmissionsTable` pagina todas sus instancias de forma compartida. Muestra 20
-filas inicialmente y permite seleccionar 50 o 100; 100 es el máximo disponible
-en la interfaz. El control se oculta cuando hay 20 envíos o menos.
+Las páginas internas usan un componente compartido con `nav`, lista ordenada,
+enlaces reales y `aria-current="page"` en el último elemento. Las migas siempre
+empiezan por `Liga` (`/`), permiten varias líneas y no fuerzan overflow
+horizontal. Home no muestra breadcrumbs.
+
+Jerarquías públicas:
+
+- archivo: `Liga / Archivo / Semanas|Temporadas`;
+- temporada: `Liga / Archivo / Temporadas / [temporada]`;
+- semana: `Liga / Archivo / Temporadas / [temporada] / [juego o semana]`;
+- perfil público: `Liga / Jugadores / @[username]`;
+- perfil propio: `Liga / Mi perfil`.
+
+Las pantallas admin, de autenticación y diagnóstico siguen la misma convención
+con una jerarquía útil. Los enlaces “Volver” solo permanecen cuando son una
+acción real y no navegación estructural duplicada.
+
+## Paginación compacta de submissions
+
+`SubmissionsTable` pagina todas sus instancias de forma compartida. Muestra 10
+filas inicialmente y permite seleccionar 25 o 50; 50 es el máximo expuesto. El
+control se oculta cuando hay 10 envíos o menos.
 
 El orden de procesamiento es deliberado:
 
@@ -46,21 +59,27 @@ El orden de procesamiento es deliberado:
 6. ajuste de página y paginación;
 7. render del segmento visible.
 
-Cambiar el orden o el tamaño vuelve a la página 1. Si cambian los datos, la
-página se limita a la última que siga existiendo. Anterior y Siguiente son
-botones nativos deshabilitados en los extremos, el selector tiene etiqueta
-visible y el resumen anuncia el intervalo `X–Y de Z`.
+Cambiar el orden o el tamaño vuelve a página 1. Si cambian los datos, la página
+se limita a la última existente. Anterior y Siguiente son botones nativos
+deshabilitados en los extremos; el selector tiene etiqueta visible y el resumen
+anuncia `X–Y de Z`.
 
-El perfil propio entrega todos los envíos válidos ya cargados a la tabla, sin el
-antiguo corte de ocho filas. El perfil público continúa recibiendo un array
-privado vacío y nunca renderiza esta tabla.
+La columna se llama siempre `Intentos` y su control accesible es `Ordenar por
+intentos`. Las identidades usan `PlayerPill variant="submission"`: avatar o
+siglas de 28 px sin repetir username, manteniendo enlace, hover card, foco y
+nombre accesible. El resto de celdas y el espaciado vertical también se
+compactan sin alterar semántica.
+
+El perfil propio entrega todos los envíos válidos ya cargados, sin el antiguo
+corte de ocho filas. El perfil público no recibe ni renderiza ese historial
+privado.
 
 ## Alcance y evolución
 
-La paginación es cliente/presentación: no añade consultas, no cambia RLS y no
-altera leaderboards, scoring, ingest ni resultados oficiales. Esta decisión
-mantiene correctos el número de intento, el mejor intento y las reglas de scores
-ocultos sobre el conjunto completo.
+La paginación continúa siendo cliente/presentación: no añade consultas, no
+cambia RLS y no altera leaderboards, scoring, ingest ni resultados oficiales.
+Esto mantiene correctos el número de intento, el mejor intento y las reglas de
+scores ocultos sobre el conjunto completo.
 
 `SUBMISSIONS-SERVER-PAGINATION-1` queda como tarea futura cuando el volumen haga
 costoso cargar todo el historial. Deberá diseñar consultas paginadas, conteo

@@ -45,7 +45,8 @@ avatar y estados vacíos, pero no recibe datos ni controles privados.
 Se muestran:
 
 - avatar o fallback de siglas;
-- siglas, username, bio y fecha de incorporación;
+- siglas, username, bio y fecha de incorporación completa en la zona horaria de
+  la competición (`En la liga desde el …`);
 - victorias oficiales;
 - podios oficiales;
 - participaciones en semanas con actividad válida o resultado oficial;
@@ -53,7 +54,7 @@ Se muestran:
 - resultados oficiales recientes;
 - mejor score válido por semana;
 - historial completo de envíos propios ya cargados, incluidos los que RLS
-  permite ver solo al dueño, paginado a 20, 50 o 100 filas;
+  permite ver solo al dueño, paginado a 10, 25 o 50 filas;
 - email únicamente dentro del bloque privado de sesión;
 - preferencia real `track_play_time` como permiso de recopilación;
 - tema Claro, Oscuro o Sistema;
@@ -94,6 +95,10 @@ La misma navegación se aplica a leaderboards, clasificaciones, podios,
 resultados oficiales, historial visible, ganadores de archivos y autores del
 chat. Ningún enlace de jugador se anida dentro de otro anchor.
 
+En filas de submissions, `PlayerPill` usa la variante semántica `submission`:
+avatar o siglas compactas sin repetir el username, manteniendo enlace, hover
+card, foco y nombre accesible.
+
 ## Hover card compartida
 
 `PlayerHoverCard` envuelve las identidades compartidas en escritorio. Espera
@@ -106,14 +111,29 @@ quedar recortado por tablas o bordes del viewport. No se añadió una dependenci
 la implementación propia cubre el alcance con portal, `ResizeObserver` y
 listeners de scroll/resize que se limpian al cerrar.
 
-La preview contiene solo avatar, siglas, username, bio pública, victorias,
+La preview contiene solo avatar, siglas, username, bio pública completa,
+victorias,
 podios y cantidad de resultados oficiales. Se solicita a
 `/api/players/[username]/preview` únicamente al abrir tras confirmar intención;
 el endpoint exige sesión, valida el username, usa el cliente Supabase del
 usuario y RLS, y selecciona solo campos públicos y tres conteos ligeros de
-`weekly_results`. El cliente cachea por ID de jugador, deduplica solicitudes
-simultáneas e ignora respuestas de instancias desmontadas. Un fallo conserva la
-identidad y el enlace sin mostrar detalles técnicos.
+`weekly_results`. El cliente mantiene una caché compartida por ID y username
+con TTL de 45 segundos, deduplica solicitudes simultáneas y limpia las
+solicitudes pendientes. Al guardar el perfil invalida ID, username anterior y
+username nuevo; una respuesta iniciada antes de esa invalidación no puede
+repoblar la caché. Un fallo conserva la identidad y el enlace sin mostrar
+detalles técnicos.
+
+La tarjeta cargada usa altura natural, conserva su límite máximo respecto al
+viewport y activa scroll interno solo si hace falta. No reserva alturas vacías,
+no recorta la bio ni muestra líneas de “Trayectoria competitiva”. El fallback
+de bio compartido en perfiles y tarjetas es exactamente `Sin descripción`.
+
+La edición comparte un límite de 150 caracteres entre UI y validación. El
+textarea muestra ayuda, contador y `maxLength`; un pegado que exceda el límite
+se rechaza con error explícito antes de Supabase. La migración
+`0023_profile_bio_max_length.sql` replica el contrato en base de datos sin
+truncar bios existentes.
 
 El ID autenticado se distribuye una vez desde el layout para reconocer la
 identidad propia sin prop drilling. Sus triggers y botón llevan a `/profile`,

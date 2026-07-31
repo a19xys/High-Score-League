@@ -7,6 +7,13 @@ const dateFormatter = new Intl.DateTimeFormat("es-ES", {
   timeZone: competitionTimeZone,
 });
 
+const fullDateFormatter = new Intl.DateTimeFormat("es-ES", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: competitionTimeZone,
+});
+
 const monthFormatter = new Intl.DateTimeFormat("es-ES", {
   month: "long",
   timeZone: competitionTimeZone,
@@ -60,6 +67,10 @@ const shortMonthFormatter = new Intl.DateTimeFormat("es-ES", {
 
 export function formatDate(value: string) {
   return dateFormatter.format(new Date(value));
+}
+
+export function formatFullDate(value: string) {
+  return fullDateFormatter.format(new Date(value));
 }
 
 export function formatDateTime(value: string) {

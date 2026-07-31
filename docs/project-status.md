@@ -12,7 +12,9 @@ normal.
 - Los avatares han recuperado el tratamiento anterior al revamp, sin aro
   multicolor. Las identidades compartidas de jugadores muestran en escritorio
   una preview pública tras 600 ms de intención de hover, con portal, colisiones,
-  caché por jugador y navegación propia a `/profile`.
+  altura natural, bio completa y caché compartida de 45 segundos por ID y
+  username. La caché deduplica solicitudes, se invalida al editar el perfil y
+  descarta respuestas obsoletas tras un cambio de username.
 - Perfiles propio y público comparten una tarjeta de jugador finalista, métricas
   competitivas reales, trayectoria y fallbacks de avatar. Las identidades de
   leaderboard, clasificación, podios, historial, archivos y chat enlazan al
@@ -36,12 +38,14 @@ normal.
   `Sin juego asignado`; ya no se usa un juego placeholder real.
 - `/game` redirige a la semana activa real.
 - `/week` y `/leaderboard` redirigen a `/game`.
-- `/archive` reúne semanas y temporadas con sección persistida en URL. `/weeks`,
-  `/seasons` y `/season` mantienen compatibilidad mediante redirección
-  permanente a la sección canónica.
+- `/archive/weeks` y `/archive/seasons` son las rutas canónicas del archivo.
+  `/archive`, `/weeks`, `/seasons` y `/season` mantienen compatibilidad mediante
+  redirección permanente a la sección correspondiente.
 - Todos los historiales basados en `SubmissionsTable` se paginan después de los
-  cálculos y el orden global, con tamaños 20, 50 y 100. El perfil propio ya no
+  cálculos y el orden global, con tamaños 10, 25 y 50. El perfil propio ya no
   limita el historial a ocho envíos y el público no recibe filas privadas.
+- Las pantallas internas usan breadcrumbs compartidos que siempre empiezan en
+  `Liga`; Home conserva su navegación principal sin migas.
 - `/submit` se conserva como herramienta legacy/interna para admins. El flujo
   normal de puntuaciones sera la app local/MAME.
 - `lib/mock-data.ts` fue eliminado y ya no existe fallback de producto a datos
@@ -69,6 +73,8 @@ normal.
   cuestionario.
 - `0022_home_poll_option_images.sql` añade `image_url` opcional a las opciones
   del cuestionario de Home.
+- `0023_profile_bio_max_length.sql` añade el límite de 150 caracteres para la
+  bio tras una precomprobación que falla sin truncar datos incompatibles.
 - `POST /api/submissions/ingest` crea submissions autenticadas.
 - `POST /api/cron/process-schedule` sincroniza calendario por fechas.
 - `POST /api/admin/weeks/[weekId]/weekly-results` genera resultados oficiales

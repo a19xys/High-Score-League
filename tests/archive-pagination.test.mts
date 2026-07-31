@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseArchiveSection } from "../lib/archive.ts";
+import {
+  ARCHIVE_PATHS,
+  getArchivePath,
+  parseArchiveSection,
+} from "../lib/archive.ts";
 import {
   clampPage,
   getTotalPages,
@@ -17,30 +21,39 @@ test("archive section accepts only the canonical values", () => {
   assert.equal(parseArchiveSection(["weeks", "seasons"]), "weeks");
   assert.equal(parseArchiveSection({ section: "seasons" }), "weeks");
   assert.equal(parseArchiveSection(null), "weeks");
+  assert.equal(getArchivePath(undefined), "/archive/weeks");
+  assert.equal(getArchivePath("weeks"), "/archive/weeks");
+  assert.equal(getArchivePath("seasons"), "/archive/seasons");
+  assert.equal(getArchivePath("invalid"), "/archive/weeks");
+  assert.deepEqual(ARCHIVE_PATHS, {
+    weeks: "/archive/weeks",
+    seasons: "/archive/seasons",
+  });
 });
 
 test("pagination normalizes the three supported page sizes", () => {
-  assert.equal(normalizePageSize(20), 20);
-  assert.equal(normalizePageSize("20"), 20);
+  assert.equal(normalizePageSize(10), 10);
+  assert.equal(normalizePageSize("10"), 10);
+  assert.equal(normalizePageSize(25), 25);
+  assert.equal(normalizePageSize("25"), 25);
   assert.equal(normalizePageSize(50), 50);
   assert.equal(normalizePageSize("50"), 50);
-  assert.equal(normalizePageSize(100), 100);
-  assert.equal(normalizePageSize("100"), 100);
-  assert.equal(normalizePageSize(10), 20);
-  assert.equal(normalizePageSize(101), 20);
-  assert.equal(normalizePageSize("invalid"), 20);
+  assert.equal(normalizePageSize(20), 10);
+  assert.equal(normalizePageSize(100), 10);
+  assert.equal(normalizePageSize(51), 10);
+  assert.equal(normalizePageSize("invalid"), 10);
 });
 
 test("total pages cover empty, exact and incomplete result sets", () => {
-  assert.equal(getTotalPages(0, 20), 1);
-  assert.equal(getTotalPages(1, 20), 1);
-  assert.equal(getTotalPages(20, 20), 1);
-  assert.equal(getTotalPages(21, 20), 2);
+  assert.equal(getTotalPages(0, 10), 1);
+  assert.equal(getTotalPages(1, 10), 1);
+  assert.equal(getTotalPages(10, 10), 1);
+  assert.equal(getTotalPages(11, 10), 2);
+  assert.equal(getTotalPages(25, 25), 1);
+  assert.equal(getTotalPages(26, 25), 2);
   assert.equal(getTotalPages(50, 50), 1);
-  assert.equal(getTotalPages(100, 100), 1);
-  assert.equal(getTotalPages(101, 100), 2);
-  assert.equal(getTotalPages(101, 50), 3);
-  assert.equal(getTotalPages(21, 17), 2);
+  assert.equal(getTotalPages(51, 50), 2);
+  assert.equal(getTotalPages(11, 17), 2);
 });
 
 test("page clamping prevents invalid navigation", () => {
@@ -53,33 +66,33 @@ test("page clamping prevents invalid navigation", () => {
 });
 
 test("pagination returns first, intermediate and incomplete final pages", () => {
-  const items = Array.from({ length: 101 }, (_, index) => index + 1);
+  const items = Array.from({ length: 51 }, (_, index) => index + 1);
 
-  assert.deepEqual(paginateItems(items, 1, 20), items.slice(0, 20));
-  assert.deepEqual(paginateItems(items, 3, 20), items.slice(40, 60));
-  assert.deepEqual(paginateItems(items, 6, 20), [101]);
-  assert.deepEqual(paginateItems(items, 2, 50), items.slice(50, 100));
-  assert.deepEqual(paginateItems(items, 2, 100), [101]);
-  assert.deepEqual(paginateItems(items, -1, 20), items.slice(0, 20));
-  assert.deepEqual(paginateItems(items, 99, 20), [101]);
+  assert.deepEqual(paginateItems(items, 1, 10), items.slice(0, 10));
+  assert.deepEqual(paginateItems(items, 3, 10), items.slice(20, 30));
+  assert.deepEqual(paginateItems(items, 6, 10), [51]);
+  assert.deepEqual(paginateItems(items, 2, 25), items.slice(25, 50));
+  assert.deepEqual(paginateItems(items, 2, 50), [51]);
+  assert.deepEqual(paginateItems(items, -1, 10), items.slice(0, 10));
+  assert.deepEqual(paginateItems(items, 99, 10), [51]);
 });
 
 test("changing page size recalculates the valid page", () => {
-  const items = Array.from({ length: 101 }, (_, index) => index + 1);
+  const items = Array.from({ length: 51 }, (_, index) => index + 1);
 
-  assert.deepEqual(paginateItems(items, 6, 20), [101]);
+  assert.deepEqual(paginateItems(items, 6, 10), [51]);
+  assert.deepEqual(paginateItems(items, 1, 25), items.slice(0, 25));
   assert.deepEqual(paginateItems(items, 1, 50), items.slice(0, 50));
-  assert.deepEqual(paginateItems(items, 1, 100), items.slice(0, 100));
 });
 
 test("sorting the complete set before pagination preserves global order", () => {
   const unsorted = [9, 1, 7, 2, 8, 3, 6, 4, 5];
   const globallySorted = unsorted.toSorted((a, b) => b - a);
 
-  assert.deepEqual(paginateItems(globallySorted, 1, 20), [9, 8, 7, 6, 5, 4, 3, 2, 1]);
+  assert.deepEqual(paginateItems(globallySorted, 1, 10), [9, 8, 7, 6, 5, 4, 3, 2, 1]);
 
-  const largerSet = Array.from({ length: 21 }, (_, index) => index + 1);
+  const largerSet = Array.from({ length: 11 }, (_, index) => index + 1);
   const sortedDescending = largerSet.toSorted((a, b) => b - a);
 
-  assert.deepEqual(paginateItems(sortedDescending, 2, 20), [1]);
+  assert.deepEqual(paginateItems(sortedDescending, 2, 10), [1]);
 });

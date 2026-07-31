@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AccessRequired } from "@/components/auth/access-required";
 import { Card, CardHeader } from "@/components/ui/card";
-import { ActionLink } from "@/components/ui/action-link";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { EmptyState } from "@/components/ui/state";
 import { WeekDetailView } from "@/components/week-detail-view";
 import { getServerSession } from "@/lib/auth/session";
@@ -32,9 +32,13 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
   if (!detail) {
     return (
       <div className="space-y-6">
-        <ActionLink href="/archive" icon="back" variant="primary">
-          Volver al archivo
-        </ActionLink>
+        <Breadcrumbs
+          items={[
+            { href: "/archive/weeks", label: "Archivo" },
+            { href: "/archive/weeks", label: "Semanas" },
+            { label: "Semana no disponible" },
+          ]}
+        />
         <Card>
           <CardHeader title="Semana no disponible" eyebrow="Semana">
             No se pudo cargar una semana real con ese id.
@@ -48,26 +52,40 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
     );
   }
 
+  const detailLabel =
+    detail.week.gameId && detail.game.title !== "Por anunciar"
+      ? detail.game.title
+      : `Semana ${detail.week.number}`;
+
   return (
-    <WeekDetailView
-      backHref="/archive"
-      backLabel="Volver al archivo"
-      benchmarks={detail.benchmarks}
-      currentUserId={session.userId}
-      dataMode={detail.mode}
-      game={detail.game}
-      hideDownloads={detail.hideDownloads}
-      leaderboard={detail.leaderboard}
-      leaderboardPending={detail.leaderboardPending}
-      season={detail.season}
-      seasonBackHref={`/seasons/${detail.season.slug}`}
-      seasonBackLabel={`Volver a ${detail.season.name}`}
-      submissions={detail.submissions}
-      submissionsPending={detail.submissionsPending}
-      statusHelp={detail.statusHelp}
-      warning={detail.warning}
-      week={detail.week}
-      weeklyResults={detail.weeklyResults}
-    />
+    <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { href: "/archive/weeks", label: "Archivo" },
+          { href: "/archive/seasons", label: "Temporadas" },
+          {
+            href: `/seasons/${detail.season.slug || detail.season.id}`,
+            label: detail.season.name,
+          },
+          { label: detailLabel },
+        ]}
+      />
+      <WeekDetailView
+        benchmarks={detail.benchmarks}
+        currentUserId={session.userId}
+        dataMode={detail.mode}
+        game={detail.game}
+        hideDownloads={detail.hideDownloads}
+        leaderboard={detail.leaderboard}
+        leaderboardPending={detail.leaderboardPending}
+        season={detail.season}
+        submissions={detail.submissions}
+        submissionsPending={detail.submissionsPending}
+        statusHelp={detail.statusHelp}
+        warning={detail.warning}
+        week={detail.week}
+        weeklyResults={detail.weeklyResults}
+      />
+    </div>
   );
 }

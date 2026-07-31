@@ -45,9 +45,10 @@ http://localhost:3000
 
 - `/`: landing publica sin sesion; home real con sesion.
 - `/game`: redirige a la semana activa real.
-- `/archive`: archivo unificado; muestra semanas por defecto y temporadas con
-  `?section=seasons`.
-- `/weeks` y `/seasons`: redirecciones permanentes de compatibilidad al archivo.
+- `/archive/weeks`: archivo canónico de semanas.
+- `/archive/seasons`: archivo canónico de temporadas.
+- `/archive`, `/weeks`, `/seasons` y `/season`: redirecciones permanentes de
+  compatibilidad a la sección canónica correspondiente.
 - `/weeks/[weekId]`: detalle real de semana con leaderboard, submissions,
   benchmarks y resultados oficiales cuando existen.
 - `/seasons/[seasonId]`: detalle real de temporada con clasificacion y podio.

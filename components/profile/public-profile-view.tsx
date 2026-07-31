@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import type {
   PlayerCompetitiveProfile,
   PublicPlayerProfile,
@@ -18,18 +18,9 @@ export function PublicProfileView({
 }: PublicProfileViewProps) {
   return (
     <div className="space-y-6">
-      <nav aria-label="Ruta de navegación" className="text-sm theme-text-muted">
-        <Link
-          className="rounded font-bold transition hover:text-circuit focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
-          href="/archive?section=seasons"
-        >
-          Liga
-        </Link>
-        <span aria-hidden="true" className="mx-2 opacity-50">
-          /
-        </span>
-        <span aria-current="page">@{profile.username}</span>
-      </nav>
+      <Breadcrumbs
+        items={[{ label: "Jugadores" }, { label: `@${profile.username}` }]}
+      />
       <ProfileHero mode="public" profile={profile} />
       <ProfileStats stats={competitive.stats} />
       <ProfileHistory
