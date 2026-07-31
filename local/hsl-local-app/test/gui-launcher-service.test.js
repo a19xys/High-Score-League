@@ -1207,16 +1207,20 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.doesNotMatch(presentation, /"play", "Competición", "play"|Listo para competir/);
   assert.match(presentation, /"practice", "Práctica", "practice"/);
   assert.match(gamePanel, /<h2 title="\$\{escapeHtml\(game\.displayName\)\}"/);
-  assert.match(gamePanel, /function renderDetailFavoriteMark\(game\)/);
   assert.match(gamePanel, /game-title-main/);
   assert.match(gamePanel, /game-week-subtitle/);
-  assert.match(gamePanel, /game-favorite-mark/);
-  assert.match(gamePanel, /if \(!favorite\) \{\s*return "";\s*\}/);
+  assert.doesNotMatch(gamePanel, /renderDetailFavoriteMark|game-favorite-mark/);
+  assert.match(gamePanel, /function renderGameHeroIndicatorsRegion\(state\)/);
+  assert.match(gamePanel, /game-hero-shell/);
+  assert.match(gamePanel, /data-render-region="game-hero-indicators"/);
+  assert.match(gamePanel, /game-hero-indicator--favorite/);
+  assert.match(gamePanel, /game-hero-indicator--ready/);
   assert.match(gamePanel, /renderIcon\("star-filled"/);
+  assert.match(gamePanel, /renderIcon\("check"/);
   assert.equal(/star-empty/.test(gamePanel), false);
   assert.match(gamePanel, /role="img" aria-label="Juego favorito"/);
-  assert.equal(/<button[^>]*game-favorite-mark/.test(gamePanel), false);
-  assert.equal(/game-favorite-chip|>Favorito</.test(gamePanel), false);
+  assert.match(gamePanel, /role="img" aria-label="Pack listo"/);
+  assert.equal(/renderIcon\("heart|game-favorite-chip/.test(gamePanel), false);
   assert.equal(/badge badge-muted week-chip/.test(gamePanel), false);
   assert.match(presentation, /"open-manual", "Manual", "manual"/);
   assert.match(gamePanel, /renderStatusBadge\(status\)/);
@@ -1315,16 +1319,17 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /@container \(max-width: 560px\)[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
   assert.match(styles, /\.game-metadata-grid--fallback[\s\S]*"developer developer"[\s\S]*"genre genre"[\s\S]*"year playtime"/);
   assert.match(styles, /\.game-metadata-grid--ellipsis \.game-metadata-label,[\s\S]*\.game-metadata-grid--ellipsis \.game-metadata-value[\s\S]*text-overflow: ellipsis/);
-  assert.match(styles, /\.game-title-main[\s\S]*display: flex[\s\S]*gap: 7px/);
+  assert.match(styles, /\.game-title-main[\s\S]*width: 100%[\s\S]*min-width: 0/);
   assert.match(styles, /\.game-title-main h2[\s\S]*width: 100%[\s\S]*max-width: 100%/);
-  assert.match(styles, /\.game-title-main h2[\s\S]*box-sizing: border-box[\s\S]*padding-inline-end: var\(--favorite-star-safe-space, 0px\)/);
-  assert.match(styles, /\.game-title-main:has\(\.game-favorite-mark\) h2[\s\S]*--favorite-star-safe-space: 33px/);
-  assert.equal(/game-title-main[\s\S]{0,180}max-width: calc\(100% -/.test(styles), false);
-  assert.equal(/:has\(\.game-favorite-mark\)[\s\S]{0,120}max-width: calc/.test(styles), false);
-  assert.match(styles, /\.game-favorite-mark[\s\S]*width: 18px[\s\S]*height: 18px[\s\S]*border: 0[\s\S]*background: transparent[\s\S]*cursor: default[\s\S]*pointer-events: none/);
-  assert.match(styles, /\.game-favorite-mark[\s\S]*position: absolute[\s\S]*--favorite-mark-left/);
-  assert.match(styles, /\.game-favorite-mark\[hidden\][\s\S]*display: none/);
-  assert.match(styles, /\.game-favorite-mark--active[\s\S]*background: transparent[\s\S]*var\(--circuit\)/);
+  assert.match(styles, /\.game-title-main h2[\s\S]*box-sizing: border-box[\s\S]*overflow-wrap: anywhere/);
+  assert.doesNotMatch(styles, /game-favorite-mark|favorite-star-safe-space|favorite-mark-left|favorite-mark-top/);
+  assert.match(styles, /\.game-hero-shell[\s\S]*container: game-hero \/ inline-size/);
+  assert.match(styles, /\.game-hero-indicators-region[\s\S]*position: absolute[\s\S]*pointer-events: none/);
+  assert.match(styles, /\.game-hero-indicators[\s\S]*right: 16px[\s\S]*bottom: 16px/);
+  assert.match(styles, /\.game-hero-indicator--favorite[\s\S]*color: var\(--circuit\)/);
+  assert.match(styles, /\.game-hero-indicator--ready[\s\S]*color: var\(--ok\)/);
+  assert.match(styles, /@container game-hero \(max-width: 520px\)[\s\S]*data-indicator-count="2"/);
+  assert.match(styles, /@container game-hero \(max-width: 360px\)[\s\S]*\.game-hero-indicator__label/);
   assert.match(styles, /\.game-week-subtitle[\s\S]*text-transform: uppercase/);
   assert.match(styles, /\.game-metadata-icon\.ui-icon,\s*\n\.game-week-icon\.ui-icon[\s\S]*color: color-mix\(in srgb, var\(--text-muted\) 82%, var\(--text\)\)/);
   assert.equal(/@container \(max-width: 720px\)[\s\S]*game-metadata/.test(styles), false);
@@ -1361,7 +1366,6 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.library-open-label,[\s\S]*\.game-title-main h2,[\s\S]*\.busy-overlay__message,[\s\S]*font-weight: 800/);
   assert.equal(styles.lastIndexOf("font-size: 24px") > styles.lastIndexOf("font-size: 19px"), true);
   assert.equal(styles.lastIndexOf("font-size: 20px") > styles.lastIndexOf("font-size: 16.5px"), true);
-  assert.equal(styles.lastIndexOf("width: 46px") > styles.lastIndexOf("width: 40px"), true);
   assert.equal(styles.lastIndexOf("width: 38px") > styles.lastIndexOf("width: 34px"), true);
   assert.match(styles, /\.play-button \.ui-icon__fallback,[\s\S]*\.secondary-action \.ui-icon__fallback[\s\S]*display: none !important/);
   assert.match(styles, /\.favorite-slot--pending[\s\S]*opacity: 1[\s\S]*filter: none[\s\S]*cursor: pointer/);
@@ -1394,20 +1398,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /new ResizeObserver\(schedule\)/);
   assert.match(app, /requestAnimationFrame/);
   assert.match(app, /syncGameMetadataLayout\(\)/);
-  assert.match(app, /function normalizeFavoriteTitleLineRects\(lineRects\)/);
-  assert.match(app, /Math\.abs\(current\.top - rect\.top\) <= 2/);
-  assert.match(app, /current\.right = Math\.max\(current\.right, rect\.right\)/);
-  assert.match(app, /function computeFavoriteStarPosition\(lineRects/);
-  assert.match(app, /const maxLineRight = Math\.max\(\.\.\.lines\.map\(\(rect\) => rect\.right\)\)/);
-  assert.match(app, /maxLineRight \+ gap/);
-  assert.match(app, /minGap = 6/);
-  assert.match(app, /maxLineRight \+ safeGap \+ markWidth > containerWidth[\s\S]*return null/);
-  assert.equal(/Math\.min\([\s\S]{0,120}containerWidth - markWidth/.test(app), false);
-  assert.match(app, /function placeFavoriteTitleMark\(container\)/);
-  assert.match(app, /mark\.hidden = true/);
-  assert.match(app, /mark\.hidden = false/);
-  assert.match(app, /Range|getClientRects/);
-  assert.match(app, /--favorite-mark-left/);
+  assert.doesNotMatch(app, /normalizeFavoriteTitleLineRects|computeFavoriteStarPosition|placeFavoriteTitleMark|syncFavoriteTitleMarks/);
+  assert.doesNotMatch(app, /favoriteTitleResizeObserver|favoriteTitleFrame|document\.createRange|getClientRects|document\.fonts/);
+  assert.match(app, /"game-hero-indicators": renderGameHeroIndicatorsRegion\(state\)/);
   assert.match(styles, /\.modal-layer/);
   assert.match(styles, /\.busy-overlay[\s\S]*position: fixed[\s\S]*inset: 0[\s\S]*z-index: 80/);
   assert.match(styles, /\.busy-overlay[\s\S]*pointer-events: auto/);
@@ -1851,7 +1844,7 @@ test("game detail metadata renders four normalized fields", async () => {
   assert.match(html, /Taito · Midway/);
   assert.match(html, /Disparos · Arcade/);
   assert.match(html, /Sin datos/);
-  assert.equal(/game-favorite-mark/.test(html), false);
+  assert.equal(/game-favorite-mark|game-hero-indicator--favorite/.test(html), false);
 
   const favoriteHtml = renderGamePanel({
     busy: false,
@@ -1869,10 +1862,11 @@ test("game detail metadata renders four normalized fields", async () => {
     },
   });
 
-  assert.match(favoriteHtml, /game-favorite-mark game-favorite-mark--active/);
+  assert.match(favoriteHtml, /game-hero-indicator game-hero-indicator--favorite/);
   assert.match(favoriteHtml, /aria-label="Juego favorito"/);
   assert.match(favoriteHtml, /star-filled/);
-  assert.equal(/star-empty|game-favorite-chip|>Favorito</.test(favoriteHtml), false);
+  assert.match(favoriteHtml, />Favorito</);
+  assert.equal(/game-favorite-mark|star-empty|game-favorite-chip|heart/.test(favoriteHtml), false);
 });
 
 test("initial renderer state keeps game detail neutral until data is loaded", async () => {

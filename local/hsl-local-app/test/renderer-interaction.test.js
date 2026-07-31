@@ -200,12 +200,13 @@ test("delegated listeners bind once across all region updates", () => {
   assert.equal((app.match(/root\.addEventListener\("click"/g) || []).length, 1);
 });
 
-test("observers are reused until the game layout region changes", () => {
+test("hero indicators stay regional while the metadata observer remains scoped", () => {
   const app = source("app.js");
   assert.match(app, /gameLayoutChanged = changed\.has\("game-identity"\) \|\| changed\.has\("game-visual"\)/);
-  assert.match(app, /if \(gameLayoutChanged\) \{[\s\S]*syncGameMetadataLayout\(\)[\s\S]*syncFavoriteTitleMarks\(\)/);
+  assert.match(app, /"game-hero-indicators": renderGameHeroIndicatorsRegion\(state\)/);
+  assert.match(app, /if \(gameLayoutChanged\) \{[\s\S]*syncGameMetadataLayout\(\)/);
   assert.match(app, /metadataResizeObserver\.disconnect\(\)/);
-  assert.match(app, /favoriteTitleResizeObserver\.disconnect\(\)/);
+  assert.doesNotMatch(app, /favoriteTitleResizeObserver|favoriteTitleFrame|syncFavoriteTitleMarks/);
 });
 
 test("semantic focus and text selection are restored when a relevant region changes", () => {

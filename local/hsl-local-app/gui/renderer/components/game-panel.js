@@ -107,20 +107,6 @@ function renderPackMetadata(game) {
   `;
 }
 
-function renderDetailFavoriteMark(game) {
-  const favorite = Boolean(game?.favorite);
-
-  if (!favorite) {
-    return "";
-  }
-
-  return `
-    <span class="game-favorite-mark game-favorite-mark--active" role="img" aria-label="Juego favorito" title="Juego favorito">
-      ${renderIcon("star-filled", { className: "game-favorite-mark__icon", size: "sm" })}
-    </span>
-  `;
-}
-
 function renderPackErrors(game, readiness, bridge) {
   const pack = derivePackPresentation({ game, readiness, bridge });
   if (!["duplicate", "invalid", "mame-unavailable"].includes(pack.status)) {
@@ -196,6 +182,31 @@ export function renderGameVisualRegion(state) {
   return renderPackVisuals(state.data?.game, state.data?.selection?.activeInstanceKey);
 }
 
+export function renderGameHeroIndicatorsRegion(state) {
+  const favorite = state.data?.game?.favorite === true;
+  const ready = deriveGameSummaryPresentation(state).status === "competition-ready";
+  const count = Number(favorite) + Number(ready);
+
+  if (count === 0) return "";
+
+  return `
+    <div class="game-hero-indicators" data-indicator-count="${count}">
+      ${favorite ? `
+        <span class="game-hero-indicator game-hero-indicator--favorite" role="img" aria-label="Juego favorito" title="Juego favorito">
+          ${renderIcon("star-filled", { className: "game-hero-indicator__icon", size: "sm" })}
+          <span class="game-hero-indicator__label" aria-hidden="true">Favorito</span>
+        </span>
+      ` : ""}
+      ${ready ? `
+        <span class="game-hero-indicator game-hero-indicator--ready" role="img" aria-label="Pack listo" title="Pack listo">
+          ${renderIcon("check", { className: "game-hero-indicator__icon", size: "sm" })}
+          <span class="game-hero-indicator__label" aria-hidden="true">Pack listo</span>
+        </span>
+      ` : ""}
+    </div>
+  `;
+}
+
 function stateWithMembershipPresentation(state, membership) {
   if (!state.data || membership === state.data.membership) return state;
   return { ...state, data: { ...state.data, membership } };
@@ -203,6 +214,8 @@ function stateWithMembershipPresentation(state, membership) {
 
 export function renderGameStatusRegion(state, membership = state.data?.membership) {
   const status = deriveGameSummaryPresentation(stateWithMembershipPresentation(state, membership));
+
+  if (status.status === "competition-ready") return "";
 
   return `
     <div class="badge-row">
@@ -222,7 +235,6 @@ export function renderGameIdentityRegion(state) {
       <div class="game-title-block">
         <div class="game-title-main">
           <h2 title="${escapeHtml(game.displayName)}">${escapeHtml(game.displayName)}</h2>
-          ${renderDetailFavoriteMark(game)}
         </div>
         ${weekLabel ? `<p class="game-week-subtitle">${renderIcon("calendar", { className: "status-icon game-week-icon", size: "sm" })}<span>${escapeHtml(weekLabel)}</span></p>` : ""}
       </div>
@@ -315,7 +327,10 @@ export function renderGamePanel(state, membership = state.data?.membership) {
 
   return `
     <section class="game-panel game-detail-card">
-      <div class="render-region-contents" data-render-region="game-visual">${renderGameVisualRegion(state)}</div>
+      <div class="game-hero-shell">
+        <div class="render-region-contents" data-render-region="game-visual">${renderGameVisualRegion(state)}</div>
+        <div class="game-hero-indicators-region" data-render-region="game-hero-indicators">${renderGameHeroIndicatorsRegion(state)}</div>
+      </div>
       <div class="game-detail-body">
         <div class="render-region-contents" data-render-region="game-status">${renderGameStatusRegion(state, membership)}</div>
         <div class="render-region-contents" data-render-region="game-identity">${renderGameIdentityRegion(state)}</div>
