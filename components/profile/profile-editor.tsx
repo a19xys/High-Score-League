@@ -194,7 +194,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
           <textarea
             className="mt-2 min-h-32 w-full resize-y rounded-xl border px-3 py-2.5 theme-input"
             onChange={(event) => setBio(event.target.value)}
-            placeholder="Cuéntale a la liga cómo juegas…"
+            placeholder="Cuéntale a los demás sobre ti…"
             value={bio}
           />
           <span className="mt-2 block text-xs leading-5 theme-text-muted">

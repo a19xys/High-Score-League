@@ -305,7 +305,14 @@ test("the hero gives every logo ratio a bounded safe area beside the indicator l
   assert.match(styles, /\.game-hero-shell[\s\S]*grid-template-rows: minmax\(0, 1fr\)/);
   assert.match(panel, /game-hero-logo-safe-area[\s\S]*game-hero__logo/);
   assert.match(styles, /\.game-hero-shell \.game-hero-logo-safe-area[\s\S]*height: 100%[\s\S]*min-height: 0[\s\S]*max-width: min\(76cqi,[\s\S]*max-height: 100%[\s\S]*overflow: hidden[\s\S]*align-items: end[\s\S]*grid-area: 1 \/ 2[\s\S]*padding-block: var\(--hero-safe-block-inset\)/);
-  assert.match(styles, /\.game-hero-shell \.game-hero__logo[\s\S]*width: auto[\s\S]*height: auto[\s\S]*max-width: 100%[\s\S]*max-height: 100%[\s\S]*align-self: end[\s\S]*object-fit: contain/);
+  const logoRule = styles.match(/\.game-hero-shell \.game-hero__logo\s*\{([^}]*)\}/)?.[1] || "";
+  assert.match(logoRule, /width: auto/);
+  assert.match(logoRule, /height: auto/);
+  assert.match(logoRule, /max-inline-size: min\(100%, 520px\)/);
+  assert.match(logoRule, /max-block-size: min\(58%, 166px\)/);
+  assert.match(logoRule, /align-self: end/);
+  assert.match(logoRule, /object-fit: contain/);
+  assert.doesNotMatch(logoRule, /max-(?:width|height): 100%/);
   assert.match(styles, /\.game-hero-indicators-region[\s\S]*grid-area: 1 \/ 3[\s\S]*container: hero-indicator-lane \/ inline-size/);
   assert.match(styles, /not\(:has\(\.game-hero-stage--with-logo\)\)[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(styles, /not\(:has\(\.game-hero-stage--with-logo\)\) \.game-hero-logo-safe-area[\s\S]*display: none/);

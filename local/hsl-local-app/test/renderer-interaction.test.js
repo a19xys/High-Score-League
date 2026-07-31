@@ -126,6 +126,22 @@ test("preference persistence does not unmount an unchanged active select", async
   assert.equal(regions.get("library-controls").identity, identity);
 });
 
+test("changing theme preserves library card HTML and region identity", async () => {
+  const [{ createRegionRenderer }, , { renderLibraryPacks }] = await modules();
+  const dark = rendererState({ theme: "dark" });
+  const light = rendererState({ theme: "light" });
+  const darkHtml = renderLibraryPacks(dark);
+  const lightHtml = renderLibraryPacks(light);
+  const { regions, renderer } = fakeRenderer(createRegionRenderer, ["library-packs"]);
+
+  assert.equal(lightHtml, darkHtml);
+  renderer.prime("library-packs", darkHtml);
+  const identity = regions.get("library-packs").identity;
+  renderer.render("library-packs", lightHtml);
+  assert.equal(regions.get("library-packs").identity, identity);
+  assert.equal(regions.get("library-packs").writes, 0);
+});
+
 test("the account menu survives an unrelated Ranking event", async () => {
   const [, { renderAccountControl }] = await modules();
   const open = rendererState({ accountMenuOpen: true });

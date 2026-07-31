@@ -164,6 +164,51 @@ test("titulo monotono, LED, ring unico y subtitulo estructural comparten primiti
   assert.doesNotMatch(calendar, /512px|translateY|#f9faf9/);
 });
 
+test("controles neutros heredan el hover y las cards cambian de tema sin interpolar color", async () => {
+  const [styles, header] = await Promise.all([
+    fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "components", "header.js"), "utf8"),
+  ]);
+  const marker = "LOCAL-PRE-BETA-HERO-CONTROLS-THEME-4V.3C";
+  const markerIndex = styles.indexOf(marker);
+  const darkHoverCss = styles.slice(markerIndex, styles.indexOf('html:not([data-theme="dark"]) .app-dialog__button', markerIndex));
+  const packRules = [...styles.matchAll(/(?:^|\n)\.pack-card \{([^}]*)\}/g)];
+  const finalPackRule = packRules.at(-1)?.[1] || "";
+  const packTransitionRules = [...styles.matchAll(/([^{}]*\.pack-card[^{}]*)\{([^{}]*transition:[^{}]*)\}/g)];
+
+  assert.notEqual(markerIndex, -1);
+  assert.match(header, /class="theme-button theme-button--icon"[^>]*data-action="toggle-theme"[\s\S]*className: "button-icon theme-icon"/);
+  assert.match(header, /class="theme-button theme-button--icon"[^>]*data-action="show-settings"/);
+  assert.match(styles, /\.theme-icon\.ui-icon\s*\{[\s\S]*?color: currentColor/);
+  assert.match(styles, /\.theme-icon\.ui-icon--moon\s*\{[\s\S]*?color: currentColor/);
+  assert.match(styles, /\.theme-icon\.ui-icon--sun\s*\{[\s\S]*?color: currentColor/);
+  assert.match(styles, /html:not\(\[data-theme="dark"\]\) \.theme-button:hover:not\(:disabled\)[\s\S]*?color: var\(--circuit-strong\)/);
+  assert.match(styles, /button:focus-visible,[\s\S]*?outline: 2px solid var\(--circuit\)/);
+
+  assert.match(darkHoverCss, /\.theme-button/);
+  assert.match(darkHoverCss, /\.library-control-button:not\(\.library-filter-toggle--open\)/);
+  assert.match(darkHoverCss, /\.view-button:not\(\.view-button--active\)/);
+  assert.match(darkHoverCss, /\.secondary-action:not\(\.primary-action-tile\)/);
+  assert.match(darkHoverCss, /\.tool-button:not\(\.account-primary\):not\(\[data-action="logout"\]\)/);
+  assert.match(darkHoverCss, /\.app-dialog__button--secondary/);
+  assert.match(darkHoverCss, /:not\(\[aria-disabled="true"\]\):not\(\[aria-pressed="true"\]\):not\(\[aria-expanded="true"\]\)/);
+  assert.match(darkHoverCss, /:not\(\[data-severity="error"\]\):not\(\[data-severity="success"\]\)/);
+  assert.match(darkHoverCss, /border-color: color-mix\(in srgb, var\(--circuit\)/);
+  assert.match(darkHoverCss, /color: var\(--circuit\)/);
+  assert.match(darkHoverCss, /:hover :is\(\.ui-icon, \.action-button-label, small\)[\s\S]*?color: currentColor/);
+  assert.doesNotMatch(darkHoverCss, /play-button|connection-refresh|favorite-slot|account-forget-button|pack-card/);
+  assert.match(darkHoverCss, /\.view-button--active:hover:not\(:disabled\)[\s\S]*?var\(--circuit\) 60%/);
+  assert.match(darkHoverCss, /\.library-control-button\.library-filter-toggle--open:hover:not\(:disabled\)[\s\S]*?var\(--circuit\) 54%/);
+  assert.match(darkHoverCss, /\.library-favorite-filter-button--active:hover:not\(:disabled\)[\s\S]*?var\(--circuit\) 68%/);
+
+  assert.match(finalPackRule, /transition: box-shadow 0\.16s ease/);
+  assert.doesNotMatch(finalPackRule, /transition:[^;]*(?:background|border-color|\bcolor\b)/);
+  assert.equal(packTransitionRules.length, 1);
+  const packTransition = packTransitionRules[0][2].match(/transition:\s*([^;]+)/)?.[1] || "";
+  assert.doesNotMatch(packTransition, /background(?:-color)?|border-color|(?:^|[, ])color\s/);
+  assert.match(styles, /\.pack-card\[role="button"\]:hover[\s\S]*?box-shadow: var\(--shadow-card-hover\)/);
+});
+
 test("IPC y renderer solo aplican la sugerencia tras una accion explicita", async () => {
   const [main, preload, app] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "main.js"), "utf8"),

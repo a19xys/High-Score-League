@@ -915,13 +915,15 @@ button:disabled {
   width: 164px;
   min-width: 164px;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .connection-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  inline-size: 164px;
+  gap: 6px;
+  inline-size: max-content;
+  max-inline-size: 100%;
   justify-content: flex-start;
   padding: 0 5px 0 11px;
   color: var(--text-muted);
@@ -938,7 +940,7 @@ button:disabled {
   width: 28px;
   height: 28px;
   flex: 0 0 28px;
-  margin-inline-start: auto;
+  margin-inline-start: 2px;
   place-items: center;
   border: 0;
   border-radius: 999px;
@@ -3767,7 +3769,7 @@ div.account-row__button {
 }
 
 .theme-icon.ui-icon {
-  color: var(--circuit);
+  color: currentColor;
 }
 
 .play-button .action-icon.ui-icon,
@@ -3924,7 +3926,7 @@ button:disabled .ui-icon,
 }
 
 .connection-chip {
-  gap: 8px;
+  gap: 6px;
 }
 
 .connection-dot {
@@ -5521,11 +5523,11 @@ button:disabled .ui-icon,
 }
 
 .theme-icon.ui-icon--moon {
-  color: var(--text-inverse);
+  color: currentColor;
 }
 
 .theme-icon.ui-icon--sun {
-  color: var(--surface-strong);
+  color: currentColor;
 }
 
 .pack-card--covers .pack-card__subtitle-icon.ui-icon,
@@ -5788,11 +5790,66 @@ html:not([data-theme="dark"]) .library-control-button:hover:not(:disabled),
 html:not([data-theme="dark"]) .view-button:hover:not(:disabled),
 html:not([data-theme="dark"]) .secondary-action:hover:not(:disabled),
 html:not([data-theme="dark"]) .tool-button:hover:not(:disabled),
-html:not([data-theme="dark"]) .theme-button:hover,
+html:not([data-theme="dark"]) .theme-button:hover:not(:disabled),
 html:not([data-theme="dark"]) .icon-button:hover {
   border-color: color-mix(in srgb, var(--circuit) 48%, var(--border));
   background: var(--hover);
   color: var(--circuit-strong);
+}
+
+/* LOCAL-PRE-BETA-HERO-CONTROLS-THEME-4V.3C: scoped neutral hover language. */
+html[data-theme="dark"] :is(
+  .theme-button,
+  .icon-button,
+  .library-heading-button:not(.library-heading-button--spinning),
+  .library-control-button:not(.library-filter-toggle--open),
+  .view-button:not(.view-button--active),
+  .library-sort-direction-button,
+  .library-favorite-filter-button:not(.library-favorite-filter-button--active),
+  .secondary-action:not(.primary-action-tile),
+  .tool-button:not(.account-primary):not([data-action="logout"]),
+  .mini-action:not(.muted),
+  .activity-details-button,
+  .app-dialog__button--secondary
+):not(:disabled):not([aria-disabled="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-severity="error"]):not([data-severity="success"]):hover {
+  border-color: color-mix(in srgb, var(--circuit) 54%, var(--border));
+  background: color-mix(in srgb, var(--circuit) 13%, var(--surface-muted));
+  color: var(--circuit);
+}
+
+html[data-theme="dark"] :is(
+  .theme-button,
+  .icon-button,
+  .library-heading-button:not(.library-heading-button--spinning),
+  .library-control-button:not(.library-filter-toggle--open),
+  .view-button:not(.view-button--active),
+  .library-sort-direction-button,
+  .library-favorite-filter-button:not(.library-favorite-filter-button--active),
+  .secondary-action:not(.primary-action-tile),
+  .tool-button:not(.account-primary):not([data-action="logout"]),
+  .mini-action:not(.muted),
+  .activity-details-button,
+  .app-dialog__button--secondary
+):not(:disabled):not([aria-disabled="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-severity="error"]):not([data-severity="success"]):hover :is(.ui-icon, .action-button-label, small) {
+  color: currentColor;
+}
+
+html[data-theme="dark"] .view-button--active:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--circuit) 60%, var(--border));
+  background: color-mix(in srgb, var(--circuit) 14%, var(--surface));
+  color: var(--circuit);
+}
+
+html[data-theme="dark"] .library-control-button.library-filter-toggle--open:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--circuit) 54%, var(--border));
+  background: color-mix(in srgb, var(--circuit) 15%, var(--surface));
+  color: var(--circuit);
+}
+
+html[data-theme="dark"] .library-favorite-filter-button--active:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--circuit) 68%, var(--border));
+  background: color-mix(in srgb, var(--circuit) 18%, var(--surface));
+  color: var(--circuit);
 }
 
 html:not([data-theme="dark"]) .app-dialog__button.app-dialog__button--primary {
@@ -5894,7 +5951,7 @@ html:not([data-theme="dark"]) .badge-error {
   border: 1px solid var(--card-border);
   background: var(--card-surface);
   box-shadow: var(--shadow-card);
-  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+  transition: box-shadow 0.16s ease;
 }
 
 .pack-card::after {
@@ -6470,8 +6527,8 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   height: auto;
   min-width: 0;
   min-height: 0;
-  max-width: 100%;
-  max-height: 100%;
+  max-inline-size: min(100%, 520px);
+  max-block-size: min(58%, 166px);
   align-self: end;
   justify-self: center;
   object-fit: contain;
