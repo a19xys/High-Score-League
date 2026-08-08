@@ -18,7 +18,7 @@ type SupabaseMutationError = {
 };
 
 const profileColumns =
-  "id,username,initials,avatar_url,bio,track_play_time,is_admin,created_at,updated_at";
+  "id,username,initials,avatar_url,avatar_storage_path,bio,track_play_time,is_admin,created_at,updated_at";
 
 function metadataString(value: unknown) {
   return typeof value === "string" ? value : "";

@@ -55,7 +55,7 @@ protegida para admin y no forma parte de la navegacion principal.
 
 ## Pendiente
 
-- Storage real.
+- Storage privado de capturas y evidencias.
 - Capturas reales.
 - Subida manual real desde `/submit`.
 - App local y plugin MAME.

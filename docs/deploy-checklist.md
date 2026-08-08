@@ -47,6 +47,7 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 0021_home_poll_votes_realtime.sql
 0022_home_poll_option_images.sql
 0023_profile_bio_max_length.sql
+0024_media_uploads.sql
 ```
 
 Comprobar despues:
@@ -58,6 +59,11 @@ Comprobar despues:
 - Antes de `0023`, ejecutar la consulta previa de bios y confirmar que devuelve
   cero filas con `char_length(bio) > 150`. Si devuelve alguna, revisar esos
   perfiles antes de reintentar; no truncar datos automáticamente.
+- Para `0024`, comprobar `hsl-public-media`: público, límite 2 MiB y solo
+  `image/webp`; verificar las cuatro columnas, constraints y seis policies de
+  avatar/admin. Probar con usuario normal y admin antes de desplegar la web.
+- El orden de esta entrega es obligatorio: migración `0024` primero y deploy web
+  después. Un rollback de la web es compatible con las columnas nullable.
 
 ## 3. Realtime
 

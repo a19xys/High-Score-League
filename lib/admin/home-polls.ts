@@ -2,11 +2,14 @@ import type {
   HomePollOptionRow,
   HomePollRow,
 } from "@/types/supabase";
+import { isValidMediaStoragePath } from "@/lib/media/paths";
+import { resolveMediaUrl } from "@/lib/media/resolver";
 
 export type AdminHomePollOptionInput = {
   id?: string | null;
   label: string;
   imageUrl?: string | null;
+  imageStoragePath?: string | null;
 };
 
 export type AdminHomePollInput = {
@@ -24,6 +27,7 @@ export type ValidatedHomePollInput = {
     id?: string;
     label: string;
     image_url: string | null;
+    image_storage_path: string | null;
     sort_order: number;
   }>;
 };
@@ -32,7 +36,7 @@ export const homePollColumns =
   "id,singleton_key,question,enabled,closes_at,created_at,updated_at";
 
 export const homePollOptionColumns =
-  "id,poll_id,label,image_url,sort_order,created_at";
+  "id,poll_id,label,image_url,image_storage_path,sort_order,created_at";
 
 const madridTimeZone = "Europe/Madrid";
 
@@ -228,6 +232,7 @@ export function validateHomePollPayload(
 
     const label = typeof option.label === "string" ? option.label.trim() : "";
     const imageUrl = normalizeImageUrl(option.imageUrl);
+    const imageStoragePath = option.imageStoragePath;
     const id = typeof option.id === "string" && isValidUuid(option.id) ? option.id : undefined;
 
     if (!label) {
@@ -242,7 +247,25 @@ export function validateHomePollPayload(
       return imageUrl;
     }
 
-    return { id, label, image_url: imageUrl, sort_order: index };
+    if (
+      imageStoragePath !== null &&
+      imageStoragePath !== undefined &&
+      imageStoragePath !== "" &&
+      !isValidMediaStoragePath(imageStoragePath, "poll-option")
+    ) {
+      return { error: "La imagen tiene una ruta Storage no válida." } as const;
+    }
+
+    const cleanStoragePath = typeof imageStoragePath === "string" && imageStoragePath
+      ? imageStoragePath
+      : null;
+    return {
+      id,
+      label,
+      image_url: resolveMediaUrl({ storagePath: cleanStoragePath, legacyUrl: imageUrl }),
+      image_storage_path: cleanStoragePath,
+      sort_order: index,
+    };
   });
 
   if (options.some((option) => option === null)) {
@@ -286,7 +309,9 @@ export function validateHomePollPayload(
     duplicates.add(key);
   }
 
-  const imagesCount = cleanOptions.filter((option) => option.image_url).length;
+  const imagesCount = cleanOptions.filter(
+    (option) => option.image_storage_path || option.image_url,
+  ).length;
 
   if (imagesCount > 0 && imagesCount < cleanOptions.length) {
     return {
@@ -323,7 +348,11 @@ export function mapHomePollOptionRow(row: HomePollOptionRow) {
     id: row.id,
     pollId: row.poll_id,
     label: row.label,
-    imageUrl: row.image_url,
+    imageUrl: resolveMediaUrl({
+      storagePath: row.image_storage_path,
+      legacyUrl: row.image_url,
+    }),
+    imageStoragePath: row.image_storage_path,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
   };

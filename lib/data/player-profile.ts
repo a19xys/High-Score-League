@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Game, Submission, Week } from "@/types";
 import type { RealProfile, SubmissionRow } from "@/types/supabase";
+import { resolveMediaUrl } from "@/lib/media/resolver";
 import { getRealGames, mapGameRowToGame } from "./games";
 import {
   getRealSubmissions,
@@ -49,7 +50,13 @@ export type PlayerCompetitiveProfile = {
 
 export type PublicPlayerProfile = Pick<
   RealProfile,
-  "id" | "username" | "initials" | "avatar_url" | "bio" | "created_at"
+  | "id"
+  | "username"
+  | "initials"
+  | "avatar_url"
+  | "avatar_storage_path"
+  | "bio"
+  | "created_at"
 >;
 
 export type PublicPlayerProfileResult =
@@ -86,7 +93,7 @@ export async function getPublicPlayerProfile(
 ): Promise<PublicPlayerProfileResult> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,username,initials,avatar_url,bio,created_at")
+    .select("id,username,initials,avatar_url,avatar_storage_path,bio,created_at")
     .eq("username", username)
     .maybeSingle();
 
@@ -98,7 +105,17 @@ export async function getPublicPlayerProfile(
     return { status: "not-found", profile: null };
   }
 
-  return { status: "ok", profile: data as PublicPlayerProfile };
+  const profile = data as PublicPlayerProfile;
+  return {
+    status: "ok",
+    profile: {
+      ...profile,
+      avatar_url: resolveMediaUrl({
+        storagePath: profile.avatar_storage_path,
+        legacyUrl: profile.avatar_url,
+      }),
+    },
+  };
 }
 
 function isSubmissionPublic(row: SubmissionRow, week?: Week) {

@@ -170,6 +170,7 @@ export async function saveAdminHomePoll(
         .update({
           label: option.label,
           image_url: option.image_url,
+          image_storage_path: option.image_storage_path,
           sort_order: option.sort_order,
         })
         .eq("poll_id", pollId)
@@ -186,6 +187,7 @@ export async function saveAdminHomePoll(
       poll_id: pollId,
       label: option.label,
       image_url: option.image_url,
+      image_storage_path: option.image_storage_path,
       sort_order: option.sort_order,
     });
 

@@ -11,6 +11,11 @@ import {
   validateUsername,
 } from "@/lib/auth/validation";
 import { invalidatePlayerProfilePreview } from "@/lib/player-profile-preview-cache";
+import { executeMediaSave } from "@/lib/media/lifecycle";
+import {
+  UNCHANGED_MEDIA_SELECTION,
+  type MediaSelection,
+} from "@/lib/media/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { RealProfile } from "@/types/supabase";
 import type { ProfileAuthData } from "./profile-types";
@@ -23,15 +28,6 @@ type ProfileEditorProps = {
   onboarding?: boolean;
 };
 
-function isHttpUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) {
   const router = useRouter();
   const [username, setUsername] = useState(
@@ -42,6 +38,12 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
   );
   const [bio, setBio] = useState(auth.profile?.bio ?? "");
   const [avatarUrl, setAvatarUrl] = useState(auth.profile?.avatar_url ?? "");
+  const [avatarStoragePath, setAvatarStoragePath] = useState(
+    auth.profile?.avatar_storage_path ?? null,
+  );
+  const [avatarSelection, setAvatarSelection] = useState<MediaSelection>(
+    UNCHANGED_MEDIA_SELECTION,
+  );
   const [trackPlayTime, setTrackPlayTime] = useState(
     auth.profile?.track_play_time ?? true,
   );
@@ -71,18 +73,12 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
     const cleanUsername = username.trim();
     const cleanInitials = normalizeInitials(initials);
     const cleanBio = bio.trim();
-    const cleanAvatarUrl = avatarUrl.trim();
     const usernameError = validateUsername(cleanUsername);
     const initialsError = validateInitials(cleanInitials);
     const bioError = validateProfileBio(cleanBio);
 
     if (usernameError || initialsError || bioError) {
       setError(usernameError ?? initialsError ?? bioError);
-      return;
-    }
-
-    if (cleanAvatarUrl && !isHttpUrl(cleanAvatarUrl)) {
-      setError("La URL del avatar debe empezar por http o https.");
       return;
     }
 
@@ -100,39 +96,65 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
       return;
     }
 
-    const payload = {
-      username: cleanUsername,
-      initials: cleanInitials,
-      bio: cleanBio || null,
-      avatar_url: cleanAvatarUrl || null,
-      track_play_time: trackPlayTime,
-    };
-
     setIsSubmitting(true);
-    const response = auth.profile
-      ? await supabase
-          .from("profiles")
-          .update(payload)
-          .eq("id", userData.user.id)
-          .select(
-            "id,username,initials,avatar_url,bio,track_play_time,is_admin,created_at,updated_at",
-          )
-          .single()
-      : await supabase
-          .from("profiles")
-          .insert({ id: userData.user.id, ...payload })
-          .select(
-            "id,username,initials,avatar_url,bio,track_play_time,is_admin,created_at,updated_at",
-          )
-          .single();
-    setIsSubmitting(false);
+    let profile: RealProfile;
+    try {
+      const saved = await executeMediaSave({
+        supabase,
+        changes: [
+          {
+            key: "avatar",
+            selection: avatarSelection,
+            currentStoragePath: avatarStoragePath,
+            currentUrl: avatarUrl,
+            userId: userData.user.id,
+          },
+        ],
+        persist: async ([avatar]) => {
+          const payload = {
+            username: cleanUsername,
+            initials: cleanInitials,
+            bio: cleanBio || null,
+            avatar_url: avatar.publicUrl,
+            avatar_storage_path: avatar.storagePath,
+            track_play_time: trackPlayTime,
+          };
+          const response = auth.profile
+            ? await supabase
+                .from("profiles")
+                .update(payload)
+                .eq("id", userData.user.id)
+                .select(
+                  "id,username,initials,avatar_url,avatar_storage_path,bio,track_play_time,is_admin,created_at,updated_at",
+                )
+                .single()
+            : await supabase
+                .from("profiles")
+                .insert({ id: userData.user.id, ...payload })
+                .select(
+                  "id,username,initials,avatar_url,avatar_storage_path,bio,track_play_time,is_admin,created_at,updated_at",
+                )
+                .single();
 
-    if (response.error) {
-      setError(humanizeSupabaseError(response.error.message));
+          if (response.error) throw new Error(response.error.message);
+          return response.data as RealProfile;
+        },
+      });
+      profile = saved.result;
+      if (saved.cleanupWarning) {
+        setMessage(
+          `Perfil guardado. No se pudo retirar la imagen anterior: ${saved.cleanupWarning}`,
+        );
+      }
+    } catch (caught) {
+      setError(
+        humanizeSupabaseError(
+          caught instanceof Error ? caught.message : "No se pudo guardar el perfil.",
+        ),
+      );
+      setIsSubmitting(false);
       return;
     }
-
-    const profile = response.data as RealProfile;
     invalidatePlayerProfilePreview({
       playerId: userData.user.id,
       usernames: [
@@ -150,6 +172,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
 
     if (metadataUpdate.error) {
       setError(humanizeSupabaseError(metadataUpdate.error.message));
+      setIsSubmitting(false);
       return;
     }
 
@@ -157,8 +180,11 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
     setInitials(profile.initials);
     setBio(profile.bio ?? "");
     setAvatarUrl(profile.avatar_url ?? "");
+    setAvatarStoragePath(profile.avatar_storage_path ?? null);
+    setAvatarSelection(UNCHANGED_MEDIA_SELECTION);
     setTrackPlayTime(profile.track_play_time ?? true);
-    setMessage("Perfil guardado correctamente.");
+    setMessage((current) => current ?? "Perfil guardado correctamente.");
+    setIsSubmitting(false);
     router.refresh();
   }
 
@@ -238,10 +264,12 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
         </label>
 
         <ProfileAvatarEditor
+          currentUrl={avatarUrl}
+          disabled={isSubmitting}
           initials={normalizeInitials(initials)}
-          onChange={setAvatarUrl}
+          onChange={setAvatarSelection}
+          selection={avatarSelection}
           username={username.trim()}
-          value={avatarUrl}
         />
 
         <label className="flex items-start gap-3 rounded-2xl border p-4 theme-border theme-surface-muted">

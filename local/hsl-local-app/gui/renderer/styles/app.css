@@ -2906,15 +2906,6 @@ main,
   padding: 0;
 }
 
-.pack-card--icons .pack-card__status-dot {
-  display: block;
-  width: 9px;
-  height: 9px;
-  border: 0;
-  border-radius: 999px;
-  box-shadow: none;
-}
-
 /* LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3-FINAL: final cascade overrides. */
 body {
   min-width: 0;
@@ -3026,11 +3017,6 @@ body {
   outline: 0;
 }
 
-.pack-card--icons .pack-card__status-dot {
-  border: 0;
-  box-shadow: none;
-}
-
 /* LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3: stable shell, detail and action fixes. */
 body {
   min-width: 0;
@@ -3140,11 +3126,6 @@ body {
   background: transparent !important;
   box-shadow: none;
   outline: 0;
-}
-
-.pack-card--icons .pack-card__status-dot {
-  border: 0;
-  box-shadow: none;
 }
 
 /* LOCAL-LAUNCHER-LIBRARY-CARDS-1: visual pack library cards and sidebar resize. */
@@ -3895,14 +3876,7 @@ button:disabled .ui-icon,
 }
 
 .connection-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  flex: 0 0 auto;
   margin-inline-end: 7px;
-  border-radius: 999px;
-  background: currentColor;
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
 }
 
 .ui-icon,
@@ -5041,7 +5015,7 @@ button:disabled .ui-icon,
 }
 
 .game-scroll {
-  padding: 18px 20px;
+  padding: 18px 20px 40px;
   scrollbar-gutter: stable both-edges;
 }
 
@@ -5142,15 +5116,6 @@ button:disabled .ui-icon,
   background: transparent;
   box-shadow: none;
   padding: 0;
-}
-
-.pack-card--icons .pack-card__status-dot {
-  display: block;
-  width: 9px;
-  height: 9px;
-  border: 0;
-  border-radius: 999px;
-  box-shadow: none;
 }
 
 /* LOCAL-LIBRARY-ICON-VIEW-UNIFORM-SIZE-2: shared icon tile metric across season sections. */
@@ -5938,6 +5903,10 @@ html:not([data-theme="dark"]) .badge-error {
   box-shadow: inset var(--selection-glow);
 }
 
+.pack-card[data-selected="true"] {
+  cursor: default;
+}
+
 .pack-card[role="button"]:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--selection-ring) 76%, transparent);
   outline-offset: 3px;
@@ -6125,7 +6094,7 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
 }
 
 .pack-card--pending:not(.pack-card--active) {
-  border-color: var(--led-warning);
+  border-color: var(--state-warning);
 }
 
 /* LOCAL-PRE-BETA-PRODUCT-STATES-AND-VISUAL-SYSTEM-3B.3: shared product-state primitives. */
@@ -6255,6 +6224,25 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   color: var(--state-error);
 }
 
+.pack-card__status .week-status-badge.week-status--ready {
+  border-color: color-mix(in srgb, var(--state-success) 46%, var(--border));
+  background: color-mix(in srgb, var(--state-success-bg) 82%, var(--surface));
+  color: var(--state-success);
+}
+
+.pack-card__status .week-status-badge.week-status--legacy,
+.pack-card__status .week-status-badge.week-status--warning {
+  border-color: color-mix(in srgb, var(--state-warning) 46%, var(--border));
+  background: color-mix(in srgb, var(--state-warning-bg) 82%, var(--surface));
+  color: var(--state-warning);
+}
+
+.pack-card__status .week-status-badge.week-status--error {
+  border-color: color-mix(in srgb, var(--state-error) 46%, var(--border));
+  background: color-mix(in srgb, var(--state-error-bg) 82%, var(--surface));
+  color: var(--state-error);
+}
+
 .pack-card--list .pack-card__media,
 .pack-card--icons .pack-card__media {
   overflow: hidden;
@@ -6287,8 +6275,13 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   transform: none;
 }
 
+.library-pack-grid--icons {
+  align-items: stretch;
+}
+
 .pack-card--icons {
   container-type: inline-size;
+  height: 100%;
   grid-template-rows: auto minmax(0, auto);
   gap: var(--icon-card-gap);
   padding: var(--icon-card-padding-inline) var(--icon-card-padding-inline) calc(var(--icon-card-padding-inline) + var(--icon-card-title-padding-block));
@@ -6319,39 +6312,28 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   -webkit-line-clamp: 2;
 }
 
-.pack-card__status-dot {
-  position: relative;
-  border: 1px solid var(--led-outline);
-  box-shadow:
-    inset 0 1px 1px rgb(255 255 255 / 0.58),
-    0 0 0 1px color-mix(in srgb, var(--led-outline) 44%, transparent);
-}
-
-.pack-card__status-dot::after {
-  position: absolute;
-  top: 1px;
-  left: 2px;
-  width: 3px;
-  height: 2px;
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border: 0;
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.72);
-  content: "";
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
 }
 
 .pack-card__status-dot--active,
 .pack-card__status-dot--ok {
-  background: var(--led-ready);
-  box-shadow: inset 0 1px 1px rgb(255 255 255 / 0.58), 0 0 7px var(--led-ready);
+  color: var(--state-success);
 }
 
 .pack-card__status-dot--warning {
-  background: var(--led-warning);
-  box-shadow: inset 0 1px 1px rgb(255 255 255 / 0.58), 0 0 7px var(--led-warning);
+  color: var(--state-warning);
 }
 
 .pack-card__status-dot--error {
-  background: var(--led-error);
-  box-shadow: inset 0 1px 1px rgb(255 255 255 / 0.58), 0 0 7px var(--led-error);
+  color: var(--state-error);
 }
 
 .pack-card__subtitle {

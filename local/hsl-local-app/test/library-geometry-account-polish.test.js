@@ -133,6 +133,16 @@ test("covers and list retain independent grid contracts", async () => {
   assert.match(styles, /\.library-pack-grid--list\s*\{[\s\S]*?grid-template-columns: 1fr/);
 });
 
+test("icon rows stretch cards without changing tile geometry and detail owns terminal breathing", async () => {
+  const styles = await fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8");
+
+  assert.match(styles, /\.library-pack-grid--icons\s*\{[^}]*align-items: stretch/);
+  assert.match(styles, /\.pack-card--icons\s*\{[^}]*height: 100%/);
+  assert.match(styles, /\.pack-card--icons \.pack-card__media\s*\{[^}]*aspect-ratio: 1 \/ 1/);
+  assert.match(styles, /\.game-scroll\s*\{[^}]*padding: 18px 20px 40px/);
+  assert.doesNotMatch(styles, /\.game-detail-card\s*\{[^}]*margin-bottom/);
+});
+
 test("library heading and controls form a compact sequence without an empty spacer", async () => {
   const [panel, styles] = await Promise.all([
     fsp.readFile(path.join(rendererRoot, "components", "library-panel.js"), "utf8"),

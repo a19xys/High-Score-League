@@ -1387,14 +1387,14 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.play-button \.ui-icon__fallback,[\s\S]*\.secondary-action \.ui-icon__fallback[\s\S]*display: none !important/);
   assert.match(styles, /\.favorite-slot--pending[\s\S]*opacity: 1[\s\S]*filter: none[\s\S]*cursor: pointer/);
   assert.equal(/\.favorite-slot--pending[\s\S]{0,80}cursor: wait/.test(styles), false);
-  assert.match(styles, /\.pack-card--icons \.pack-card__status-dot[\s\S]*border: 0[\s\S]*box-shadow: none/);
+  assert.match(styles, /\.status-dot\s*\{[^}]*width: 8px[^}]*height: 8px[^}]*border: 0[^}]*background: currentColor[^}]*box-shadow: 0 0 0 3px/);
   assert.match(styles, /\.app-icon-slot[\s\S]*width: 52px[\s\S]*height: 52px[\s\S]*border: 0[\s\S]*background: transparent/);
   assert.match(styles, /\.app-brand-icon\.ui-icon[\s\S]*width: 48px[\s\S]*height: 48px[\s\S]*background: transparent/);
   assert.match(styles, /\.app-brand-icon\.ui-icon \.ui-icon__glyph[\s\S]*display: none/);
   assert.match(styles, /\.app-brand-icon\.ui-icon \.ui-icon__img[\s\S]*position: static[\s\S]*width: 100%[\s\S]*height: 100%[\s\S]*opacity: 1[\s\S]*object-fit: contain/);
   assert.match(styles, /\.app-brand-icon\.ui-icon\.ui-icon--missing \.ui-icon__img[\s\S]*display: none/);
   assert.match(styles, /\.pack-card--icons \.pack-card__status--dot[\s\S]*background: transparent[\s\S]*box-shadow: none/);
-  assert.match(styles, /\.pack-card--icons \.pack-card__status-dot[\s\S]*border: 0[\s\S]*border-radius: 999px[\s\S]*box-shadow: none/);
+  assert.doesNotMatch(styles, /\.pack-card__status-dot::after|var\(--led-(?:ready|warning|error|outline)\)/);
   assert.match(styles, /\.action-button-label[\s\S]*overflow: visible/);
   assert.match(styles, /\.game-detail-card \.activity-summary-card/);
   assert.match(styles, /\.game-detail-card \.ready-copy[\s\S]*font-size: 16px[\s\S]*line-height: 1\.6/);

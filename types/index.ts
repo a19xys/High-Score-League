@@ -12,6 +12,7 @@ export type Player = {
   username: Username;
   initials: PlayerInitials;
   avatarUrl?: string;
+  avatarStoragePath?: string | null;
   bio?: string;
   isAdmin: boolean;
 };
@@ -34,6 +35,8 @@ export type Game = {
   imageUrl?: string;
   headerImageUrl?: string;
   logoImageUrl?: string;
+  headerImageStoragePath?: string | null;
+  logoImageStoragePath?: string | null;
   accentColorPrimary?: string | null;
   accentColorSecondary?: string | null;
   instructions?: string;
@@ -185,6 +188,7 @@ export type HomePollOption = {
   pollId: string;
   label: string;
   imageUrl?: string | null;
+  imageStoragePath?: string | null;
   sortOrder: number;
   createdAt: string;
 };

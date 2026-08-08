@@ -10,6 +10,7 @@ import type {
   HomePollRow,
   HomePollVoteRow,
 } from "@/types/supabase";
+import { resolveMediaUrl } from "@/lib/media/resolver";
 
 type ClientPair = {
   userClient: SupabaseClient;
@@ -39,7 +40,10 @@ function buildStats(
       return {
         id: option.id,
         label: option.label,
-        imageUrl: option.image_url,
+        imageUrl: resolveMediaUrl({
+          storagePath: option.image_storage_path,
+          legacyUrl: option.image_url,
+        }),
         sortOrder: option.sort_order,
         votes: optionVotes,
         percentage:
@@ -121,7 +125,10 @@ export async function getPublicHomePoll(
         options: visible.options.map((option) => ({
           id: option.id,
           label: option.label,
-          imageUrl: option.image_url,
+          imageUrl: resolveMediaUrl({
+            storagePath: option.image_storage_path,
+            legacyUrl: option.image_url,
+          }),
           sortOrder: option.sort_order,
         })),
         selectedOptionId: null,
@@ -140,7 +147,10 @@ export async function getPublicHomePoll(
         options: visible.options.map((option) => ({
           id: option.id,
           label: option.label,
-          imageUrl: option.image_url,
+          imageUrl: resolveMediaUrl({
+            storagePath: option.image_storage_path,
+            legacyUrl: option.image_url,
+          }),
           sortOrder: option.sort_order,
         })),
         selectedOptionId: ownVote.option_id,

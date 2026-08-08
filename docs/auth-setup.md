@@ -87,9 +87,8 @@ guardar se actualiza también `user_metadata` y se refresca la ruta.
 Si hay sesión pero no hay perfil, `/profile` muestra un formulario inline para
 crearlo. Si no hay sesión, muestra enlace a `/login`.
 
-No hay Storage de avatar todavía: el editor encapsula `avatar_url` como mecanismo
-legacy con preview y fallback de siglas, sin simular subida. `MEDIA-UPLOADS-1`
-reemplazará esa frontera con un uploader común.
+El avatar usa `MediaUpload` y `avatar_storage_path` con fallback a `avatar_url` y
+siglas. La migración `0024_media_uploads.sql` debe aplicarse antes del deploy.
 
 `track_play_time` permite recopilar tiempo desde la futura app local. No es una
 preferencia de visibilidad, presencia ni última conexión y no se expone en el
@@ -132,6 +131,8 @@ La app nunca permite a un usuario ponerse `is_admin = true`.
 
 ## Estado actual
 
-Auth minimo esta implementado y simplificado. Las paginas principales usan Supabase; no hay Storage real ni subida manual real de puntuaciones.
+Auth mínimo está implementado y simplificado. Las páginas principales usan
+Supabase; el Storage público cubre imágenes administrables, pero no hay Storage
+privado ni subida manual real de puntuaciones.
 
 

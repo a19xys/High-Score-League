@@ -30,8 +30,9 @@ normal.
   está habilitado y abierto. El voto es editable y los resultados agregados se
   muestran solo después de votar. Las opciones admiten imagen opcional en modo
   todo-o-nada, con etiquetas compactas de hasta 80 caracteres.
-- Los juegos pueden guardar URLs externas opcionales de header, logo y descarga
-  del juego, además de colores manuales de acento para el borde/glow del hero.
+- Los juegos pueden guardar header y logo administrados en Storage, conservan
+  URLs externas como fallback y mantienen la descarga externa y colores de
+  acento para el borde/glow del hero.
   `image_url` y `rom_name` quedan como campos legacy/internos.
 - Las semanas futuras pueden existir sin juego asignado (`weeks.game_id = null`).
   La UI pública las muestra como `Por anunciar` y el admin como
@@ -73,6 +74,9 @@ normal.
   cuestionario.
 - `0022_home_poll_option_images.sql` añade `image_url` opcional a las opciones
   del cuestionario de Home.
+- `0024_media_uploads.sql` añade paths administrados, configura
+  `hsl-public-media` y limita RLS por propietario/admin. Su aplicación remota es
+  manual y debe preceder al deploy web.
 - `0023_profile_bio_max_length.sql` añade el límite de 150 caracteres para la
   bio tras una precomprobación que falla sin truncar datos incompatibles.
 - `POST /api/submissions/ingest` crea submissions autenticadas.
@@ -108,13 +112,14 @@ manual de `docs/deploy-checklist.md` en el entorno real de Vercel y Supabase.
 ## Sigue pendiente
 
 - App local y plugin MAME.
-- Storage real.
+- Aplicación manual de `0024_media_uploads.sql` en Supabase antes del deploy.
 - Capturas reales.
 - App local y plugin MAME como flujo principal de envios.
 - Panel completo de usuarios.
 - `PROFILE-PRIVACY-1`: controles persistentes de visibilidad y presencia.
 - `PROFILE-ANONYMIZATION-1`: baja por anonimización sin borrar historia.
-- `MEDIA-UPLOADS-1`: sistema universal de imágenes y migración de URLs legacy.
+- `MEDIA-UPLOADS-1`: completado en código para avatar, juegos y cuestionarios;
+  conserva URLs legacy. La aplicación remota de `0024` es manual y pendiente.
 - Medallas y bonus.
 - Moderacion UI del chat.
 - Configuracion de Vercel Cron o equivalente para ejecutar
@@ -128,8 +133,8 @@ manual de `docs/deploy-checklist.md` en el entorno real de Vercel y Supabase.
 
 ## Proximo objetivo recomendado
 
-Diseñar `MEDIA-UPLOADS-1` como sistema universal antes de sustituir el editor URL
-del avatar o añadir nuevas superficies de carga de imágenes.
+Aplicar y verificar `0024_media_uploads.sql` en Supabase y después desplegar la
+web que integra `MEDIA-UPLOADS-1`.
 
 `POSTDEPLOY-ARCHIVE-1` está completado: la navegación usa `ARCHIVO`, mantiene las
 rutas de detalle y conserva los índices antiguos como redirecciones permanentes.

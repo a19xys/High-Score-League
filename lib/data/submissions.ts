@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveMediaUrl } from "@/lib/media/resolver";
 import type { LeaderboardEntry, Player, Submission, Week } from "@/types";
 import type { RealProfile, SubmissionRow, SubmissionSource } from "@/types/supabase";
 import type { DataReadResult } from "./types";
@@ -26,6 +27,7 @@ const submissionColumns = `
     username,
     initials,
     avatar_url,
+    avatar_storage_path,
     is_admin,
     created_at,
     updated_at
@@ -56,7 +58,11 @@ export function mapRealProfileToPlayer(profile: RealProfile): Player {
     id: profile.id,
     username: profile.username,
     initials: profile.initials,
-    avatarUrl: profile.avatar_url ?? undefined,
+    avatarUrl: resolveMediaUrl({
+      storagePath: profile.avatar_storage_path,
+      legacyUrl: profile.avatar_url,
+    }) ?? undefined,
+    avatarStoragePath: profile.avatar_storage_path ?? null,
     isAdmin: profile.is_admin,
   };
 }

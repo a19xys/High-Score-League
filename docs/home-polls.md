@@ -33,9 +33,10 @@ aceptan y no se permiten duplicados exactos normalizados.
 
 Cada opción puede tener como máximo 80 caracteres.
 
-Desde `0022_home_poll_option_images.sql`, las opciones pueden incluir
-`image_url` opcional. La URL debe empezar por `http://` o `https://`; no hay
-subida de archivos ni Supabase Storage para imágenes del cuestionario.
+Desde `0022_home_poll_option_images.sql`, las opciones conservan `image_url`
+opcional. `0024_media_uploads.sql` añade `image_storage_path` y el panel procesa
+y sube WebP a `polls/options/<UUID>.webp`. Las URLs externas existentes siguen
+siendo fallback y no se migran automáticamente.
 
 Regla visual: un cuestionario usa imágenes en todas sus opciones o en ninguna.
 No se permite mezclar algunas opciones con imagen y otras sin imagen. Si no hay

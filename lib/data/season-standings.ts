@@ -41,6 +41,7 @@ const membershipColumns = `
     username,
     initials,
     avatar_url,
+    avatar_storage_path,
     is_admin,
     created_at,
     updated_at

@@ -71,7 +71,9 @@ Los assets fijos de marca se sirven desde el repositorio:
 - `app/icon.png`: icono de pestana.
 - `app/apple-icon.png`: Apple Touch Icon.
 
-Supabase Storage queda reservado para contenido dinamico futuro.
+Los avatares y las imágenes administrables de juegos y cuestionarios usan el
+bucket público `hsl-public-media`. Los originales se procesan en el navegador y
+se guardan como WebP; las URLs externas históricas siguen funcionando.
 
 ## Documentacion
 
@@ -84,6 +86,7 @@ Supabase Storage queda reservado para contenido dinamico futuro.
 - [Resultados semanales](docs/weekly-results.md)
 - [Clasificacion de temporada](docs/season-standings.md)
 - [Sistema de perfiles](docs/profile-revamp.md)
+- [Imágenes y Supabase Storage](docs/media-uploads.md)
 - [Chat](docs/chat.md)
 - [Admin](docs/admin.md)
 - [Admin semanas](docs/admin-weeks.md)
@@ -97,7 +100,7 @@ Supabase Storage queda reservado para contenido dinamico futuro.
 ## Pendiente
 
 - App local y plugin MAME.
-- Storage real.
+- Aplicar manualmente `0024_media_uploads.sql` antes de desplegar esta versión.
 - Capturas reales.
 - App local y plugin MAME como flujo principal de envios.
 - Panel completo de usuarios.

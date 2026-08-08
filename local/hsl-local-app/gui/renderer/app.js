@@ -108,6 +108,7 @@ let libraryPreferencesPersistSequence = 0;
 let libraryPreferenceUserRevision = 0;
 let hydratedLibraryPreferencesScopeKey = null;
 let libraryPackSelectionSequence = 0;
+let libraryPackSelectionScroll = null;
 let sidebarResize = null;
 let metadataResizeObserver = null;
 let metadataLayoutFrame = 0;
@@ -301,7 +302,9 @@ function captureRegionInteraction(region) {
   const scroll = preservedScrollElements(region).map((element) => ({
     key: element.dataset.preserveScroll,
     left: element.scrollLeft,
-    top: element.scrollTop,
+    top: element.dataset.preserveScroll === "library-packs" && libraryPackSelectionScroll
+      ? libraryPackSelectionScroll.top
+      : element.scrollTop,
   }));
 
   return { focus, scroll };
@@ -551,12 +554,24 @@ function findLibraryPack(packId) {
   return store.getState().data?.library?.packs?.find((pack) => pack.id === packId) || null;
 }
 
-function refreshRemoteStateAfterPackActivation(requestId, expectedInstanceKey) {
-  window.hslLauncher.getState().then((nextData) => {
+function captureLibraryPackSelectionScroll() {
+  const scroller = root.querySelector('[data-preserve-scroll="library-packs"]');
+  return scroller ? { top: scroller.scrollTop } : null;
+}
+
+async function refreshRemoteStateAfterPackActivation(requestId, expectedInstanceKey) {
+  try {
+    const nextData = await window.hslLauncher.getState();
     if (requestId !== libraryPackSelectionSequence) return;
     if (nextData?.selection?.activeInstanceKey !== expectedInstanceKey) return;
     store.setState(launcherSnapshotPatch(nextData));
-  }).catch(() => {});
+  } catch {
+    // La activaciÃ³n aceptada sigue siendo autoritativa si el refresh falla.
+  } finally {
+    if (requestId === libraryPackSelectionSequence) {
+      libraryPackSelectionScroll = null;
+    }
+  }
 }
 
 function withFavoritePatch(data, packKey, patch) {
@@ -1667,6 +1682,7 @@ async function activateLibraryPackWithPreload(packId) {
   if (!safePackId) return;
 
   const requestId = ++libraryPackSelectionSequence;
+  libraryPackSelectionScroll = captureLibraryPackSelectionScroll();
   const optimisticPack = findLibraryPack(safePackId);
   const optimisticPreload = preloadDetailAssetUrls(detailAssetUrlsFromLibraryPack(optimisticPack));
 
@@ -1713,6 +1729,8 @@ async function activateLibraryPackWithPreload(packId) {
     if (requestId !== libraryPackSelectionSequence) {
       return;
     }
+
+    libraryPackSelectionScroll = null;
 
     store.setState({
       busy: false,

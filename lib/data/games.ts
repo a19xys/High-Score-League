@@ -1,10 +1,11 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Game } from "@/types";
 import type { GameRow } from "@/types/supabase";
+import { resolveMediaUrl } from "@/lib/media/resolver";
 import type { DataReadOptions, DataReadResult } from "./types";
 
 const gameColumns =
-  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,accent_color_primary,accent_color_secondary,instructions,manual_url,download_url,notes,created_at,updated_at";
+  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,header_image_storage_path,logo_image_storage_path,accent_color_primary,accent_color_secondary,instructions,manual_url,download_url,notes,created_at,updated_at";
 
 function emptyResult(error: string | null): DataReadResult<GameRow> {
   return {
@@ -63,8 +64,16 @@ export function mapGameRowToGame(row: GameRow): Game {
     genre: taxonomyTags.length > 0 ? taxonomyTags.join(" · ") : "Arcade",
     imageAlt: `Imagen de ${row.title}`,
     imageUrl: row.image_url ?? undefined,
-    headerImageUrl: row.header_image_url ?? undefined,
-    logoImageUrl: row.logo_image_url ?? undefined,
+    headerImageUrl: resolveMediaUrl({
+      storagePath: row.header_image_storage_path,
+      legacyUrl: row.header_image_url,
+    }) ?? undefined,
+    logoImageUrl: resolveMediaUrl({
+      storagePath: row.logo_image_storage_path,
+      legacyUrl: row.logo_image_url,
+    }) ?? undefined,
+    headerImageStoragePath: row.header_image_storage_path ?? null,
+    logoImageStoragePath: row.logo_image_storage_path ?? null,
     accentColorPrimary: row.accent_color_primary ?? null,
     accentColorSecondary: row.accent_color_secondary ?? null,
     instructions: row.instructions ?? undefined,

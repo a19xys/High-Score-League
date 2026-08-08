@@ -133,7 +133,7 @@ export async function calculateWeeklyResultsForWeek(
   const { data: memberships, error: membershipsError } = await supabase
     .from("season_memberships")
     .select(
-      "player_id,joined_at,profiles:player_id(id,username,initials,avatar_url,is_admin)",
+      "player_id,joined_at,profiles:player_id(id,username,initials,avatar_url,avatar_storage_path,is_admin)",
     )
     .eq("season_id", week.season_id)
     .eq("status", "active")

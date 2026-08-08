@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveMediaUrl } from "@/lib/media/resolver";
 
 export type PlayerProfilePreview = {
   isCurrentUser: boolean;
@@ -28,13 +29,14 @@ export async function getPlayerProfilePreview(
 ): Promise<PlayerProfilePreviewResult> {
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id,username,initials,avatar_url,bio")
+    .select("id,username,initials,avatar_url,avatar_storage_path,bio")
     .eq("username", username)
     .maybeSingle<{
       id: string;
       username: string;
       initials: string;
       avatar_url: string | null;
+      avatar_storage_path: string | null;
       bio: string | null;
     }>();
 
@@ -76,7 +78,10 @@ export async function getPlayerProfilePreview(
         id: profile.id,
         username: profile.username,
         initials: profile.initials,
-        avatarUrl: profile.avatar_url,
+        avatarUrl: resolveMediaUrl({
+          storagePath: profile.avatar_storage_path,
+          legacyUrl: profile.avatar_url,
+        }),
         bio: profile.bio,
       },
       stats: statsUnavailable

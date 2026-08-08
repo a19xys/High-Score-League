@@ -241,7 +241,7 @@ export function renderConnectionControl(state) {
           ? `data-connectivity-status="${escapeHtml(status.status)}" data-severity="${escapeHtml(status.severity)}" title="${escapeHtml(status.description)}"`
           : "aria-hidden=\"true\""}>
         ${committed ? `
-          <span class="connection-dot" aria-hidden="true"></span>
+          <span class="status-dot connection-dot" aria-hidden="true"></span>
           <span class="connection-label">${escapeHtml(status.title)}</span>
         ` : ""}
         <button class="connection-refresh-button" type="button" data-action="refresh-connectivity"

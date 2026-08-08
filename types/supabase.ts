@@ -3,6 +3,7 @@ export type RealProfile = {
   username: string;
   initials: string;
   avatar_url: string | null;
+  avatar_storage_path?: string | null;
   bio?: string | null;
   track_play_time?: boolean;
   is_admin: boolean;
@@ -40,6 +41,8 @@ export type GameRow = {
   image_url: string | null;
   header_image_url?: string | null;
   logo_image_url?: string | null;
+  header_image_storage_path?: string | null;
+  logo_image_storage_path?: string | null;
   accent_color_primary?: string | null;
   accent_color_secondary?: string | null;
   instructions: string | null;
@@ -154,6 +157,7 @@ export type HomePollOptionRow = {
   poll_id: string;
   label: string;
   image_url: string | null;
+  image_storage_path?: string | null;
   sort_order: number;
   created_at: string;
 };

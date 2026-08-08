@@ -1,4 +1,6 @@
 import type { GameRow } from "@/types/supabase";
+import { isValidMediaStoragePath } from "@/lib/media/paths";
+import { resolveMediaUrl } from "@/lib/media/resolver";
 import {
   GAME_GENRES,
   GAME_PERSPECTIVES,
@@ -17,6 +19,8 @@ export type GameFormPayload = {
   imageUrl?: unknown;
   headerImageUrl?: unknown;
   logoImageUrl?: unknown;
+  headerImageStoragePath?: unknown;
+  logoImageStoragePath?: unknown;
   accentColorPrimary?: unknown;
   accentColorSecondary?: unknown;
   instructions?: unknown;
@@ -42,6 +46,8 @@ export type ValidatedGamePayload =
         image_url: string | null;
         header_image_url: string | null;
         logo_image_url: string | null;
+        header_image_storage_path: string | null;
+        logo_image_storage_path: string | null;
         accent_color_primary: string | null;
         accent_color_secondary: string | null;
         instructions: string | null;
@@ -53,7 +59,7 @@ export type ValidatedGamePayload =
   | { ok: false; error: string };
 
 export const adminGameColumns =
-  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,accent_color_primary,accent_color_secondary,instructions,manual_url,download_url,notes,created_at,updated_at";
+  "id,title,year,developers,publishers,perspectives,themes,genres,rom_name,image_url,header_image_url,logo_image_url,header_image_storage_path,logo_image_storage_path,accent_color_primary,accent_color_secondary,instructions,manual_url,download_url,notes,created_at,updated_at";
 
 function optionalText(value: unknown, label: string) {
   if (value === undefined || value === null) {
@@ -101,6 +107,20 @@ function validateOptionalHexColor(value: string | null, label: string) {
   }
 
   return { ok: true as const, value: value.toUpperCase() };
+}
+
+function validateOptionalStoragePath(
+  value: unknown,
+  preset: "game-header" | "game-logo",
+  label: string,
+) {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true as const, value: null };
+  }
+  if (!isValidMediaStoragePath(value, preset)) {
+    return { ok: false as const, error: `${label} no tiene una ruta Storage válida.` };
+  }
+  return { ok: true as const, value };
 }
 
 function validateStringArray(value: unknown, label: string) {
@@ -267,6 +287,19 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
     return { ok: false, error: logoImageUrl.error };
   }
 
+  const headerImageStoragePath = validateOptionalStoragePath(
+    payload.headerImageStoragePath,
+    "game-header",
+    "Header del juego",
+  );
+  if (!headerImageStoragePath.ok) return { ok: false, error: headerImageStoragePath.error };
+  const logoImageStoragePath = validateOptionalStoragePath(
+    payload.logoImageStoragePath,
+    "game-logo",
+    "Logo del juego",
+  );
+  if (!logoImageStoragePath.ok) return { ok: false, error: logoImageStoragePath.error };
+
   const accentColorPrimary = validateOptionalHexColor(
     rawAccentColorPrimary.value,
     "Color principal del logo",
@@ -312,8 +345,16 @@ export function validateGamePayload(payload: GameFormPayload): ValidatedGamePayl
       themes: themes.value,
       genres: genres.value,
       image_url: imageUrl.value,
-      header_image_url: headerImageUrl.value,
-      logo_image_url: logoImageUrl.value,
+      header_image_url: resolveMediaUrl({
+        storagePath: headerImageStoragePath.value,
+        legacyUrl: headerImageUrl.value,
+      }),
+      logo_image_url: resolveMediaUrl({
+        storagePath: logoImageStoragePath.value,
+        legacyUrl: logoImageUrl.value,
+      }),
+      header_image_storage_path: headerImageStoragePath.value,
+      logo_image_storage_path: logoImageStoragePath.value,
       accent_color_primary: accentColorPrimary.value,
       accent_color_secondary: accentColorSecondary.value,
       instructions: instructions.value,

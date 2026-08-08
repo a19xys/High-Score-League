@@ -2,13 +2,23 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { MediaUpload } from "@/components/media-upload";
 import { formatMadridDateInput } from "@/lib/admin/home-polls";
+import { executeMediaSave } from "@/lib/media/lifecycle";
+import {
+  UNCHANGED_MEDIA_SELECTION,
+  type MediaSelection,
+} from "@/lib/media/types";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { HomePollAdminData } from "@/types";
 
 type OptionDraft = {
+  clientKey: string;
   id?: string;
   label: string;
   imageUrl: string;
+  imageStoragePath: string | null;
+  imageSelection: MediaSelection;
 };
 
 type AdminHomePollFormProps = {
@@ -19,14 +29,17 @@ function initialOptions(data: HomePollAdminData): OptionDraft[] {
   if (data.options.length > 0) {
     return data.options.map((option) => ({
       id: option.id,
+      clientKey: option.id,
       label: option.label,
       imageUrl: option.imageUrl ?? "",
+      imageStoragePath: option.imageStoragePath ?? null,
+      imageSelection: UNCHANGED_MEDIA_SELECTION,
     }));
   }
 
   return [
-    { label: "", imageUrl: "" },
-    { label: "", imageUrl: "" },
+    { clientKey: crypto.randomUUID(), label: "", imageUrl: "", imageStoragePath: null, imageSelection: UNCHANGED_MEDIA_SELECTION },
+    { clientKey: crypto.randomUUID(), label: "", imageUrl: "", imageStoragePath: null, imageSelection: UNCHANGED_MEDIA_SELECTION },
   ];
 }
 
@@ -46,6 +59,7 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resetText, setResetText] = useState("");
+  const [removedStoragePaths, setRemovedStoragePaths] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
   const closed = isClosed(data.poll.closesAt);
   const configured = data.poll.question.trim().length > 0 && data.options.length >= 2;
@@ -70,10 +84,10 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
     );
   }
 
-  function updateOptionImage(index: number, imageUrl: string) {
+  function updateOptionImage(index: number, imageSelection: MediaSelection) {
     setOptions((current) =>
       current.map((option, optionIndex) =>
-        optionIndex === index ? { ...option, imageUrl } : option,
+        optionIndex === index ? { ...option, imageSelection } : option,
       ),
     );
   }
@@ -86,7 +100,16 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
       return;
     }
 
-    setOptions((current) => [...current, { label: "", imageUrl: "" }]);
+    setOptions((current) => [
+      ...current,
+      {
+        clientKey: crypto.randomUUID(),
+        label: "",
+        imageUrl: "",
+        imageStoragePath: null,
+        imageSelection: UNCHANGED_MEDIA_SELECTION,
+      },
+    ]);
   }
 
   function removeOption(index: number) {
@@ -95,6 +118,10 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
       return;
     }
 
+    const removed = options[index];
+    if (removed?.imageStoragePath) {
+      setRemovedStoragePaths((current) => [...current, removed.imageStoragePath!]);
+    }
     setOptions((current) => current.filter((_, optionIndex) => optionIndex !== index));
   }
 
@@ -104,37 +131,94 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
     setEnabled(nextData.poll.enabled);
     setClosesDate(formatMadridDateInput(nextData.poll.closesAt));
     setOptions(initialOptions(nextData));
+    setRemovedStoragePaths([]);
     router.refresh();
   }
 
   function save(nextEnabled = enabled) {
     setError(null);
     setMessage(null);
+    const imagesCount = options.filter((option) =>
+      option.imageSelection.kind === "replace"
+        ? true
+        : option.imageSelection.kind === "remove"
+          ? false
+          : Boolean(option.imageStoragePath || option.imageUrl),
+    ).length;
+    if (imagesCount > 0 && imagesCount < options.length) {
+      setError(
+        "Si usas imágenes, todas las opciones deben tener una. Completa las que faltan o quítalas todas.",
+      );
+      return;
+    }
     startTransition(async () => {
-      const response = await fetch("/api/admin/polls", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question,
-          closesDate,
-          enabled: nextEnabled,
-          options,
-        }),
-      });
-      const payload = (await response.json()) as {
-        ok: boolean;
-        error?: string;
-        data?: HomePollAdminData;
-      };
-
-      if (!response.ok || !payload.ok || !payload.data) {
-        setError(payload.error ?? "No se pudo guardar el cuestionario.");
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) {
+        setError("Supabase no está configurado en este entorno.");
         return;
       }
-
-      applyData(payload.data);
-      setEnabled(nextEnabled);
-      setMessage("Cuestionario guardado.");
+      try {
+        const saved = await executeMediaSave({
+          supabase,
+          changes: [
+            ...options.map((option) => ({
+              key: option.clientKey,
+              selection: option.imageSelection,
+              currentStoragePath: option.imageStoragePath,
+              currentUrl: option.imageUrl,
+            })),
+            ...removedStoragePaths.map((path) => ({
+              key: `removed:${path}`,
+              selection: { kind: "remove" } as const,
+              currentStoragePath: path,
+              currentUrl: null,
+            })),
+          ],
+          persist: async (media) => {
+            const preparedByKey = new Map(media.map((item) => [item.key, item]));
+            const response = await fetch("/api/admin/polls", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                question,
+                closesDate,
+                enabled: nextEnabled,
+                options: options.map((option) => {
+                  const image = preparedByKey.get(option.clientKey)!;
+                  return {
+                    id: option.id,
+                    label: option.label,
+                    imageUrl: image.publicUrl,
+                    imageStoragePath: image.storagePath,
+                  };
+                }),
+              }),
+            });
+            const payload = (await response.json()) as {
+              ok: boolean;
+              error?: string;
+              data?: HomePollAdminData;
+            };
+            if (!response.ok || !payload.ok || !payload.data) {
+              throw new Error(payload.error ?? "No se pudo guardar el cuestionario.");
+            }
+            return payload.data;
+          },
+        });
+        applyData(saved.result);
+        setEnabled(nextEnabled);
+        setMessage(
+          saved.cleanupWarning
+            ? `Cuestionario guardado. No se pudo retirar una imagen anterior: ${saved.cleanupWarning}`
+            : "Cuestionario guardado.",
+        );
+      } catch (caught) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "No se pudo guardar el cuestionario.",
+        );
+      }
     });
   }
 
@@ -148,23 +232,47 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
     }
 
     startTransition(async () => {
-      const response = await fetch("/api/admin/polls/reset", {
-        method: "POST",
-      });
-      const payload = (await response.json()) as {
-        ok: boolean;
-        error?: string;
-        data?: HomePollAdminData;
-      };
-
-      if (!response.ok || !payload.ok || !payload.data) {
-        setError(payload.error ?? "No se pudo reiniciar el cuestionario.");
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) {
+        setError("Supabase no está configurado en este entorno.");
         return;
       }
-
-      applyData(payload.data);
-      setResetText("");
-      setMessage("Cuestionario reiniciado.");
+      try {
+        const resetResult = await executeMediaSave({
+          supabase,
+          changes: data.options.map((option) => ({
+            key: option.id,
+            selection: { kind: "remove" } as const,
+            currentStoragePath: option.imageStoragePath,
+            currentUrl: option.imageUrl,
+          })),
+          persist: async () => {
+            const response = await fetch("/api/admin/polls/reset", { method: "POST" });
+            const payload = (await response.json()) as {
+              ok: boolean;
+              error?: string;
+              data?: HomePollAdminData;
+            };
+            if (!response.ok || !payload.ok || !payload.data) {
+              throw new Error(payload.error ?? "No se pudo reiniciar el cuestionario.");
+            }
+            return payload.data;
+          },
+        });
+        applyData(resetResult.result);
+        setResetText("");
+        setMessage(
+          resetResult.cleanupWarning
+            ? `Cuestionario reiniciado. No se pudo retirar una imagen anterior: ${resetResult.cleanupWarning}`
+            : "Cuestionario reiniciado.",
+        );
+      } catch (caught) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "No se pudo reiniciar el cuestionario.",
+        );
+      }
     });
   }
 
@@ -231,8 +339,8 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
           <div className="mt-3 space-y-2">
             {options.map((option, index) => (
               <div
-                className="grid gap-2 rounded-lg border p-3 theme-border theme-surface-muted md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
-                key={option.id ?? `new-${index}`}
+                className="grid gap-3 rounded-lg border p-3 theme-border theme-surface-muted md:grid-cols-[minmax(0,1fr)_minmax(16rem,1fr)_auto]"
+                key={option.clientKey}
               >
                 <label className="min-w-0">
                   <span className="sr-only">Opción {index + 1}</span>
@@ -244,15 +352,14 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
                     value={option.label}
                   />
                 </label>
-                <label className="min-w-0">
-                  <span className="sr-only">Imagen de la opción {index + 1}</span>
-                  <input
-                    className="w-full rounded-md border px-3 py-2 theme-input"
-                    onChange={(event) => updateOptionImage(index, event.target.value)}
-                    placeholder="Imagen · https://..."
-                    value={option.imageUrl}
-                  />
-                </label>
+                <MediaUpload
+                  currentUrl={option.imageUrl}
+                  disabled={isPending}
+                  label={`Imagen de la opción ${index + 1}`}
+                  onChange={(selection) => updateOptionImage(index, selection)}
+                  preset="poll-option"
+                  selection={option.imageSelection}
+                />
                 <button
                   className="rounded-md border px-3 py-2 text-sm font-semibold theme-border theme-hover theme-text disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={options.length <= 2}

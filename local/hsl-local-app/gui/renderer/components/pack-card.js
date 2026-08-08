@@ -120,7 +120,7 @@ function renderBadges(pack, view) {
   if (view === "icons") {
     return `
       <div class="pack-card__status pack-card__status--dot" title="${escapeHtml(meta.title)}">
-        <span class="pack-card__status-dot ${meta.dotClassName}" aria-label="${escapeHtml(meta.label)}"></span>
+        <span class="status-dot pack-card__status-dot ${meta.dotClassName}" aria-label="${escapeHtml(meta.label)}"></span>
       </div>
     `;
   }
@@ -150,11 +150,13 @@ export function renderPackCard(pack, state, view = "covers") {
   const active = isActivePack(pack, state.data);
   const pending = state.pendingLibraryPackId === pack.id;
   const busyBlocksLibrarySelection = state.busy && !state.libraryActivationInProgress;
-  const disabled = busyBlocksLibrarySelection || active || pack.status === "missing";
+  const unavailable = busyBlocksLibrarySelection || pack.status === "missing";
   const busyAttribute = pending ? `aria-busy="true" ` : "";
-  const selectableAttributes = disabled
-    ? `${busyAttribute}aria-disabled="true"`
-    : `${busyAttribute}data-action="use-library-pack" data-pack-id="${escapeHtml(pack.id)}" tabindex="0" role="button"`;
+  const selectableAttributes = active
+    ? busyAttribute.trim()
+    : unavailable
+      ? `${busyAttribute}aria-disabled="true"`
+      : `${busyAttribute}data-action="use-library-pack" data-pack-id="${escapeHtml(pack.id)}" tabindex="0" role="button"`;
   const cardClass = `pack-card pack-card--${view}${active ? " pack-card--active" : ""}${pending ? " pack-card--pending" : ""}`;
   const subtitle = subtitleForPack(pack);
 

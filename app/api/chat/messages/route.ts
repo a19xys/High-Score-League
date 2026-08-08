@@ -117,6 +117,7 @@ export async function POST(request: NextRequest) {
           username,
           initials,
           avatar_url,
+          avatar_storage_path,
           is_admin,
           created_at,
           updated_at

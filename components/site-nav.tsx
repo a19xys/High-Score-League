@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getRealSeasons } from "@/lib/data/seasons";
 import { getRealWeeks } from "@/lib/data/weeks";
+import { resolveMediaUrl } from "@/lib/media/resolver";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSynchronizedSeasonStatus, getSynchronizedWeekStatus } from "@/lib/week-status";
 import { SiteNavClient, type NavProfile, type SiteNavData } from "./site-nav-client";
@@ -76,18 +77,22 @@ export async function SiteNav() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username,initials,avatar_url")
+    .select("username,initials,avatar_url,avatar_storage_path")
     .eq("id", userData.user.id)
     .maybeSingle<{
       username: string | null;
       initials: string | null;
       avatar_url: string | null;
+      avatar_storage_path: string | null;
     }>();
 
   const navProfile: NavProfile = {
     username: profile?.username ?? null,
     initials: profile?.initials ?? null,
-    avatarUrl: profile?.avatar_url ?? null,
+    avatarUrl: resolveMediaUrl({
+      storagePath: profile?.avatar_storage_path,
+      legacyUrl: profile?.avatar_url,
+    }),
     email: userData.user.email ?? null,
   };
 

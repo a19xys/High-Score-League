@@ -196,6 +196,21 @@ test("changing pack resets only detail scroll", () => {
   assert.doesNotMatch(app, /scrollIntoView/);
 });
 
+test("pack selection keeps one scroll intent through pending, accepted snapshot and refresh", () => {
+  const app = source("app.js");
+  const activation = app.slice(
+    app.indexOf("async function activateLibraryPackWithPreload"),
+    app.indexOf("function bindActions"),
+  );
+
+  assert.match(app, /let libraryPackSelectionScroll = null/);
+  assert.match(app, /function captureLibraryPackSelectionScroll\(\)/);
+  assert.match(app, /element\.dataset\.preserveScroll === "library-packs" && libraryPackSelectionScroll/);
+  assert.match(activation, /libraryPackSelectionScroll = captureLibraryPackSelectionScroll\(\)/);
+  assert.match(app, /async function refreshRemoteStateAfterPackActivation[\s\S]*store\.setState\(launcherSnapshotPatch\(nextData\)\)[\s\S]*libraryPackSelectionScroll = null/);
+  assert.doesNotMatch(activation, /setTimeout|scrollIntoView/);
+});
+
 test("stale full snapshots remain rejected", async () => {
   const { createLauncherStateGate } = await import(pathToFileURL(path.join(appDir, "launcher-state-gate.js")));
   const gate = createLauncherStateGate();

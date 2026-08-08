@@ -209,20 +209,21 @@ botones destructivos ni migraciones.
 
 ### MEDIA-UPLOADS-1
 
-Crear un sistema transversal para avatar, imágenes de juegos, headers, logos,
-opciones de cuestionarios, capturas futuras y otros assets administrables. Debe
-incluir backend de archivos (previsiblemente Supabase Storage), buckets y RLS,
-MIME permitidos, peso y dimensiones máximas, compresión/redimensionado,
-sustitución y eliminación seguras, nombres no predecibles, URLs persistidas,
-componente común, preview, progreso, errores y accesibilidad.
+Completado en código. Avatar, imágenes de juego y opciones de cuestionario usan
+el componente común `MediaUpload`, procesamiento WebP en navegador y el bucket
+`hsl-public-media`. Se conservan las URLs legacy y el resolver prefiere el path
+Storage cuando existe. El ciclo sube, persiste y solo entonces limpia el objeto
+anterior, con rollback de subidas nuevas si falla la persistencia.
 
-La migración desde URLs legacy debe ser gradual: continuar leyendo las URLs
-existentes, subir nuevos assets mediante el componente común y retirar el editor
-URL solo cuando todos los consumidores estén preparados.
+La migración `0024_media_uploads.sql` continúa pendiente de aplicación manual
+en el Supabase remoto. Detalles de rutas, presets, RLS, límites y despliegue:
+`docs/media-uploads.md`.
 
 ## Limitaciones conscientes
 
-- No hay Storage, uploads, presencia, última conexión ni tiempo jugado real.
+- La implementación de Storage público está terminada; `0024` debe aplicarse
+  manualmente antes del deploy. No hay Storage privado de capturas, presencia,
+  última conexión ni tiempo jugado real.
 - No hay controles de visibilidad adicionales ni schema nuevo.
 - El archivo de mejores marcas depende de submissions que RLS y el estado de
   semana permiten leer.

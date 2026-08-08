@@ -40,8 +40,10 @@ Desde `0010_profile_preferences.sql` incluye:
 - `track_play_time`: preferencia para permitir registrar tiempo de juego desde
   la futura app local. Por defecto es `true`.
 
-`avatar_url` sigue siendo una URL de texto temporal. No hay Storage ni subida de
-avatar en esta fase.
+`avatar_url` se conserva como compatibilidad. `0024_media_uploads.sql` añade
+`avatar_storage_path`; el resolver prefiere el objeto de `hsl-public-media` y
+usa la URL antigua cuando el path es null. La subida se procesa como WebP en el
+navegador. No hay Storage privado de capturas en esta fase.
 
 `track_play_time` es exclusivamente permiso de recopilación. No debe
 reinterpretarse como visibilidad pública del tiempo, presencia online o última
@@ -230,12 +232,18 @@ valida que un cuestionario use imágenes en todas sus opciones o en ninguna, par
 evitar tarjetas mezcladas. Si no hay imágenes, Home no reserva espacio ni
 muestra placeholder.
 
+`0024_media_uploads.sql` añade `home_poll_options.image_storage_path` y paths
+equivalentes para avatar, header y logo de juego. También crea/configura el
+bucket público `hsl-public-media`, sus policies y constraints de prefijo/UUID.
+Los campos URL anteriores no se eliminan ni se migran automáticamente.
+
 `home_poll_votes` guarda un voto por usuario y cuestionario con
 `unique(poll_id, player_id)`. La FK compuesta `(option_id, poll_id)` garantiza
 que la opción votada pertenece al mismo cuestionario.
 
 El panel admin `/admin/polls` permite editar pregunta, cierre, estado, opciones,
-URLs opcionales de imagen, estadísticas agregadas y reinicio del cuestionario.
+imágenes administradas o legacy, estadísticas agregadas y reinicio del
+cuestionario.
 La tarjeta pública en Home permite votar, cambiar voto y ver resultados
 agregados tras votar, con Realtime y polling de respaldo cada 10 segundos.
 Comentarios e historial de cuestionarios quedan para una fase posterior.

@@ -2,11 +2,18 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { MediaUpload } from "@/components/media-upload";
 import {
   GAME_GENRES,
   GAME_PERSPECTIVES,
   GAME_THEMES,
 } from "@/lib/admin/game-taxonomy";
+import { executeMediaSave } from "@/lib/media/lifecycle";
+import {
+  UNCHANGED_MEDIA_SELECTION,
+  type MediaSelection,
+} from "@/lib/media/types";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { GameRow } from "@/types/supabase";
 
 type AdminGameFormProps = {
@@ -292,6 +299,18 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
   );
   const [state, setState] = useState<FormState>(() => initialState(game));
   const [message, setMessage] = useState<string | null>(null);
+  const [headerSelection, setHeaderSelection] = useState<MediaSelection>(
+    UNCHANGED_MEDIA_SELECTION,
+  );
+  const [logoSelection, setLogoSelection] = useState<MediaSelection>(
+    UNCHANGED_MEDIA_SELECTION,
+  );
+  const [headerStoragePath, setHeaderStoragePath] = useState(
+    game?.header_image_storage_path ?? null,
+  );
+  const [logoStoragePath, setLogoStoragePath] = useState(
+    game?.logo_image_storage_path ?? null,
+  );
   const [isPending, startTransition] = useTransition();
 
   function updateField(name: keyof FormState, value: string) {
@@ -305,48 +324,93 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
   function submit() {
     setMessage(null);
     startTransition(async () => {
-      const response = await fetch(
-        mode === "create" ? "/api/admin/games" : `/api/admin/games/${game?.id}`,
-        {
-          method: mode === "create" ? "POST" : "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: state.title,
-            year: state.year,
-            developers: state.developers,
-            publishers: state.publishers,
-            romName: state.romName,
-            perspectives: state.perspectives,
-            themes: state.themes,
-            genres: state.genres,
-            imageUrl: state.imageUrl,
-            headerImageUrl: state.headerImageUrl,
-            logoImageUrl: state.logoImageUrl,
-            accentColorPrimary: state.accentColorPrimary,
-            accentColorSecondary: state.accentColorSecondary,
-            instructions: state.instructions,
-            manualUrl: state.manualUrl,
-            downloadUrl: state.downloadUrl,
-            notes: state.notes,
-          }),
-        },
-      );
-      const payload = (await response.json()) as {
-        ok: boolean;
-        error?: string;
-        game?: GameRow;
-      };
-
-      if (!response.ok || !payload.ok || !payload.game) {
-        setMessage(payload.error ?? "No se pudo guardar el juego.");
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) {
+        setMessage("Supabase no está configurado en este entorno.");
         return;
       }
-
-      setMessage(mode === "create" ? "Juego creado." : "Juego actualizado.");
-      router.refresh();
-
-      if (mode === "create") {
-        router.push(`/admin/games/${payload.game.id}`);
+      try {
+        const saved = await executeMediaSave({
+          supabase,
+          changes: [
+            {
+              key: "header",
+              selection: headerSelection,
+              currentStoragePath: headerStoragePath,
+              currentUrl: state.headerImageUrl,
+            },
+            {
+              key: "logo",
+              selection: logoSelection,
+              currentStoragePath: logoStoragePath,
+              currentUrl: state.logoImageUrl,
+            },
+          ],
+          persist: async (media) => {
+            const header = media.find((item) => item.key === "header")!;
+            const logo = media.find((item) => item.key === "logo")!;
+            const response = await fetch(
+              mode === "create" ? "/api/admin/games" : `/api/admin/games/${game?.id}`,
+              {
+                method: mode === "create" ? "POST" : "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  title: state.title,
+                  year: state.year,
+                  developers: state.developers,
+                  publishers: state.publishers,
+                  romName: state.romName,
+                  perspectives: state.perspectives,
+                  themes: state.themes,
+                  genres: state.genres,
+                  imageUrl: state.imageUrl,
+                  headerImageUrl: header.publicUrl,
+                  logoImageUrl: logo.publicUrl,
+                  headerImageStoragePath: header.storagePath,
+                  logoImageStoragePath: logo.storagePath,
+                  accentColorPrimary: state.accentColorPrimary,
+                  accentColorSecondary: state.accentColorSecondary,
+                  instructions: state.instructions,
+                  manualUrl: state.manualUrl,
+                  downloadUrl: state.downloadUrl,
+                  notes: state.notes,
+                }),
+              },
+            );
+            const payload = (await response.json()) as {
+              ok: boolean;
+              error?: string;
+              game?: GameRow;
+            };
+            if (!response.ok || !payload.ok || !payload.game) {
+              throw new Error(payload.error ?? "No se pudo guardar el juego.");
+            }
+            return payload.game;
+          },
+        });
+        const savedGame = saved.result;
+        setHeaderSelection(UNCHANGED_MEDIA_SELECTION);
+        setLogoSelection(UNCHANGED_MEDIA_SELECTION);
+        setHeaderStoragePath(savedGame.header_image_storage_path ?? null);
+        setLogoStoragePath(savedGame.logo_image_storage_path ?? null);
+        setState((current) => ({
+          ...current,
+          headerImageUrl: savedGame.header_image_url ?? "",
+          logoImageUrl: savedGame.logo_image_url ?? "",
+        }));
+        setMessage(
+          saved.cleanupWarning
+            ? `Juego guardado. No se pudo retirar una imagen anterior: ${saved.cleanupWarning}`
+            : mode === "create"
+              ? "Juego creado."
+              : "Juego actualizado.",
+        );
+        router.refresh();
+        if (mode === "create") router.push(`/admin/games/${savedGame.id}`);
+      } catch (caught) {
+        setMessage(
+          caught instanceof Error ? caught.message : "No se pudo guardar el juego.",
+        );
       }
     });
   }
@@ -394,19 +458,21 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
           placeholder="Añadir editor"
           values={state.publishers}
         />
-        <TextInput
-          help="Imagen panorámica para la futura cabecera de semana."
+        <MediaUpload
+          currentUrl={state.headerImageUrl}
+          disabled={isPending}
           label="Header del juego"
-          name="headerImageUrl"
-          onChange={updateField}
-          value={state.headerImageUrl}
+          onChange={setHeaderSelection}
+          preset="game-header"
+          selection={headerSelection}
         />
-        <TextInput
-          help="Logo externo opcional para superponer sobre el header."
+        <MediaUpload
+          currentUrl={state.logoImageUrl}
+          disabled={isPending}
           label="Logo del juego"
-          name="logoImageUrl"
-          onChange={updateField}
-          value={state.logoImageUrl}
+          onChange={setLogoSelection}
+          preset="game-logo"
+          selection={logoSelection}
         />
         <ColorInput
           help="Se usa para el borde y brillo de la tarjeta del juego en la página de semana."
@@ -501,4 +567,3 @@ export function AdminGameForm({ mode, game }: AdminGameFormProps) {
     </form>
   );
 }
-

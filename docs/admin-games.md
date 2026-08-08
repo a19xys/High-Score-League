@@ -13,8 +13,8 @@ Un juego es una entrada reutilizable del catálogo:
 - desarrolladores;
 - editores;
 - perspectiva, tema y género;
-- header externo del juego;
-- logo externo del juego;
+- header del juego, legacy o gestionado en Storage;
+- logo del juego, legacy o gestionado en Storage;
 - colores manuales de acento del logo;
 - instrucciones base;
 - enlace externo al manual;
@@ -91,7 +91,9 @@ Validaciones principales:
 - arrays sin vacíos ni duplicados;
 - taxonomía solo con valores permitidos;
 - `header_image_url`, `logo_image_url`, `manual_url` y `download_url` deben ser
-  `http` o `https` si se informan;
+  `http` o `https` si se informan como valor legacy;
+- los nuevos `header_image_storage_path` y `logo_image_storage_path` deben usar
+  su prefijo, UUID y extensión WebP;
 - `accent_color_primary` y `accent_color_secondary` deben ser `#RRGGBB` si se
   informan.
 
@@ -118,9 +120,11 @@ admin como `Sin juego asignado`.
 
 ## Pendiente
 
-- Subida real de imágenes a Storage.
+- La subida de header y logo a Storage está implementada mediante `MediaUpload`;
+  requiere aplicar manualmente `0024_media_uploads.sql` antes del deploy.
 - Subida real de manuales a Storage.
 - Gestión de ZIPs o packs MAME.
 - Configuraciones MAME.
-- Borrado de assets asociados cuando exista Storage.
+- Los assets administrados se borran tras confirmar reemplazo o retirada; los
+  objetos legacy externos no se tocan.
 - Editor rico o Markdown avanzado.

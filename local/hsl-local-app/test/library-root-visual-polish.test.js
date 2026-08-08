@@ -134,27 +134,32 @@ test("icon-window distingue icono y cover fallback con overscan compartido", asy
   assert.doesNotMatch(finalCss, /Galaga|Pac-Man|Donkey Kong|Space Invaders/);
 });
 
-test("titulo monotono, LED, ring unico y subtitulo estructural comparten primitivas", async () => {
-  const [{ renderPackCard }, styles, tokens, calendar] = await Promise.all([
+test("titulo monotono, status dot, ring unico y subtitulo estructural comparten primitivas", async () => {
+  const [{ renderPackCard }, styles, tokens, calendar, header] = await Promise.all([
     import(pathToFileURL(path.join(rendererRoot, "components", "pack-card.js")).href),
     fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "styles", "tokens.css"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "assets", "icons", "calendar.svg"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "components", "header.js"), "utf8"),
   ]);
   const state = rendererState({ packs: [] });
   state.data.selection.activeInstanceKey = "instance-a";
   const html = renderPackCard({ id: "a", instanceKey: "instance-a", status: "ok", title: "Pack A" }, state, "icons");
   const finalCss = styles.split("/* LOCAL-LAUNCHER-LIBRARY-ROOT-AND-VISUAL-POLISH-5:")[1];
-  const ledReadyValues = [...tokens.matchAll(/--led-ready:\s*([^;]+);/g)].map((match) => match[1]);
 
   assert.match(finalCss, /container-type: inline-size/);
   assert.match(finalCss, /font-size: clamp\(12px, 10cqi, 14px\)/);
   assert.match(finalCss, /gap: var\(--icon-card-gap\)/);
   assert.match(finalCss, /\.pack-card\[data-selected="true"\]::after,[\s\S]*box-shadow: none[\s\S]*drop-shadow/);
-  assert.match(finalCss, /\.pack-card--pending:not\(\.pack-card--active\)[\s\S]*var\(--led-warning\)/);
-  assert.equal(new Set(ledReadyValues).size, 1);
-  assert.match(finalCss, /\.pack-card__status-dot--ok[\s\S]*var\(--led-ready\)[\s\S]*0 0 7px/);
-  assert.match(html, /pack-card__status-dot--ok[^>]*aria-label="LISTO"/);
+  assert.match(finalCss, /\.pack-card--pending:not\(\.pack-card--active\)[\s\S]*var\(--state-warning\)/);
+  assert.doesNotMatch(tokens, /--led-(?:ready|warning|error|outline)/);
+  assert.match(finalCss, /\.status-dot\s*\{[^}]*width: 8px[^}]*height: 8px[^}]*border: 0[^}]*border-radius: 999px[^}]*background: currentColor[^}]*currentColor 14%/);
+  assert.doesNotMatch(finalCss, /\.pack-card__status-dot::after|inset 0 1px 1px|var\(--led-/);
+  assert.match(finalCss, /\.pack-card__status-dot--ok[\s\S]*color: var\(--state-success\)/);
+  assert.match(finalCss, /\.pack-card__status-dot--warning[\s\S]*color: var\(--state-warning\)/);
+  assert.match(finalCss, /\.pack-card__status-dot--error[\s\S]*color: var\(--state-error\)/);
+  assert.match(html, /status-dot pack-card__status-dot pack-card__status-dot--ok[^>]*aria-label="LISTO"/);
+  assert.match(header, /status-dot connection-dot/);
   assert.match(html, /pack-card__subtitle-icon/);
   assert.match(html, /pack-card__subtitle-text/);
   assert.match(finalCss, /\.pack-card__subtitle \{[\s\S]*display: flex[\s\S]*align-items: center/);
@@ -162,6 +167,48 @@ test("titulo monotono, LED, ring unico y subtitulo estructural comparten primiti
   assert.match(calendar, /viewBox="0 0 24 24"/);
   assert.match(calendar, /stroke="currentColor"/);
   assert.doesNotMatch(calendar, /512px|translateY|#f9faf9/);
+});
+
+test("pack activo conserva current sin fingir disabled y los estados usan la autoridad canonica", async () => {
+  const [{ renderPackCard, packCardTestApi }, styles] = await Promise.all([
+    import(pathToFileURL(path.join(rendererRoot, "components", "pack-card.js")).href),
+    fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
+  ]);
+  const state = rendererState({ packs: [] });
+  state.data.selection.activeInstanceKey = "active-instance";
+  state.data.session.hasSession = true;
+  const activePack = {
+    favorite: true,
+    favoriteKey: "active",
+    id: "active",
+    instanceKey: "active-instance",
+    status: "ok",
+    title: "Activo",
+  };
+  const activeHtml = renderPackCard(activePack, state, "covers");
+
+  assert.match(activeHtml, /data-selected="true" aria-current="true"/);
+  assert.doesNotMatch(activeHtml, /aria-disabled="true"|data-action="use-library-pack"|role="button"|tabindex="0"/);
+  assert.match(activeHtml, /data-action="toggle-library-favorite"[^>]*aria-pressed="true"/);
+  assert.doesNotMatch(activeHtml.match(/<button class="favorite-slot[\s\S]*?<\/button>/)?.[0] || "", /disabled/);
+
+  assert.deepEqual(
+    [
+      packCardTestApi.statusMeta({ status: "ok" }),
+      packCardTestApi.statusMeta({ deprecated: true, status: "ok" }),
+      packCardTestApi.statusMeta({ status: "warning" }),
+      packCardTestApi.statusMeta({ status: "error" }),
+    ].map(({ className, label }) => [className, label]),
+    [
+      ["week-status--ready", "LISTO"],
+      ["week-status--legacy", "LEGACY"],
+      ["week-status--warning", "AVISO"],
+      ["week-status--error", "REQUIERE ATENCION"],
+    ],
+  );
+  assert.match(styles, /\.pack-card__status \.week-status-badge\.week-status--ready\s*\{[^}]*var\(--state-success\)[^}]*var\(--state-success-bg\)[^}]*color: var\(--state-success\)/);
+  assert.match(styles, /\.pack-card__status \.week-status-badge\.week-status--legacy,[\s\S]*var\(--state-warning-bg\)[^}]*color: var\(--state-warning\)/);
+  assert.match(styles, /\.pack-card__status \.week-status-badge\.week-status--error\s*\{[^}]*var\(--state-error\)[^}]*var\(--state-error-bg\)[^}]*color: var\(--state-error\)/);
 });
 
 test("controles neutros usan solo borde y contenido azules sin alterar fondos ni seleccionados", async () => {

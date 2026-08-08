@@ -135,7 +135,7 @@ test("header keeps a binary CSS status and integrates refresh in the same chip",
 
   const connectionBlock = header.slice(header.indexOf("export function renderConnectionControl"), header.indexOf("export function renderHeader"));
   assert.doesNotMatch(connectionBlock, />Comprobando|>Conectando|>Reconectando|>Suspendido/);
-  assert.match(connectionBlock, /class="connection-dot" aria-hidden="true"/);
+  assert.match(connectionBlock, /class="status-dot connection-dot" aria-hidden="true"/);
   assert.match(connectionBlock, /connection-label[\s\S]*connection-refresh-button/);
   assert.match(connectionBlock, /data-action="refresh-connectivity"/);
   assert.match(connectionBlock, /aria-label="Comprobar conexión"/);
@@ -144,7 +144,8 @@ test("header keeps a binary CSS status and integrates refresh in the same chip",
   assert.match(styles, /\.connection-chip\s*\{[\s\S]*?gap: 0;[\s\S]*?inline-size: max-content;[\s\S]*?max-inline-size: 100%/);
   assert.match(styles, /\.connection-control\s*\{[\s\S]*?width: 164px;[\s\S]*?min-width: 164px[\s\S]*?justify-content: flex-end/);
   assert.match(styles, /\.connection-label[\s\S]*white-space: nowrap/);
-  assert.match(styles, /\.connection-dot\s*\{[\s\S]*?width: 8px;[\s\S]*?height: 8px;[\s\S]*?margin-inline-end: 7px;[\s\S]*?border-radius: 999px/);
+  assert.match(styles, /\.status-dot\s*\{[^}]*width: 8px[^}]*height: 8px[^}]*border-radius: 999px[^}]*background: currentColor/);
+  assert.match(styles, /\.connection-dot\s*\{[^}]*margin-inline-end: 7px/);
   assert.match(styles, /\.connection-chip--connected\s*\{[\s\S]*?var\(--state-success\)/);
   assert.match(styles, /\.connection-chip--disconnected\s*\{[\s\S]*?var\(--state-error\)/);
   assert.match(styles, /connection-chip--unresolved[\s\S]*visibility: hidden/);
