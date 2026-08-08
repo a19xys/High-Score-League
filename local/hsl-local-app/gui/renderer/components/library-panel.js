@@ -346,7 +346,7 @@ function renderLibraryPacksContent(state) {
 }
 
 export function renderLibraryPacks(state) {
-  return `<div class="library-packs-content">${renderLibraryPacksContent(state)}</div>`;
+  return renderLibraryPacksContent(state);
 }
 
 function renderLibraryCount(data) {

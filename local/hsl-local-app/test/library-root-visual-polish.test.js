@@ -107,15 +107,15 @@ test("busy no contrae filtros ni deshabilita vistas de una biblioteca valida", a
   assert.match(html, /data-view="icons"[^>]*aria-pressed="true"/);
 });
 
-test("la lista posee wrapper de extent y el detalle termina con un spacer real de 16 px", async () => {
+test("la lista no conserva el extent lock y el detalle termina con un spacer real de 16 px", async () => {
   const [{ renderLibraryPacks }, styles] = await Promise.all([
     import(pathToFileURL(path.join(rendererRoot, "components", "library-panel.js")).href),
     fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
   ]);
   const html = renderLibraryPacks(rendererState({ packs: [] }));
 
-  assert.match(html, /class="library-packs-content"/);
-  assert.match(styles, /\.library-packs-content\s*\{[^}]*min-block-size: var\(--library-packs-min-block-size, 0px\)/);
+  assert.doesNotMatch(html, /library-packs-content/);
+  assert.doesNotMatch(styles, /library-packs-min-block-size|\.library-packs-content/);
   assert.match(styles, /\.game-scroll\s*\{[^}]*gap: 0[^}]*grid-auto-rows: max-content[^}]*padding: 18px 20px 0/);
   assert.match(styles, /\.game-scroll::after\s*\{[^}]*content: ""[^}]*display: block[^}]*height: 16px[^}]*flex: 0 0 16px/);
 });

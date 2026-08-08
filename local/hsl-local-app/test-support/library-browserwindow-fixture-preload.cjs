@@ -2,10 +2,10 @@ const { contextBridge } = require("electron");
 
 let activeIndex = 0;
 let activeUserId = "fixture";
-let expanded = true;
 let heroStatus = "ready";
 let launcherStateRevision = 1;
 let launcherStateListener = null;
+let selectionPhase = "initial";
 let switchAccountCalls = 0;
 
 const titles = [
@@ -16,10 +16,12 @@ const titles = [
 ];
 
 const packs = Array.from({ length: 40 }, (_, index) => ({
+  cover: { url: "./assets/hero_hsl.png" },
   deprecated: index % 10 === 1,
   favorite: index % 3 === 0,
   favoriteKey: `pack-${index}`,
   id: `pack-${index}`,
+  icon: { url: "./assets/hero_hsl.png" },
   instanceKey: `instance-${index}`,
   seasonId: `season-${Math.floor(index / 10)}`,
   seasonName: `Temporada ${Math.floor(index / 10) + 1}`,
@@ -30,12 +32,6 @@ const packs = Array.from({ length: 40 }, (_, index) => ({
   weekNumber: index + 1,
   year: String(1980 + index),
 }));
-
-function visiblePacks() {
-  return packs.map((pack, index) => expanded && index < 3
-    ? { ...pack, title: `${pack.title} REFRESH EXPANSION` }
-    : { ...pack });
-}
 
 function snapshot({ samePack = false } = {}) {
   const pack = packs[activeIndex];
@@ -54,7 +50,7 @@ function snapshot({ samePack = false } = {}) {
     game: {
       assets: { logo: { url: "./assets/hero_hsl.png" } },
       developer: "HSL Fixture Studio",
-      displayName: `${pack.title}${expanded ? " REFRESH" : ""}${samePack ? " SAME" : ""}`,
+      displayName: `${pack.title}${samePack ? " SAME" : ""}`,
       errors: heroError ? ["Error sintÃ©tico de fixture"] : [],
       favorite: true,
       genre: ["Arcade", "Shooter"],
@@ -70,7 +66,7 @@ function snapshot({ samePack = false } = {}) {
     },
     library: {
       directory: { available: true, configured: true, path: "C:/fixture-packs" },
-      packs: visiblePacks(),
+      packs: packs.map((libraryPack) => ({ ...libraryPack })),
       preferences: {
         filtersOpen: false,
         sidebarWidth: 440,
@@ -118,7 +114,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   getRankingCapabilitiesState: async () => ({ entries: {}, generation: 1, inFlight: false }),
   getState: async () => {
     await new Promise((resolve) => setTimeout(resolve, 24));
-    expanded = true;
+    selectionPhase = "refresh";
     launcherStateRevision += 1;
     return snapshot();
   },
@@ -161,9 +157,10 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   startupTheme: Object.freeze({ effectiveTheme: "dark", legacyThemeMigrationAllowed: false }),
   toggleLibraryFavorite: async () => ({ ok: true }),
   useLibraryPack: async (packId) => {
+    selectionPhase = "pending";
     await new Promise((resolve) => setTimeout(resolve, 28));
     activeIndex = packs.findIndex((pack) => pack.id === packId);
-    expanded = false;
+    selectionPhase = "accepted";
     launcherStateRevision += 1;
     return { ok: true, pack: packs[activeIndex], state: snapshot() };
   },
@@ -181,5 +178,8 @@ contextBridge.exposeInMainWorld("hslFixture", {
   },
   getSwitchAccountCalls() {
     return switchAccountCalls;
+  },
+  getSelectionPhase() {
+    return selectionPhase;
   },
 });

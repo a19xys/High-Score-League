@@ -154,7 +154,7 @@ export function renderPackCard(pack, state, view = "covers") {
   const unavailable = busyBlocksLibrarySelection || pack.status === "missing";
   const busyAttribute = pending ? `aria-busy="true" ` : "";
   const selectableAttributes = active
-    ? busyAttribute.trim()
+    ? `${busyAttribute}tabindex="-1"`
     : unavailable
       ? `${busyAttribute}aria-disabled="true"`
       : `${busyAttribute}data-action="use-library-pack" data-pack-id="${escapeHtml(pack.id)}" tabindex="0" role="button"`;
@@ -162,7 +162,7 @@ export function renderPackCard(pack, state, view = "covers") {
   const subtitle = subtitleForPack(pack);
 
   return `
-    <article class="${cardClass}" data-instance-key="${escapeHtml(pack.instanceKey || "")}" data-selected="${active ? "true" : "false"}" aria-current="${active ? "true" : "false"}" title="${escapeHtml(`${pack.title || "Pack local"} · ${subtitle}`)}" ${selectableAttributes}>
+    <article class="${cardClass}" data-instance-key="${escapeHtml(pack.instanceKey || "")}" data-library-pack-id="${escapeHtml(pack.id || "")}" data-selected="${active ? "true" : "false"}" aria-current="${active ? "true" : "false"}" title="${escapeHtml(`${pack.title || "Pack local"} · ${subtitle}`)}" ${selectableAttributes}>
       ${renderFavorite(pack, state.busy, Boolean(state.data?.session?.hasSession))}
       ${renderBadges(pack, view)}
       ${renderPackVisual(pack, view)}

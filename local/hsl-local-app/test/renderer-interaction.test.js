@@ -196,24 +196,157 @@ test("changing pack resets only detail scroll", () => {
   assert.doesNotMatch(app, /scrollIntoView/);
 });
 
-test("pack selection keeps one scroll intent through pending, accepted snapshot and refresh", () => {
+test("pack selection uses incremental attributes without scroll compensation", () => {
   const app = source("app.js");
   const activation = app.slice(
     app.indexOf("async function activateLibraryPackWithPreload"),
     app.indexOf("function bindActions"),
   );
 
-  assert.match(app, /let libraryPackSelectionScroll = null/);
-  assert.match(app, /function captureLibraryPackSelectionScroll\(\)/);
-  assert.match(app, /contentBlockSize: content\?\.getBoundingClientRect\(\)\.height \|\| 0/);
-  assert.match(app, /function applyLibraryPackSelectionExtentLock/);
-  assert.match(app, /--library-packs-min-block-size/);
-  assert.match(app, /element\.dataset\.preserveScroll === "library-packs" && libraryPackSelectionScroll/);
-  assert.match(activation, /libraryPackSelectionScroll = captureLibraryPackSelectionScroll\(\)/);
-  assert.match(activation, /applyLibraryPackSelectionExtentLock\(\)/);
-  assert.match(app, /async function refreshRemoteStateAfterPackActivation[\s\S]*store\.setState\(launcherSnapshotPatch\(nextData\)\)[\s\S]*await releaseLibraryPackSelectionScroll\(requestId\)/);
-  assert.match(app, /releaseLibraryPackSelectionScroll[\s\S]*requestAnimationFrame\(\(\) => window\.requestAnimationFrame\(resolve\)\)/);
-  assert.doesNotMatch(activation, /setTimeout|scrollIntoView/);
+  assert.match(app, /function renderLibraryRegions\(state\)/);
+  assert.match(app, /syncLibraryPackSelectionState\(region, state\)/);
+  assert.match(app, /regionRenderer\.prime\("library-packs", libraryPacksHtml\)/);
+  assert.doesNotMatch(app, /libraryPackSelectionScroll|contentBlockSize|applyLibraryPackSelectionExtentLock|releaseLibraryPackSelectionScroll|--library-packs-min-block-size/);
+  assert.doesNotMatch(activation, /requestAnimationFrame|scrollTop|scrollIntoView|setTimeout/);
+});
+
+test("selection-only states share structural HTML while real library changes invalidate it", async () => {
+  const [{ createRegionRenderer }, { renderLibraryPacks }, { libraryPacksStructuralState }] = await Promise.all([
+    import(pathToFileURL(path.join(appDir, "region-renderer.js"))),
+    import(pathToFileURL(path.join(appDir, "components", "library-panel.js"))),
+    import(pathToFileURL(path.join(appDir, "library-selection-sync.js"))),
+  ]);
+  const initial = rendererState();
+  const secondPack = {
+    ...initial.data.library.packs[0],
+    favoriteKey: "pack-b",
+    id: "pack-b",
+    instanceKey: "instance-b",
+    title: "Game B Extended Edition",
+    weekId: "week-b",
+  };
+  initial.data.library.packs = [...initial.data.library.packs, secondPack];
+  initial.data.library.totals.packs = 2;
+  const pending = {
+    ...initial,
+    busy: true,
+    libraryActivationInProgress: true,
+    pendingLibraryPackId: "pack-b",
+  };
+  const accepted = {
+    ...pending,
+    busy: false,
+    libraryActivationInProgress: false,
+    pendingLibraryPackId: null,
+    data: {
+      ...pending.data,
+      selection: { activeInstanceKey: "instance-b" },
+    },
+  };
+  const structuralHtml = (state) => renderLibraryPacks(libraryPacksStructuralState(state));
+
+  assert.equal(structuralHtml(pending), structuralHtml(initial));
+  assert.equal(structuralHtml(accepted), structuralHtml(initial));
+  assert.notEqual(renderLibraryPacks(pending), renderLibraryPacks(initial));
+  assert.notEqual(renderLibraryPacks(accepted), renderLibraryPacks(initial));
+
+  const { regions, renderer } = fakeRenderer(createRegionRenderer, ["library-packs"]);
+  renderer.prime("library-packs", structuralHtml(initial));
+  const identity = regions.get("library-packs").identity;
+  renderer.render("library-packs", structuralHtml(pending));
+  assert.equal(regions.get("library-packs").identity, identity);
+  assert.equal(regions.get("library-packs").writes, 0);
+
+  const filterChanged = { ...initial, libraryQuery: "Extended" };
+  const sortChanged = { ...initial, librarySortDirection: "desc" };
+  const viewChanged = { ...initial, libraryView: "icons" };
+  const metadataChanged = {
+    ...initial,
+    data: {
+      ...initial.data,
+      library: {
+        ...initial.data.library,
+        packs: initial.data.library.packs.map((pack, index) => index === 0 ? { ...pack, title: "Renamed Game" } : pack),
+      },
+    },
+  };
+
+  for (const changed of [filterChanged, sortChanged, viewChanged, metadataChanged]) {
+    assert.notEqual(structuralHtml(changed), structuralHtml(initial));
+  }
+  renderer.render("library-packs", structuralHtml(filterChanged));
+  assert.equal(regions.get("library-packs").writes, 1);
+});
+
+test("incremental selection preserves card identity and synchronizes accessibility", async () => {
+  const { syncLibraryPackSelectionState } = await import(pathToFileURL(path.join(appDir, "library-selection-sync.js")));
+  const attributes = (entries = {}) => new Map(Object.entries(entries));
+  const fakeCard = (instanceKey) => {
+    const cardAttributes = attributes({ "aria-current": "false", "data-action": "use-library-pack", "data-pack-id": instanceKey.replace("instance", "pack"), role: "button", tabindex: "0" });
+    const classes = new Set(["pack-card"]);
+    const favorite = { disabled: false };
+    return {
+      attributes: cardAttributes,
+      classList: {
+        contains: (name) => classes.has(name),
+        toggle(name, enabled) {
+          if (enabled) classes.add(name);
+          else classes.delete(name);
+        },
+      },
+      dataset: { instanceKey, selected: "false" },
+      getAttribute: (name) => cardAttributes.get(name) ?? null,
+      querySelector: () => favorite,
+      removeAttribute: (name) => cardAttributes.delete(name),
+      setAttribute: (name, value) => cardAttributes.set(name, String(value)),
+      favorite,
+    };
+  };
+  const activeCard = fakeCard("instance-a");
+  const pendingCard = fakeCard("instance-b");
+  const cards = [activeCard, pendingCard];
+  const region = { querySelectorAll: () => cards };
+  const packs = [
+    { id: "pack-a", instanceKey: "instance-a", status: "ready" },
+    { id: "pack-b", instanceKey: "instance-b", status: "ready" },
+  ];
+  const state = rendererState({
+    busy: true,
+    libraryActivationInProgress: true,
+    pendingLibraryPackId: "pack-b",
+  });
+  state.data.library.packs = packs;
+
+  assert.equal(syncLibraryPackSelectionState(region, state), 2);
+  assert.equal(activeCard.dataset.selected, "true");
+  assert.equal(activeCard.getAttribute("aria-current"), "true");
+  assert.equal(activeCard.getAttribute("data-action"), null);
+  assert.equal(activeCard.getAttribute("role"), null);
+  assert.equal(activeCard.getAttribute("tabindex"), "-1");
+  assert.equal(pendingCard.classList.contains("pack-card--pending"), true);
+  assert.equal(pendingCard.getAttribute("aria-busy"), "true");
+  assert.equal(pendingCard.getAttribute("data-action"), "use-library-pack");
+  assert.equal(activeCard.favorite.disabled, true);
+  assert.equal(pendingCard.favorite.disabled, true);
+
+  const accepted = rendererState();
+  accepted.data.library.packs = packs;
+  accepted.data.selection.activeInstanceKey = "instance-b";
+  syncLibraryPackSelectionState(region, accepted);
+  assert.equal(cards[0], activeCard);
+  assert.equal(cards[1], pendingCard);
+  assert.equal(activeCard.dataset.selected, "false");
+  assert.equal(activeCard.getAttribute("aria-current"), "false");
+  assert.equal(activeCard.getAttribute("data-action"), "use-library-pack");
+  assert.equal(activeCard.getAttribute("role"), "button");
+  assert.equal(activeCard.getAttribute("tabindex"), "0");
+  assert.equal(pendingCard.dataset.selected, "true");
+  assert.equal(pendingCard.getAttribute("data-action"), null);
+  assert.equal(pendingCard.getAttribute("role"), null);
+  assert.equal(pendingCard.getAttribute("tabindex"), "-1");
+  assert.equal(pendingCard.getAttribute("aria-busy"), null);
+  assert.equal(activeCard.favorite.disabled, false);
+  assert.equal(pendingCard.favorite.disabled, false);
 });
 
 test("result-changing filters reset library scroll before state while presentation toggles do not", () => {

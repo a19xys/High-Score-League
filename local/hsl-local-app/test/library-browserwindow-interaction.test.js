@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const { execFile } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const { promisify } = require("node:util");
@@ -16,24 +17,44 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
       ...process.env,
       ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
       HSL_LIBRARY_TRACE_VISIBLE: "1",
+      HSL_LIBRARY_USE_GPU: "1",
     },
     maxBuffer: 2 * 1024 * 1024,
     windowsHide: true,
   });
   const result = JSON.parse(stdout.trim());
+  const fixtureSource = fs.readFileSync(fixture, "utf8");
+  const preloadSource = fs.readFileSync(path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-preload.cjs"), "utf8");
+
+  assert.doesNotMatch(preloadSource, /REFRESH EXPANSION|visiblePacks|let expanded/);
+  assert.match(fixtureSource, /sendInputEvent\(\{ type: "mouseWheel"/);
+  assert.match(fixtureSource, /sendInputEvent\(\{ type: "mouseDown"/);
+  assert.match(fixtureSource, /sendInputEvent\(\{ type: "mouseUp"/);
 
   for (const selection of result.selections) {
-    const [before, pending, , refresh, oneFrame, twoFrames] = selection.trace;
-    assert.equal(pending.identity, before.identity);
-    assert.equal(refresh.identity, before.identity);
+    const samples = Object.fromEntries(selection.trace.map((sample) => [sample.label, sample]));
+    const before = samples["A-stable"];
     assert.ok(selection.initialScrollTop > 0, `${selection.view} debe partir desplazada`);
+    assert.equal(selection.flicker, false, selection.view);
+    assert.equal(selection.maxScrollDelta, 0, selection.view);
+    assert.deepEqual(selection.geometryTransitions, [], `${selection.view} no debe alterar geometrÃ­a`);
+    assert.deepEqual(selection.identityTransitions, [], `${selection.view} no debe reemplazar nodos`);
+    assert.equal(selection.trace.at(-1).scrollEvents, 0, `${selection.view} no debe emitir scroll`);
     for (const frame of selection.frameTrace) {
-      assert.ok(Math.abs(frame.scrollTop - selection.initialScrollTop) <= 1, `${selection.view} frame ${frame.frame}`);
+      assert.equal(frame.scrollTop, selection.initialScrollTop, `${selection.view} frame ${frame.frame}`);
       assert.equal(frame.identity, before.identity);
+      assert.deepEqual(frame.nodes, { images: true, neighbors: true, scroller: true, target: true });
     }
-    assert.deepEqual(selection.geometryTransitions, [], `${selection.view} no debe contraer filas ni extent`);
-    for (const sample of [refresh, oneFrame, twoFrames]) {
-      assert.ok(Math.abs(sample.scrollTop - before.scrollTop) <= 1);
+    assert.equal(new Set(selection.frameTrace.map((frame) => frame.scrollHeight)).size, 1, selection.view);
+    for (const sample of selection.trace) {
+      assert.equal(sample.scrollTop, before.scrollTop);
+      assert.deepEqual(sample.nodes, { images: true, neighbors: true, scroller: true, target: true });
+    }
+    for (const label of ["B-mousedown-focus", "D-pending", "E-accepted", "F-refresh"]) {
+      assert.equal(samples[label].focusedInstanceKey, selection.targetInstanceKey, `${selection.view} ${label}`);
+    }
+    for (const label of ["E-accepted", "F-refresh", "G-one-frame", "G-three-frames"]) {
+      const sample = samples[label];
       assert.equal(sample.detailScrollTop, 0);
     }
   }

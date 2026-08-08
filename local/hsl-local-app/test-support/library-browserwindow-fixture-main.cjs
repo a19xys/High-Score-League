@@ -64,6 +64,11 @@ async function waitForFrames(window, count = 2) {
 async function sample(window, label) {
   return window.webContents.executeJavaScript(`(() => {
     const scroller = document.querySelector('[data-render-region="library-packs"]');
+    const refs = window.__hslSelectionRefs;
+    const target = refs
+      ? [...scroller.querySelectorAll('.pack-card')].find((card) => card.dataset.instanceKey === refs.targetInstanceKey)
+      : null;
+    const active = document.activeElement;
     return {
       label: ${JSON.stringify(label)},
       scrollTop: scroller.scrollTop,
@@ -73,6 +78,16 @@ async function sample(window, label) {
       selected: document.querySelector('.pack-card[data-selected="true"]')?.dataset.instanceKey || null,
       pending: document.querySelector('.pack-card--pending')?.dataset.instanceKey || null,
       detailScrollTop: document.querySelector('.game-scroll').scrollTop,
+      phase: window.hslFixture.getSelectionPhase(),
+      scrollEvents: window.__hslSelectionScrollEvents || 0,
+      focusedTag: active?.tagName || null,
+      focusedInstanceKey: active?.closest?.('.pack-card')?.dataset.instanceKey || null,
+      nodes: refs ? {
+        scroller: refs.scroller === scroller,
+        target: refs.target === target,
+        neighbors: refs.neighbors.every((card) => card.isConnected && card === [...scroller.querySelectorAll('.pack-card')].find((candidate) => candidate.dataset.instanceKey === card.dataset.instanceKey)),
+        images: refs.images.every((image) => image.isConnected && image === [...scroller.querySelectorAll('.pack-card__art')].find((candidate) => candidate.dataset.assetSelection === image.dataset.assetSelection)),
+      } : null,
     };
   })()`);
 }
@@ -82,6 +97,7 @@ async function beginFrameTrace(window) {
     const measure = () => {
       const scroller = document.querySelector('[data-render-region="library-packs"]');
       const scrollerRect = scroller.getBoundingClientRect();
+      const refs = window.__hslSelectionRefs;
       const cards = [...scroller.querySelectorAll('.pack-card')].map((card) => {
         const cardRect = card.getBoundingClientRect();
         const mediaRect = card.querySelector('.pack-card__media')?.getBoundingClientRect();
@@ -100,8 +116,19 @@ async function beginFrameTrace(window) {
         };
       });
       const rowTops = [...new Set(cards.map((card) => Math.round(card.top * 100) / 100))];
+      const visibleCards = cards.filter((card) => {
+        const viewportTop = scroller.scrollTop;
+        const viewportBottom = viewportTop + scroller.clientHeight;
+        return card.bottom >= viewportTop && card.top <= viewportBottom;
+      });
+      const active = document.activeElement;
+      const target = refs
+        ? [...scroller.querySelectorAll('.pack-card')].find((card) => card.dataset.instanceKey === refs.targetInstanceKey)
+        : null;
+      const content = scroller.firstElementChild;
       return {
         frame: window.__hslFrameTrace?.length || 0,
+        phase: window.__hslTracePhase || 'A-stable',
         scrollTop: scroller.scrollTop,
         scrollHeight: scroller.scrollHeight,
         clientHeight: scroller.clientHeight,
@@ -110,10 +137,25 @@ async function beginFrameTrace(window) {
         view: document.querySelector('[data-action="set-library-view"].view-button--active')?.dataset.view || null,
         selected: document.querySelector('.pack-card[data-selected="true"]')?.dataset.instanceKey || null,
         pending: document.querySelector('.pack-card--pending')?.dataset.instanceKey || null,
+        focusedTag: active?.tagName || null,
+        focusedInstanceKey: active?.closest?.('.pack-card')?.dataset.instanceKey || null,
+        contentHeight: content?.getBoundingClientRect().height || 0,
+        scrollEvents: window.__hslSelectionScrollEvents || 0,
+        nodes: refs ? {
+          scroller: refs.scroller === scroller,
+          target: refs.target === target,
+          neighbors: refs.neighbors.every((card) => card.isConnected && card === [...scroller.querySelectorAll('.pack-card')].find((candidate) => candidate.dataset.instanceKey === card.dataset.instanceKey)),
+          images: refs.images.every((image) => image.isConnected && image === [...scroller.querySelectorAll('.pack-card__art')].find((candidate) => candidate.dataset.assetSelection === image.dataset.assetSelection)),
+        } : null,
         cards,
+        visibleCards,
         rowTops,
       };
     };
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    window.__hslSelectionScrollEvents = 0;
+    window.__hslSelectionScrollHandler = () => { window.__hslSelectionScrollEvents += 1; };
+    scroller.addEventListener('scroll', window.__hslSelectionScrollHandler);
     window.__hslFrameTrace = [measure()];
     window.__hslFrameTraceActive = true;
     const tick = () => {
@@ -129,6 +171,8 @@ async function endFrameTrace(window) {
   return window.webContents.executeJavaScript(`new Promise((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => {
       window.__hslFrameTraceActive = false;
+      const scroller = document.querySelector('[data-render-region="library-packs"]');
+      scroller.removeEventListener('scroll', window.__hslSelectionScrollHandler);
       resolve(window.__hslFrameTrace);
     })));
   })`);
@@ -136,6 +180,8 @@ async function endFrameTrace(window) {
 
 function summarizeFrameTrace(frames) {
   const geometryTransitions = [];
+  const identityTransitions = [];
+  const initialScrollTop = frames[0]?.scrollTop || 0;
 
   for (let index = 1; index < frames.length; index += 1) {
     const before = frames[index - 1];
@@ -163,50 +209,141 @@ function summarizeFrameTrace(frames) {
     });
   }
 
+  frames.forEach((frame) => {
+    if (frame.nodes && Object.values(frame.nodes).some((same) => !same)) {
+      identityTransitions.push({ frame: frame.frame, nodes: frame.nodes, phase: frame.phase });
+    }
+  });
+
   return {
-    frameTrace: frames.map(({ cards, rowTops, ...frame }) => frame),
+    flicker: geometryTransitions.length > 0 || identityTransitions.length > 0,
+    frameTrace: frames.map(({ cards, rowTops, visibleCards, ...frame }) => frame),
     geometryTransitions,
+    identityTransitions,
+    maxScrollDelta: Math.max(...frames.map((frame) => Math.abs(frame.scrollTop - initialScrollTop))),
   };
+}
+
+async function scrollLibraryWithWheel(window, { nearBottom, requestedTop }) {
+  const coordinates = await window.webContents.executeJavaScript(`(() => {
+    const rect = document.querySelector('[data-render-region="library-packs"]').getBoundingClientRect();
+    return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+  })()`);
+  window.webContents.sendInputEvent({ type: "mouseMove", ...coordinates });
+  const attempts = [];
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const metrics = await window.webContents.executeJavaScript(`(() => {
+      const scroller = document.querySelector('[data-render-region="library-packs"]');
+      return { max: scroller.scrollHeight - scroller.clientHeight, top: scroller.scrollTop };
+    })()`);
+    const desired = nearBottom ? metrics.max : Math.min(requestedTop, Math.max(0, metrics.max - 80));
+    const tolerance = nearBottom ? 2 : Math.max(80, desired * 0.5);
+    if (Math.abs(desired - metrics.top) <= tolerance && metrics.top > 0) return { ...metrics, desired };
+    const delta = Math.min(nearBottom ? 1_200 : 600, Math.max(120, Math.abs(desired - metrics.top)));
+    const direction = desired > metrics.top ? -1 : 1;
+    attempts.push({ deltaY: direction * delta, desired, top: metrics.top });
+    window.webContents.sendInputEvent({ type: "mouseWheel", ...coordinates, deltaY: direction * delta });
+    await waitForLibraryScrollToSettle(window);
+  }
+
+  throw new Error(`Wheel input did not reach the requested library position: ${JSON.stringify(attempts)}`);
+}
+
+async function waitForLibraryScrollToSettle(window) {
+  let previous = null;
+  let stableFrames = 0;
+
+  for (let frame = 0; frame < 90; frame += 1) {
+    await waitForFrames(window, 1);
+    const top = await window.webContents.executeJavaScript(
+      "document.querySelector('[data-render-region=\"library-packs\"]').scrollTop",
+    );
+    stableFrames = top === previous ? stableFrames + 1 : 0;
+    if (stableFrames >= 3) return top;
+    previous = top;
+  }
+
+  throw new Error("Library wheel input did not settle before selection");
 }
 
 async function selectVisiblePack(window, { nearBottom = false, requestedTop = 600, view = "covers" } = {}) {
   await window.webContents.executeJavaScript(`document.querySelector('[data-action="set-library-view"][data-view="${view}"]')?.click()`);
-  await delay(40);
+  await waitForFrames(window, 2);
+  const scroll = await scrollLibraryWithWheel(window, { nearBottom, requestedTop });
+  await waitForLibraryScrollToSettle(window);
   const setup = await window.webContents.executeJavaScript(`(() => {
     const scroller = document.querySelector('[data-render-region="library-packs"]');
     scroller.dataset.fixtureIdentity ||= 'library-packs-node';
-    scroller.scrollTop = ${nearBottom
-      ? "Math.max(0, scroller.scrollHeight - scroller.clientHeight - 2)"
-      : `Math.min(${requestedTop}, scroller.scrollHeight - scroller.clientHeight - 80)`};
     const bounds = scroller.getBoundingClientRect();
-    const candidates = [...scroller.querySelectorAll('[data-action="use-library-pack"]')]
+    const selectableCards = [...scroller.querySelectorAll('[data-action="use-library-pack"]')];
+    const candidates = selectableCards
       .filter((card) => {
         const rect = card.getBoundingClientRect();
-        return rect.bottom >= bounds.top + 40 && rect.top <= bounds.bottom - 40;
+        return rect.top >= bounds.top + 12 && rect.bottom <= bounds.bottom - 12;
       });
-    const target = candidates.at(-1) || candidates[0];
-    return { instanceKey: target.dataset.instanceKey, scrollTop: scroller.scrollTop };
+    const visibleCards = selectableCards.filter((card) => {
+      const rect = card.getBoundingClientRect();
+      const center = rect.top + rect.height / 2;
+      return center >= bounds.top + 12 && center <= bounds.bottom - 12;
+    });
+    const targetPool = candidates.length > 0 ? candidates : visibleCards;
+    const target = targetPool[Math.floor(targetPool.length / 2)];
+    if (!target) throw new Error('No selectable card is visible after wheel input');
+    const cards = [...scroller.querySelectorAll('.pack-card')];
+    const targetIndex = cards.indexOf(target);
+    const neighbors = cards.filter((_, index) => Math.abs(index - targetIndex) <= 2 && index !== targetIndex);
+    const images = [target, ...neighbors].map((card) => card.querySelector('.pack-card__art')).filter(Boolean);
+    const rect = target.getBoundingClientRect();
+    window.__hslSelectionRefs = {
+      images,
+      neighbors,
+      scroller,
+      target,
+      targetInstanceKey: target.dataset.instanceKey,
+    };
+    window.__hslTracePhase = 'A-stable';
+    return {
+      instanceKey: target.dataset.instanceKey,
+      scrollTop: scroller.scrollTop,
+      x: Math.round(rect.left + rect.width / 2),
+      y: Math.round(rect.top + rect.height / 2),
+    };
   })()`);
   await window.webContents.executeJavaScript("document.querySelector('.game-scroll').scrollTop = 160");
-  const trace = [await sample(window, "A-before-click")];
+  const trace = [await sample(window, "A-stable")];
   await beginFrameTrace(window);
-  await window.webContents.executeJavaScript(`(() => {
-    const target = [...document.querySelectorAll('[data-action="use-library-pack"]')]
-      .find((card) => card.dataset.instanceKey === ${JSON.stringify(setup.instanceKey)});
-    target.click();
-  })()`);
+  await window.webContents.executeJavaScript("window.__hslTracePhase = 'B-mousedown-focus'");
+  window.webContents.sendInputEvent({ type: "mouseMove", x: setup.x, y: setup.y });
+  window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, x: setup.x, y: setup.y });
+  await waitForFrames(window, 1);
+  trace.push(await sample(window, "B-mousedown-focus"));
+  await window.webContents.executeJavaScript("window.__hslTracePhase = 'C-mouseup-click'");
+  window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, x: setup.x, y: setup.y });
+  trace.push(await sample(window, "C-mouseup-click"));
   await waitFor(window, "document.querySelector('.pack-card--pending')");
-  trace.push(await sample(window, "B-pending"));
+  await window.webContents.executeJavaScript("window.__hslTracePhase = 'D-pending'");
+  trace.push(await sample(window, "D-pending"));
   await waitFor(window, `document.querySelector('.pack-card[data-selected="true"]')?.dataset.instanceKey === ${JSON.stringify(setup.instanceKey)} && !document.querySelector('.pack-card--pending')`);
-  trace.push(await sample(window, "C-accepted"));
-  await waitFor(window, "document.querySelector('[data-render-region=\"game-identity\"]')?.textContent.includes('REFRESH')");
-  trace.push(await sample(window, "D-refresh"));
-  await window.webContents.executeJavaScript("new Promise((resolve) => requestAnimationFrame(resolve))");
-  trace.push(await sample(window, "E-one-frame"));
-  await window.webContents.executeJavaScript("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  trace.push(await sample(window, "F-two-frames-assets"));
+  await window.webContents.executeJavaScript("window.__hslTracePhase = 'E-accepted'");
+  trace.push(await sample(window, "E-accepted"));
+  await waitFor(window, "window.hslFixture.getSelectionPhase() === 'refresh'");
+  await window.webContents.executeJavaScript("window.__hslTracePhase = 'F-refresh'");
+  trace.push(await sample(window, "F-refresh"));
+  await waitForFrames(window, 1);
+  trace.push(await sample(window, "G-one-frame"));
+  await waitForFrames(window, 2);
+  trace.push(await sample(window, "G-three-frames"));
   const frameDiagnostics = summarizeFrameTrace(await endFrameTrace(window));
-  return { ...frameDiagnostics, initialScrollTop: setup.scrollTop, nearBottom, trace, view };
+  return {
+    ...frameDiagnostics,
+    initialScrollTop: setup.scrollTop,
+    nearBottom,
+    scrollInput: scroll,
+    targetInstanceKey: setup.instanceKey,
+    trace,
+    view,
+  };
 }
 
 async function visualMetrics(window) {

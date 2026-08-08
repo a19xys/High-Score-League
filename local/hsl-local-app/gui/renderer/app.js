@@ -38,6 +38,10 @@ import {
   LIBRARY_SIDEBAR_MAX,
   LIBRARY_SIDEBAR_MIN,
 } from "./library-geometry.js";
+import {
+  libraryPacksStructuralState,
+  syncLibraryPackSelectionState,
+} from "./library-selection-sync.js";
 import { createRegionRenderer, preservedScrollElements } from "./region-renderer.js";
 import {
   cancelActiveOperationFeedback,
@@ -109,7 +113,6 @@ let libraryPreferencesPersistSequence = 0;
 let libraryPreferenceUserRevision = 0;
 let hydratedLibraryPreferencesScopeKey = null;
 let libraryPackSelectionSequence = 0;
-let libraryPackSelectionScroll = null;
 let sidebarResize = null;
 let metadataResizeObserver = null;
 let metadataLayoutFrame = 0;
@@ -118,6 +121,7 @@ let currentDialogType = null;
 let currentOverlayType = null;
 let currentGameStructureKey = null;
 let currentLibraryStructureKey = null;
+let currentLibraryPacksStructureHtml = null;
 let rendererMounted = false;
 const loginDraft = createEphemeralLoginDraft();
 let loginDraftOpen = false;
@@ -303,9 +307,7 @@ function captureRegionInteraction(region) {
   const scroll = preservedScrollElements(region).map((element) => ({
     key: element.dataset.preserveScroll,
     left: element.scrollLeft,
-    top: element.dataset.preserveScroll === "library-packs" && libraryPackSelectionScroll
-      ? libraryPackSelectionScroll.top
-      : element.scrollTop,
+    top: element.scrollTop,
   }));
 
   return { focus, scroll };
@@ -363,7 +365,6 @@ function syncThemeControlRegion(region, html) {
 function writeRegion(region, html, name) {
   if (name === "header-theme" && syncThemeControlRegion(region, html)) return;
   const interaction = captureRegionInteraction(region);
-  if (name === "library-packs") applyLibraryPackSelectionExtentLock(region);
   region.innerHTML = html;
   restoreRegionInteraction(region, interaction);
 }
@@ -556,36 +557,6 @@ function findLibraryPack(packId) {
   return store.getState().data?.library?.packs?.find((pack) => pack.id === packId) || null;
 }
 
-function captureLibraryPackSelectionScroll() {
-  const scroller = root.querySelector('[data-preserve-scroll="library-packs"]');
-  const content = scroller?.querySelector(".library-packs-content");
-  return scroller ? {
-    contentBlockSize: content?.getBoundingClientRect().height || 0,
-    top: scroller.scrollTop,
-  } : null;
-}
-
-function applyLibraryPackSelectionExtentLock(scroller = root.querySelector('[data-preserve-scroll="library-packs"]')) {
-  if (!scroller) return;
-  const contentBlockSize = libraryPackSelectionScroll?.contentBlockSize || 0;
-  if (contentBlockSize > 0) {
-    scroller.style.setProperty("--library-packs-min-block-size", `${contentBlockSize}px`);
-  } else {
-    scroller.style.removeProperty("--library-packs-min-block-size");
-  }
-}
-
-function clearLibraryPackSelectionScroll() {
-  libraryPackSelectionScroll = null;
-  applyLibraryPackSelectionExtentLock();
-}
-
-async function releaseLibraryPackSelectionScroll(requestId) {
-  await new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
-  if (requestId !== libraryPackSelectionSequence) return;
-  clearLibraryPackSelectionScroll();
-}
-
 function resetLibraryResultsScroll() {
   const scroller = root.querySelector('[data-preserve-scroll="library-packs"]');
   if (scroller) scroller.scrollTop = 0;
@@ -599,10 +570,6 @@ async function refreshRemoteStateAfterPackActivation(requestId, expectedInstance
     store.setState(launcherSnapshotPatch(nextData));
   } catch {
     // La activaciÃ³n aceptada sigue siendo autoritativa si el refresh falla.
-  } finally {
-    if (requestId === libraryPackSelectionSequence) {
-      await releaseLibraryPackSelectionScroll(requestId);
-    }
   }
 }
 
@@ -748,6 +715,38 @@ function renderRegions(regions) {
   return changed;
 }
 
+function libraryPacksStructureHtml(state) {
+  return renderLibraryPacks(libraryPacksStructuralState(state));
+}
+
+function primeLibraryRegions(state) {
+  primeRegions(libraryRegionHtml(state));
+  currentLibraryPacksStructureHtml = libraryPacksStructureHtml(state);
+}
+
+function renderLibraryRegions(state) {
+  const regions = libraryRegionHtml(state);
+  const libraryPacksHtml = regions["library-packs"];
+  delete regions["library-packs"];
+  const changed = renderRegions(regions);
+  const structureHtml = libraryPacksStructureHtml(state);
+  const region = root.querySelector('[data-render-region="library-packs"]');
+  const canSynchronizeSelection = Boolean(
+    region?.querySelector(".pack-card") &&
+    structureHtml === currentLibraryPacksStructureHtml
+  );
+
+  if (canSynchronizeSelection) {
+    syncLibraryPackSelectionState(region, state);
+    regionRenderer.prime("library-packs", libraryPacksHtml);
+  } else if (regionRenderer.render("library-packs", libraryPacksHtml)) {
+    changed.add("library-packs");
+  }
+
+  currentLibraryPacksStructureHtml = structureHtml;
+  return changed;
+}
+
 function gameStructureKey(state) {
   if (!state.data) return "loading";
   const fallback = shouldRenderLibraryBrandFallback(state);
@@ -807,9 +806,10 @@ function mountRenderer(state) {
     "library-panel": renderLibraryPanel(state),
     overlay: renderOverlay(state),
   });
-  if (state.data) primeRegions(libraryRegionHtml(state));
+  if (state.data) primeLibraryRegions(state);
   if (state.data?.game && detailScrollKeyFromState(state)) primeRegions(gameRegionHtml(state));
   currentLibraryStructureKey = state.data ? "ready" : "loading";
+  if (!state.data) currentLibraryPacksStructureHtml = null;
   currentGameStructureKey = gameStructureKey(state);
   currentDetailScrollKey = detailScrollKeyFromState(state);
   rendererMounted = true;
@@ -886,9 +886,10 @@ function render(nextState, changedKeys = []) {
   if (nextLibraryStructureKey !== currentLibraryStructureKey) {
     regionRenderer.render("library-panel", renderLibraryPanel(state));
     currentLibraryStructureKey = nextLibraryStructureKey;
-    if (state.data) primeRegions(libraryRegionHtml(state));
+    if (state.data) primeLibraryRegions(state);
+    else currentLibraryPacksStructureHtml = null;
   } else if (state.data) {
-    renderRegions(libraryRegionHtml(state));
+    renderLibraryRegions(state);
   }
 
   const nextDetailScrollKey = detailScrollKeyFromState(state);
@@ -1737,8 +1738,6 @@ async function activateLibraryPackWithPreload(packId) {
   if (!safePackId) return;
 
   const requestId = ++libraryPackSelectionSequence;
-  libraryPackSelectionScroll = captureLibraryPackSelectionScroll();
-  applyLibraryPackSelectionExtentLock();
   const optimisticPack = findLibraryPack(safePackId);
   const optimisticPreload = preloadDetailAssetUrls(detailAssetUrlsFromLibraryPack(optimisticPack));
 
@@ -1785,8 +1784,6 @@ async function activateLibraryPackWithPreload(packId) {
     if (requestId !== libraryPackSelectionSequence) {
       return;
     }
-
-    clearLibraryPackSelectionScroll();
 
     store.setState({
       busy: false,

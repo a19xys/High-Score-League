@@ -6350,11 +6350,6 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   -webkit-line-clamp: 2;
 }
 
-.library-packs-content {
-  display: block;
-  min-block-size: var(--library-packs-min-block-size, 0px);
-}
-
 .pack-card--icons .pack-card__body {
   display: flex;
   align-items: stretch;

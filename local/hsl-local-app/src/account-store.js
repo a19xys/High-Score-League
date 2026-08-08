@@ -325,8 +325,8 @@ function toSafeAccountsState(store = emptyStore(), session = {}, options = {}) {
       requiresLogin,
       requiresLoginMessage: requiresLogin
         ? hasPending
-          ? "Esta cuenta tiene puntuaciones pendientes. Inicia sesion para enviarlas."
-          : "Inicia sesion de nuevo para usar esta cuenta."
+          ? "Esta cuenta tiene puntuaciones pendientes. Inicia sesión para enviarlas."
+          : "Inicia sesión de nuevo para usar esta cuenta."
         : null,
       sessionStatus: sessionState?.status || null,
       userId: account.userId,
