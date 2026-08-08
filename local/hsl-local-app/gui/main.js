@@ -1,6 +1,6 @@
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, powerMonitor, safeStorage, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, powerMonitor, safeStorage, shell } = require("electron");
 const service = require("./launcher-service");
 const { createConnectivityService, isCommittedConnected } = require("../src/connectivity-service");
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
@@ -44,6 +44,12 @@ let removeConnectivityListener = null;
 let removeRankingListener = null;
 let previousReachability = "unknown";
 let lastCommittedAt = null;
+
+const NATIVE_TITLE_BAR_HEIGHT = 32;
+const NATIVE_ICON_PATHS = Object.freeze({
+  linux: path.join(__dirname, "renderer", "assets", "native", "app-icon.png"),
+  win32: path.join(__dirname, "renderer", "assets", "native", "app-icon.ico"),
+});
 let activeUserId = null;
 let pendingAutoSubmitCoordinator = null;
 let membershipStartupCoordinator = null;
@@ -147,6 +153,35 @@ function publicThemeState(state = themeAuthority?.getState()) {
     schemaVersion: Number(state?.schemaVersion) || 1,
     warnings: Array.isArray(state?.warnings) ? state.warnings : [],
   };
+}
+
+function nativeTitleBarOverlay(theme) {
+  const dark = theme !== "light";
+  return {
+    color: themeBackgroundColor(dark ? "dark" : "light"),
+    height: NATIVE_TITLE_BAR_HEIGHT,
+    symbolColor: dark ? "#f8fafc" : "#0f172a",
+  };
+}
+
+function nativeWindowChromeOptions(platform, theme) {
+  if (platform === "darwin") {
+    return { titleBarStyle: "hiddenInset" };
+  }
+
+  return {
+    icon: NATIVE_ICON_PATHS[platform] || NATIVE_ICON_PATHS.linux,
+    titleBarOverlay: nativeTitleBarOverlay(theme),
+    titleBarStyle: "hidden",
+  };
+}
+
+function applyNativeWindowTheme(window, theme) {
+  if (!window || window.isDestroyed?.()) return;
+  window.setBackgroundColor?.(themeBackgroundColor(theme));
+  if (process.platform !== "darwin") {
+    window.setTitleBarOverlay?.(nativeTitleBarOverlay(theme));
+  }
 }
 
 function handlePowerSuspend() {
@@ -478,6 +513,7 @@ function createMainWindow() {
     backgroundColor: themeBackgroundColor(theme.effectiveTheme),
     show: false,
     title: "High Score League Launcher",
+    ...nativeWindowChromeOptions(process.platform, theme.effectiveTheme),
     webPreferences: createSecureWebPreferences({
       additionalArguments: [
         `--hsl-startup-theme=${theme.effectiveTheme}`,
@@ -586,14 +622,14 @@ function registerIpc() {
       return;
     }
     const publicState = publicThemeState(state);
-    mainWindow?.setBackgroundColor?.(themeBackgroundColor(publicState.effectiveTheme));
+    applyNativeWindowTheme(mainWindow, publicState.effectiveTheme);
     event.returnValue = { ...publicState, legacyMigrationStatus };
   });
   ipcMain.handle("launcher:set-theme", async (_event, theme) => {
     try {
       const state = await themeAuthority.setManualTheme(theme);
       const publicState = publicThemeState(state);
-      mainWindow?.setBackgroundColor?.(themeBackgroundColor(publicState.effectiveTheme));
+      applyNativeWindowTheme(mainWindow, publicState.effectiveTheme);
       return { ...publicState, ok: true };
     } catch (error) {
       return {
@@ -932,6 +968,8 @@ if (!hasSingleInstanceLock) {
   app.quit();
 } else {
   app.whenReady().then(async () => {
+    Menu.setApplicationMenu(null);
+    if (process.platform === "win32") app.setAppUserModelId("com.highscoreleague.launcher");
     themeAuthority = createThemeAuthority({
       readSystemTheme,
       userDataDir: app.getPath("userData"),

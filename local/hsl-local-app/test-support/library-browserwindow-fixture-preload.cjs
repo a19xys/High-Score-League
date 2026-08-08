@@ -42,6 +42,7 @@ function snapshot({ samePack = false } = {}) {
   const accounts = [
     { displayName: "Fixture", email: "fixture@example.test", hasLocalSession: true, isActive: activeUserId === "fixture", userId: "fixture" },
     { displayName: "Cuenta disponible", email: "valid@example.test", hasLocalSession: true, isActive: activeUserId === "valid", userId: "valid" },
+    { displayName: "Cuenta caducada inesperadamente", email: "expired@example.test", hasLocalSession: true, isActive: false, userId: "expired" },
     { displayName: "Cuenta bloqueada", email: "relogin@example.test", hasLocalSession: false, isActive: false, requiresLogin: true, userId: "relogin" },
   ];
   const heroError = heroStatus === "error";
@@ -125,6 +126,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   onConnectivityState: () => () => {},
   onLauncherState: subscription((callback) => { launcherStateListener = callback; }),
   onRankingCapabilitiesState: () => () => {},
+  platform: "win32",
   reportConnectivityApplied() {},
   reportRankingApplied() {},
   reportStartupMilestone() {},
@@ -141,6 +143,15 @@ contextBridge.exposeInMainWorld("hslLauncher", {
         requiresLogin: true,
         state: snapshot(),
         summary: "Inicia sesiÃ³n de nuevo para esta cuenta.",
+      };
+    }
+    if (userId === "expired") {
+      return {
+        email: "expired@example.test",
+        ok: false,
+        requiresLogin: true,
+        state: snapshot(),
+        summary: "La sesiÃƒÂ³n caducÃƒÂ³ durante el cambio.",
       };
     }
     if (userId === "valid") activeUserId = "valid";

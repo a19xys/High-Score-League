@@ -1,6 +1,4 @@
-﻿import { existsSync } from "node:fs";
-import { formatWeekCount, formatWeekRange } from "@/lib/format";
-import { join } from "node:path";
+﻿import { formatWeekCount, formatWeekRange } from "@/lib/format";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LeagueChat } from "@/components/league-chat";
 import { HomePollCard } from "@/components/home-poll-card";
@@ -71,13 +69,7 @@ export default async function HomePage() {
   const session = await getServerSession();
 
   if (session.status !== "signed-in") {
-    return (
-      <PublicLanding
-        hasHorizontalLogo={existsSync(
-          join(process.cwd(), "public", "brand", "logo-horizontal.png"),
-        )}
-      />
-    );
+    return <PublicLanding />;
   }
 
   const data = await getHomePageData(session.userId);

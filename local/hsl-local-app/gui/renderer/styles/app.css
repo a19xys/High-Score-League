@@ -97,8 +97,44 @@ summary:focus-visible {
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: calc(100vh - var(--native-titlebar-height, 32px));
   padding: 28px;
+}
+
+.window-titlebar {
+  display: flex;
+  width: 100%;
+  height: var(--native-titlebar-height, 32px);
+  min-height: var(--native-titlebar-height, 32px);
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: var(--background);
+  color: var(--text);
+  padding-inline: 12px 152px;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+html[data-platform="darwin"] .window-titlebar {
+  padding-inline: 78px 12px;
+}
+
+.window-titlebar__icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  object-fit: contain;
+}
+
+.window-titlebar__title {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 main,
@@ -1787,14 +1823,14 @@ body {
 
 #app {
   width: 100%;
-  height: 100%;
+  height: calc(100vh - var(--native-titlebar-height, 32px));
 }
 
 .app-shell {
   display: grid;
   width: 100vw;
-  height: 100vh;
-  min-height: 100vh;
+  height: calc(100vh - var(--native-titlebar-height, 32px));
+  min-height: calc(100vh - var(--native-titlebar-height, 32px));
   grid-template-rows: auto 1fr;
   overflow: hidden;
   padding: 0;
@@ -3646,6 +3682,8 @@ div.account-row__button {
   mask-position: center;
   mask-repeat: no-repeat;
   mask-size: contain;
+  transform: translate(var(--icon-optical-x, 0), var(--icon-optical-y, 0)) scale(var(--icon-glyph-scale, 1));
+  transform-origin: center;
 }
 
 .ui-icon__img {
@@ -6282,7 +6320,7 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
 .pack-card--icons {
   container-type: inline-size;
   height: 100%;
-  grid-template-rows: auto minmax(0, auto);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--icon-card-gap);
   padding: var(--icon-card-padding-inline) var(--icon-card-padding-inline) calc(var(--icon-card-padding-inline) + var(--icon-card-title-padding-block));
 }
@@ -6318,13 +6356,18 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
 }
 
 .pack-card--icons .pack-card__body {
-  place-items: center;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
 }
 
 .pack-card--icons .pack-card__text {
-  display: grid;
-  height: 100%;
-  place-items: center;
+  display: flex;
+  height: auto;
+  align-self: stretch;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .game-scroll {
@@ -6337,8 +6380,8 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   content: "";
   display: block;
   width: 100%;
-  height: 40px;
-  flex: 0 0 40px;
+  height: 16px;
+  flex: 0 0 16px;
   pointer-events: none;
 }
 
@@ -6349,20 +6392,23 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   height: 14px;
   flex: 0 0 14px;
   place-items: center;
-  border: 1px solid var(--signal-socket-border);
+  border: 0;
   border-radius: 999px;
-  background: var(--signal-socket);
-  box-shadow: 0 1px 2px rgb(2 6 23 / 0.24);
+  background: currentColor;
+  box-shadow: none;
   color: var(--signal-neutral);
 }
 
-.status-beacon__core {
-  display: block;
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: currentColor;
-  box-shadow: 0 0 5px color-mix(in srgb, currentColor 72%, transparent);
+.status-beacon--pack {
+  border: 2px solid #fff;
+}
+
+html[data-theme="dark"] .status-beacon--pack {
+  border-color: var(--background);
+}
+
+.status-beacon--connection {
+  border: 0;
 }
 
 .status-beacon--success {
@@ -6389,6 +6435,10 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   display: inline-grid;
   padding: 0;
   place-items: center;
+}
+
+.icon-button .ui-icon--close {
+  --icon-glyph-scale: 0.82;
 }
 
 .pack-card__subtitle {
@@ -6607,6 +6657,11 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   height: 17px;
   flex: 0 0 17px;
   color: currentColor;
+}
+
+.game-hero-indicator--favorite .game-hero-indicator__icon.ui-icon {
+  --icon-optical-x: -0.5px;
+  --icon-optical-y: -0.5px;
 }
 
 html:not([data-theme="dark"]) .game-hero-indicator {

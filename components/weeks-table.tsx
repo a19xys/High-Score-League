@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import {
+  getArchiveYears,
+  rangeMatchesArchiveYear,
+} from "@/lib/archive-years";
 import { formatTableDateRange } from "@/lib/format";
 import type { WeekSummary } from "@/types";
 import { PlayerPill } from "./player-pill";
@@ -90,13 +94,14 @@ export function WeeksTable({
 }: WeeksTableProps) {
   const [query, setQuery] = useState("");
   const [season, setSeason] = useState("all");
-  const [status, setStatus] = useState("all");
+  const [year, setYear] = useState("all");
   const [publisher, setPublisher] = useState("all");
   const [genre, setGenre] = useState("all");
   const [leader, setLeader] = useState("all");
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("dates");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [archiveNow] = useState(() => new Date());
 
   const filterOptions = useMemo(() => {
     const publicRows = weeks.filter((summary) => !isSecretWeek(summary, currentWeekNumber));
@@ -105,6 +110,14 @@ export function WeeksTable({
 
     return {
       seasons: [...new Set(weeks.map((summary) => summary.season.name))].sort(),
+      years: getArchiveYears(
+        publicRows.map((summary) => ({
+          startsAt: summary.week.startsAt,
+          endsAt: summary.week.endsAt,
+          capAtNow: publicWeekStatus(summary) === "active",
+        })),
+        archiveNow,
+      ),
       publishers: compactOptions(publicRows.flatMap((summary) => summary.game.publishers)),
       genres: compactOptions(publicRows.flatMap((summary) => summary.game.taxonomyTags)),
       leaders: [
@@ -115,7 +128,7 @@ export function WeeksTable({
         ).values(),
       ].sort((a, b) => (a?.username ?? "").localeCompare(b?.username ?? "")),
     };
-  }, [currentWeekNumber, weeks]);
+  }, [archiveNow, currentWeekNumber, weeks]);
 
   const visibleWeeks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -141,7 +154,13 @@ export function WeeksTable({
             value?.toLowerCase().includes(normalizedQuery),
           );
         const matchesSeason = season === "all" || summary.season.name === season;
-        const matchesStatus = status === "all" || status === publicStatus;
+        const matchesYear =
+          year === "all" ||
+          (!secret &&
+            rangeMatchesArchiveYear(summary.week.startsAt, summary.week.endsAt, year, {
+              capAtNow: publicStatus === "active",
+              now: archiveNow,
+            }));
         const matchesPublisher =
           publisher === "all" || (!secret && summary.game.publishers.includes(publisher));
         const matchesGenre =
@@ -152,7 +171,7 @@ export function WeeksTable({
         return (
           matchesQuery &&
           matchesSeason &&
-          matchesStatus &&
+          matchesYear &&
           matchesPublisher &&
           matchesGenre &&
           matchesLeader
@@ -191,6 +210,7 @@ export function WeeksTable({
       .map(({ summary }) => summary);
   }, [
     currentWeekNumber,
+    archiveNow,
     publisher,
     genre,
     leader,
@@ -198,8 +218,8 @@ export function WeeksTable({
     season,
     sortDirection,
     sortKey,
-    status,
     weeks,
+    year,
   ]);
 
   function toggleSort(nextKey: SortKey) {
@@ -268,17 +288,19 @@ export function WeeksTable({
             </label>
             <label className="block">
               <span className="text-xs font-semibold uppercase theme-text-muted">
-                Estado
+                Año
               </span>
               <select
                 className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-                onChange={(event) => setStatus(event.target.value)}
-                value={status}
+                onChange={(event) => setYear(event.target.value)}
+                value={year}
               >
                 <option value="all">Todos</option>
-                <option value="active">Activa</option>
-                <option value="closed">Cerrada</option>
-                <option value="inactive">Inactiva</option>
+                {filterOptions.years.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -345,7 +367,7 @@ export function WeeksTable({
       {visibleWeeks.length === 0 ? (
         <EmptyState
           title="No hay semanas con esos filtros."
-          description="Prueba a cambiar el estado, temporada o búsqueda."
+          description="Prueba a cambiar el año, la temporada o la búsqueda."
         />
       ) : (
         <DataTable>

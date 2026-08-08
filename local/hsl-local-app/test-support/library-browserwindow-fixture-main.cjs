@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, Menu } = require("electron");
 
 const profileDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "hsl-library-browserwindow-"));
 app.setPath("userData", profileDirectory);
@@ -267,7 +267,6 @@ async function signalMetrics(window) {
     const pack = document.querySelector('.pack-card__status-dot');
     const read = (element) => {
       const style = getComputedStyle(element);
-      const coreStyle = getComputedStyle(element.querySelector('.status-beacon__core'));
       return {
         width: style.width,
         height: style.height,
@@ -275,12 +274,8 @@ async function signalMetrics(window) {
         border: style.borderWidth + ' ' + style.borderStyle + ' ' + style.borderColor,
         color: style.color,
         radius: style.borderRadius,
-        core: {
-          background: coreStyle.backgroundColor,
-          height: coreStyle.height,
-          shadow: coreStyle.boxShadow,
-          width: coreStyle.width,
-        },
+        childCount: element.childElementCount,
+        shadow: style.boxShadow,
         pseudoAfter: getComputedStyle(element, '::after').content,
       };
     };
@@ -289,6 +284,8 @@ async function signalMetrics(window) {
 }
 
 async function iconRows(window) {
+  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"set-library-view\"][data-view=\"icons\"]')?.click()");
+  await waitForFrames(window);
   const rows = [];
   for (const width of [340, 440, 600]) {
     rows.push(await window.webContents.executeJavaScript(`(() => {
@@ -301,7 +298,9 @@ async function iconRows(window) {
         const rect = (selector) => card.querySelector(selector).getBoundingClientRect();
         const cardRect = card.getBoundingClientRect();
         const bodyRect = rect('.pack-card__body');
+        const textRect = rect('.pack-card__text');
         const titleRect = rect('.pack-card__text h3');
+        const textStyle = getComputedStyle(card.querySelector('.pack-card__text'));
         return {
           bodyCenter: bodyRect.top + bodyRect.height / 2,
           bodyHeight: bodyRect.height,
@@ -310,6 +309,10 @@ async function iconRows(window) {
           title: card.querySelector('h3').textContent.trim(),
           titleCenter: titleRect.top + titleRect.height / 2,
           titleHeight: titleRect.height,
+          textCenter: textRect.top + textRect.height / 2,
+          textDisplay: textStyle.display,
+          textHeight: textRect.height,
+          textJustifyContent: textStyle.justifyContent,
         };
       };
       const rows = new Map();
@@ -458,7 +461,7 @@ async function hostileSignalMetrics(window) {
       tile.dataset.tone = tone;
       Object.assign(tile.style, { alignItems: 'center', background, display: 'grid', height: '56px', justifyItems: 'center' });
       const beacon = source.cloneNode(true);
-      beacon.className = 'status-beacon status-beacon--' + tone;
+      beacon.className = 'status-beacon status-beacon--' + tone + ' status-beacon--pack';
       tile.append(beacon);
       host.append(tile);
     }
@@ -471,12 +474,11 @@ async function hostileSignalMetrics(window) {
     themes[theme] = await window.webContents.executeJavaScript(`(() => Object.fromEntries(
       [...document.querySelectorAll('#fixture-hostile-signals [data-tone]')].map((tile) => {
         const beacon = tile.querySelector('.status-beacon');
-        const core = beacon.querySelector('.status-beacon__core');
         return [tile.dataset.tone, {
           backdrop: getComputedStyle(tile).backgroundColor,
-          core: getComputedStyle(core).backgroundColor,
-          socket: getComputedStyle(beacon).backgroundColor,
-          socketBorder: getComputedStyle(beacon).borderColor,
+          border: getComputedStyle(beacon).borderColor,
+          childCount: beacon.childElementCount,
+          fill: getComputedStyle(beacon).backgroundColor,
         }];
       })
     ))()`);
@@ -520,6 +522,22 @@ async function accountMetrics(window) {
 
   await window.webContents.executeJavaScript("document.querySelector('[data-action=\"cancel-login\"]')?.click()");
   await waitForFrames(window);
+  const callsBeforeExpired = await window.webContents.executeJavaScript("window.hslFixture.getSwitchAccountCalls()");
+  await observeSwitch("expired");
+  await waitFor(window, "document.querySelector('#hsl-login-email')?.value === 'expired@example.test'");
+  await waitForFrames(window, 3);
+  const unexpectedRelogin = await window.webContents.executeJavaScript(`(() => ({
+    busyOverlaySeen: window.__fixtureBusyOverlaySeen,
+    email: document.querySelector('#hsl-login-email')?.value,
+    formVisible: Boolean(document.querySelector('[data-auth-form]')),
+    menuOpen: Boolean(document.querySelector('[data-account-menu]')),
+  }))()`);
+  const callsAfterExpired = await window.webContents.executeJavaScript("window.hslFixture.getSwitchAccountCalls()");
+  unexpectedRelogin.calls = callsAfterExpired - callsBeforeExpired;
+  await capture(window, "account-unexpected-relogin.png");
+
+  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"cancel-login\"]')?.click()");
+  await waitForFrames(window);
   const callsBeforeValid = await window.webContents.executeJavaScript("window.hslFixture.getSwitchAccountCalls()");
   await observeSwitch("valid");
   await waitFor(window, "document.querySelector('[data-action=\"toggle-account-menu\"]')?.title.includes('valid@example.test')");
@@ -532,8 +550,18 @@ async function accountMetrics(window) {
   const callsAfterValid = await window.webContents.executeJavaScript("window.hslFixture.getSwitchAccountCalls()");
   valid.calls = callsAfterValid - callsBeforeValid;
   await capture(window, "account-valid-switch.png");
+  await window.webContents.executeJavaScript(`(() => {
+    document.querySelector('[data-action="toggle-account-menu"]')?.click();
+    document.querySelector('[data-action="add-account"]')?.click();
+  })()`);
+  await waitFor(window, "document.querySelector('[data-auth-form]')");
+  const addAccount = await window.webContents.executeJavaScript(`(() => ({
+    email: document.querySelector('#hsl-login-email')?.value,
+    formVisible: Boolean(document.querySelector('[data-auth-form]')),
+    menuOpen: Boolean(document.querySelector('[data-account-menu]')),
+  }))()`);
   await window.webContents.executeJavaScript("window.__fixtureBusyObserver?.disconnect()");
-  return { requiresLogin, valid };
+  return { addAccount, requiresLogin, unexpectedRelogin, valid };
 }
 
 async function heroAndDrawerSmoke(window) {
@@ -568,8 +596,18 @@ async function heroAndDrawerSmoke(window) {
   await capture(window, "drawer-activity-close.png");
   const closeButtons = await window.webContents.executeJavaScript(`(() => [...document.querySelectorAll('[data-action="close-overlay"]')].map((button) => {
     const buttonRect = button.getBoundingClientRect();
-    const iconRect = button.querySelector('.ui-icon').getBoundingClientRect();
+    const icon = button.querySelector('.ui-icon');
+    const glyph = icon.querySelector('.ui-icon__glyph');
+    const fallback = icon.querySelector('.ui-icon__fallback');
+    const iconRect = icon.getBoundingClientRect();
+    const glyphStyle = getComputedStyle(glyph);
     return {
+      fallbackDisplay: getComputedStyle(fallback).display,
+      glyphBackground: glyphStyle.backgroundColor,
+      glyphDisplay: glyphStyle.display,
+      glyphMask: glyphStyle.maskImage || glyphStyle.webkitMaskImage,
+      glyphTransform: glyphStyle.transform,
+      iconColor: getComputedStyle(icon).color,
       x: iconRect.left + iconRect.width / 2 - (buttonRect.left + buttonRect.width / 2),
       y: iconRect.top + iconRect.height / 2 - (buttonRect.top + buttonRect.height / 2),
     };
@@ -643,6 +681,32 @@ async function captureSmokeViews(window) {
   await capture(window, "library-covers-light.png");
 }
 
+async function nativeChromeMetrics(window) {
+  const read = () => window.webContents.executeJavaScript(`(() => {
+    const bar = document.querySelector('.window-titlebar');
+    const icon = bar.querySelector('.window-titlebar__icon');
+    const style = getComputedStyle(bar);
+    return {
+      background: style.backgroundColor,
+      dragRegion: style.webkitAppRegion,
+      height: bar.getBoundingClientRect().height,
+      iconLoaded: icon.complete && icon.naturalWidth > 0,
+      title: bar.querySelector('.window-titlebar__title').textContent.trim(),
+    };
+  })()`);
+  await window.webContents.executeJavaScript("document.documentElement.dataset.theme = 'dark'");
+  window.setTitleBarOverlay({ color: "#0f172a", height: 32, symbolColor: "#f8fafc" });
+  await waitForFrames(window);
+  const dark = await read();
+  await capture(window, "native-titlebar-dark.png");
+  await window.webContents.executeJavaScript("document.documentElement.dataset.theme = 'light'");
+  window.setTitleBarOverlay({ color: "#eef4fb", height: 32, symbolColor: "#0f172a" });
+  await waitForFrames(window);
+  const light = await read();
+  await capture(window, "native-titlebar-light.png");
+  return { applicationMenu: Menu.getApplicationMenu(), dark, light };
+}
+
 async function detailScrollMetrics(window) {
   const measure = async ({ filename, height, sidebarWidth, width }) => {
     window.setSize(width, height);
@@ -690,12 +754,16 @@ async function detailScrollMetrics(window) {
 }
 
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null);
   const window = new BrowserWindow({
     width: 1240,
     height: 820,
     minWidth: 1200,
     minHeight: 620,
+    icon: path.join(__dirname, "..", "gui", "renderer", "assets", "native", "app-icon.ico"),
     show: Boolean(screenshotDirectory) || traceVisible || resizeOnly,
+    titleBarOverlay: { color: "#0f172a", height: 32, symbolColor: "#f8fafc" },
+    titleBarStyle: "hidden",
     webPreferences: {
       backgroundThrottling: false,
       contextIsolation: true,
@@ -713,10 +781,12 @@ app.whenReady().then(async () => {
     if (checkOnly) {
       const checks = {
         accounts: () => accountMetrics(window),
+        chrome: () => nativeChromeMetrics(window),
         detail: () => detailScrollMetrics(window),
         filters: () => filterScrollMetrics(window),
         hero: () => heroAndDrawerSmoke(window),
         icons: () => iconAlphaMetrics(window),
+        rows: () => iconRows(window),
         signals: async () => ({ hostile: await hostileSignalMetrics(window), shared: await signalMetrics(window) }),
       };
       if (!checks[checkOnly]) throw new Error(`Unknown check: ${checkOnly}`);
@@ -761,6 +831,7 @@ app.whenReady().then(async () => {
     const filters = await stage("filters", () => filterScrollMetrics(window));
     const hostileSignals = await stage("hostile-signals", () => hostileSignalMetrics(window));
     const accounts = await stage("accounts", () => accountMetrics(window));
+    const chrome = await stage("chrome", () => nativeChromeMetrics(window));
     const heroAndDrawers = await stage("hero-and-drawers", () => heroAndDrawerSmoke(window));
     await stage("captures", () => captureSmokeViews(window));
     await window.webContents.executeJavaScript("document.documentElement.dataset.theme = 'light'");
@@ -768,6 +839,7 @@ app.whenReady().then(async () => {
     const footer = await stage("footer", () => footerResizeMetrics(window));
     const result = {
       accounts,
+      chrome,
       detail,
       filters,
       footer,

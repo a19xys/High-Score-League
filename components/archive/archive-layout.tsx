@@ -21,7 +21,7 @@ export function ArchiveLayout({
     <div className="space-y-4">
       <Breadcrumbs
         items={[
-          { href: "/archive/weeks", label: "Archivo" },
+          { href: "/archive", label: "Archivo" },
           { label: title },
         ]}
       />

@@ -107,7 +107,7 @@ test("busy no contrae filtros ni deshabilita vistas de una biblioteca valida", a
   assert.match(html, /data-view="icons"[^>]*aria-pressed="true"/);
 });
 
-test("la lista posee wrapper de extent y el detalle termina con un spacer real de 40 px", async () => {
+test("la lista posee wrapper de extent y el detalle termina con un spacer real de 16 px", async () => {
   const [{ renderLibraryPacks }, styles] = await Promise.all([
     import(pathToFileURL(path.join(rendererRoot, "components", "library-panel.js")).href),
     fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
@@ -117,7 +117,7 @@ test("la lista posee wrapper de extent y el detalle termina con un spacer real d
   assert.match(html, /class="library-packs-content"/);
   assert.match(styles, /\.library-packs-content\s*\{[^}]*min-block-size: var\(--library-packs-min-block-size, 0px\)/);
   assert.match(styles, /\.game-scroll\s*\{[^}]*gap: 0[^}]*grid-auto-rows: max-content[^}]*padding: 18px 20px 0/);
-  assert.match(styles, /\.game-scroll::after\s*\{[^}]*content: ""[^}]*display: block[^}]*height: 40px[^}]*flex: 0 0 40px/);
+  assert.match(styles, /\.game-scroll::after\s*\{[^}]*content: ""[^}]*display: block[^}]*height: 16px[^}]*flex: 0 0 16px/);
 });
 
 test("icon-window distingue icono y cover fallback con overscan compartido", async () => {
@@ -168,14 +168,16 @@ test("titulo monotono, signal beacon, ring unico y subtitulo estructural compart
   assert.match(finalCss, /\.pack-card--pending:not\(\.pack-card--active\)[\s\S]*var\(--state-warning\)/);
   assert.doesNotMatch(tokens, /--led-(?:ready|warning|error|outline)/);
   assert.match(primitives, /export function renderStatusBeacon\(tone, options = \{\}\)/);
-  assert.match(finalCss, /\.status-beacon\s*\{[^}]*width: 14px[^}]*height: 14px[^}]*border: 1px solid var\(--signal-socket-border\)[^}]*background: var\(--signal-socket\)/);
-  assert.match(finalCss, /\.status-beacon__core\s*\{[^}]*width: 7px[^}]*height: 7px[^}]*background: currentColor/);
+  assert.match(finalCss, /\.status-beacon\s*\{[^}]*box-sizing: border-box[^}]*width: 14px[^}]*height: 14px[^}]*border: 0[^}]*background: currentColor[^}]*box-shadow: none/);
+  assert.match(finalCss, /\.status-beacon--pack\s*\{[^}]*border: 2px solid #fff/);
+  assert.match(finalCss, /html\[data-theme="dark"\] \.status-beacon--pack\s*\{[^}]*border-color: var\(--background\)/);
+  assert.doesNotMatch(finalCss, /\.status-beacon__core/);
   assert.doesNotMatch(finalCss, /\.status-beacon::after|inset 0 1px 1px|var\(--led-/);
   assert.match(finalCss, /\.status-beacon--success[\s\S]*color: var\(--signal-success\)/);
   assert.match(finalCss, /\.status-beacon--warning[\s\S]*color: var\(--signal-warning\)/);
   assert.match(finalCss, /\.status-beacon--error[\s\S]*color: var\(--signal-error\)/);
-  assert.match(html, /status-beacon status-beacon--success pack-card__status-dot[^>]*aria-label="LISTO"/);
-  assert.match(header, /renderStatusBeacon\(signalTone, \{ className: "connection-dot", decorative: true \}\)/);
+  assert.match(html, /status-beacon status-beacon--success status-beacon--pack pack-card__status-dot[^>]*aria-label="LISTO"/);
+  assert.match(header, /renderStatusBeacon\(signalTone, \{ className: "connection-dot", decorative: true, variant: "connection" \}\)/);
   assert.match(tokens, /:root[\s\S]*--signal-success: #22e36f[\s\S]*--signal-warning: #ffc62e[\s\S]*--signal-error: #ff4d5f/);
   const darkTokens = tokens.slice(tokens.indexOf('[data-theme="dark"]'));
   assert.doesNotMatch(darkTokens, /--signal-(?:success|warning|error|info|neutral):/);
@@ -183,11 +185,12 @@ test("titulo monotono, signal beacon, ring unico y subtitulo estructural compart
   assert.match(html, /pack-card__subtitle-text/);
   assert.match(finalCss, /\.pack-card__subtitle \{[\s\S]*display: flex[\s\S]*align-items: center/);
   assert.match(finalCss, /\.pack-card__subtitle-text[\s\S]*text-overflow: ellipsis/);
-  assert.match(finalCss, /\.pack-card--icons \.pack-card__body\s*\{[^}]*place-items: center/);
-  assert.match(finalCss, /\.pack-card--icons \.pack-card__text\s*\{[^}]*display: grid[^}]*height: 100%[^}]*place-items: center/);
-  assert.match(calendar, /viewBox="0 0 24 24"/);
-  assert.match(calendar, /stroke="currentColor"/);
-  assert.doesNotMatch(calendar, /512px|translateY|#f9faf9/);
+  assert.match(finalCss, /\.pack-card--icons \.pack-card__body\s*\{[^}]*display: flex[^}]*align-items: stretch[^}]*justify-content: center/);
+  assert.match(finalCss, /\.pack-card--icons \.pack-card__text\s*\{[^}]*display: flex[^}]*height: auto[^}]*align-self: stretch[^}]*flex: 1 1 auto[^}]*flex-direction: column[^}]*justify-content: center/);
+  const calendarViewBox = calendar.match(/viewBox="0 0 (\d+) (\d+)"/);
+  assert.ok(calendarViewBox);
+  assert.equal(calendarViewBox[1], calendarViewBox[2]);
+  assert.doesNotMatch(finalCss, /\.pack-card__subtitle-icon[^}]*translateY/);
 });
 
 test("pack activo conserva current sin fingir disabled y los estados usan la autoridad canonica", async () => {

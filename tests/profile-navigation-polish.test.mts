@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   PROFILE_BIO_MAX_LENGTH,
   validateProfileBio,
@@ -52,19 +54,36 @@ test("full profile date uses the Madrid competition date", () => {
 test("breadcrumbs always start at Liga and mark the final item as current", () => {
   assert.deepEqual(
     createBreadcrumbTrail([
-      { href: "/archive/weeks", label: "Archivo" },
+      { href: "/archive", label: "Archivo" },
       { href: "/archive/seasons", label: "Temporadas" },
       { href: "/seasons/test", label: "Temporada Test" },
       { href: "/weeks/week-1", label: "Pac-Man" },
     ]),
     [
       { href: "/", label: "Liga" },
-      { href: "/archive/weeks", label: "Archivo" },
+      { href: "/archive", label: "Archivo" },
       { href: "/archive/seasons", label: "Temporadas" },
       { href: "/seasons/test", label: "Temporada Test" },
       { label: "Pac-Man" },
     ],
   );
+});
+
+test("navigation loads the canonical brand asset in the browser", async () => {
+  const root = process.cwd();
+  const [serverNav, clientNav, brandImage, homePage] = await Promise.all([
+    readFile(join(root, "components", "site-nav.tsx"), "utf8"),
+    readFile(join(root, "components", "site-nav-client.tsx"), "utf8"),
+    readFile(join(root, "components", "brand-image.tsx"), "utf8"),
+    readFile(join(root, "app", "page.tsx"), "utf8"),
+  ]);
+
+  assert.doesNotMatch(serverNav, /hasBrandLogo|existsSync|node:fs|node:path/);
+  assert.doesNotMatch(clientNav, /hasBrandLogo/);
+  assert.match(clientNav, /href: "\/archive"/);
+  assert.match(brandImage, /onError=\{\(\) => setImageFailed\(true\)\}/);
+  assert.match(brandImage, /\[src\]/);
+  assert.doesNotMatch(homePage, /existsSync|node:fs|node:path/);
 });
 
 test("preview cache reuses fresh values and expires after its TTL", async () => {

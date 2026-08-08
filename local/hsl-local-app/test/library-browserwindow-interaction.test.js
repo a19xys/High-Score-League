@@ -69,19 +69,24 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
     assert.ok(cards.some((card) => card.lines === 2));
   });
 
-  assert.deepEqual(result.signals.connection, result.signals.pack);
   assert.equal(result.signals.pack.width, "14px");
   assert.equal(result.signals.pack.height, "14px");
-  assert.equal(result.signals.pack.core.width, "7px");
-  assert.equal(result.signals.pack.core.height, "7px");
+  assert.equal(result.signals.pack.childCount, 0);
+  assert.equal(result.signals.connection.childCount, 0);
+  assert.equal(result.signals.pack.shadow, "none");
+  assert.equal(result.signals.connection.shadow, "none");
+  assert.match(result.signals.pack.border, /^2px solid /);
+  assert.match(result.signals.connection.border, /^0px none /);
   assert.equal(result.signals.pack.pseudoAfter, "none");
   for (const tone of ["success", "warning", "error", "info", "neutral"]) {
-    assert.equal(result.hostileSignals.dark[tone].core, result.hostileSignals.light[tone].core, tone);
+    assert.equal(result.hostileSignals.dark[tone].fill, result.hostileSignals.light[tone].fill, tone);
     for (const theme of ["dark", "light"]) {
       const signal = result.hostileSignals[theme][tone];
-      assert.notEqual(signal.socket, signal.backdrop, `${theme} ${tone}`);
-      assert.notEqual(signal.socketBorder, signal.backdrop, `${theme} ${tone}`);
+      assert.equal(signal.childCount, 0, `${theme} ${tone}`);
+      assert.ok(signal.fill !== signal.backdrop || signal.border !== signal.backdrop, `${theme} ${tone}`);
     }
+    assert.equal(result.hostileSignals.light[tone].border, "rgb(255, 255, 255)");
+    assert.equal(result.hostileSignals.dark[tone].border, "rgb(15, 23, 42)");
   }
 
   for (const metric of result.filters.results) {
@@ -95,14 +100,14 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
 
   for (const [name, metric] of Object.entries(result.detail)) {
     assert.equal(metric.spacerDisplay, "block", name);
-    assert.equal(metric.spacerHeight, "40px", name);
+    assert.equal(metric.spacerHeight, "16px", name);
     assert.equal(metric.documentOverflowX, 0, name);
     assert.equal(metric.documentOverflowY, 0, name);
     assert.ok(metric.detailWidth >= 540, name);
     if (metric.hasOverflow) {
       assert.equal(metric.atMaximum, true, name);
-      assert.ok(metric.bottomGap >= 39 && metric.bottomGap <= 41, `${name}: ${metric.bottomGap}`);
-      assert.ok(metric.terminalExtent >= 39 && metric.terminalExtent <= 41, `${name}: ${metric.terminalExtent}`);
+      assert.ok(metric.bottomGap >= 15 && metric.bottomGap <= 17, `${name}: ${metric.bottomGap}`);
+      assert.ok(metric.terminalExtent >= 15 && metric.terminalExtent <= 17, `${name}: ${metric.terminalExtent}`);
     }
   }
   assert.equal(result.detail.comfortable.hasOverflow, false);
@@ -114,8 +119,8 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
   for (const [name, metric] of Object.entries(result.icons)) {
     assert.ok(metric.alphaBounds.left <= metric.alphaBounds.right, name);
     assert.ok(metric.alphaBounds.top <= metric.alphaBounds.bottom, name);
-    assert.ok(Math.abs(metric.projected40.x) <= 1, `${name} x=${metric.projected40.x}`);
-    assert.ok(Math.abs(metric.projected40.y) <= 1, `${name} y=${metric.projected40.y}`);
+    assert.ok(Math.abs(metric.projected16.x) <= 1, `${name} x=${metric.projected16.x}`);
+    assert.ok(Math.abs(metric.projected16.y) <= 1, `${name} y=${metric.projected16.y}`);
   }
   result.heroAndDrawers.closeButtons.forEach((offset) => {
     assert.ok(Math.abs(offset.x) <= 1);
@@ -134,17 +139,38 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
 
   assert.deepEqual(result.accounts.requiresLogin, {
     busyOverlaySeen: false,
-    calls: 1,
+    calls: 0,
     controlsDisabled: false,
     email: "relogin@example.test",
     formVisible: true,
     menuOpen: true,
     message: "Inicia sesiÃ³n de nuevo para esta cuenta.",
   });
-  assert.equal(result.accounts.valid.busyOverlaySeen, false);
+  assert.deepEqual(result.accounts.unexpectedRelogin, {
+    busyOverlaySeen: true,
+    calls: 1,
+    email: "expired@example.test",
+    formVisible: true,
+    menuOpen: true,
+  });
+  assert.deepEqual(result.accounts.addAccount, {
+    email: "",
+    formVisible: true,
+    menuOpen: true,
+  });
+  assert.equal(result.accounts.valid.busyOverlaySeen, true);
   assert.equal(result.accounts.valid.calls, 1);
   assert.equal(result.accounts.valid.menuOpen, false);
   assert.match(result.accounts.valid.sessionTitle, /valid@example\.test/);
+
+  assert.equal(result.chrome.applicationMenu, null);
+  for (const theme of [result.chrome.dark, result.chrome.light]) {
+    assert.equal(theme.dragRegion, "drag");
+    assert.equal(theme.height, 32);
+    assert.equal(theme.iconLoaded, true);
+    assert.equal(theme.title, "High Score League Launcher");
+  }
+  assert.notEqual(result.chrome.dark.background, result.chrome.light.background);
 
   for (const direction of [result.footer.bottomResize, result.footer.topResize]) {
     direction.forEach(({ dom }) => {

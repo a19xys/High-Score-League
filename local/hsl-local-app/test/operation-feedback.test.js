@@ -347,19 +347,21 @@ test("automatic connectivity signals stay silent and outside operation feedback"
   }
 });
 
-test("remembered account selection uses an inline lock without a global overlay or minimum timer", async () => {
+test("remembered accounts separate known relogin from a valid switch with normal feedback", async () => {
   const [app, overlayModule] = await Promise.all([
     fsp.readFile(path.join(rendererRoot, "app.js"), "utf8"),
     import(pathToFileURL(path.join(rendererRoot, "components", "busy-overlay.js")).href),
   ]);
   const block = app.slice(app.indexOf("async function switchAccount"), app.indexOf("async function activateLibraryPackWithPreload"));
 
+  assert.match(block, /knownAccountForUserId\(currentState, userId\)/);
+  assert.match(block, /if \(knownAccount\?\.requiresLogin === true\)[\s\S]*openAccountFormState\(reloginEmail\)[\s\S]*return;/);
   assert.match(block, /runWithOperationFeedback\(\{/);
-  assert.match(block, /busy: true[\s\S]*operationFeedbackMode: "inline"/);
-  assert.match(block, /scope: "inline"/);
+  assert.match(block, /busy: true[\s\S]*operationFeedbackMode: "overlay"/);
+  assert.doesNotMatch(block, /scope: "inline"/);
   assert.match(block, /if \(response\.requiresLogin\)[\s\S]*accountMenuOpen = true[\s\S]*authEmail = response\.email \|\| email[\s\S]*authFormOpen = true/);
   assert.doesNotMatch(block, /setTimeout|minVisibleMs/);
-  assert.equal(overlayModule.renderBusyOverlay({ busy: true, busyLabel: "Cambiando cuenta", operationFeedbackMode: "inline" }), "");
+  assert.match(overlayModule.renderBusyOverlay({ busy: true, busyLabel: "Cambiando cuenta", operationFeedbackMode: "overlay" }), /busy-overlay/);
   assert.match(overlayModule.renderBusyOverlay({ busy: true, busyLabel: "Conectando", operationFeedbackMode: "overlay" }), /busy-overlay/);
   assert.match(overlayModule.renderBusyOverlay({ busy: true, operationFeedbackMode: "inline", startup: { visible: true } }), /busy-overlay--startup/);
 });

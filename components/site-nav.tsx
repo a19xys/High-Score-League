@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { getRealSeasons } from "@/lib/data/seasons";
 import { getRealWeeks } from "@/lib/data/weeks";
 import { resolveMediaUrl } from "@/lib/media/resolver";
@@ -41,7 +39,6 @@ async function getSupabaseNavData(profile: NavProfile): Promise<SiteNavData> {
     activeWeekId: activeWeek?.id ?? null,
     activeSeasonId: activeSeason?.id ?? null,
     activeSeasonSlug: activeSeason?.slug ?? null,
-    hasBrandLogo: hasStaticBrandLogo(),
     isSignedIn: true,
     profile,
   };
@@ -52,14 +49,9 @@ function getSignedOutNavData(): SiteNavData {
     activeWeekId: null,
     activeSeasonId: null,
     activeSeasonSlug: null,
-    hasBrandLogo: hasStaticBrandLogo(),
     isSignedIn: false,
     profile: null,
   };
-}
-
-function hasStaticBrandLogo() {
-  return existsSync(join(process.cwd(), "public", "brand", "logo.png"));
 }
 
 export async function SiteNav() {

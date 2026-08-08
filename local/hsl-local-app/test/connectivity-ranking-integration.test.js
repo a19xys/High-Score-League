@@ -135,7 +135,7 @@ test("header keeps a binary CSS status and integrates refresh in the same chip",
 
   const connectionBlock = header.slice(header.indexOf("export function renderConnectionControl"), header.indexOf("export function renderHeader"));
   assert.doesNotMatch(connectionBlock, />Comprobando|>Conectando|>Reconectando|>Suspendido/);
-  assert.match(connectionBlock, /renderStatusBeacon\(signalTone, \{ className: "connection-dot", decorative: true \}\)/);
+  assert.match(connectionBlock, /renderStatusBeacon\(signalTone, \{ className: "connection-dot", decorative: true, variant: "connection" \}\)/);
   assert.match(connectionBlock, /connection-label[\s\S]*connection-refresh-button/);
   assert.match(connectionBlock, /data-action="refresh-connectivity"/);
   assert.match(connectionBlock, /aria-label="Comprobar conexión"/);
@@ -144,8 +144,9 @@ test("header keeps a binary CSS status and integrates refresh in the same chip",
   assert.match(styles, /\.connection-chip\s*\{[\s\S]*?gap: 0;[\s\S]*?inline-size: max-content;[\s\S]*?max-inline-size: 100%/);
   assert.match(styles, /\.connection-control\s*\{[\s\S]*?width: 164px;[\s\S]*?min-width: 164px[\s\S]*?justify-content: flex-end/);
   assert.match(styles, /\.connection-label[\s\S]*white-space: nowrap/);
-  assert.match(styles, /\.status-beacon\s*\{[^}]*width: 14px[^}]*height: 14px[^}]*border-radius: 999px[^}]*background: var\(--signal-socket\)/);
-  assert.match(styles, /\.status-beacon__core\s*\{[^}]*width: 7px[^}]*height: 7px[^}]*background: currentColor/);
+  assert.match(styles, /\.status-beacon\s*\{[^}]*box-sizing: border-box[^}]*width: 14px[^}]*height: 14px[^}]*border: 0[^}]*background: currentColor[^}]*box-shadow: none/);
+  assert.match(styles, /\.status-beacon--connection\s*\{[^}]*border: 0/);
+  assert.doesNotMatch(styles, /\.status-beacon__core/);
   assert.match(styles, /\.connection-dot\s*\{[^}]*margin-inline-end: 7px/);
   assert.match(styles, /\.connection-chip--connected\s*\{[\s\S]*?var\(--state-success\)/);
   assert.match(styles, /\.connection-chip--disconnected\s*\{[\s\S]*?var\(--state-error\)/);

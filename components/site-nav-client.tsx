@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { AuthNavItem } from "@/components/auth/auth-nav-item";
+import { BrandMark } from "@/components/brand-mark";
 
 export type SiteNavData = {
   activeWeekId: string | null;
   activeSeasonId: string | null;
   activeSeasonSlug: string | null;
-  hasBrandLogo: boolean;
   isSignedIn: boolean;
   profile: NavProfile | null;
 };
@@ -33,7 +33,7 @@ type SiteNavClientProps = {
 
 const baseLinks: NavLink[] = [
   { href: "/", label: "INICIO", id: "home" },
-  { href: "/archive/weeks", label: "ARCHIVO", id: "archive" },
+  { href: "/archive", label: "ARCHIVO", id: "archive" },
 ];
 
 function navLinkClass(active: boolean) {
@@ -50,24 +50,6 @@ function mobileLinkClass(active: boolean) {
       ? "border-circuit bg-circuit/10 text-circuit"
       : "border-transparent theme-text-muted"
   }`;
-}
-
-function BrandMark({ hasBrandLogo }: { hasBrandLogo: boolean }) {
-  if (hasBrandLogo) {
-    return (
-      <img
-        alt=""
-        className="h-10 w-10 rounded-md object-contain bg-transparent"
-        src="/brand/logo.png"
-      />
-    );
-  }
-
-  return (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-sm font-bold theme-surface-strong">
-      HSL
-    </span>
-  );
 }
 
 export function SiteNavClient({ data }: SiteNavClientProps) {
@@ -139,7 +121,7 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
             href="/"
             onClick={() => setMobileOpen(false)}
           >
-            <BrandMark hasBrandLogo={data.hasBrandLogo} />
+            <BrandMark />
             <span className="hidden whitespace-nowrap text-lg font-bold uppercase theme-text md:inline">
               High Score League
             </span>
@@ -194,7 +176,7 @@ export function SiteNavClient({ data }: SiteNavClientProps) {
             className="flex min-w-0 shrink items-center gap-3"
             href="/"
           >
-            <BrandMark hasBrandLogo={data.hasBrandLogo} />
+            <BrandMark />
             <span className="hidden whitespace-nowrap text-lg font-bold uppercase theme-text lg:inline">
               High Score League
             </span>

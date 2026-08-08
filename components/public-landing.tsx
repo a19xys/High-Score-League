@@ -1,30 +1,26 @@
 import Link from "next/link";
+import { BrandImage } from "@/components/brand-image";
 
-type PublicLandingProps = {
-  hasHorizontalLogo: boolean;
-};
-
-export function PublicLanding({ hasHorizontalLogo }: PublicLandingProps) {
+export function PublicLanding() {
   return (
     <section className="public-landing-shell">
       <div aria-hidden="true" className="public-landing-aurora" />
       <div className="public-landing-content">
-        {hasHorizontalLogo ? (
-          <img
-            alt="High Score League"
-            className="public-landing-logo mx-auto h-auto max-h-[28vh] w-auto max-w-[22rem] object-contain sm:max-w-lg"
-            src="/brand/logo-horizontal.png"
-          />
-        ) : (
-          <div className="inline-flex items-center gap-3">
-            <span className="flex h-14 w-14 items-center justify-center rounded-md bg-white/10 text-base font-bold text-white ring-1 ring-white/15">
-              HSL
-            </span>
-            <span className="text-2xl font-bold uppercase text-white">
-              High Score League
-            </span>
-          </div>
-        )}
+        <BrandImage
+          alt="High Score League"
+          className="public-landing-logo mx-auto h-auto max-h-[28vh] w-auto max-w-[22rem] object-contain sm:max-w-lg"
+          fallback={
+            <div className="inline-flex items-center gap-3">
+              <span className="flex h-14 w-14 items-center justify-center rounded-md bg-white/10 text-base font-bold text-white ring-1 ring-white/15">
+                HSL
+              </span>
+              <span className="text-2xl font-bold uppercase text-white">
+                High Score League
+              </span>
+            </div>
+          }
+          src="/brand/logo-horizontal.png"
+        />
 
         <div className="mt-6 rounded-lg border border-white/15 bg-slate-950/70 p-6 text-white shadow-panel backdrop-blur-sm sm:p-8">
           <p className="text-xs font-semibold uppercase text-cyan-100/80">

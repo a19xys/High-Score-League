@@ -34,7 +34,7 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
       <div className="space-y-6">
         <Breadcrumbs
           items={[
-            { href: "/archive/weeks", label: "Archivo" },
+            { href: "/archive", label: "Archivo" },
             { href: "/archive/weeks", label: "Semanas" },
             { label: "Semana no disponible" },
           ]}
@@ -61,7 +61,7 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
     <div className="space-y-6">
       <Breadcrumbs
         items={[
-          { href: "/archive/weeks", label: "Archivo" },
+          { href: "/archive", label: "Archivo" },
           { href: "/archive/seasons", label: "Temporadas" },
           {
             href: `/seasons/${detail.season.slug || detail.season.id}`,

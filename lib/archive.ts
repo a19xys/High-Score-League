@@ -5,10 +5,12 @@ export const ARCHIVE_PATHS: Record<ArchiveSection, string> = {
   seasons: "/archive/seasons",
 };
 
-export function parseArchiveSection(value: unknown): ArchiveSection {
-  return value === "seasons" ? "seasons" : "weeks";
+export function parseArchiveSection(value: unknown): ArchiveSection | null {
+  return value === "weeks" || value === "seasons" ? value : null;
 }
 
 export function getArchivePath(value: unknown) {
-  return ARCHIVE_PATHS[parseArchiveSection(value)];
+  const section = parseArchiveSection(value);
+
+  return section ? ARCHIVE_PATHS[section] : "/archive";
 }

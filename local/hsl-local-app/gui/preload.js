@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   onLauncherState: (callback) => onEvent("launcher:state", callback),
   onRankingCapabilitiesState: (callback) => onEvent("launcher:ranking-capabilities-state", callback),
   playCompetition: invoke("launcher:play-competition"),
+  platform: process.platform,
   practice: invoke("launcher:practice"),
   openRanking: invoke("launcher:open-ranking"),
   removeKnownAccount: (userId) => ipcRenderer.invoke("launcher:remove-known-account", userId),

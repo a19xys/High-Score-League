@@ -18,7 +18,11 @@
     ? resolved.effectiveTheme
     : allowedThemes.has(bootstrap.effectiveTheme) ? bootstrap.effectiveTheme : "dark";
   const initialTheme = mainTheme;
+  const platform = ["darwin", "linux", "win32"].includes(window.hslLauncher?.platform)
+    ? window.hslLauncher.platform
+    : "win32";
   document.documentElement.dataset.theme = initialTheme;
+  document.documentElement.dataset.platform = platform;
   document.documentElement.style.colorScheme = initialTheme;
   document.documentElement.classList.add("theme-bootstrap");
   window.__HSL_INITIAL_THEME__ = initialTheme;

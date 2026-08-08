@@ -45,10 +45,11 @@ http://localhost:3000
 
 - `/`: landing publica sin sesion; home real con sesion.
 - `/game`: redirige a la semana activa real.
-- `/archive/weeks`: archivo canónico de semanas.
-- `/archive/seasons`: archivo canónico de temporadas.
-- `/archive`, `/weeks`, `/seasons` y `/season`: redirecciones permanentes de
-  compatibilidad a la sección canónica correspondiente.
+- `/archive`: landing privada del archivo con accesos a semanas y temporadas.
+- `/archive/weeks`: archivo canónico de semanas, con filtro por año.
+- `/archive/seasons`: archivo canónico de temporadas, con filtro por año.
+- `/weeks`, `/seasons`, `/season` y los antiguos parámetros `section` mantienen
+  redirecciones permanentes de compatibilidad.
 - `/weeks/[weekId]`: detalle real de semana con leaderboard, submissions,
   benchmarks y resultados oficiales cuando existen.
 - `/seasons/[seasonId]`: detalle real de temporada con clasificacion y podio.
@@ -70,6 +71,10 @@ Los assets fijos de marca se sirven desde el repositorio:
 - `public/brand/logo.png`: logo cuadrado de navegacion.
 - `app/icon.png`: icono de pestana.
 - `app/apple-icon.png`: Apple Touch Icon.
+
+La navegación y la landing intentan cargar estos assets directamente en el
+navegador y sólo muestran su fallback textual cuando la petición de imagen
+falla realmente.
 
 Los avatares y las imágenes administrables de juegos y cuestionarios usan el
 bucket público `hsl-public-media`. Los originales se procesan en el navegador y

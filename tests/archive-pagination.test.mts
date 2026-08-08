@@ -1,10 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   ARCHIVE_PATHS,
   getArchivePath,
   parseArchiveSection,
 } from "../lib/archive.ts";
+import {
+  getArchiveYears,
+  getYearsCoveredByRange,
+  rangeMatchesArchiveYear,
+} from "../lib/archive-years.ts";
 import {
   clampPage,
   getTotalPages,
@@ -13,22 +20,106 @@ import {
 } from "../lib/pagination.ts";
 
 test("archive section accepts only the canonical values", () => {
-  assert.equal(parseArchiveSection(undefined), "weeks");
+  assert.equal(parseArchiveSection(undefined), null);
   assert.equal(parseArchiveSection("weeks"), "weeks");
   assert.equal(parseArchiveSection("seasons"), "seasons");
-  assert.equal(parseArchiveSection("players"), "weeks");
-  assert.equal(parseArchiveSection(["seasons"]), "weeks");
-  assert.equal(parseArchiveSection(["weeks", "seasons"]), "weeks");
-  assert.equal(parseArchiveSection({ section: "seasons" }), "weeks");
-  assert.equal(parseArchiveSection(null), "weeks");
-  assert.equal(getArchivePath(undefined), "/archive/weeks");
+  assert.equal(parseArchiveSection("players"), null);
+  assert.equal(parseArchiveSection(["seasons"]), null);
+  assert.equal(parseArchiveSection(["weeks", "seasons"]), null);
+  assert.equal(parseArchiveSection({ section: "seasons" }), null);
+  assert.equal(parseArchiveSection(null), null);
+  assert.equal(getArchivePath(undefined), "/archive");
   assert.equal(getArchivePath("weeks"), "/archive/weeks");
   assert.equal(getArchivePath("seasons"), "/archive/seasons");
-  assert.equal(getArchivePath("invalid"), "/archive/weeks");
+  assert.equal(getArchivePath("invalid"), "/archive");
   assert.deepEqual(ARCHIVE_PATHS, {
     weeks: "/archive/weeks",
     seasons: "/archive/seasons",
   });
+});
+
+test("archive years cover a single year and every year crossed by a range", () => {
+  assert.deepEqual(
+    getYearsCoveredByRange("2026-02-01T00:00:00Z", "2026-11-30T23:00:00Z"),
+    [2026],
+  );
+  assert.deepEqual(
+    getYearsCoveredByRange("2025-12-28T00:00:00Z", "2026-01-03T23:00:00Z"),
+    [2025, 2026],
+  );
+});
+
+test("active archive ranges stop at today and never expose future years", () => {
+  assert.deepEqual(
+    getYearsCoveredByRange("2026-12-28T00:00:00Z", "2027-01-08T00:00:00Z", {
+      capAtNow: true,
+      now: "2026-12-30T12:00:00Z",
+    }),
+    [2026],
+  );
+  assert.deepEqual(
+    getYearsCoveredByRange("2027-01-02T00:00:00Z", "2027-01-08T00:00:00Z", {
+      capAtNow: true,
+      now: "2026-12-30T12:00:00Z",
+    }),
+    [],
+  );
+});
+
+test("archive year options are unique and sorted from newest to oldest", () => {
+  assert.deepEqual(
+    getArchiveYears(
+      [
+        { startsAt: "2024-05-01T00:00:00Z", endsAt: "2024-05-07T00:00:00Z" },
+        { startsAt: "2025-12-28T00:00:00Z", endsAt: "2026-01-03T00:00:00Z" },
+        { startsAt: "2025-03-01T00:00:00Z", endsAt: "2025-04-01T00:00:00Z" },
+      ],
+      "2026-06-01T00:00:00Z",
+    ),
+    [2026, 2025, 2024],
+  );
+});
+
+test("archive years use the Madrid calendar at a UTC year boundary", () => {
+  assert.deepEqual(
+    getYearsCoveredByRange("2025-12-31T22:30:00Z", "2025-12-31T23:30:00Z"),
+    [2025, 2026],
+  );
+});
+
+test("archive year helpers reject invalid ranges safely", () => {
+  assert.deepEqual(getYearsCoveredByRange("invalid", "2026-01-01"), []);
+  assert.deepEqual(getYearsCoveredByRange("2026-02-01", "2026-01-01"), []);
+  assert.equal(rangeMatchesArchiveYear("invalid", "2026-01-01", 2026), false);
+  assert.equal(rangeMatchesArchiveYear("2025-12-28", "2026-01-03", "invalid"), false);
+});
+
+test("archive ranges match both sides of a cross-year interval", () => {
+  assert.equal(rangeMatchesArchiveYear("2025-12-28", "2026-01-03", 2025), true);
+  assert.equal(rangeMatchesArchiveYear("2025-12-28", "2026-01-03", "2026"), true);
+  assert.equal(rangeMatchesArchiveYear("2025-12-28", "2026-01-03", 2024), false);
+});
+
+test("archive root is a protected landing without archive data loaders", async () => {
+  const source = await readFile(join(process.cwd(), "app", "archive", "page.tsx"), "utf8");
+
+  assert.match(source, /hasServerSession/);
+  assert.match(source, /href: "\/archive\/weeks"/);
+  assert.match(source, /href: "\/archive\/seasons"/);
+  assert.match(source, /section !== undefined/);
+  assert.doesNotMatch(source, /getWeekPageData|getSeasonPageData/);
+});
+
+test("table pagination keeps one compact mobile row and full desktop controls", async () => {
+  const source = await readFile(
+    join(process.cwd(), "components", "ui", "table-pagination.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /grid-cols-\[2\.75rem_minmax\(0,1fr\)_2\.75rem\]/);
+  assert.match(source, /aria-label="Envíos por página"/);
+  assert.match(source, /className="hidden items-center gap-3[^\n]+sm:flex"/);
+  assert.match(source, /\{safePage\} \/ \{totalPages\}/);
 });
 
 test("pagination normalizes the three supported page sizes", () => {

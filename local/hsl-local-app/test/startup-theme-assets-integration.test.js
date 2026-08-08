@@ -29,6 +29,32 @@ test("theme persistence failures are classified without rejecting the IPC handle
   assert.match(renderer, /themeToggleQueue = themeToggleQueue\.then/);
 });
 
+test("native Electron chrome uses HSL assets, platform options and the shared theme authority", () => {
+  const main = read("gui/main.js");
+  const preload = read("gui/preload.js");
+  const bootstrap = read("gui/renderer/theme-bootstrap.js");
+  const html = read("gui/renderer/index.html");
+  const css = read("gui/renderer/styles/app.css");
+  const png = fs.readFileSync(path.join(root, "gui", "renderer", "assets", "native", "app-icon.png"));
+  const ico = fs.readFileSync(path.join(root, "gui", "renderer", "assets", "native", "app-icon.ico"));
+
+  assert.match(main, /Menu\.setApplicationMenu\(null\)/);
+  assert.match(main, /function nativeWindowChromeOptions\(platform, theme\)/);
+  assert.match(main, /platform === "darwin"[\s\S]*titleBarStyle: "hiddenInset"/);
+  assert.match(main, /titleBarOverlay: nativeTitleBarOverlay\(theme\)[\s\S]*titleBarStyle: "hidden"/);
+  assert.match(main, /function applyNativeWindowTheme\(window, theme\)[\s\S]*setBackgroundColor[\s\S]*process\.platform !== "darwin"[\s\S]*setTitleBarOverlay/);
+  assert.equal((main.match(/applyNativeWindowTheme\(mainWindow, publicState\.effectiveTheme\)/g) || []).length, 2);
+  assert.match(main, /app-icon\.ico/);
+  assert.match(main, /app-icon\.png/);
+  assert.match(preload, /platform: process\.platform/);
+  assert.match(bootstrap, /document\.documentElement\.dataset\.platform = platform/);
+  assert.match(html, /class="window-titlebar"[\s\S]*assets\/icons\/app\.svg[\s\S]*High Score League Launcher/);
+  assert.match(css, /\.window-titlebar\s*\{[^}]*height: var\(--native-titlebar-height, 32px\)[^}]*padding-inline: 12px 152px[^}]*-webkit-app-region: drag/);
+  assert.match(css, /html\[data-platform="darwin"\] \.window-titlebar\s*\{[^}]*padding-inline: 78px 12px/);
+  assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.deepEqual([...ico.subarray(0, 4)], [0, 0, 1, 0]);
+});
+
 test("failed renderer legacy migration preserves localStorage for a later retry", () => {
   const main = read("gui/main.js");
   const bootstrap = read("gui/renderer/theme-bootstrap.js");

@@ -152,7 +152,7 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
     <div className="space-y-6">
       <Breadcrumbs
         items={[
-          { href: "/archive/weeks", label: "Archivo" },
+          { href: "/archive", label: "Archivo" },
           { href: "/archive/seasons", label: "Temporadas" },
           { label: season.name },
         ]}

@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import {
+  getArchiveYears,
+  rangeMatchesArchiveYear,
+} from "@/lib/archive-years";
 import { formatTableDateRange } from "@/lib/format";
 import type { SeasonSummary } from "@/types";
 import { PlayerPill } from "./player-pill";
@@ -84,10 +88,24 @@ function MembershipLabel({
 }
 
 export function SeasonsTable({ seasons, enableControls = false }: SeasonsTableProps) {
-  const [status, setStatus] = useState("all");
+  const [year, setYear] = useState("all");
   const [leader, setLeader] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("dates");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [archiveNow] = useState(() => new Date());
+
+  const years = useMemo(
+    () =>
+      getArchiveYears(
+        seasons.map(({ season }) => ({
+          startsAt: season.startsAt,
+          endsAt: season.endsAt,
+          capAtNow: publicSeasonStatus(season.status) === "active",
+        })),
+        archiveNow,
+      ),
+    [archiveNow, seasons],
+  );
 
   const leaders = useMemo(
     () =>
@@ -107,10 +125,15 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
       .filter(({ season, leader: currentLeader, champion }) => {
         const visibleLeader = champion ?? currentLeader;
         const publicStatus = publicSeasonStatus(season.status);
-        const matchesStatus = status === "all" || status === publicStatus;
+        const matchesYear =
+          year === "all" ||
+          rangeMatchesArchiveYear(season.startsAt, season.endsAt, year, {
+            capAtNow: publicStatus === "active",
+            now: archiveNow,
+          });
         const matchesLeader = leader === "all" || visibleLeader?.username === leader;
 
-        return matchesStatus && matchesLeader;
+        return matchesYear && matchesLeader;
       })
       .map((summary, index) => ({ summary, index }))
       .sort((a, b) => {
@@ -134,7 +157,7 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
         return result === 0 ? a.index - b.index : result * direction;
       })
       .map(({ summary }) => summary);
-  }, [leader, seasons, sortDirection, sortKey, status]);
+  }, [archiveNow, leader, seasons, sortDirection, sortKey, year]);
 
   function toggleSort(nextKey: SortKey) {
     if (nextKey === sortKey) {
@@ -165,17 +188,19 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <label className="block">
               <span className="text-xs font-semibold uppercase theme-text-muted">
-                Estado
+                Año
               </span>
               <select
                 className="mt-2 w-full rounded-md border px-3 py-2 theme-input"
-                onChange={(event) => setStatus(event.target.value)}
-                value={status}
+                onChange={(event) => setYear(event.target.value)}
+                value={year}
               >
                 <option value="all">Todos</option>
-                <option value="active">Activa</option>
-                <option value="closed">Cerrada</option>
-                <option value="inactive">Inactiva</option>
+                {years.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="block">
@@ -204,7 +229,7 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
       {visibleSeasons.length === 0 ? (
         <EmptyState
           title="No hay temporadas con esos filtros."
-          description="Cambia el estado o el líder seleccionado."
+          description="Cambia el año o el líder seleccionado."
         />
       ) : (
         <DataTable>

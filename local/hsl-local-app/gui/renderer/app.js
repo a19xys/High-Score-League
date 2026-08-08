@@ -708,6 +708,10 @@ function openAccountFormState(email = "") {
   };
 }
 
+function knownAccountForUserId(state, userId) {
+  return (state.data?.accounts?.knownAccounts || []).find((account) => account.userId === userId) || null;
+}
+
 function libraryRegionHtml(state) {
   const packs = state.data?.library?.packs || [];
   return {
@@ -1649,7 +1653,8 @@ async function submitLogin(form) {
 }
 
 async function switchAccount(button) {
-  if (store.getState().busy) return;
+  const currentState = store.getState();
+  if (currentState.busy) return;
 
   const email = button.dataset.email || "";
   const userId = button.dataset.userId;
@@ -1657,6 +1662,17 @@ async function switchAccount(button) {
   if (!userId) {
     resetLoginDraft(email);
     store.setState(openAccountFormState(email));
+    return;
+  }
+
+  const knownAccount = knownAccountForUserId(currentState, userId);
+  if (knownAccount?.requiresLogin === true) {
+    const reloginEmail = knownAccount.email || email;
+    resetLoginDraft(reloginEmail);
+    store.setState({
+      ...openAccountFormState(reloginEmail),
+      authError: knownAccount.requiresLoginMessage || "Inicia sesiÃ³n de nuevo para esta cuenta.",
+    });
     return;
   }
 
@@ -1668,10 +1684,9 @@ async function switchAccount(button) {
         ...cleanAccountFormState(),
         busy: true,
         busyLabel: "Cambiando cuenta",
-        operationFeedbackMode: "inline",
+        operationFeedbackMode: "overlay",
       }),
       operation: () => window.hslLauncher.switchAccount(userId),
-      scope: "inline",
     });
     const nextState = {
       busy: false,

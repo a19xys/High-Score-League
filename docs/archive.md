@@ -1,28 +1,44 @@
 # Archivo canónico y paginación de envíos
 
-## Archivo público de la liga
+## Archivo de la liga
 
-La navegación autenticada reúne el historial bajo un único acceso `ARCHIVO` y
-dos rutas canónicas independientes:
+La navegación autenticada reúne el historial bajo un único acceso `ARCHIVO`.
+`/archive` es una landing privada y ligera: no consulta semanas ni temporadas y
+ofrece dos tarjetas grandes para elegir sección:
 
 - `/archive/weeks`: Semanas;
 - `/archive/seasons`: Temporadas.
 
-Cada página consulta únicamente los datos de su sección y reutiliza las tablas,
-filtros, orden, avisos y estados vacíos existentes. El selector usa enlaces
-reales, de modo que recarga, URLs copiadas y Atrás/Adelante funcionan sin estado
-React ni parámetros de consulta.
+Cada subpágina consulta únicamente sus propios datos y conserva tabs secundarios
+con enlaces reales. Las URLs copiadas, la recarga y Atrás/Adelante funcionan sin
+estado React ni parámetros de consulta.
 
 Compatibilidad mediante redirecciones permanentes:
 
-- `/archive` y `/weeks` → `/archive/weeks`;
+- `/weeks` → `/archive/weeks`;
 - `/seasons` y `/season` → `/archive/seasons`;
+- `/archive?section=weeks` → `/archive/weeks`;
 - `/archive?section=seasons` → `/archive/seasons`;
-- `/archive?section=weeks` o un valor desconocido → `/archive/weeks`.
+- un `section` desconocido → `/archive` sin el parámetro.
 
 Los detalles conservan `/weeks/[weekId]` y `/seasons/[seasonId]`. En ellos,
 `ARCHIVO` aparece activo, salvo que la semana activa deba dar prioridad a
 `LEADERBOARD` o la temporada activa a `CLASIFICACIÓN`.
+
+## Filtro por año
+
+Semanas y temporadas filtran por año en lugar de estado. Las columnas, badges y
+ordenación por estado no cambian. Las opciones se derivan de los intervalos
+visibles y se ordenan de más reciente a más antiguo, sin años hardcodeados.
+
+Un intervalo pertenece a todos los años naturales que cruza según
+`Europe/Madrid`; por ejemplo, del 28 de diciembre de 2025 al 3 de enero de 2026
+pertenece a 2025 y 2026. Los intervalos activos se recortan a la fecha actual
+para no anunciar años futuros. Los intervalos completados conservan todo su
+rango. Las semanas secretas o futuras y las temporadas borrador no generan
+opciones públicas.
+
+El año se combina con la búsqueda, temporada, editor, género y líder existentes.
 
 ## Breadcrumbs
 
@@ -33,15 +49,14 @@ horizontal. Home no muestra breadcrumbs.
 
 Jerarquías públicas:
 
-- archivo: `Liga / Archivo / Semanas|Temporadas`;
+- raíz del archivo: `Liga / Archivo`;
+- índices: `Liga / Archivo / Semanas|Temporadas`;
 - temporada: `Liga / Archivo / Temporadas / [temporada]`;
 - semana: `Liga / Archivo / Temporadas / [temporada] / [juego o semana]`;
 - perfil público: `Liga / Jugadores / @[username]`;
 - perfil propio: `Liga / Mi perfil`.
 
-Las pantallas admin, de autenticación y diagnóstico siguen la misma convención
-con una jerarquía útil. Los enlaces “Volver” solo permanecen cuando son una
-acción real y no navegación estructural duplicada.
+`Archivo` enlaza siempre a `/archive`.
 
 ## Paginación compacta de submissions
 
@@ -60,28 +75,34 @@ El orden de procesamiento es deliberado:
 7. render del segmento visible.
 
 Cambiar el orden o el tamaño vuelve a página 1. Si cambian los datos, la página
-se limita a la última existente. Anterior y Siguiente son botones nativos
-deshabilitados en los extremos; el selector tiene etiqueta visible y el resumen
-anuncia `X–Y de Z`.
+se limita a la última existente. En móvil sólo se muestran los botones anterior
+y siguiente y el rango centrado (`1–10 de 39`) en una cuadrícula
+`44px / 1fr / 44px`. En escritorio se muestra `1–10 de 39`, el selector
+`[10] por página` y `[‹] 1 / 4 [›]`.
+
+El texto completo para lectores de pantalla anuncia “Mostrando elementos X a Y
+de Z” y “Página X de Y” en una única región viva. El selector conserva la
+etiqueta accesible “Envíos por página” y los botones tienen nombres explícitos.
 
 La columna se llama siempre `Intentos` y su control accesible es `Ordenar por
-intentos`. Las identidades usan `PlayerPill variant="submission"`: avatar o
-siglas de 28 px sin repetir username, manteniendo enlace, hover card, foco y
-nombre accesible. El resto de celdas y el espaciado vertical también se
-compactan sin alterar semántica.
+intentos`. El perfil propio entrega todos los envíos válidos ya cargados, sin el
+antiguo corte de ocho filas. El perfil público no recibe ni renderiza ese
+historial privado.
 
-El perfil propio entrega todos los envíos válidos ya cargados, sin el antiguo
-corte de ocho filas. El perfil público no recibe ni renderiza ese historial
-privado.
+## Marca estática
+
+La navegación solicita directamente `/brand/logo.png` y la landing
+`/brand/logo-horizontal.png`. Ya no dependen de `process.cwd()` ni de
+comprobaciones server-side del filesystem. El fallback textual se activa sólo
+si el navegador recibe un error real al cargar la imagen y se reinicia si
+cambia la fuente.
 
 ## Alcance y evolución
 
-La paginación continúa siendo cliente/presentación: no añade consultas, no
-cambia RLS y no altera leaderboards, scoring, ingest ni resultados oficiales.
-Esto mantiene correctos el número de intento, el mejor intento y las reglas de
-scores ocultos sobre el conjunto completo.
+La paginación y los filtros continúan siendo cliente/presentación: no añaden
+consultas, no cambian RLS y no alteran leaderboards, scoring, ingest ni resultados
+oficiales.
 
 `SUBMISSIONS-SERVER-PAGINATION-1` queda como tarea futura cuando el volumen haga
 costoso cargar todo el historial. Deberá diseñar consultas paginadas, conteo
-total, índices, RPC o vistas y cálculos globales de intento/mejor score, además
-de separar los datos del leaderboard de las filas del historial.
+total, índices, RPC o vistas y cálculos globales de intento/mejor score.

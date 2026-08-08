@@ -243,7 +243,7 @@ export function renderConnectionControl(state) {
           ? `data-connectivity-status="${escapeHtml(status.status)}" data-severity="${escapeHtml(status.severity)}" title="${escapeHtml(status.description)}"`
           : "aria-hidden=\"true\""}>
         ${committed ? `
-          ${renderStatusBeacon(signalTone, { className: "connection-dot", decorative: true })}
+          ${renderStatusBeacon(signalTone, { className: "connection-dot", decorative: true, variant: "connection" })}
           <span class="connection-label">${escapeHtml(status.title)}</span>
         ` : ""}
         <button class="connection-refresh-button" type="button" data-action="refresh-connectivity"

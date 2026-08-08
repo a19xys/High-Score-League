@@ -121,7 +121,7 @@ function renderBadges(pack, view) {
   if (view === "icons") {
     return `
       <div class="pack-card__status pack-card__status--dot" title="${escapeHtml(meta.title)}">
-        ${renderStatusBeacon(meta.signalTone, { className: "pack-card__status-dot", label: meta.label })}
+        ${renderStatusBeacon(meta.signalTone, { className: "pack-card__status-dot", label: meta.label, variant: "pack" })}
       </div>
     `;
   }
