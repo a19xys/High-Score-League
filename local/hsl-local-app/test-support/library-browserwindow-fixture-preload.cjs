@@ -1,9 +1,12 @@
 const { contextBridge } = require("electron");
 
 let activeIndex = 0;
+let activeUserId = "fixture";
 let expanded = true;
+let heroStatus = "ready";
 let launcherStateRevision = 1;
 let launcherStateListener = null;
+let switchAccountCalls = 0;
 
 const titles = [
   "SPACE INVADERS Y EL TEMPLO DEL MALO MALOSO",
@@ -36,18 +39,32 @@ function visiblePacks() {
 
 function snapshot({ samePack = false } = {}) {
   const pack = packs[activeIndex];
+  const accounts = [
+    { displayName: "Fixture", email: "fixture@example.test", hasLocalSession: true, isActive: activeUserId === "fixture", userId: "fixture" },
+    { displayName: "Cuenta disponible", email: "valid@example.test", hasLocalSession: true, isActive: activeUserId === "valid", userId: "valid" },
+    { displayName: "Cuenta bloqueada", email: "relogin@example.test", hasLocalSession: false, isActive: false, requiresLogin: true, userId: "relogin" },
+  ];
+  const heroError = heroStatus === "error";
   return {
     launcherStateRevision,
-    accounts: { knownAccounts: [] },
+    accounts: { activeUserId, knownAccounts: accounts },
     autoSync: { status: "idle" },
     bridge: {},
     game: {
+      assets: { logo: { url: "./assets/hero_hsl.png" } },
+      developer: "HSL Fixture Studio",
       displayName: `${pack.title}${expanded ? " REFRESH" : ""}${samePack ? " SAME" : ""}`,
+      errors: heroError ? ["Error sintÃ©tico de fixture"] : [],
+      favorite: true,
+      genre: ["Arcade", "Shooter"],
       id: pack.id,
       instanceKey: pack.instanceKey,
       manual: { available: true },
       packId: pack.id,
+      playTime: "12 h 34 min",
+      shortDescription: "Fixture representativa con metadatos, acciones y actividad para verificar el final real del scroll.",
       weekId: pack.weekId,
+      weekNumber: pack.weekNumber,
       year: pack.year,
     },
     library: {
@@ -66,10 +83,19 @@ function snapshot({ samePack = false } = {}) {
     membership: { canPlayCompetition: true, status: "member" },
     notices: [],
     queue: { totals: { failed: 0, pending: 0, sent: 0 } },
-    readiness: { canPlayCompetition: true, canPractice: true, status: "ready" },
+    readiness: {
+      canPlayCompetition: !heroError,
+      canPractice: !heroError,
+      checks: heroError ? [{ id: "rom", level: "error" }] : [],
+      status: heroError ? "error" : "ready",
+    },
     remoteConfiguration: { status: "configured" },
     selection: { activeInstanceKey: pack.instanceKey },
-    session: { email: "fixture@example.test", hasSession: true, userId: "fixture" },
+    session: {
+      email: activeUserId === "valid" ? "valid@example.test" : "fixture@example.test",
+      hasSession: true,
+      userId: activeUserId,
+    },
   };
 }
 
@@ -106,6 +132,21 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   resolveThemeBootstrap: () => ({ effectiveTheme: "dark", mode: "manual" }),
   setLibraryPreferences: async () => ({ ok: true }),
   setTheme: async (theme) => ({ effectiveTheme: theme === "light" ? "light" : "dark", ok: true }),
+  switchAccount: async (userId) => {
+    switchAccountCalls += 1;
+    if (userId === "relogin") {
+      return {
+        email: "relogin@example.test",
+        ok: false,
+        requiresLogin: true,
+        state: snapshot(),
+        summary: "Inicia sesiÃ³n de nuevo para esta cuenta.",
+      };
+    }
+    if (userId === "valid") activeUserId = "valid";
+    launcherStateRevision += 1;
+    return { ok: true, state: snapshot() };
+  },
   startupTheme: Object.freeze({ effectiveTheme: "dark", legacyThemeMigrationAllowed: false }),
   toggleLibraryFavorite: async () => ({ ok: true }),
   useLibraryPack: async (packId) => {
@@ -118,8 +159,16 @@ contextBridge.exposeInMainWorld("hslLauncher", {
 });
 
 contextBridge.exposeInMainWorld("hslFixture", {
+  emitHeroStatus(status) {
+    heroStatus = status === "error" ? "error" : "ready";
+    launcherStateRevision += 1;
+    launcherStateListener?.({ state: snapshot() });
+  },
   emitSamePackSnapshot() {
     launcherStateRevision += 1;
-    launcherStateListener?.(snapshot({ samePack: true }));
+    launcherStateListener?.({ state: snapshot({ samePack: true }) });
+  },
+  getSwitchAccountCalls() {
+    return switchAccountCalls;
   },
 });

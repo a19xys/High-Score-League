@@ -10,6 +10,18 @@ const SEVERITY_CLASSES = Object.freeze({
   error: "badge-error",
   blocked: "badge-blocked",
 });
+const STATUS_BEACON_TONES = new Set(["error", "info", "neutral", "success", "warning"]);
+
+export function renderStatusBeacon(tone, options = {}) {
+  const safeTone = STATUS_BEACON_TONES.has(tone) ? tone : "neutral";
+  const className = options.className ? ` ${escapeHtml(options.className)}` : "";
+  const label = String(options.label || "");
+  const accessibility = options.decorative === true
+    ? `aria-hidden="true"`
+    : `role="img" aria-label="${escapeHtml(label)}"`;
+
+  return `<span class="status-beacon status-beacon--${safeTone}${className}" ${accessibility}><span class="status-beacon__core" aria-hidden="true"></span></span>`;
+}
 
 export function renderStatusBadge(model, { className = "" } = {}) {
   if (!model) return "";

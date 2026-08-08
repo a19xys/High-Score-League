@@ -113,6 +113,21 @@ test("the common lifecycle covers sync, resolved, success, error, abort and ever
   for (const scope of ["transient", "interactive", "external", "background"]) {
     assert.equal(minimumVisibleMsForScope(scope), 600);
   }
+  assert.equal(minimumVisibleMsForScope("inline"), 0);
+
+  const inlineClock = createFakeClock();
+  let inlineFinished = false;
+  const inline = runWithOperationFeedback({
+    now: inlineClock.now,
+    onFinish: () => { inlineFinished = true; },
+    operation: () => "inline",
+    scope: "inline",
+    wait: inlineClock.wait,
+  });
+  await flushMicrotasks();
+  assert.equal(await inline, "inline");
+  assert.equal(inlineFinished, true);
+  assert.equal(inlineClock.pendingCount(), 0);
 
   for (const [label, elapsed, operation] of [
     ["sync", 0, () => "sync"],
@@ -330,4 +345,21 @@ test("automatic connectivity signals stay silent and outside operation feedback"
     assert.match(block, new RegExp(`requestConnectivityRefresh\\?\\.\\(\"${reason}\"\\)`));
     assert.doesNotMatch(block, /runAction|runWithOperationFeedback|busyLabel|setTimeout/);
   }
+});
+
+test("remembered account selection uses an inline lock without a global overlay or minimum timer", async () => {
+  const [app, overlayModule] = await Promise.all([
+    fsp.readFile(path.join(rendererRoot, "app.js"), "utf8"),
+    import(pathToFileURL(path.join(rendererRoot, "components", "busy-overlay.js")).href),
+  ]);
+  const block = app.slice(app.indexOf("async function switchAccount"), app.indexOf("async function activateLibraryPackWithPreload"));
+
+  assert.match(block, /runWithOperationFeedback\(\{/);
+  assert.match(block, /busy: true[\s\S]*operationFeedbackMode: "inline"/);
+  assert.match(block, /scope: "inline"/);
+  assert.match(block, /if \(response\.requiresLogin\)[\s\S]*accountMenuOpen = true[\s\S]*authEmail = response\.email \|\| email[\s\S]*authFormOpen = true/);
+  assert.doesNotMatch(block, /setTimeout|minVisibleMs/);
+  assert.equal(overlayModule.renderBusyOverlay({ busy: true, busyLabel: "Cambiando cuenta", operationFeedbackMode: "inline" }), "");
+  assert.match(overlayModule.renderBusyOverlay({ busy: true, busyLabel: "Conectando", operationFeedbackMode: "overlay" }), /busy-overlay/);
+  assert.match(overlayModule.renderBusyOverlay({ busy: true, operationFeedbackMode: "inline", startup: { visible: true } }), /busy-overlay--startup/);
 });

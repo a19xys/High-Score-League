@@ -82,6 +82,7 @@ const store = createStore({
   initialLoadError: null,
   logs: [],
   noticeIds: [],
+  operationFeedbackMode: "overlay",
   pendingFavoriteKeys: {},
   pendingLibraryPackId: null,
   rankingCapabilities: { entries: {}, generation: 0, inFlight: false },
@@ -362,6 +363,7 @@ function syncThemeControlRegion(region, html) {
 function writeRegion(region, html, name) {
   if (name === "header-theme" && syncThemeControlRegion(region, html)) return;
   const interaction = captureRegionInteraction(region);
+  if (name === "library-packs") applyLibraryPackSelectionExtentLock(region);
   region.innerHTML = html;
   restoreRegionInteraction(region, interaction);
 }
@@ -556,7 +558,37 @@ function findLibraryPack(packId) {
 
 function captureLibraryPackSelectionScroll() {
   const scroller = root.querySelector('[data-preserve-scroll="library-packs"]');
-  return scroller ? { top: scroller.scrollTop } : null;
+  const content = scroller?.querySelector(".library-packs-content");
+  return scroller ? {
+    contentBlockSize: content?.getBoundingClientRect().height || 0,
+    top: scroller.scrollTop,
+  } : null;
+}
+
+function applyLibraryPackSelectionExtentLock(scroller = root.querySelector('[data-preserve-scroll="library-packs"]')) {
+  if (!scroller) return;
+  const contentBlockSize = libraryPackSelectionScroll?.contentBlockSize || 0;
+  if (contentBlockSize > 0) {
+    scroller.style.setProperty("--library-packs-min-block-size", `${contentBlockSize}px`);
+  } else {
+    scroller.style.removeProperty("--library-packs-min-block-size");
+  }
+}
+
+function clearLibraryPackSelectionScroll() {
+  libraryPackSelectionScroll = null;
+  applyLibraryPackSelectionExtentLock();
+}
+
+async function releaseLibraryPackSelectionScroll(requestId) {
+  await new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
+  if (requestId !== libraryPackSelectionSequence) return;
+  clearLibraryPackSelectionScroll();
+}
+
+function resetLibraryResultsScroll() {
+  const scroller = root.querySelector('[data-preserve-scroll="library-packs"]');
+  if (scroller) scroller.scrollTop = 0;
 }
 
 async function refreshRemoteStateAfterPackActivation(requestId, expectedInstanceKey) {
@@ -569,7 +601,7 @@ async function refreshRemoteStateAfterPackActivation(requestId, expectedInstance
     // La activaciÃ³n aceptada sigue siendo autoritativa si el refresh falla.
   } finally {
     if (requestId === libraryPackSelectionSequence) {
-      libraryPackSelectionScroll = null;
+      await releaseLibraryPackSelectionScroll(requestId);
     }
   }
 }
@@ -1629,15 +1661,22 @@ async function switchAccount(button) {
   }
 
   resetLoginDraft();
-  store.setState({ ...cleanAccountFormState(), busy: true, busyLabel: "Cambiando cuenta" });
 
   try {
     const response = await runWithOperationFeedback({
+      onStart: () => store.setState({
+        ...cleanAccountFormState(),
+        busy: true,
+        busyLabel: "Cambiando cuenta",
+        operationFeedbackMode: "inline",
+      }),
       operation: () => window.hslLauncher.switchAccount(userId),
+      scope: "inline",
     });
     const nextState = {
       busy: false,
       busyLabel: null,
+      operationFeedbackMode: "overlay",
       ...launcherSnapshotPatch(response.state),
     };
 
@@ -1666,6 +1705,7 @@ async function switchAccount(button) {
       authFormOpen: true,
       busy: false,
       busyLabel: null,
+      operationFeedbackMode: "overlay",
       logs: appendLog(store.getState().logs, {
         details: [error.message || String(error)],
         ok: false,
@@ -1683,6 +1723,7 @@ async function activateLibraryPackWithPreload(packId) {
 
   const requestId = ++libraryPackSelectionSequence;
   libraryPackSelectionScroll = captureLibraryPackSelectionScroll();
+  applyLibraryPackSelectionExtentLock();
   const optimisticPack = findLibraryPack(safePackId);
   const optimisticPreload = preloadDetailAssetUrls(detailAssetUrlsFromLibraryPack(optimisticPack));
 
@@ -1730,7 +1771,7 @@ async function activateLibraryPackWithPreload(packId) {
       return;
     }
 
-    libraryPackSelectionScroll = null;
+    clearLibraryPackSelectionScroll();
 
     store.setState({
       busy: false,
@@ -1776,6 +1817,8 @@ function bindActions() {
     const input = event.target instanceof Element ? event.target.closest("[data-library-search]") : null;
     if (!input) return;
 
+    if (input.value === store.getState().libraryQuery) return;
+    resetLibraryResultsScroll();
     store.setState({ libraryQuery: input.value });
   });
 
@@ -1784,11 +1827,15 @@ function bindActions() {
     if (!(target instanceof HTMLSelectElement)) return;
 
     if (target.matches("[data-library-season]")) {
+      if (target.value === store.getState().librarySeason) return;
+      resetLibraryResultsScroll();
       store.setState({ librarySeason: target.value });
     }
 
     if (target.matches("[data-library-sort-by]")) {
       const librarySortBy = target.value;
+      if (librarySortBy === store.getState().librarySortBy) return;
+      resetLibraryResultsScroll();
       markLibraryPreferenceUserChange();
       store.setState({ librarySortBy });
       persistLibraryPreferencesSoon({ librarySortBy });
@@ -1913,6 +1960,8 @@ function bindActions() {
 
     if (action === "toggle-library-sort-direction") {
       const librarySortDirection = button.dataset.direction === "desc" ? "desc" : "asc";
+      if (librarySortDirection === store.getState().librarySortDirection) return;
+      resetLibraryResultsScroll();
       markLibraryPreferenceUserChange();
       store.setState({ librarySortDirection });
       persistLibraryPreferencesSoon({ librarySortDirection });
@@ -1923,6 +1972,7 @@ function bindActions() {
         return;
       }
 
+      resetLibraryResultsScroll();
       store.setState({ libraryFavoriteFilter: button.dataset.filter === "favorites" ? "favorites" : "all" });
     }
 

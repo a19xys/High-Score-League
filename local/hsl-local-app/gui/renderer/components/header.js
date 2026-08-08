@@ -1,6 +1,7 @@
 import { COPY } from "./copy.js";
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
+import { renderStatusBeacon } from "./status-primitives.js";
 import {
   derivePublicConnectivityPresentation,
   deriveRememberedAccountPresentation,
@@ -233,6 +234,7 @@ export function renderConnectionControl(state) {
     || (state.busy === true && state.busyLabel === "Comprobando conexión");
   const disabled = !committed || !action.available;
   const actionTitle = action.reason || action.label;
+  const signalTone = status.status === "connected" ? "success" : "error";
 
   return `
     <div class="connection-control" data-connectivity-committed="${committed ? "true" : "false"}" ${!committed ? "aria-hidden=\"true\"" : ""}>
@@ -241,7 +243,7 @@ export function renderConnectionControl(state) {
           ? `data-connectivity-status="${escapeHtml(status.status)}" data-severity="${escapeHtml(status.severity)}" title="${escapeHtml(status.description)}"`
           : "aria-hidden=\"true\""}>
         ${committed ? `
-          <span class="status-dot connection-dot" aria-hidden="true"></span>
+          ${renderStatusBeacon(signalTone, { className: "connection-dot", decorative: true })}
           <span class="connection-label">${escapeHtml(status.title)}</span>
         ` : ""}
         <button class="connection-refresh-button" type="button" data-action="refresh-connectivity"

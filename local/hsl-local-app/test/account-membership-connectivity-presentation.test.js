@@ -333,7 +333,7 @@ test("normal connectivity composes the CSS status dot, label and refresh button 
   }));
 
   assert.match(connected, /connection-chip--connected/);
-  assert.match(connected, /<span class="status-dot connection-dot" aria-hidden="true"><\/span>/);
+  assert.match(connected, /<span class="status-beacon status-beacon--success connection-dot" aria-hidden="true"><span class="status-beacon__core" aria-hidden="true"><\/span><\/span>/);
   assert.match(connected, />Conectado</);
   assert.match(disconnected, /connection-chip--disconnected/);
   assert.match(disconnected, />Desconectado</);

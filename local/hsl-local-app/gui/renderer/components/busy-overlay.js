@@ -225,7 +225,8 @@ export function busyMessageFromLabel(label) {
 
 export function renderBusyOverlay(state) {
   const startupVisible = state?.startup?.visible === true;
-  if (!state?.busy && !startupVisible) {
+  const overlayFeedback = state?.operationFeedbackMode !== "inline";
+  if ((!state?.busy || !overlayFeedback) && !startupVisible) {
     return "";
   }
 

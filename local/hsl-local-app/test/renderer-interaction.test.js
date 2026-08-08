@@ -205,10 +205,40 @@ test("pack selection keeps one scroll intent through pending, accepted snapshot 
 
   assert.match(app, /let libraryPackSelectionScroll = null/);
   assert.match(app, /function captureLibraryPackSelectionScroll\(\)/);
+  assert.match(app, /contentBlockSize: content\?\.getBoundingClientRect\(\)\.height \|\| 0/);
+  assert.match(app, /function applyLibraryPackSelectionExtentLock/);
+  assert.match(app, /--library-packs-min-block-size/);
   assert.match(app, /element\.dataset\.preserveScroll === "library-packs" && libraryPackSelectionScroll/);
   assert.match(activation, /libraryPackSelectionScroll = captureLibraryPackSelectionScroll\(\)/);
-  assert.match(app, /async function refreshRemoteStateAfterPackActivation[\s\S]*store\.setState\(launcherSnapshotPatch\(nextData\)\)[\s\S]*libraryPackSelectionScroll = null/);
+  assert.match(activation, /applyLibraryPackSelectionExtentLock\(\)/);
+  assert.match(app, /async function refreshRemoteStateAfterPackActivation[\s\S]*store\.setState\(launcherSnapshotPatch\(nextData\)\)[\s\S]*await releaseLibraryPackSelectionScroll\(requestId\)/);
+  assert.match(app, /releaseLibraryPackSelectionScroll[\s\S]*requestAnimationFrame\(\(\) => window\.requestAnimationFrame\(resolve\)\)/);
   assert.doesNotMatch(activation, /setTimeout|scrollIntoView/);
+});
+
+test("result-changing filters reset library scroll before state while presentation toggles do not", () => {
+  const app = source("app.js");
+  const bind = app.slice(app.indexOf("function bindActions"));
+  const filtersToggle = bind.slice(
+    bind.indexOf('if (action === "toggle-library-filters")'),
+    bind.indexOf('if (action === "toggle-library-favorite")'),
+  );
+
+  assert.equal((app.match(/function resetLibraryResultsScroll\(\)/g) || []).length, 1);
+  for (const marker of [
+    "input.value === store.getState().libraryQuery",
+    "target.value === store.getState().librarySeason",
+    "librarySortBy === store.getState().librarySortBy",
+    "librarySortDirection === store.getState().librarySortDirection",
+    'action === "toggle-library-favorite-filter"',
+  ]) {
+    const start = bind.indexOf(marker);
+    const stateWrite = bind.indexOf("store.setState", start);
+    const reset = bind.indexOf("resetLibraryResultsScroll()", start);
+    assert.ok(start >= 0, marker);
+    assert.ok(reset > start && reset < stateWrite, marker);
+  }
+  assert.doesNotMatch(filtersToggle, /resetLibraryResultsScroll/);
 });
 
 test("stale full snapshots remain rejected", async () => {

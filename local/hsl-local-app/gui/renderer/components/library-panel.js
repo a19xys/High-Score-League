@@ -247,7 +247,7 @@ export function renderLibraryControls(state, packs) {
   `;
 }
 
-export function renderLibraryPacks(state) {
+function renderLibraryPacksContent(state) {
   const packs = state.data?.library?.packs || [];
   const directory = state.data?.library?.directory || {};
   const library = deriveLibraryPresentation(state.data?.library, state.data?.selection);
@@ -343,6 +343,10 @@ export function renderLibraryPacks(state) {
       </div>
     </section>
   `).join("");
+}
+
+export function renderLibraryPacks(state) {
+  return `<div class="library-packs-content">${renderLibraryPacksContent(state)}</div>`;
 }
 
 function renderLibraryCount(data) {

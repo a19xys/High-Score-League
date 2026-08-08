@@ -1,5 +1,6 @@
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
+import { renderStatusBeacon } from "./status-primitives.js";
 
 function getInitials(title) {
   const words = String(title || "HSL")
@@ -23,7 +24,7 @@ function statusMeta(pack) {
   if (pack.status === "error") {
     return {
       className: "week-status--error",
-      dotClassName: "pack-card__status-dot--error",
+      signalTone: "error",
       label: "REQUIERE ATENCION",
       title: "Este pack esta incompleto o no es valido.",
     };
@@ -32,7 +33,7 @@ function statusMeta(pack) {
   if (pack.deprecated) {
     return {
       className: "week-status--legacy",
-      dotClassName: "pack-card__status-dot--warning",
+      signalTone: "warning",
       label: "LEGACY",
       title: "Este pack usa un contrato antiguo.",
     };
@@ -41,7 +42,7 @@ function statusMeta(pack) {
   if (pack.status === "warning") {
     return {
       className: "week-status--warning",
-      dotClassName: "pack-card__status-dot--warning",
+      signalTone: "warning",
       label: "AVISO",
       title: "Este pack puede usarse, pero tiene avisos.",
     };
@@ -49,7 +50,7 @@ function statusMeta(pack) {
 
   return {
     className: "week-status--ready",
-    dotClassName: "pack-card__status-dot--ok",
+    signalTone: "success",
     label: "LISTO",
     title: "Pack detectado y listo para abrir.",
   };
@@ -120,7 +121,7 @@ function renderBadges(pack, view) {
   if (view === "icons") {
     return `
       <div class="pack-card__status pack-card__status--dot" title="${escapeHtml(meta.title)}">
-        <span class="status-dot pack-card__status-dot ${meta.dotClassName}" aria-label="${escapeHtml(meta.label)}"></span>
+        ${renderStatusBeacon(meta.signalTone, { className: "pack-card__status-dot", label: meta.label })}
       </div>
     `;
   }

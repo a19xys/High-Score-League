@@ -3,8 +3,8 @@ export const DEFAULT_OPERATION_MIN_VISIBLE_MS = 600;
 let feedbackRunSequence = 0;
 let activeFeedbackController = null;
 
-export function minimumVisibleMsForScope() {
-  return DEFAULT_OPERATION_MIN_VISIBLE_MS;
+export function minimumVisibleMsForScope(scope = "transient") {
+  return scope === "inline" ? 0 : DEFAULT_OPERATION_MIN_VISIBLE_MS;
 }
 
 export function remainingMinimumVisibleMs(startedAt, minVisibleMs, now = Date.now()) {

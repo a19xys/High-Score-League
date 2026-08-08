@@ -52,6 +52,13 @@
   --state-blocked: #7f1d1d;
   --state-blocked-bg: #fee2e2;
   --state-border-width: 1px;
+  --signal-success: #22e36f;
+  --signal-warning: #ffc62e;
+  --signal-error: #ff4d5f;
+  --signal-info: #38bdf8;
+  --signal-neutral: #94a3b8;
+  --signal-socket: #f8fbff;
+  --signal-socket-border: #52677f;
   --status-badge-height: 26px;
   --status-icon-size: 14px;
   --control-radius: 8px;
@@ -124,6 +131,8 @@
   --state-error-bg: #450a0a;
   --state-blocked: #fecaca;
   --state-blocked-bg: #450a0a;
+  --signal-socket: #0b1220;
+  --signal-socket-border: #9bacbf;
   --card-surface: #172033;
   --card-border: #334155;
   --selection-ring: #22d3ee;

@@ -1387,7 +1387,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.play-button \.ui-icon__fallback,[\s\S]*\.secondary-action \.ui-icon__fallback[\s\S]*display: none !important/);
   assert.match(styles, /\.favorite-slot--pending[\s\S]*opacity: 1[\s\S]*filter: none[\s\S]*cursor: pointer/);
   assert.equal(/\.favorite-slot--pending[\s\S]{0,80}cursor: wait/.test(styles), false);
-  assert.match(styles, /\.status-dot\s*\{[^}]*width: 8px[^}]*height: 8px[^}]*border: 0[^}]*background: currentColor[^}]*box-shadow: 0 0 0 3px/);
+  assert.match(styles, /\.status-beacon\s*\{[^}]*width: 14px[^}]*height: 14px[^}]*border: 1px solid var\(--signal-socket-border\)[^}]*background: var\(--signal-socket\)/);
+  assert.match(styles, /\.status-beacon__core\s*\{[^}]*width: 7px[^}]*height: 7px[^}]*background: currentColor/);
   assert.match(styles, /\.app-icon-slot[\s\S]*width: 52px[\s\S]*height: 52px[\s\S]*border: 0[\s\S]*background: transparent/);
   assert.match(styles, /\.app-brand-icon\.ui-icon[\s\S]*width: 48px[\s\S]*height: 48px[\s\S]*background: transparent/);
   assert.match(styles, /\.app-brand-icon\.ui-icon \.ui-icon__glyph[\s\S]*display: none/);
