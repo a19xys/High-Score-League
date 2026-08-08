@@ -49,7 +49,7 @@ test("native Electron chrome uses HSL assets, platform options and the shared th
   assert.match(preload, /platform: process\.platform/);
   assert.match(bootstrap, /document\.documentElement\.dataset\.platform = platform/);
   assert.match(html, /class="window-titlebar"[\s\S]*assets\/icons\/app\.svg[\s\S]*High Score League Launcher/);
-  assert.match(css, /\.window-titlebar\s*\{[^}]*height: var\(--native-titlebar-height, 32px\)[^}]*padding-inline: 12px 152px[^}]*-webkit-app-region: drag/);
+  assert.match(css, /\.window-titlebar\s*\{[^}]*height: var\(--native-titlebar-height\)[^}]*env\(titlebar-area-x, 0px\)[^}]*env\(titlebar-area-width, 100vw\)[^}]*-webkit-app-region: drag/);
   assert.match(css, /html\[data-platform="darwin"\] \.window-titlebar\s*\{[^}]*padding-inline: 78px 12px/);
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.deepEqual([...ico.subarray(0, 4)], [0, 0, 1, 0]);

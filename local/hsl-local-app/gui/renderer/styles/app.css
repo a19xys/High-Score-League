@@ -97,28 +97,53 @@ summary:focus-visible {
 }
 
 .app-shell {
-  min-height: calc(100vh - var(--native-titlebar-height, 32px));
+  min-height: calc(100vh - var(--native-titlebar-height));
   padding: 28px;
 }
 
 .window-titlebar {
+  --window-titlebar-rule: color-mix(in srgb, var(--border) 72%, transparent);
   display: flex;
+  position: relative;
   width: 100%;
-  height: var(--native-titlebar-height, 32px);
-  min-height: var(--native-titlebar-height, 32px);
+  height: var(--native-titlebar-height);
+  min-height: var(--native-titlebar-height);
   align-items: center;
   gap: 8px;
   overflow: hidden;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-bottom: 1px solid var(--window-titlebar-rule);
   background: var(--background);
   color: var(--text);
-  padding-inline: 12px 152px;
+  padding-inline-start: max(12px, calc(env(titlebar-area-x, 0px) + 12px));
+  padding-inline-end: max(
+    12px,
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px)
+  );
   -webkit-app-region: drag;
   user-select: none;
 }
 
 html[data-platform="darwin"] .window-titlebar {
   padding-inline: 78px 12px;
+}
+
+html:not([data-platform="darwin"]) .window-titlebar::before,
+html:not([data-platform="darwin"]) .window-titlebar::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  width: 1px;
+  background: var(--window-titlebar-rule);
+  pointer-events: none;
+}
+
+html:not([data-platform="darwin"]) .window-titlebar::before {
+  left: calc(env(titlebar-area-x, 0px) - 1px);
+}
+
+html:not([data-platform="darwin"]) .window-titlebar::after {
+  left: calc(env(titlebar-area-x, 0px) + env(titlebar-area-width, 100vw));
 }
 
 .window-titlebar__icon {
@@ -129,10 +154,11 @@ html[data-platform="darwin"] .window-titlebar {
 }
 
 .window-titlebar__title {
+  min-width: 0;
   overflow: hidden;
   font-size: 12px;
   font-weight: 700;
-  line-height: 1;
+  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1823,14 +1849,14 @@ body {
 
 #app {
   width: 100%;
-  height: calc(100vh - var(--native-titlebar-height, 32px));
+  height: calc(100vh - var(--native-titlebar-height));
 }
 
 .app-shell {
   display: grid;
   width: 100vw;
-  height: calc(100vh - var(--native-titlebar-height, 32px));
-  min-height: calc(100vh - var(--native-titlebar-height, 32px));
+  height: calc(100vh - var(--native-titlebar-height));
+  min-height: calc(100vh - var(--native-titlebar-height));
   grid-template-rows: auto 1fr;
   overflow: hidden;
   padding: 0;
@@ -1984,7 +2010,7 @@ main,
 
 .modal-layer {
   position: fixed;
-  inset: 0;
+  inset: var(--native-titlebar-height) 0 0;
   z-index: 50;
   display: grid;
   justify-content: end;
@@ -2234,7 +2260,9 @@ main,
   display: grid;
   grid-template-rows: auto 1fr;
   width: min(760px, 72vw);
-  height: 100vh;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
   overflow: hidden;
   border-left: 1px solid var(--border);
   background: var(--background);
@@ -5691,6 +5719,29 @@ h3,
 
 .launcher-header {
   min-width: 0;
+}
+
+/* Experimental wide-viewport rails; decorative only and intentionally isolated. */
+@media (min-width: 1761px) {
+  .app-main::before,
+  .app-main::after {
+    content: "";
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: color-mix(in srgb, var(--border) 72%, transparent);
+    pointer-events: none;
+  }
+
+  .app-main::before {
+    left: 0;
+  }
+
+  .app-main::after {
+    right: 0;
+  }
 }
 
 .header-actions {
