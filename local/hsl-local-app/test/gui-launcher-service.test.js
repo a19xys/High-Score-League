@@ -1269,7 +1269,9 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /margin-inline: auto/);
   assert.match(styles, /var\(--library-sidebar-width, 440px\) 8px minmax\(0, 1fr\)/);
   assert.equal(/@media \(max-width: 1080px\)[\s\S]{0,160}\.app-main[\s\S]{0,80}grid-template-columns: 1fr/.test(styles), false);
-  assert.match(styles, /\.app-main::before[\s\S]*right: calc\(100% - var\(--library-sidebar-width, 440px\)\)[\s\S]*background: var\(--library-sidebar-bg\)/);
+  assert.match(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME[\s\S]*\.app-main::before\s*\{\s*content: none/);
+  assert.match(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME[\s\S]*\.library-panel-region\s*\{[^}]*background: transparent[^}]*padding-block: 13px[^}]*padding-inline: 0/);
+  assert.match(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME[\s\S]*\.library-scroll\s*\{[^}]*border: 1px solid var\(--border\)[^}]*border-radius: 10px[^}]*background: var\(--surface\)/);
   assert.match(styles, /\.library-resizer/);
   assert.match(styles, /\.library-panel-region/);
   assert.match(styles, /\.game-panel-region/);

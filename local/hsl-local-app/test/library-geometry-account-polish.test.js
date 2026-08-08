@@ -92,6 +92,31 @@ test("winning library CSS removes duplicate padding and keeps square, bounded ic
   assert.doesNotMatch(finalPackViewport.split(".pack-card {")[0], /overflow-x: auto/);
 });
 
+test("library frame is bounded vertically without consuming icon-track width", async () => {
+  const styles = await fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8");
+  const marker = "LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME";
+  const frameCss = styles.slice(styles.indexOf(marker));
+  const regionRule = frameCss.match(/\.library-panel-region\s*\{([^}]*)\}/)?.[1] || "";
+  const scrollRule = frameCss.match(/\.library-scroll\s*\{([^}]*)\}/)?.[1] || "";
+  const innerPanelRule = frameCss.match(/\.library-scroll > \.library-panel\s*\{([^}]*)\}/)?.[1] || "";
+
+  assert.notEqual(styles.indexOf(marker), -1);
+  assert.match(frameCss, /\.app-main::before\s*\{\s*content: none/);
+  assert.match(regionRule, /background: transparent/);
+  assert.match(regionRule, /padding-block: 13px/);
+  assert.match(regionRule, /padding-inline: 0/);
+  assert.doesNotMatch(regionRule, /margin-inline|padding-left|padding-right/);
+  assert.match(scrollRule, /border: 1px solid var\(--border\)/);
+  assert.match(scrollRule, /border-radius: 10px/);
+  assert.match(scrollRule, /background: var\(--surface\)/);
+  assert.match(scrollRule, /overflow: hidden/);
+  assert.match(scrollRule, /padding: 0/);
+  assert.doesNotMatch(scrollRule, /padding-inline|margin-inline|#[0-9a-f]{3,8}|rgb\(/i);
+  assert.match(innerPanelRule, /border: 0/);
+  assert.match(innerPanelRule, /background: transparent/);
+  assert.match(innerPanelRule, /box-shadow: none/);
+});
+
 test("covers and list retain independent grid contracts", async () => {
   const styles = await fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8");
 

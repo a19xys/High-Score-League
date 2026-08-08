@@ -6678,3 +6678,31 @@ html:not([data-theme="dark"]) .game-hero-indicator {
 .render-region-contents {
   display: contents;
 }
+
+/* LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME: restore the panel without reducing its inline geometry. */
+.app-main::before {
+  content: none;
+}
+
+.library-panel-region {
+  background: transparent;
+  padding-block: 13px;
+  padding-inline: 0;
+}
+
+.library-scroll {
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  padding: 0;
+}
+
+.library-scroll > .library-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
