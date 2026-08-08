@@ -70,11 +70,15 @@ test("sidebar clamp preserves the documented UI bounds and Home default", async 
 
 test("the minimum window keeps a bounded detail region even at maximum sidebar width", async () => {
   const { GAME_DETAIL_MIN_WIDTH, LIBRARY_RESIZER_WIDTH, LIBRARY_SIDEBAR_MAX } = await geometryModule();
-  const minimumWindowWidth = 1180;
-  const requiredLayoutWidth = LIBRARY_SIDEBAR_MAX + LIBRARY_RESIZER_WIDTH + GAME_DETAIL_MIN_WIDTH;
+  const libraryShellInlineInset = 32;
+  const minimumWindowWidth = 1200;
+  const requiredLayoutWidth = LIBRARY_SIDEBAR_MAX
+    + libraryShellInlineInset
+    + LIBRARY_RESIZER_WIDTH
+    + GAME_DETAIL_MIN_WIDTH;
 
-  assert.equal(requiredLayoutWidth, 1148);
-  assert.ok(requiredLayoutWidth < minimumWindowWidth);
+  assert.equal(requiredLayoutWidth, 1180);
+  assert.ok(requiredLayoutWidth <= minimumWindowWidth);
 });
 
 test("winning library CSS removes duplicate padding and keeps square, bounded icon tracks", async () => {
@@ -92,29 +96,34 @@ test("winning library CSS removes duplicate padding and keeps square, bounded ic
   assert.doesNotMatch(finalPackViewport.split(".pack-card {")[0], /overflow-x: auto/);
 });
 
-test("library frame is bounded vertically without consuming icon-track width", async () => {
+test("library gutters expand only the physical track and restore the real panel surface", async () => {
   const styles = await fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8");
-  const marker = "LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME";
-  const frameCss = styles.slice(styles.indexOf(marker));
-  const regionRule = frameCss.match(/\.library-panel-region\s*\{([^}]*)\}/)?.[1] || "";
-  const scrollRule = frameCss.match(/\.library-scroll\s*\{([^}]*)\}/)?.[1] || "";
-  const innerPanelRule = frameCss.match(/\.library-scroll > \.library-panel\s*\{([^}]*)\}/)?.[1] || "";
+  const regionRule = styles.match(/\.library-panel-region\s*\{([^}]*)\}/)?.[1] || "";
+  const scrollRule = styles.match(/\.library-scroll\s*\{([^}]*)\}/)?.[1] || "";
+  const panelRule = styles.match(/\.panel,\s*\n\.game-panel\s*\{([^}]*)\}/)?.[1] || "";
+  const libraryPanelRule = styles.match(/\.library-panel\s*\{([^}]*)\}/)?.[1] || "";
 
-  assert.notEqual(styles.indexOf(marker), -1);
-  assert.match(frameCss, /\.app-main::before\s*\{\s*content: none/);
+  assert.doesNotMatch(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME|\.app-main::before|--library-sidebar-bg/);
   assert.match(regionRule, /background: transparent/);
-  assert.match(regionRule, /padding-block: 13px/);
-  assert.match(regionRule, /padding-inline: 0/);
-  assert.doesNotMatch(regionRule, /margin-inline|padding-left|padding-right/);
-  assert.match(scrollRule, /border: 1px solid var\(--border\)/);
-  assert.match(scrollRule, /border-radius: 10px/);
-  assert.match(scrollRule, /background: var\(--surface\)/);
+  assert.match(regionRule, /padding: 16px/);
+  assert.doesNotMatch(regionRule, /border:|box-shadow/);
   assert.match(scrollRule, /overflow: hidden/);
+  assert.match(scrollRule, /border: 0/);
+  assert.match(scrollRule, /border-radius: 0/);
+  assert.match(scrollRule, /background: transparent/);
+  assert.match(scrollRule, /box-shadow: none/);
   assert.match(scrollRule, /padding: 0/);
-  assert.doesNotMatch(scrollRule, /padding-inline|margin-inline|#[0-9a-f]{3,8}|rgb\(/i);
-  assert.match(innerPanelRule, /border: 0/);
-  assert.match(innerPanelRule, /background: transparent/);
-  assert.match(innerPanelRule, /box-shadow: none/);
+  assert.match(panelRule, /border: 1px solid var\(--border\)/);
+  assert.match(panelRule, /border-radius: 8px/);
+  assert.match(panelRule, /background: color-mix\(in srgb, var\(--surface\) 96%, transparent\)/);
+  assert.match(libraryPanelRule, /box-shadow: none/);
+  assert.match(styles, /html:not\(\[data-theme="dark"\]\) \.panel:not\(\.library-panel\)/);
+  assert.doesNotMatch(styles, /html:not\(\[data-theme="dark"\]\) \.panel,/);
+
+  assert.equal((styles.match(/--library-shell-inline-inset:/g) || []).length, 1);
+  assert.match(styles, /--library-shell-inline-inset: 32px/);
+  assert.equal((styles.match(/calc\(var\(--library-sidebar-width, 440px\) \+ var\(--library-shell-inline-inset\)\)/g) || []).length, 1);
+  assert.deepEqual([340, 440, 600].map((width) => width + 32), [372, 472, 632]);
 });
 
 test("covers and list retain independent grid contracts", async () => {

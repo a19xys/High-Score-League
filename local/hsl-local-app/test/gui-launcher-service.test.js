@@ -1167,7 +1167,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /account-forget-button/);
   assert.match(header, /No has iniciado sesión/);
   assert.match(header, /account-mini-avatar--empty/);
-  assert.match(copy, /launcherSubtitle: "Tu compañero para jugar la liga\."/);
+  assert.match(copy, /launcherSubtitle: "Tu compañero para jugar la liga\"/);
   assert.equal(/Cambio rápido disponible|Cambio rÃ¡pido disponible|Cuenta activa|badge badge-ok|No se guardan contrase|Las puntuaciones se guardan|No borra puntuaciones/.test(header), false);
   assert.match(gamePanel, /derivePrimaryActions/);
   assert.match(gamePanel, /renderAvailabilityButton\(actions\.competition/);
@@ -1267,11 +1267,13 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /LOCAL-LAUNCHER-SHELL-DETAIL-HOTFIX-3-FINAL/);
   assert.match(styles, /width: min\(100%, 1840px\)/);
   assert.match(styles, /margin-inline: auto/);
-  assert.match(styles, /var\(--library-sidebar-width, 440px\) 8px minmax\(0, 1fr\)/);
+  assert.match(styles, /--library-shell-inline-inset: 32px/);
+  assert.match(styles, /calc\(var\(--library-sidebar-width, 440px\) \+ var\(--library-shell-inline-inset\)\)[\s\S]*8px[\s\S]*minmax\(540px, 1fr\)/);
   assert.equal(/@media \(max-width: 1080px\)[\s\S]{0,160}\.app-main[\s\S]{0,80}grid-template-columns: 1fr/.test(styles), false);
-  assert.match(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME[\s\S]*\.app-main::before\s*\{\s*content: none/);
-  assert.match(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME[\s\S]*\.library-panel-region\s*\{[^}]*background: transparent[^}]*padding-block: 13px[^}]*padding-inline: 0/);
-  assert.match(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME[\s\S]*\.library-scroll\s*\{[^}]*border: 1px solid var\(--border\)[^}]*border-radius: 10px[^}]*background: var\(--surface\)/);
+  assert.doesNotMatch(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME|\.app-main::before|--library-sidebar-bg/);
+  assert.match(styles, /\.library-panel-region\s*\{[^}]*background: transparent[^}]*padding: 16px/);
+  assert.match(styles, /\.library-scroll\s*\{[^}]*border: 0[^}]*background: transparent[^}]*box-shadow: none[^}]*padding: 0/);
+  assert.match(styles, /\.library-panel\s*\{[^}]*box-shadow: none/);
   assert.match(styles, /\.library-resizer/);
   assert.match(styles, /\.library-panel-region/);
   assert.match(styles, /\.game-panel-region/);
@@ -1971,7 +1973,9 @@ test("manual and ranking IPC stay in main process", async () => {
   assert.match(main, /launcher:import-pack-zip/);
   assert.match(main, /launcher:import-pack-folder/);
   assert.match(main, /dialog\.showOpenDialog/);
-  assert.match(main, /minWidth: 1180/);
+  assert.match(main, /width: 1240/);
+  assert.match(main, /height: 820/);
+  assert.match(main, /minWidth: 1200/);
   assert.match(main, /minHeight: 620/);
   assert.match(preload, /openManual/);
   assert.match(preload, /openRanking/);

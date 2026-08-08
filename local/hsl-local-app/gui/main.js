@@ -473,7 +473,7 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1240,
     height: 820,
-    minWidth: 1180,
+    minWidth: 1200,
     minHeight: 620,
     backgroundColor: themeBackgroundColor(theme.effectiveTheme),
     show: false,

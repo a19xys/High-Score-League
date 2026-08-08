@@ -1146,6 +1146,7 @@ button:disabled {
 .library-panel {
   display: grid;
   gap: 14px;
+  box-shadow: none;
 }
 
 .library-toolbar {
@@ -1842,18 +1843,6 @@ main,
   overflow: hidden;
 }
 
-.app-main::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  bottom: 0;
-  left: -100vw;
-  right: calc(100% - var(--library-sidebar-width, 380px));
-  background: color-mix(in srgb, var(--surface) 74%, transparent);
-  pointer-events: none;
-}
-
 .library-panel-region,
 .game-panel-region {
   position: relative;
@@ -1863,27 +1852,33 @@ main,
 }
 
 .library-panel-region {
-  border-right: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 74%, transparent);
-}
-
-.library-scroll,
-.game-scroll {
-  height: 100%;
-  min-height: 0;
-  overflow-y: auto;
+  background: transparent;
   padding: 16px;
 }
 
+.library-scroll {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
 .game-scroll {
+  height: 100%;
+  min-height: 0;
   display: grid;
   align-content: start;
   gap: 14px;
+  overflow-y: auto;
   overscroll-behavior: contain;
+  padding: 16px;
   scrollbar-gutter: stable;
 }
 
-.library-scroll .library-panel,
 .game-scroll > .panel,
 .game-scroll > .game-panel {
   box-shadow: var(--shadow-panel);
@@ -2926,18 +2921,8 @@ body {
 }
 
 .app-main {
-  --library-sidebar-bg: color-mix(in srgb, var(--surface) 74%, transparent);
   width: min(100%, 1840px);
   grid-template-columns: var(--library-sidebar-width, 440px) 8px minmax(0, 1fr);
-}
-
-.app-main::before {
-  right: calc(100% - var(--library-sidebar-width, 440px));
-  background: var(--library-sidebar-bg);
-}
-
-.library-panel-region {
-  background: var(--library-sidebar-bg);
 }
 
 @media (max-width: 1080px) {
@@ -3052,18 +3037,8 @@ body {
 }
 
 .app-main {
-  --library-sidebar-bg: color-mix(in srgb, var(--surface) 74%, transparent);
   width: min(100%, 1840px);
   grid-template-columns: var(--library-sidebar-width, 440px) 8px minmax(0, 1fr);
-}
-
-.app-main::before {
-  right: calc(100% - var(--library-sidebar-width, 440px));
-  background: var(--library-sidebar-bg);
-}
-
-.library-panel-region {
-  background: var(--library-sidebar-bg);
 }
 
 @media (max-width: 1080px) {
@@ -3189,10 +3164,6 @@ body {
 .library-resizer:focus-visible,
 .is-resizing-library .library-resizer {
   background: color-mix(in srgb, var(--circuit) 24%, var(--surface));
-}
-
-.library-panel-region {
-  border-right: 0;
 }
 
 .library-management {
@@ -4124,11 +4095,6 @@ button:disabled .ui-icon,
 }
 
 /* LOCAL-LAUNCHER-LIBRARY-CONTROLS-REVAMP-2: compact library controls and stable icon tiles. */
-.library-scroll {
-  overflow: hidden;
-  padding: 0;
-}
-
 .library-panel {
   height: 100%;
   min-height: 0;
@@ -5034,8 +5000,12 @@ button:disabled .ui-icon,
 
 /* LOCAL-LAUNCHER-SHELL-DETAIL-POLISH-2: shell balance and revamp-aligned detail. */
 .app-main {
+  --library-shell-inline-inset: 32px;
   width: min(100%, 1760px);
-  grid-template-columns: var(--library-sidebar-width, 380px) 8px minmax(540px, 1fr);
+  grid-template-columns:
+    calc(var(--library-sidebar-width, 440px) + var(--library-shell-inline-inset))
+    8px
+    minmax(540px, 1fr);
 }
 
 .library-resizer {
@@ -5138,10 +5108,6 @@ button:disabled .ui-icon,
 }
 
 @media (max-width: 1080px) {
-  .app-main {
-    grid-template-columns: var(--library-sidebar-width, 380px) 8px minmax(540px, 1fr);
-  }
-
   .library-resizer {
     display: block;
   }
@@ -5744,7 +5710,7 @@ html:not([data-theme="dark"]) body {
 }
 
 html:not([data-theme="dark"]) .launcher-header,
-html:not([data-theme="dark"]) .panel,
+html:not([data-theme="dark"]) .panel:not(.library-panel),
 html:not([data-theme="dark"]) .advanced-shell,
 html:not([data-theme="dark"]) .game-detail-card,
 html:not([data-theme="dark"]) .account-menu,
@@ -6677,32 +6643,4 @@ html:not([data-theme="dark"]) .game-hero-indicator {
 
 .render-region-contents {
   display: contents;
-}
-
-/* LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME: restore the panel without reducing its inline geometry. */
-.app-main::before {
-  content: none;
-}
-
-.library-panel-region {
-  background: transparent;
-  padding-block: 13px;
-  padding-inline: 0;
-}
-
-.library-scroll {
-  height: 100%;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: var(--shadow-panel);
-  padding: 0;
-}
-
-.library-scroll > .library-panel {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
 }

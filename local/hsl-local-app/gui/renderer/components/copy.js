@@ -8,7 +8,7 @@ export const COPY = {
     refresh: "Actualizar estado",
     syncPlugin: "Sincronizar plugin",
   },
-  launcherSubtitle: "Tu compañero para jugar la liga.",
+  launcherSubtitle: "Tu compañero para jugar la liga",
 };
 
 export function formatCount(value, singular, plural) {
