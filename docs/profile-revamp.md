@@ -127,7 +127,7 @@ detalles técnicos.
 La tarjeta cargada usa altura natural, conserva su límite máximo respecto al
 viewport y activa scroll interno solo si hace falta. No reserva alturas vacías,
 no recorta la bio ni muestra líneas de “Trayectoria competitiva”. El fallback
-de bio compartido en perfiles y tarjetas es exactamente `Sin descripción`.
+de bio compartido en perfiles y tarjetas es exactamente `Sin descripción.`.
 
 La edición comparte un límite de 150 caracteres entre UI y validación. El
 textarea muestra ayuda, contador y `maxLength`; un pegado que exceda el límite

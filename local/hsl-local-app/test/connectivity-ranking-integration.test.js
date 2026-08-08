@@ -141,15 +141,14 @@ test("header keeps a binary CSS status and integrates refresh in the same chip",
   assert.match(connectionBlock, /aria-label="Comprobar conexión"/);
   assert.match(connectionBlock, /renderIcon\("refresh"/);
   assert.match(styles, /\.connection-chip\s*\{[\s\S]*?display: inline-flex/);
-  assert.match(styles, /\.connection-chip\s*\{[\s\S]*?gap: 5px;[\s\S]*?inline-size: max-content;[\s\S]*?max-inline-size: 100%/);
+  assert.match(styles, /\.connection-chip\s*\{[\s\S]*?gap: 0;[\s\S]*?inline-size: max-content;[\s\S]*?max-inline-size: 100%/);
   assert.match(styles, /\.connection-control\s*\{[\s\S]*?width: 164px;[\s\S]*?min-width: 164px[\s\S]*?justify-content: flex-end/);
   assert.match(styles, /\.connection-label[\s\S]*white-space: nowrap/);
-  assert.match(styles, /\.connection-dot\s*\{[\s\S]*?width: 8px;[\s\S]*?height: 8px;[\s\S]*?border-radius: 999px/);
+  assert.match(styles, /\.connection-dot\s*\{[\s\S]*?width: 8px;[\s\S]*?height: 8px;[\s\S]*?margin-inline-end: 7px;[\s\S]*?border-radius: 999px/);
   assert.match(styles, /\.connection-chip--connected\s*\{[\s\S]*?var\(--state-success\)/);
   assert.match(styles, /\.connection-chip--disconnected\s*\{[\s\S]*?var\(--state-error\)/);
   assert.match(styles, /connection-chip--unresolved[\s\S]*visibility: hidden/);
-  assert.match(styles, /\.connection-refresh-button\s*\{[\s\S]*?border: 0[\s\S]*?background: transparent[\s\S]*?color: inherit/);
-  assert.doesNotMatch(styles, /\.connection-refresh-button\s*\{[^}]*margin-inline-start/);
+  assert.match(styles, /\.connection-refresh-button\s*\{[\s\S]*?margin-inline-start: 3px[\s\S]*?border: 0[\s\S]*?background: transparent[\s\S]*?color: inherit/);
   assert.doesNotMatch(styles, /\.connection-chip\s*\{[^}]*justify-content: space-between/);
   assert.doesNotMatch(styles, /\.connection-refresh-button\s*\{[^}]*margin-inline-start: auto/);
   assert.match(styles, /\.connection-refresh-button:focus-visible[\s\S]*outline:/);

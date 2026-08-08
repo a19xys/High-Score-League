@@ -1330,7 +1330,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.doesNotMatch(styles, /game-favorite-mark|favorite-star-safe-space|favorite-mark-left|favorite-mark-top/);
   assert.match(styles, /\.game-hero-shell[\s\S]*grid-template-columns:[\s\S]*--hero-indicator-lane-min/);
   assert.match(styles, /\.game-hero-shell \.game-hero-logo-safe-area[\s\S]*grid-area: 1 \/ 2[\s\S]*padding-block: var\(--hero-safe-block-inset\)/);
-  assert.match(styles, /\.game-hero-shell \.game-hero__logo[\s\S]*max-inline-size: min\(100%, 520px\)[\s\S]*max-block-size: min\(58%, 166px\)[\s\S]*object-fit: contain/);
+  assert.match(styles, /\.game-hero-shell \.game-hero__logo[\s\S]*max-inline-size: min\(100%, 560px\)[\s\S]*max-block-size: min\(62%, 180px\)[\s\S]*object-fit: contain/);
   assert.match(styles, /\.game-hero-indicators-region[\s\S]*grid-area: 1 \/ 3[\s\S]*container: hero-indicator-lane \/ inline-size/);
   assert.match(styles, /\.game-hero-indicators[\s\S]*right: var\(--hero-indicator-edge-inset\)[\s\S]*bottom: var\(--hero-indicator-edge-inset\)/);
   assert.match(styles, /\.game-hero-indicator--favorite[\s\S]*color: var\(--circuit\)/);

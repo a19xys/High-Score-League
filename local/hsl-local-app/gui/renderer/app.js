@@ -335,7 +335,29 @@ function restoreRegionInteraction(region, interaction) {
   }
 }
 
-function writeRegion(region, html) {
+function syncElementAttributes(element, source) {
+  [...element.attributes].forEach(({ name }) => {
+    if (!source.hasAttribute(name)) element.removeAttribute(name);
+  });
+  [...source.attributes].forEach(({ name, value }) => element.setAttribute(name, value));
+}
+
+function syncThemeControlRegion(region, html) {
+  const currentButton = region.querySelector('[data-action="toggle-theme"]');
+  if (!currentButton) return false;
+
+  const template = document.createElement("template");
+  template.innerHTML = String(html || "").trim();
+  const nextButton = template.content.querySelector('[data-action="toggle-theme"]');
+  if (!nextButton) return false;
+
+  syncElementAttributes(currentButton, nextButton);
+  currentButton.replaceChildren(...nextButton.childNodes);
+  return true;
+}
+
+function writeRegion(region, html, name) {
+  if (name === "header-theme" && syncThemeControlRegion(region, html)) return;
   const interaction = captureRegionInteraction(region);
   region.innerHTML = html;
   restoreRegionInteraction(region, interaction);
@@ -1027,6 +1049,15 @@ async function setManualTheme(theme) {
       }),
     });
   }
+}
+
+async function toggleManualThemeAfterAccountClose(accountMenuWasOpen) {
+  if (accountMenuWasOpen || store.getState().accountMenuOpen) {
+    store.setState(closeAccountMenuState());
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
+  }
+
+  return setManualTheme(store.getState().theme === "dark" ? "light" : "dark");
 }
 
 async function persistLibraryPreferences(patch) {
@@ -1822,6 +1853,17 @@ function bindActions() {
       return;
     }
 
+    const button = target?.closest("[data-action]");
+    const action = button?.dataset.action;
+
+    if (action === "toggle-theme") {
+      const accountMenuWasOpen = current.accountMenuOpen;
+      themeToggleQueue = themeToggleQueue.then(() => (
+        toggleManualThemeAfterAccountClose(accountMenuWasOpen)
+      ));
+      return;
+    }
+
     if (
       current.accountMenuOpen &&
       target &&
@@ -1834,16 +1876,7 @@ function bindActions() {
       }
     }
 
-    const button = target?.closest("[data-action]");
     if (!button) return;
-
-    const action = button.dataset.action;
-
-    if (action === "toggle-theme") {
-      themeToggleQueue = themeToggleQueue.then(() => (
-        setManualTheme(store.getState().theme === "dark" ? "light" : "dark")
-      ));
-    }
 
     if (action === "show-settings") {
       store.setState({ ...closeAccountMenuState(), activeOverlay: "advanced" });

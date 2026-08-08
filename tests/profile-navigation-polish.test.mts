@@ -40,9 +40,9 @@ test("profile bio validation shares the 150 character contract", () => {
     validateProfileBio("x".repeat(151)),
     "La bio no puede superar los 150 caracteres.",
   );
-  assert.equal(PROFILE_BIO_FALLBACK, "Sin descripción");
-  assert.equal(getProfileBioDisplay(null), "Sin descripción");
-  assert.equal(getProfileBioDisplay("   "), "Sin descripción");
+  assert.equal(PROFILE_BIO_FALLBACK, "Sin descripción.");
+  assert.equal(getProfileBioDisplay(null), "Sin descripción.");
+  assert.equal(getProfileBioDisplay("   "), "Sin descripción.");
 });
 
 test("full profile date uses the Madrid competition date", () => {

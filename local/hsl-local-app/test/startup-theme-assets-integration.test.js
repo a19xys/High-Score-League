@@ -47,6 +47,37 @@ test("the user sees only a two-theme toggle and a manual change never remounts a
   assert.doesNotMatch(read("gui/main.js"), /nativeTheme\.(?:on|addListener)\(/);
 });
 
+test("theme toggle preserves its node and closes account UI before applying the theme", () => {
+  const renderer = read("gui/renderer/app.js");
+  const synchronizer = renderer.slice(
+    renderer.indexOf("function syncThemeControlRegion"),
+    renderer.indexOf("const regionRenderer"),
+  );
+  const toggle = renderer.slice(
+    renderer.indexOf("async function toggleManualThemeAfterAccountClose"),
+    renderer.indexOf("async function persistLibraryPreferences"),
+  );
+  const clickBranch = renderer.slice(
+    renderer.indexOf('if (action === "toggle-theme")'),
+    renderer.indexOf('if (action === "show-settings")'),
+  );
+
+  assert.match(synchronizer, /name === "header-theme" && syncThemeControlRegion\(region, html\)/);
+  assert.match(synchronizer, /syncElementAttributes\(currentButton, nextButton\)/);
+  assert.match(synchronizer, /currentButton\.replaceChildren\(\.\.\.nextButton\.childNodes\)/);
+  assert.ok(synchronizer.indexOf("syncThemeControlRegion") < synchronizer.indexOf("region.innerHTML = html"));
+
+  const closeIndex = toggle.indexOf("store.setState(closeAccountMenuState())");
+  const frameIndex = toggle.indexOf("window.requestAnimationFrame(resolve)");
+  const themeIndex = toggle.indexOf("return setManualTheme");
+  assert.ok(closeIndex >= 0 && closeIndex < frameIndex && frameIndex < themeIndex);
+  assert.match(toggle, /if \(accountMenuWasOpen \|\| store\.getState\(\)\.accountMenuOpen\) \{[\s\S]*requestAnimationFrame[\s\S]*\}[\s\S]*return setManualTheme/);
+  assert.equal((toggle.match(/requestAnimationFrame/g) || []).length, 1);
+  assert.doesNotMatch(toggle, /setTimeout|transitionend|animationend/);
+  assert.match(clickBranch, /const accountMenuWasOpen = current\.accountMenuOpen/);
+  assert.match(clickBranch, /themeToggleQueue = themeToggleQueue\.then[\s\S]*toggleManualThemeAfterAccountClose\(accountMenuWasOpen\)/);
+});
+
 test("initial state defers remote membership while health and Ranking remain background events", () => {
   const main = read("gui/main.js");
   const readiness = read("gui/renderer/startup-readiness.js");

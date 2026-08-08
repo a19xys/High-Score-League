@@ -200,10 +200,14 @@ test("controles neutros usan solo borde y contenido azules sin alterar fondos ni
   assert.match(neutralHoverCss, /\.app-dialog__button--secondary/);
   assert.match(neutralHoverCss, /:not\(\[aria-disabled="true"\]\):not\(\[aria-pressed="true"\]\):not\(\[aria-expanded="true"\]\)/);
   assert.match(neutralHoverCss, /:not\(\[data-severity="error"\]\):not\(\[data-severity="success"\]\)/);
-  assert.match(neutralHoverCss, /transition: border-color 0\.16s ease, color 0\.16s ease/);
+  assert.match(neutralHoverCss, /transition: none/);
   assert.match(neutralHoverCss, /border-color: var\(--circuit\)/);
   assert.match(neutralHoverCss, /color: var\(--circuit\)/);
-  assert.match(neutralHoverCss, /:hover :is\(\.ui-icon, \.action-button-label, small\)[\s\S]*?color: currentColor/);
+  assert.match(neutralHoverCss, /:hover :is\(\.ui-icon:not\(\.action-icon\), \.action-button-label, small\)[\s\S]*?color: currentColor/);
+  assert.match(neutralHoverCss, /\.secondary-action \.action-icon\.ui-icon\s*\{[\s\S]*?color: var\(--circuit\)/);
+  assert.doesNotMatch(neutralHoverCss, /:hover :is\(\.ui-icon, \.action-button-label, small\)/);
+  assert.match(styles, /\.secondary-action,\s*\n\.tool-button\s*\{[\s\S]*?transition: transform 0\.16s ease, opacity 0\.16s ease/);
+  assert.doesNotMatch(styles, /\.secondary-action,\s*\n\.tool-button\s*\{[^}]*transition:[^;]*(?:border-color|\bcolor\b)/);
   assert.doesNotMatch(neutralHoverCss, /background:|filter:|brightness|play-button|connection-refresh|favorite-slot|account-forget-button|pack-card/);
   assert.match(lightHoverRule, /border-color: var\(--circuit\)/);
   assert.match(lightHoverRule, /color: var\(--circuit\)/);

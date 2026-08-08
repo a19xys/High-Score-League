@@ -525,7 +525,7 @@ p {
 
 .secondary-action,
 .tool-button {
-  transition: border-color 0.16s ease, color 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
+  transition: transform 0.16s ease, opacity 0.16s ease;
 }
 
 .play-button:hover:not(:disabled) {
@@ -925,7 +925,7 @@ button:disabled {
 .connection-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 0;
   inline-size: max-content;
   max-inline-size: 100%;
   justify-content: flex-start;
@@ -944,6 +944,7 @@ button:disabled {
   width: 28px;
   height: 28px;
   flex: 0 0 28px;
+  margin-inline-start: 3px;
   place-items: center;
   border: 0;
   border-radius: 999px;
@@ -3922,15 +3923,12 @@ button:disabled .ui-icon,
   place-items: center;
 }
 
-.connection-chip {
-  gap: 6px;
-}
-
 .connection-dot {
   display: inline-block;
   width: 8px;
   height: 8px;
   flex: 0 0 auto;
+  margin-inline-end: 7px;
   border-radius: 999px;
   background: currentColor;
   box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
@@ -5803,7 +5801,7 @@ html:not([data-theme="dark"]) .icon-button:hover {
   .activity-details-button,
   .app-dialog__button--secondary
 ):not(:disabled):not([aria-disabled="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-severity="error"]):not([data-severity="success"]) {
-  transition: border-color 0.16s ease, color 0.16s ease;
+  transition: none;
 }
 
 :is(
@@ -5837,8 +5835,12 @@ html:not([data-theme="dark"]) .icon-button:hover {
   .mini-action:not(.muted),
   .activity-details-button,
   .app-dialog__button--secondary
-):not(:disabled):not([aria-disabled="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-severity="error"]):not([data-severity="success"]):hover :is(.ui-icon, .action-button-label, small) {
+):not(:disabled):not([aria-disabled="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-severity="error"]):not([data-severity="success"]):hover :is(.ui-icon:not(.action-icon), .action-button-label, small) {
   color: currentColor;
+}
+
+.secondary-action .action-icon.ui-icon {
+  color: var(--circuit);
 }
 
 html:not([data-theme="dark"]) .app-dialog__button.app-dialog__button--primary {
@@ -6516,8 +6518,8 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   height: auto;
   min-width: 0;
   min-height: 0;
-  max-inline-size: min(100%, 520px);
-  max-block-size: min(58%, 166px);
+  max-inline-size: min(100%, 560px);
+  max-block-size: min(62%, 180px);
   align-self: center;
   justify-self: center;
   object-fit: contain;

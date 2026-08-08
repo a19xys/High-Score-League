@@ -312,8 +312,8 @@ test("the hero gives every logo ratio a bounded safe area beside the indicator l
   const logoRule = styles.match(/\.game-hero-shell \.game-hero__logo\s*\{([^}]*)\}/)?.[1] || "";
   assert.match(logoRule, /width: auto/);
   assert.match(logoRule, /height: auto/);
-  assert.match(logoRule, /max-inline-size: min\(100%, 520px\)/);
-  assert.match(logoRule, /max-block-size: min\(58%, 166px\)/);
+  assert.match(logoRule, /max-inline-size: min\(100%, 560px\)/);
+  assert.match(logoRule, /max-block-size: min\(62%, 180px\)/);
   assert.match(logoRule, /align-self: center/);
   assert.match(logoRule, /object-fit: contain/);
   assert.doesNotMatch(logoRule, /filter:|box-shadow/);
