@@ -601,16 +601,12 @@ p {
 }
 
 .play-button {
-  transition: filter 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
 }
 
 .secondary-action,
 .tool-button {
   transition: transform 0.16s ease, opacity 0.16s ease;
-}
-
-.play-button:hover:not(:disabled) {
-  filter: brightness(1.06);
 }
 
 .play-button:active:not(:disabled),
@@ -3522,6 +3518,7 @@ body {
   border-radius: 8px;
   background: transparent;
   padding-right: 4px;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
 }
 
 .account-row__button {
@@ -5607,6 +5604,18 @@ html:not([data-theme="dark"]) .favorite-slot:hover:not(:disabled) {
   line-height: 1.1;
 }
 
+.play-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--circuit) 72%, var(--text-inverse));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--circuit) 78%, var(--text-inverse)),
+    color-mix(in srgb, var(--circuit-strong) 78%, var(--circuit))
+  );
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--circuit) 24%, transparent),
+    0 8px 18px color-mix(in srgb, var(--circuit-strong) 24%, transparent);
+}
+
 /* HSL-MANROPE-TYPOGRAPHY-1: calmer interface weights for Manrope. */
 .eyebrow,
 .badge,
@@ -5759,12 +5768,27 @@ html:not([data-theme="dark"]) .busy-overlay__panel {
 
 html:not([data-theme="dark"]) .game-metadata-grid,
 html:not([data-theme="dark"]) .activity-summary-card,
-html:not([data-theme="dark"]) .account-row__surface,
 html:not([data-theme="dark"]) .known-accounts li,
 html:not([data-theme="dark"]) .auth-form,
 html:not([data-theme="dark"]) .account-note {
   border-color: var(--border-soft);
   background: var(--surface-subtle);
+}
+
+html:not([data-theme="dark"]) .account-row__surface {
+  border-color: var(--border-soft);
+  background: var(--surface-subtle);
+}
+
+html:not([data-theme="dark"]) .account-row--active .account-row__surface {
+  border-color: color-mix(in srgb, var(--circuit) 30%, var(--border-soft));
+  background: color-mix(in srgb, var(--circuit) 7%, var(--surface-subtle));
+}
+
+html:not([data-theme="dark"]) .account-row:not(.account-row--active) .account-row__surface:hover,
+html:not([data-theme="dark"]) .account-row:not(.account-row--active) .account-row__surface:focus-within {
+  border-color: color-mix(in srgb, var(--circuit) 44%, var(--border-soft));
+  background: color-mix(in srgb, var(--circuit) 12%, var(--surface-subtle));
 }
 
 html:not([data-theme="dark"]) .library-control-button,
@@ -6435,10 +6459,6 @@ html[data-theme="dark"] .status-beacon--pack {
   border-color: var(--background);
 }
 
-.status-beacon--connection {
-  border: 0;
-}
-
 .status-beacon--success {
   color: var(--signal-success);
 }
@@ -6457,6 +6477,15 @@ html[data-theme="dark"] .status-beacon--pack {
 
 .status-beacon--neutral {
   color: var(--signal-neutral);
+}
+
+.status-beacon--connection {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border: 0;
+  box-shadow: none;
+  color: inherit;
 }
 
 .icon-button {
@@ -6490,9 +6519,9 @@ html[data-theme="dark"] .status-beacon--pack {
 
 .ui-icon.text-companion-icon {
   display: inline-block;
-  inline-size: 1cap;
-  block-size: 1cap;
-  flex: 0 0 1cap;
+  inline-size: 1.16cap;
+  block-size: 1.16cap;
+  flex: 0 0 1.16cap;
   border-radius: 0;
   vertical-align: baseline;
 }
@@ -6590,6 +6619,14 @@ html[data-theme="dark"] .status-beacon--pack {
   display: contents;
 }
 
+.game-hero-shell.game-hero-shell--brand .game-hero-stage--brand {
+  box-shadow: none;
+}
+
+.game-hero-shell.game-hero-shell--brand .game-hero-stage--brand::after {
+  content: none;
+}
+
 .game-hero-shell .game-hero-media {
   z-index: 0;
   min-width: 0;
@@ -6630,7 +6667,9 @@ html[data-theme="dark"] .status-beacon--pack {
   transform: none;
 }
 
-.game-hero-shell .game-hero__logo--brand {
+.game-hero-shell.game-hero-shell--brand .game-hero__logo--brand {
+  max-inline-size: min(100%, 700px);
+  max-block-size: min(100%, 450px);
   opacity: 1;
 }
 
@@ -6707,6 +6746,14 @@ html[data-theme="dark"] .status-beacon--pack {
   color: var(--state-error);
 }
 
+.game-hero-indicator--compact {
+  min-width: 0;
+  width: 38px;
+  height: 38px;
+  gap: 0;
+  padding: 0;
+}
+
 .game-hero-indicator__icon.ui-icon {
   width: 17px;
   height: 17px;
@@ -6715,8 +6762,9 @@ html[data-theme="dark"] .status-beacon--pack {
 }
 
 .game-hero-indicator--favorite .game-hero-indicator__icon.ui-icon {
-  --icon-optical-x: -0.5px;
-  --icon-optical-y: -0.5px;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
 }
 
 html:not([data-theme="dark"]) .game-hero-indicator {
@@ -6727,15 +6775,15 @@ html:not([data-theme="dark"]) .game-hero-indicator {
 
 /* 214px rounds up the measured Favorito + Error pills, their shared gap and edge inset. */
 @container hero-indicator-lane (max-width: 213px) {
-  .game-hero-indicators[data-indicator-count="2"] .game-hero-indicator {
+  .game-hero-indicators[data-indicator-count="2"] .game-hero-indicator:not(.game-hero-indicator--compact) {
     min-width: 0;
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     gap: 0;
     padding: 0;
   }
 
-  .game-hero-indicators[data-indicator-count="2"] .game-hero-indicator__label {
+  .game-hero-indicators[data-indicator-count="2"] .game-hero-indicator:not(.game-hero-indicator--compact) .game-hero-indicator__label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -6748,15 +6796,15 @@ html:not([data-theme="dark"]) .game-hero-indicator {
 
 /* Error is the widest short status copy; include its content width and the edge inset. */
 @container hero-indicator-lane (max-width: 101px) {
-  .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--status {
+  .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--status:not(.game-hero-indicator--compact) {
     min-width: 0;
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     gap: 0;
     padding: 0;
   }
 
-  .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--status .game-hero-indicator__label {
+  .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--status:not(.game-hero-indicator--compact) .game-hero-indicator__label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -6771,8 +6819,8 @@ html:not([data-theme="dark"]) .game-hero-indicator {
 @container hero-indicator-lane (max-width: 120px) {
   .game-hero-indicators[data-indicator-count="1"] .game-hero-indicator--favorite {
     min-width: 0;
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     gap: 0;
     padding: 0;
   }

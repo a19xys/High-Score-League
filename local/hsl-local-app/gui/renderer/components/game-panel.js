@@ -222,8 +222,9 @@ export function deriveGameHeroStatusPresentation(state) {
   if (summary.status === "checking") {
     return {
       accessibleLabel: "Comprobando",
+      compact: true,
       icon: "refresh",
-      label: "...",
+      label: "",
       severity: "progress",
       status: "checking",
     };
@@ -258,9 +259,9 @@ export function renderGameHeroIndicatorsRegion(state) {
         </span>
       ` : ""}
       ${packStatus ? `
-        <span class="game-hero-indicator game-hero-indicator--status game-hero-indicator--${escapeHtml(packStatus.status)}" role="img" aria-label="${escapeHtml(packStatus.accessibleLabel)}" title="${escapeHtml(packStatus.accessibleLabel)}" data-severity="${escapeHtml(packStatus.severity)}">
+        <span class="game-hero-indicator game-hero-indicator--status game-hero-indicator--${escapeHtml(packStatus.status)}${packStatus.compact ? " game-hero-indicator--compact" : ""}" role="img" aria-label="${escapeHtml(packStatus.accessibleLabel)}" title="${escapeHtml(packStatus.accessibleLabel)}" data-severity="${escapeHtml(packStatus.severity)}">
           ${renderIcon(packStatus.icon, { className: "game-hero-indicator__icon", size: "sm" })}
-          <span class="game-hero-indicator__label" aria-hidden="true">${escapeHtml(packStatus.label)}</span>
+          ${packStatus.label ? `<span class="game-hero-indicator__label" aria-hidden="true">${escapeHtml(packStatus.label)}</span>` : ""}
         </span>
       ` : ""}
     </div>

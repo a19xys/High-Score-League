@@ -176,7 +176,7 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
   });
   assert.ok(result.heroAndDrawers.compact.laneWidth <= 213);
   result.heroAndDrawers.compact.indicators.forEach((indicator) => {
-    assert.ok(Math.abs(indicator.width - 40) <= 1);
+    assert.ok(Math.abs(indicator.width - 38) <= 1);
     assert.ok(indicator.labelWidth <= 1);
   });
 

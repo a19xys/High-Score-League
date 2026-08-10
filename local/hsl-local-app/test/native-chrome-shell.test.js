@@ -104,7 +104,7 @@ function composite(pixel, background) {
   return background.map((channel, index) => Math.round(pixel[index] * alpha + channel * (1 - alpha)));
 }
 
-test("native titlebar keeps official controls over one transparent overlay surface", () => {
+test("native titlebar keeps official controls and aligns Windows hover contrast with the launcher theme", () => {
   const main = read("gui/main.js");
   const css = read("gui/renderer/styles/app.css");
   const tokens = read("gui/renderer/styles/tokens.css");
@@ -115,6 +115,9 @@ test("native titlebar keeps official controls over one transparent overlay surfa
   assert.match(main, /function nativeTitleBarOverlay\(theme\)[\s\S]*color: NATIVE_TITLE_BAR_OVERLAY_COLOR[\s\S]*height: NATIVE_TITLE_BAR_HEIGHT[\s\S]*symbolColor: dark \? "#f8fafc" : "#0f172a"/);
   assert.match(main, /platform === "darwin"[\s\S]*titleBarStyle: "hiddenInset"/);
   assert.match(main, /titleBarOverlay: nativeTitleBarOverlay\(theme\)[\s\S]*titleBarStyle: "hidden"/);
+  assert.match(main, /function applyNativeThemeSource\(theme\)[\s\S]*process\.platform === "win32"[\s\S]*nativeTheme\.themeSource = theme === "light" \? "light" : "dark"/);
+  assert.match(main, /function applyNativeWindowTheme\(window, theme\)[\s\S]*applyNativeThemeSource\(theme\)[\s\S]*setBackgroundColor[\s\S]*setTitleBarOverlay/);
+  assert.match(main, /function createMainWindow\(\)[\s\S]*applyNativeThemeSource\(theme\.effectiveTheme\)[\s\S]*new BrowserWindow/);
 
   const titlebar = css.slice(css.indexOf(".window-titlebar {"), css.indexOf("main,\n.launcher-header"));
   assert.match(titlebar, /height: var\(--native-titlebar-height\)/);

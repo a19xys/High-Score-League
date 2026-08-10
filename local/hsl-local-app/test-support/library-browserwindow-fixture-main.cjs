@@ -875,6 +875,121 @@ async function heroAndDrawerSmoke(window) {
   return { closeButtons, compact, errorIndicator, expanded, headerIcons };
 }
 
+async function microinteractionSmoke(window) {
+  const movePointerTo = async (selector, xRatio = 0.5, yRatio = 0.5) => {
+    const coordinates = await window.webContents.executeJavaScript(`(() => {
+      const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+      return {
+        x: Math.round(rect.left + rect.width * ${xRatio}),
+        y: Math.round(rect.top + rect.height * ${yRatio}),
+      };
+    })()`);
+    window.webContents.sendInputEvent({ type: "mouseMove", ...coordinates });
+    await delay(40);
+    await waitForFrames(window);
+  };
+  const movePointerAway = async () => {
+    window.webContents.sendInputEvent({ type: "mouseMove", x: 4, y: 400 });
+    await delay(30);
+    await waitForFrames(window);
+  };
+  const readHero = () => window.webContents.executeJavaScript(`(() => ({
+    indicators: [...document.querySelectorAll('.game-hero-indicator')].map((indicator) => {
+      const rect = indicator.getBoundingClientRect();
+      const icon = indicator.querySelector('.game-hero-indicator__icon').getBoundingClientRect();
+      const label = indicator.querySelector('.game-hero-indicator__label');
+      return {
+        centerOffsetY: icon.top + icon.height / 2 - (rect.top + rect.height / 2),
+        className: indicator.className,
+        height: rect.height,
+        iconHeight: icon.height,
+        iconWidth: icon.width,
+        label: label?.textContent.trim() || null,
+        labelWidth: label?.getBoundingClientRect().width || 0,
+        width: rect.width,
+      };
+    }),
+    laneWidth: document.querySelector('.game-hero-indicators-region').getBoundingClientRect().width,
+  }))()`);
+  const readStyle = (selector) => window.webContents.executeJavaScript(`(() => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    const style = getComputedStyle(element);
+    return {
+      background: style.background,
+      backgroundColor: style.backgroundColor,
+      borderColor: style.borderColor,
+      boxShadow: style.boxShadow,
+      color: style.color,
+      height: style.height,
+      transform: style.transform,
+      width: style.width,
+    };
+  })()`);
+  const results = {};
+
+  for (const theme of ["dark", "light"]) {
+    await window.webContents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
+    window.setSize(1500, 820);
+    await delay(50);
+    await window.webContents.executeJavaScript("document.querySelector('.app-main').style.setProperty('--library-sidebar-width', '380px')");
+    await waitForFrames(window);
+    results[theme] = { accounts: {}, connection: {}, hero: {}, play: {} };
+
+    for (const status of ["ready", "error", "checking"]) {
+      await window.webContents.executeJavaScript(`window.hslFixture.emitHeroStatus(${JSON.stringify(status)})`);
+      await waitForFrames(window, 3);
+      await capture(window, `micro-hero-${status}-${theme}.png`);
+      const resize = [];
+      for (const [width, sidebarWidth] of [[1600, 340], [1500, 400], [1400, 460], [1300, 520], [1200, 600]]) {
+        window.setSize(width, 820);
+        await delay(35);
+        await window.webContents.executeJavaScript(`document.querySelector('.app-main').style.setProperty('--library-sidebar-width', '${sidebarWidth}px')`);
+        await waitForFrames(window);
+        resize.push({ sidebarWidth, width, ...(await readHero()) });
+      }
+      results[theme].hero[status] = resize;
+    }
+
+    await window.webContents.executeJavaScript("window.hslFixture.emitHeroStatus('ready')");
+    window.setSize(1400, 820);
+    await delay(50);
+    await window.webContents.executeJavaScript("document.querySelector('.app-main').style.setProperty('--library-sidebar-width', '440px')");
+    await waitForFrames(window, 3);
+
+    await movePointerAway();
+    results[theme].play.idle = await readStyle('.play-button');
+    await capture(window, `micro-play-idle-${theme}.png`);
+    await movePointerTo('.play-button');
+    results[theme].play.hover = await readStyle('.play-button');
+    await capture(window, `micro-play-hover-${theme}.png`);
+
+    await movePointerAway();
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.click() ");
+    await waitFor(window, "document.querySelector('[data-account-menu]')");
+    await waitForFrames(window);
+    results[theme].accounts.idle = await readStyle('.account-row:not(.account-row--active) .account-row__surface');
+    await movePointerTo('[data-action="switch-account"][data-user-id="valid"]', 0.4);
+    results[theme].accounts.hover = await readStyle('.account-row:not(.account-row--active) .account-row__surface');
+    await capture(window, `micro-account-hover-${theme}.png`);
+    await movePointerTo('[data-action="remove-known-account"][data-user-id="valid"]');
+    results[theme].accounts.forget = await readStyle('[data-action="remove-known-account"][data-user-id="valid"]');
+    await capture(window, `micro-account-forget-hover-${theme}.png`);
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.click() ");
+    await waitForFrames(window);
+
+    for (const status of ["connected", "disconnected"]) {
+      await window.webContents.executeJavaScript(`window.hslFixture.emitConnectivityStatus(${JSON.stringify(status)})`);
+      await waitForFrames(window, 3);
+      const chip = await readStyle('.connection-chip');
+      const dot = await readStyle('.connection-dot');
+      results[theme].connection[status] = { chip, dot };
+      await capture(window, `micro-connection-${status}-${theme}.png`);
+    }
+  }
+
+  return results;
+}
+
 async function calendarCompanionSmoke(window) {
   const measure = (selector) => window.webContents.executeJavaScript(`(() => {
     const row = document.querySelector(${JSON.stringify(selector)});
@@ -1276,6 +1391,7 @@ app.whenReady().then(async () => {
         filters: () => filterScrollMetrics(window),
         hero: () => heroAndDrawerSmoke(window),
         icons: () => iconAlphaMetrics(window),
+        microinteractions: () => microinteractionSmoke(window),
         polish: () => finalPolishSmoke(window),
         rows: () => iconRows(window),
         signals: async () => ({ hostile: await hostileSignalMetrics(window), shared: await signalMetrics(window) }),

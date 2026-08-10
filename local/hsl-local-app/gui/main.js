@@ -177,7 +177,14 @@ function nativeWindowChromeOptions(platform, theme) {
   };
 }
 
+function applyNativeThemeSource(theme) {
+  if (process.platform === "win32") {
+    nativeTheme.themeSource = theme === "light" ? "light" : "dark";
+  }
+}
+
 function applyNativeWindowTheme(window, theme) {
+  applyNativeThemeSource(theme);
   if (!window || window.isDestroyed?.()) return;
   window.setBackgroundColor?.(themeBackgroundColor(theme));
   if (process.platform !== "darwin") {
@@ -506,6 +513,7 @@ async function prepareRemoteAction(source) {
 function createMainWindow() {
   const rendererDocumentPath = path.join(__dirname, "renderer", "index.html");
   const theme = publicThemeState();
+  applyNativeThemeSource(theme.effectiveTheme);
   mainWindow = new BrowserWindow({
     width: 1240,
     height: 820,

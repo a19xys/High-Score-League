@@ -2,6 +2,8 @@ const { contextBridge } = require("electron");
 
 let activeIndex = 0;
 let activeUserId = "fixture";
+let connectivityStatus = "connected";
+let connectivityStateListener = null;
 let heroStatus = "ready";
 let launcherStateRevision = 1;
 let launcherStateListener = null;
@@ -41,6 +43,7 @@ function snapshot({ samePack = false } = {}) {
     { displayName: "Cuenta caducada inesperadamente", email: "expired@example.test", hasLocalSession: true, isActive: false, userId: "expired" },
     { displayName: "Cuenta bloqueada", email: "relogin@example.test", hasLocalSession: false, isActive: false, requiresLogin: true, userId: "relogin" },
   ];
+  const heroChecking = heroStatus === "checking";
   const heroError = heroStatus === "error";
   return {
     launcherStateRevision,
@@ -77,14 +80,31 @@ function snapshot({ samePack = false } = {}) {
       status: "available-populated",
       totals: { packs: packs.length },
     },
-    membership: { canPlayCompetition: true, status: "member" },
+    membership: heroChecking
+      ? {
+          canPlayCompetition: false,
+          canSubmit: false,
+          generation: 7,
+          resolution: {
+            accountId: activeUserId,
+            active: true,
+            contextCurrent: true,
+            generation: 7,
+            instanceKey: pack.instanceKey,
+            weekId: pack.weekId,
+          },
+          status: "checking",
+          weekId: pack.weekId,
+        }
+      : { canPlayCompetition: true, status: "member" },
     notices: [],
     queue: { totals: { failed: 0, pending: 0, sent: 0 } },
     readiness: {
-      canPlayCompetition: !heroError,
+      canPlayCompetition: !heroError && !heroChecking,
       canPractice: !heroError,
+      blockers: heroChecking ? ["Comprobando participaciÃ³n."] : [],
       checks: heroError ? [{ id: "rom", level: "error" }] : [],
-      status: heroError ? "error" : "ready",
+      status: heroError ? "error" : heroChecking ? "blocked" : "ready",
     },
     remoteConfiguration: { status: "configured" },
     selection: { activeInstanceKey: pack.instanceKey },
@@ -105,9 +125,9 @@ function subscription(setter) {
 
 contextBridge.exposeInMainWorld("hslLauncher", {
   getConnectivityState: async () => ({
-    displayStatus: "connected",
+    displayStatus: connectivityStatus,
     probe: { inFlight: false, phase: "idle" },
-    reachability: "connected",
+    reachability: connectivityStatus,
     reachabilityGeneration: 1,
   }),
   getInitialState: async () => snapshot(),
@@ -119,7 +139,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
     return snapshot();
   },
   onBusyPhase: () => () => {},
-  onConnectivityState: () => () => {},
+  onConnectivityState: subscription((callback) => { connectivityStateListener = callback; }),
   onLauncherState: subscription((callback) => { launcherStateListener = callback; }),
   onRankingCapabilitiesState: () => () => {},
   platform: "win32",
@@ -167,8 +187,17 @@ contextBridge.exposeInMainWorld("hslLauncher", {
 });
 
 contextBridge.exposeInMainWorld("hslFixture", {
+  emitConnectivityStatus(status) {
+    connectivityStatus = status === "disconnected" ? "offline" : "connected";
+    connectivityStateListener?.({
+      displayStatus: connectivityStatus,
+      probe: { inFlight: false, phase: "idle" },
+      reachability: connectivityStatus,
+      reachabilityGeneration: 2,
+    });
+  },
   emitHeroStatus(status) {
-    heroStatus = status === "error" ? "error" : "ready";
+    heroStatus = ["checking", "error"].includes(status) ? status : "ready";
     launcherStateRevision += 1;
     launcherStateListener?.({ state: snapshot() });
   },

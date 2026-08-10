@@ -145,7 +145,7 @@ test("header keeps a binary CSS status and integrates refresh in the same chip",
   assert.match(styles, /\.connection-control\s*\{[\s\S]*?width: 164px;[\s\S]*?min-width: 164px[\s\S]*?justify-content: flex-end/);
   assert.match(styles, /\.connection-label[\s\S]*white-space: nowrap/);
   assert.match(styles, /\.status-beacon\s*\{[^}]*box-sizing: border-box[^}]*width: 14px[^}]*height: 14px[^}]*border: 0[^}]*background: currentColor[^}]*box-shadow: none/);
-  assert.match(styles, /\.status-beacon--connection\s*\{[^}]*border: 0/);
+  assert.match(styles, /\.status-beacon--connection\s*\{[^}]*width: 9px[^}]*height: 9px[^}]*flex: 0 0 9px[^}]*border: 0[^}]*box-shadow: none[^}]*color: inherit/);
   assert.doesNotMatch(styles, /\.status-beacon__core/);
   assert.match(styles, /\.connection-dot\s*\{[^}]*margin-inline-end: 7px/);
   assert.match(styles, /\.connection-chip--connected\s*\{[\s\S]*?var\(--state-success\)/);

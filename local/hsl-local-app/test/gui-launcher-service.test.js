@@ -1223,7 +1223,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/star-empty/.test(gamePanel), false);
   assert.match(gamePanel, /role="img" aria-label="Juego favorito"/);
   assert.match(gamePanel, /accessibleLabel: "Pack listo"[\s\S]*label: "Listo"/);
-  assert.match(gamePanel, /accessibleLabel: "Comprobando"[\s\S]*label: "\.\.\."/);
+  assert.match(gamePanel, /accessibleLabel: "Comprobando"[\s\S]*compact: true[\s\S]*label: ""/);
   assert.match(gamePanel, /accessibleLabel: "Pack con errores"[\s\S]*label: "Error"/);
   assert.equal(/renderIcon\("heart|game-favorite-chip/.test(gamePanel), false);
   assert.equal(/badge badge-muted week-chip/.test(gamePanel), false);
@@ -1648,7 +1648,10 @@ test("renderer muestra fallback HSL limpio cuando falta la biblioteca", async ()
   assert.deepEqual(bundledBrandLogo, canonicalBrandLogo);
   assert.match(styles, /\.game-hero-shell\.game-hero-shell--brand\s*\{[^}]*background: var\(--surface-muted\)[^}]*box-shadow: none/);
   assert.match(styles, /\.game-hero-shell\.game-hero-shell--brand::after\s*\{[^}]*content: none/);
-  assert.match(styles, /\.game-hero-shell \.game-hero__logo\s*\{[^}]*max-inline-size:[^}]*max-block-size:[^}]*object-fit: contain/);
+  assert.match(styles, /\.game-hero-shell\.game-hero-shell--brand \.game-hero-stage--brand\s*\{[^}]*box-shadow: none/);
+  assert.match(styles, /\.game-hero-shell\.game-hero-shell--brand \.game-hero-stage--brand::after\s*\{[^}]*content: none/);
+  assert.match(styles, /\.game-hero-shell \.game-hero__logo\s*\{[^}]*max-inline-size: min\(100%, 560px\)[^}]*max-block-size: min\(62%, 180px\)[^}]*object-fit: contain/);
+  assert.match(styles, /\.game-hero-shell\.game-hero-shell--brand \.game-hero__logo--brand\s*\{[^}]*max-inline-size: min\(100%, 700px\)[^}]*max-block-size: min\(100%, 450px\)/);
   assert.match(gameHtml, /Biblioteca no disponible/);
   assert.match(gameHtml, /No se encuentra tu biblioteca de packs/);
   assert.match(gameHtml, /game-hero-shell game-hero-shell--brand/);

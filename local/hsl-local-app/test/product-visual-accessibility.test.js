@@ -49,6 +49,60 @@ test("connectivity refresh is a separate native keyboard action with visible foc
   assert.match(styles, /button:focus-visible[\s\S]*outline: 2px solid var\(--circuit\)/);
 });
 
+test("play hover changes its surface without moving or over-brightening the action", async () => {
+  const styles = await fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8");
+  const transitionRule = styles.match(/\.play-button\s*\{[^}]*transition:[^}]*\}/)?.[0] || "";
+  const hoverRule = styles.match(/\.play-button:hover:not\(:disabled\)\s*\{[^}]*\}/)?.[0] || "";
+
+  assert.match(transitionRule, /border-color 0\.16s ease/);
+  assert.match(transitionRule, /box-shadow 0\.16s ease/);
+  assert.doesNotMatch(transitionRule, /\ball\b|filter/);
+  assert.match(hoverRule, /border-color: color-mix/);
+  assert.match(hoverRule, /background: linear-gradient/);
+  assert.match(hoverRule, /box-shadow:/);
+  assert.doesNotMatch(hoverRule, /filter:|transform:|scale\(/);
+  assert.match(styles, /\.play-button:active:not\(:disabled\)[\s\S]*transform: translateY\(1px\)/);
+});
+
+test("light account rows keep distinct idle, hover and active surfaces", async () => {
+  const styles = await fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8");
+  const sharedHover = styles.match(/\.account-row__button:hover,[\s\S]*?\.account-row__surface:hover\s*\{[^}]*\}/)?.[0] || "";
+  const lightIdle = styles.match(/html:not\(\[data-theme="dark"\]\) \.account-row__surface\s*\{[^}]*\}/)?.[0] || "";
+  const lightActive = styles.match(/html:not\(\[data-theme="dark"\]\) \.account-row--active \.account-row__surface\s*\{[^}]*\}/)?.[0] || "";
+  const lightHover = styles.match(/html:not\(\[data-theme="dark"\]\) \.account-row:not\(\.account-row--active\) \.account-row__surface:hover,[\s\S]*?\{[^}]*\}/)?.[0] || "";
+
+  assert.match(sharedHover, /var\(--circuit\) 26%/);
+  assert.match(sharedHover, /var\(--circuit\) 8%/);
+  assert.match(lightIdle, /border-color: var\(--border-soft\)/);
+  assert.match(lightIdle, /background: var\(--surface-subtle\)/);
+  assert.match(lightActive, /var\(--circuit\) 30%/);
+  assert.match(lightActive, /var\(--circuit\) 7%/);
+  assert.match(lightHover, /var\(--circuit\) 44%/);
+  assert.match(lightHover, /var\(--circuit\) 12%/);
+  assert.notEqual(lightHover, lightActive);
+  assert.doesNotMatch(`${lightIdle}\n${lightActive}\n${lightHover}`, /!important/);
+  assert.match(styles, /\.account-forget-button:hover,[\s\S]*?background: color-mix\(in srgb, var\(--circuit\) 14%, transparent\)/);
+});
+
+test("connection inherits chip tone through a smaller beacon while pack signals stay canonical", async () => {
+  const styles = await fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8");
+  const baseBeacon = styles.match(/\.status-beacon\s*\{[^}]*\}/)?.[0] || "";
+  const connectionBeacon = styles.match(/\.status-beacon--connection\s*\{[^}]*\}/)?.[0] || "";
+
+  assert.match(baseBeacon, /width: 14px/);
+  assert.match(baseBeacon, /height: 14px/);
+  assert.match(connectionBeacon, /width: 9px/);
+  assert.match(connectionBeacon, /height: 9px/);
+  assert.match(connectionBeacon, /flex: 0 0 9px/);
+  assert.match(connectionBeacon, /border: 0/);
+  assert.match(connectionBeacon, /box-shadow: none/);
+  assert.match(connectionBeacon, /color: inherit/);
+  assert.match(styles, /\.status-beacon--pack\s*\{[^}]*border: 2px solid #fff/);
+  assert.match(styles, /\.connection-chip--connected\s*\{[^}]*color: var\(--state-success\)/);
+  assert.match(styles, /\.connection-chip--disconnected\s*\{[^}]*color: var\(--state-error\)/);
+  assert.ok(styles.indexOf(".status-beacon--neutral") < styles.indexOf(".status-beacon--connection"));
+});
+
 test("live region is focused and the app root is not live", async () => {
   const [index, app] = await Promise.all([
     fsp.readFile(path.join(rendererRoot, "index.html"), "utf8"),

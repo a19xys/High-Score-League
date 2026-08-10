@@ -206,13 +206,22 @@ test("checking moves to the hero while account states remain explanatory below",
   assert.match(renderGameHeroIndicatorsRegion(readyNotFavorite), /game-hero-indicator--ready/);
   assert.match(renderGameHeroIndicatorsRegion(checkingFavorite), /game-hero-indicator--favorite/);
   assert.match(renderGameHeroIndicatorsRegion(checkingFavorite), /game-hero-indicator--checking/);
+  assert.match(renderGameHeroIndicatorsRegion(checkingFavorite), /game-hero-indicator--compact/);
   assert.match(renderGameHeroIndicatorsRegion(checkingFavorite), /ui-icon--refresh/);
-  assert.match(renderGameHeroIndicatorsRegion(checkingFavorite), />\.\.\.</);
+  assert.doesNotMatch(renderGameHeroIndicatorsRegion(checkingFavorite), />\.\.\.</);
   assert.match(renderGameHeroIndicatorsRegion(checkingFavorite), /aria-label="Comprobando"[^>]*title="Comprobando"/);
+  assert.doesNotMatch(renderGameHeroIndicatorsRegion(checkingFavorite), /game-hero-indicator--checking[^>]*>[\s\S]*game-hero-indicator__label/);
   assert.doesNotMatch(renderGameHeroIndicatorsRegion(checkingFavorite), /game-hero-indicator--ready|>Listo</);
   assert.match(renderGameHeroIndicatorsRegion(checkingNotFavorite), /data-indicator-count="1"/);
   assert.match(renderGameHeroIndicatorsRegion(checkingNotFavorite), /game-hero-indicator--checking/);
-  assert.equal(deriveGameHeroStatusPresentation(checkingReady).status, "checking");
+  assert.deepEqual(deriveGameHeroStatusPresentation(checkingReady), {
+    accessibleLabel: "Comprobando",
+    compact: true,
+    icon: "refresh",
+    label: "",
+    severity: "progress",
+    status: "checking",
+  });
   assert.match(renderGameHeroIndicatorsRegion(notMember), /game-hero-indicator--favorite/);
   assert.doesNotMatch(renderGameHeroIndicatorsRegion(notMember), /game-hero-indicator--status|>Error|>Listo|>\.\.\.</);
   assert.equal(deriveGameHeroStatusPresentation(notMember), null);
@@ -341,9 +350,14 @@ test("responsive indicators remain CSS pills and icon-only circles without inter
   assert.match(indicatorRule, /gap: 7px/);
   assert.match(indicatorRule, /padding: 0 13px/);
   assert.doesNotMatch(baseIndicatorRules, /\.game-hero-indicator--(?:favorite|status)\s*\{[^}]*min-width/);
-  assert.match(styles, /@container hero-indicator-lane \(max-width: 213px\)[\s\S]*data-indicator-count="2"[\s\S]*width: 40px[\s\S]*height: 40px/);
-  assert.match(styles, /@container hero-indicator-lane \(max-width: 101px\)[\s\S]*game-hero-indicator--status/);
+  assert.match(styles, /\.game-hero-indicator--compact\s*\{[^}]*width: 38px[^}]*height: 38px[^}]*gap: 0[^}]*padding: 0/);
+  assert.match(styles, /@container hero-indicator-lane \(max-width: 213px\)[\s\S]*data-indicator-count="2"[^\{]*game-hero-indicator:not\(\.game-hero-indicator--compact\)[\s\S]*width: 38px[\s\S]*height: 38px/);
+  assert.match(styles, /@container hero-indicator-lane \(max-width: 101px\)[\s\S]*game-hero-indicator--status:not\(\.game-hero-indicator--compact\)/);
   assert.match(styles, /@container hero-indicator-lane \(max-width: 120px\)[\s\S]*game-hero-indicator--favorite/);
+  assert.doesNotMatch(styles, /game-hero-indicator[^}]*width: 40px|game-hero-indicator[^}]*height: 40px/);
+  assert.match(styles, /\.game-hero-indicator__icon\.ui-icon\s*\{[^}]*width: 17px[^}]*height: 17px[^}]*flex: 0 0 17px/);
+  assert.match(styles, /\.game-hero-indicator--favorite \.game-hero-indicator__icon\.ui-icon\s*\{[^}]*width: 19px[^}]*height: 19px[^}]*flex: 0 0 19px/);
+  assert.doesNotMatch(styles, /\.game-hero-indicator--favorite \.game-hero-indicator__icon\.ui-icon\s*\{[^}]*--icon-optical-[xy]/);
   assert.doesNotMatch(styles, /@container game-hero \(max-width: (?:360|520)px\)/);
   assert.match(styles, /\.game-hero-indicators-region[\s\S]*pointer-events: none/);
   assert.match(styles, /\.game-hero-indicator[\s\S]*cursor: default[\s\S]*pointer-events: none/);

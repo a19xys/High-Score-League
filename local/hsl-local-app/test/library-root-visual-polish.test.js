@@ -187,7 +187,7 @@ test("titulo monotono, signal beacon, ring unico y subtitulo estructural compart
   assert.match(gamePanel, /game-week-icon text-companion-icon/);
   assert.match(html, /pack-card__subtitle-text/);
   assert.match(finalCss, /\.pack-card__subtitle \{[\s\S]*display: flex[\s\S]*align-items: baseline/);
-  assert.match(finalCss, /\.ui-icon\.text-companion-icon\s*\{[^}]*display: inline-block[^}]*inline-size: 1cap[^}]*block-size: 1cap[^}]*flex: 0 0 1cap[^}]*vertical-align: baseline/);
+  assert.match(finalCss, /\.ui-icon\.text-companion-icon\s*\{[^}]*display: inline-block[^}]*inline-size: 1\.12cap[^}]*block-size: 1\.12cap[^}]*flex: 0 0 1\.12cap[^}]*vertical-align: baseline/);
   assert.match(styles, /\.game-week-subtitle\s*\{[^}]*align-items: baseline/);
   assert.match(finalCss, /\.pack-card__subtitle-text[\s\S]*text-overflow: ellipsis/);
   assert.match(finalCss, /\.pack-card--icons \.pack-card__body\s*\{[^}]*display: flex[^}]*align-items: stretch[^}]*justify-content: center/);

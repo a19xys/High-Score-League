@@ -27,7 +27,8 @@ test("hero icons use square source boxes and structural glyph centering", async 
   assert.match(styles, /\.ui-icon__glyph\s*\{[^}]*mask-position: center[^}]*mask-size: contain[^}]*transform: translate\(var\(--icon-optical-x, 0\), var\(--icon-optical-y, 0\)\) scale\(var\(--icon-glyph-scale, 1\)\)/);
   assert.match(styles, /:is\(\.theme-button--icon, \.icon-button\) > \.button-icon\.ui-icon\s*\{[^}]*width: var\(--circular-control-icon-size\)[^}]*height: var\(--circular-control-icon-size\)/);
   assert.doesNotMatch(styles, /\.ui-icon--close\s*\{[^}]*--icon-glyph-scale/);
-  assert.match(styles, /\.game-hero-indicator--favorite \.game-hero-indicator__icon\.ui-icon\s*\{[^}]*--icon-optical-x: -0\.5px[^}]*--icon-optical-y: -0\.5px/);
+  assert.match(styles, /\.game-hero-indicator--favorite \.game-hero-indicator__icon\.ui-icon\s*\{[^}]*width: 19px[^}]*height: 19px[^}]*flex: 0 0 19px/);
+  assert.doesNotMatch(styles, /\.game-hero-indicator--favorite \.game-hero-indicator__icon\.ui-icon\s*\{[^}]*--icon-optical-[xy]/);
   assert.doesNotMatch(styles, /\.favorite-slot[^}]*--icon-optical-|\.favorite-slot[^}]*--icon-glyph-scale/);
 });
 
@@ -38,8 +39,11 @@ test("the close control uses a compact centered vector glyph", async () => {
   ]);
 
   assert.match(close, /viewBox="0 0 24 24"/);
-  assert.match(close, /M7 7 17 17M17 7 7 17/);
+  assert.match(close, /M5 5 19 19M19 5 5 19/);
+  assert.match(close, /stroke-width="2\.25"/);
+  assert.match(close, /stroke-linecap="round"/);
   assert.doesNotMatch(close, /<image\b|data:image|base64/);
+  assert.doesNotMatch(close, /transform=/);
   assert.match(styles, /\.icon-button\s*\{[^}]*--circular-control-icon-size: 18px/);
   assert.match(styles, /\.theme-button--icon\s*\{[^}]*--circular-control-icon-size: 18px/);
   assert.doesNotMatch(styles, /\.ui-icon--close\s*\{[^}]*--icon-glyph-scale/);
