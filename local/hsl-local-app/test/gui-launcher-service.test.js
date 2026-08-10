@@ -1270,7 +1270,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /--library-shell-inline-inset: 32px/);
   assert.match(styles, /calc\(var\(--library-sidebar-width, 440px\) \+ var\(--library-shell-inline-inset\)\)[\s\S]*8px[\s\S]*minmax\(540px, 1fr\)/);
   assert.equal(/@media \(max-width: 1080px\)[\s\S]{0,160}\.app-main[\s\S]{0,80}grid-template-columns: 1fr/.test(styles), false);
-  assert.doesNotMatch(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME|\.app-main::before|--library-sidebar-bg/);
+  assert.doesNotMatch(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME|--library-sidebar-bg/);
+  assert.match(styles, /\.launcher-header::before,[\s\S]*\.app-main::before[\s\S]*background: var\(--window-titlebar-rule\)/);
   assert.match(styles, /\.library-panel-region\s*\{[^}]*background: transparent[^}]*padding: 16px/);
   assert.match(styles, /\.library-scroll\s*\{[^}]*border: 0[^}]*background: transparent[^}]*box-shadow: none[^}]*padding: 0/);
   assert.match(styles, /\.library-panel\s*\{[^}]*box-shadow: none/);
@@ -2070,7 +2071,8 @@ test("renderer local icon system maps stable SVG names with safe fallbacks", asy
   assert.match(icon, /ui-icon__glyph/);
   assert.match(icon, /ui-icon__img/);
   assert.match(icon, /ui-icon__fallback/);
-  assert.match(icon, /loading="lazy"/);
+  assert.match(icon, /const loading = options\.loading === "eager" \? "eager" : "lazy"/);
+  assert.match(icon, /loading="\$\{loading\}"/);
   assert.match(icon, /const iconLoadState = \{/);
   assert.match(icon, /export function markIconLoaded/);
   assert.match(icon, /export function markIconMissing/);

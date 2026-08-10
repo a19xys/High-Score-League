@@ -103,7 +103,8 @@ test("library gutters expand only the physical track and restore the real panel 
   const panelRule = styles.match(/\.panel,\s*\n\.game-panel\s*\{([^}]*)\}/)?.[1] || "";
   const libraryPanelRule = styles.match(/\.library-panel\s*\{([^}]*)\}/)?.[1] || "";
 
-  assert.doesNotMatch(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME|\.app-main::before|--library-sidebar-bg/);
+  assert.doesNotMatch(styles, /LOCAL-PRE-BETA-LIBRARY-PANEL-FRAME|--library-sidebar-bg/);
+  assert.match(styles, /\.launcher-header::before,[\s\S]*\.app-main::before[\s\S]*background: var\(--window-titlebar-rule\)/);
   assert.match(regionRule, /background: transparent/);
   assert.match(regionRule, /padding: 16px/);
   assert.doesNotMatch(regionRule, /border:|box-shadow/);

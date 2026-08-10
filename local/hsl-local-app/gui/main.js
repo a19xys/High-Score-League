@@ -46,6 +46,7 @@ let previousReachability = "unknown";
 let lastCommittedAt = null;
 
 const NATIVE_TITLE_BAR_HEIGHT = 32;
+const NATIVE_TITLE_BAR_OVERLAY_COLOR = "#00000000";
 const NATIVE_ICON_PATHS = Object.freeze({
   linux: path.join(__dirname, "renderer", "assets", "native", "app-icon.png"),
   win32: path.join(__dirname, "renderer", "assets", "native", "app-icon.ico"),
@@ -158,7 +159,7 @@ function publicThemeState(state = themeAuthority?.getState()) {
 function nativeTitleBarOverlay(theme) {
   const dark = theme !== "light";
   return {
-    color: themeBackgroundColor(dark ? "dark" : "light"),
+    color: NATIVE_TITLE_BAR_OVERLAY_COLOR,
     height: NATIVE_TITLE_BAR_HEIGHT,
     symbolColor: dark ? "#f8fafc" : "#0f172a",
   };

@@ -146,7 +146,17 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
   result.heroAndDrawers.closeButtons.forEach((offset) => {
     assert.ok(Math.abs(offset.x) <= 1);
     assert.ok(Math.abs(offset.y) <= 1);
+    assert.equal(offset.fallbackDisplay, "none");
+    assert.equal(offset.fallbackText, "");
+    assert.equal(offset.imageComplete, true);
+    assert.equal(offset.imageSource, "./assets/icons/close.svg");
+    assert.match(offset.glyphMask, /close\.svg/);
+    assert.equal(offset.modalTop, 32);
+    assert.equal(offset.drawerTop, 32);
+    assert.equal(offset.modalBottom, offset.viewportHeight);
+    assert.equal(offset.drawerBottom, offset.viewportHeight);
   });
+  assert.deepEqual(result.heroAndDrawers.closeButtons.map(({ drawer }) => drawer), ["settings", "activity"]);
   assert.ok(result.heroAndDrawers.expanded.laneWidth > 213);
   result.heroAndDrawers.expanded.indicators.forEach((indicator) => {
     assert.ok(indicator.width > 40);
@@ -190,8 +200,37 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
     assert.equal(theme.height, 32);
     assert.equal(theme.iconLoaded, true);
     assert.equal(theme.title, "High Score League Launcher");
+    assert.equal(theme.titleContained, true);
+    assert.equal(theme.titleLineHeight, "18px");
+    assert.equal(theme.borderBottomWidth, "1px");
+    assert.equal(theme.safeArea.height, 32);
+    assert.equal(theme.before.pointerEvents, "none");
+    assert.equal(theme.after.pointerEvents, "none");
   }
   assert.notEqual(result.chrome.dark.background, result.chrome.light.background);
+  assert.equal(result.chrome.rails.header.left, result.chrome.rails.main.left);
+  assert.equal(result.chrome.rails.header.right, result.chrome.rails.main.right);
+  assert.equal(result.chrome.rails.header.beforeBackground, result.chrome.rails.main.beforeBackground);
+  assert.equal(result.chrome.rails.header.afterBackground, result.chrome.rails.main.afterBackground);
+  assert.equal(result.chrome.rails.header.beforePointerEvents, "none");
+  assert.equal(result.chrome.rails.header.afterPointerEvents, "none");
+  assert.ok(result.chrome.rails.bodyScrollWidth <= result.chrome.rails.innerWidth);
+  if (process.platform === "win32") {
+    assert.deepEqual(result.chrome.hoverCaptures.map(({ name }) => name), ["minimize", "maximize", "close"]);
+    result.chrome.hoverCaptures.forEach(({ cellWidth, clusterWidth, controlsOnRight }) => {
+      assert.equal(controlsOnRight, true);
+      assert.ok(clusterWidth > 0);
+      assert.ok(Math.abs(cellWidth * 3 - clusterWidth) < 0.01);
+    });
+    assert.match(result.chrome.light.after.backgroundImage, /linear-gradient[\s\S]*linear-gradient/);
+    if (result.chrome.nativeActions) {
+      assert.deepEqual(result.chrome.nativeActions, {
+        closeActivated: true,
+        maximized: true,
+        minimized: true,
+      });
+    }
+  }
 
   for (const direction of [result.footer.bottomResize, result.footer.topResize]) {
     direction.forEach(({ dom }) => {

@@ -615,7 +615,7 @@ function renderOverlay(state) {
             <h2>${isActivity ? "Actividad local" : "Configuración"}</h2>
           </div>
           <button class="icon-button" type="button" data-action="close-overlay" data-overlay-initial-focus title="Cerrar" aria-label="Cerrar">
-            ${renderIcon("close", { className: "button-icon", size: "sm" })}
+            ${renderIcon("close", { className: "button-icon drawer-close-icon", fallback: "", loading: "eager", size: "sm" })}
           </button>
         </div>
         <div class="drawer-body" data-preserve-scroll="drawer-body">

@@ -8,7 +8,7 @@ export const ICONS = Object.freeze({
   calendar: { fallback: "S", file: "calendar.svg" },
   check: { fallback: "OK", file: "check.svg" },
   "chevron-right": { fallback: ">", file: "chevron-right.svg" },
-  close: { fallback: "x", file: "close.svg" },
+  close: { fallback: "", file: "close.svg" },
   connection: { fallback: "*", file: "connection.svg" },
   developer: { fallback: "D", file: "developer.svg" },
   email: { fallback: "@", file: "email.svg" },
@@ -88,6 +88,7 @@ export function renderIcon(name, options = {}) {
   const maskSrc = iconMaskPath(id);
   const label = options.label ? String(options.label) : "";
   const fallback = options.fallback ?? icon.fallback;
+  const loading = options.loading === "eager" ? "eager" : "lazy";
   const className = options.className ? ` ${escapeHtml(options.className)}` : "";
   const size = options.size ? ` ui-icon--${escapeHtml(options.size)}` : "";
   const aria = label
@@ -102,7 +103,7 @@ export function renderIcon(name, options = {}) {
   return `
     <span class="ui-icon ui-icon--${escapeHtml(id)}${loadClass}${size}${className}" data-icon="${escapeHtml(id)}" style="--icon-url: url('${escapeHtml(maskSrc)}')" ${aria}>
       <span class="ui-icon__glyph"></span>
-      <img class="ui-icon__img" data-hsl-icon-image src="${escapeHtml(src)}" alt="" loading="lazy">
+      <img class="ui-icon__img" data-hsl-icon-image src="${escapeHtml(src)}" alt="" loading="${loading}">
       <span class="ui-icon__fallback">${escapeHtml(fallback)}</span>
     </span>
   `;

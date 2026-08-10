@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { execFileSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { app, BrowserWindow, Menu } = require("electron");
 
@@ -16,6 +17,15 @@ const traceOnly = process.env.HSL_LIBRARY_TRACE_ONLY === "1";
 const resizeOnly = process.env.HSL_LIBRARY_RESIZE_ONLY === "1";
 const checkOnly = process.env.HSL_LIBRARY_CHECK_ONLY || "";
 const quietOutput = process.env.HSL_LIBRARY_QUIET === "1";
+const TRANSPARENT_TITLE_BAR_OVERLAY = "#00000000";
+
+function titleBarOverlay(theme) {
+  return {
+    color: TRANSPARENT_TITLE_BAR_OVERLAY,
+    height: 32,
+    symbolColor: theme === "light" ? "#0f172a" : "#f8fafc",
+  };
+}
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -528,6 +538,68 @@ async function capture(window, filename) {
   fs.writeFileSync(path.join(screenshotDirectory, filename), image.toPNG());
 }
 
+async function captureNativeWindow(window, filename) {
+  if (!screenshotDirectory) return;
+  fs.mkdirSync(screenshotDirectory, { recursive: true });
+  window.show();
+  window.focus();
+  await delay(40);
+  const handle = window.getNativeWindowHandle().readBigUInt64LE(0).toString();
+  const outputPath = path.join(screenshotDirectory, filename).replaceAll("'", "''");
+  const script = `
+    Add-Type -AssemblyName System.Drawing;
+    Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class HslNativeCapture {
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+}
+'@;
+    $rect = New-Object HslNativeCapture+RECT;
+    [HslNativeCapture]::GetWindowRect([IntPtr]${handle}, [ref]$rect) | Out-Null;
+    $size = New-Object System.Drawing.Size(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top));
+    $bitmap = New-Object System.Drawing.Bitmap($size.Width, $size.Height);
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap);
+    try {
+      $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $size);
+      $bitmap.Save('${outputPath}', [System.Drawing.Imaging.ImageFormat]::Png);
+    } finally {
+      $graphics.Dispose();
+      $bitmap.Dispose();
+    }
+  `;
+  execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { windowsHide: true });
+}
+
+function moveSystemCursorOverWindow(window, relativeX, relativeY, click = false) {
+  if (process.platform !== "win32") return;
+  const handle = window.getNativeWindowHandle().readBigUInt64LE(0).toString();
+  const bounds = window.getBounds();
+  const script = `
+    Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class HslNativeCursor {
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+}
+'@;
+    $rect = New-Object HslNativeCursor+RECT;
+    [HslNativeCursor]::GetWindowRect([IntPtr]${handle}, [ref]$rect) | Out-Null;
+    $scaleX = ($rect.Right - $rect.Left) / ${bounds.width};
+    $scaleY = ($rect.Bottom - $rect.Top) / ${bounds.height};
+    [HslNativeCursor]::SetCursorPos(
+      [Math]::Round($rect.Left + ${relativeX} * $scaleX),
+      [Math]::Round($rect.Top + ${relativeY} * $scaleY)
+    ) | Out-Null;
+    ${click ? "[HslNativeCursor]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 35; [HslNativeCursor]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero);" : ""}
+  `;
+  execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { windowsHide: true });
+}
+
 async function filterScrollMetrics(window) {
   await window.webContents.executeJavaScript("document.querySelector('[data-action=\"set-library-view\"][data-view=\"covers\"]')?.click()");
   await waitForFrames(window);
@@ -709,6 +781,37 @@ async function heroAndDrawerSmoke(window) {
     })),
     laneWidth: document.querySelector('.game-hero-indicators-region').getBoundingClientRect().width,
   }))()`);
+  const readCloseButton = (drawer) => window.webContents.executeJavaScript(`(() => {
+    const button = document.querySelector('[data-action="close-overlay"]');
+    const buttonRect = button.getBoundingClientRect();
+    const icon = button.querySelector('.ui-icon');
+    const image = icon.querySelector('.ui-icon__img');
+    const glyph = icon.querySelector('.ui-icon__glyph');
+    const fallback = icon.querySelector('.ui-icon__fallback');
+    const iconRect = icon.getBoundingClientRect();
+    const glyphStyle = getComputedStyle(glyph);
+    const modalRect = document.querySelector('.modal-layer').getBoundingClientRect();
+    const drawerRect = document.querySelector('.drawer-layer').getBoundingClientRect();
+    return {
+      drawer: ${JSON.stringify(drawer)},
+      drawerBottom: drawerRect.bottom,
+      drawerTop: drawerRect.top,
+      fallbackDisplay: getComputedStyle(fallback).display,
+      fallbackText: fallback.textContent,
+      glyphBackground: glyphStyle.backgroundColor,
+      glyphDisplay: glyphStyle.display,
+      glyphMask: glyphStyle.maskImage || glyphStyle.webkitMaskImage,
+      glyphTransform: glyphStyle.transform,
+      iconColor: getComputedStyle(icon).color,
+      imageComplete: image.complete && image.naturalWidth > 0,
+      imageSource: image.getAttribute('src'),
+      modalBottom: modalRect.bottom,
+      modalTop: modalRect.top,
+      viewportHeight: innerHeight,
+      x: iconRect.left + iconRect.width / 2 - (buttonRect.left + buttonRect.width / 2),
+      y: iconRect.top + iconRect.height / 2 - (buttonRect.top + buttonRect.height / 2),
+    };
+  })()`);
   window.setSize(1600, 820);
   await delay(40);
   await window.webContents.executeJavaScript("document.documentElement.dataset.theme = 'dark'; document.querySelector('.app-main').style.setProperty('--library-sidebar-width', '340px')");
@@ -727,28 +830,14 @@ async function heroAndDrawerSmoke(window) {
   await capture(window, "hero-favorite-error-compact-dark.png");
   await window.webContents.executeJavaScript("window.hslFixture.emitHeroStatus('ready'); document.querySelector('[data-action=\"show-settings\"]')?.click()");
   await waitFor(window, "document.querySelector('[data-drawer]')");
-  await capture(window, "drawer-settings-close.png");
+  await waitFor(window, "document.querySelector('[data-action=\"close-overlay\"] .ui-icon--loaded')");
+  await captureNativeWindow(window, "drawer-settings-close.png");
+  const closeButtons = [await readCloseButton("settings")];
   await window.webContents.executeJavaScript("document.querySelector('[data-action=\"close-overlay\"]')?.click(); document.querySelector('[data-action=\"show-activity-details\"]')?.click()");
   await waitFor(window, "document.querySelector('[data-drawer]')");
-  await capture(window, "drawer-activity-close.png");
-  const closeButtons = await window.webContents.executeJavaScript(`(() => [...document.querySelectorAll('[data-action="close-overlay"]')].map((button) => {
-    const buttonRect = button.getBoundingClientRect();
-    const icon = button.querySelector('.ui-icon');
-    const glyph = icon.querySelector('.ui-icon__glyph');
-    const fallback = icon.querySelector('.ui-icon__fallback');
-    const iconRect = icon.getBoundingClientRect();
-    const glyphStyle = getComputedStyle(glyph);
-    return {
-      fallbackDisplay: getComputedStyle(fallback).display,
-      glyphBackground: glyphStyle.backgroundColor,
-      glyphDisplay: glyphStyle.display,
-      glyphMask: glyphStyle.maskImage || glyphStyle.webkitMaskImage,
-      glyphTransform: glyphStyle.transform,
-      iconColor: getComputedStyle(icon).color,
-      x: iconRect.left + iconRect.width / 2 - (buttonRect.left + buttonRect.width / 2),
-      y: iconRect.top + iconRect.height / 2 - (buttonRect.top + buttonRect.height / 2),
-    };
-  }))()`);
+  await waitFor(window, "document.querySelector('[data-action=\"close-overlay\"] .ui-icon--loaded')");
+  await captureNativeWindow(window, "drawer-activity-close.png");
+  closeButtons.push(await readCloseButton("activity"));
   await window.webContents.executeJavaScript("document.querySelector('[data-action=\"close-overlay\"]')?.click()");
   return { closeButtons, compact, errorIndicator, expanded };
 }
@@ -822,26 +911,135 @@ async function nativeChromeMetrics(window) {
   const read = () => window.webContents.executeJavaScript(`(() => {
     const bar = document.querySelector('.window-titlebar');
     const icon = bar.querySelector('.window-titlebar__icon');
+    const title = bar.querySelector('.window-titlebar__title');
     const style = getComputedStyle(bar);
+    const before = getComputedStyle(bar, '::before');
+    const after = getComputedStyle(bar, '::after');
+    const safeAreaProbe = document.createElement('span');
+    safeAreaProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;left:env(titlebar-area-x,0px);top:env(titlebar-area-y,0px);width:env(titlebar-area-width,100vw);height:env(titlebar-area-height,var(--native-titlebar-height))';
+    document.body.append(safeAreaProbe);
+    const safeAreaRect = safeAreaProbe.getBoundingClientRect();
+    safeAreaProbe.remove();
+    const barRect = bar.getBoundingClientRect();
+    const titleRect = title.getBoundingClientRect();
     return {
+      after: {
+        backgroundColor: after.backgroundColor,
+        backgroundImage: after.backgroundImage,
+        boxShadow: after.boxShadow,
+        left: Number.parseFloat(after.left),
+        pointerEvents: after.pointerEvents,
+        width: Number.parseFloat(after.width),
+      },
       background: style.backgroundColor,
+      before: {
+        backgroundColor: before.backgroundColor,
+        backgroundImage: before.backgroundImage,
+        boxShadow: before.boxShadow,
+        left: Number.parseFloat(before.left),
+        pointerEvents: before.pointerEvents,
+        width: Number.parseFloat(before.width),
+      },
+      borderBottomColor: style.borderBottomColor,
+      borderBottomWidth: style.borderBottomWidth,
       dragRegion: style.webkitAppRegion,
-      height: bar.getBoundingClientRect().height,
+      height: barRect.height,
       iconLoaded: icon.complete && icon.naturalWidth > 0,
-      title: bar.querySelector('.window-titlebar__title').textContent.trim(),
+      innerWidth,
+      safeArea: {
+        height: safeAreaRect.height,
+        width: safeAreaRect.width,
+        x: safeAreaRect.x,
+        y: safeAreaRect.y,
+      },
+      title: title.textContent.trim(),
+      titleContained: titleRect.top >= barRect.top && titleRect.bottom <= barRect.bottom,
+      titleLineHeight: getComputedStyle(title).lineHeight,
     };
   })()`);
+  window.setSize(1600, 820);
+  await delay(60);
   await window.webContents.executeJavaScript("document.documentElement.dataset.theme = 'dark'");
-  window.setTitleBarOverlay({ color: "#0f172a", height: 32, symbolColor: "#f8fafc" });
+  window.setTitleBarOverlay(titleBarOverlay("dark"));
+  moveSystemCursorOverWindow(window, 420, 16);
   await waitForFrames(window);
   const dark = await read();
-  await capture(window, "native-titlebar-dark.png");
+  await captureNativeWindow(window, "native-titlebar-normal-dark.png");
   await window.webContents.executeJavaScript("document.documentElement.dataset.theme = 'light'");
-  window.setTitleBarOverlay({ color: "#eef4fb", height: 32, symbolColor: "#0f172a" });
+  window.setTitleBarOverlay(titleBarOverlay("light"));
+  moveSystemCursorOverWindow(window, 420, 16);
   await waitForFrames(window);
   const light = await read();
-  await capture(window, "native-titlebar-light.png");
-  return { applicationMenu: Menu.getApplicationMenu(), dark, light };
+  await captureNativeWindow(window, "native-titlebar-normal-light.png");
+
+  const hoverCaptures = [];
+  let nativeActions = null;
+  if (process.platform === "win32") {
+    const rightClusterWidth = light.innerWidth - light.safeArea.x - light.safeArea.width;
+    const leftClusterWidth = light.safeArea.x;
+    const controlsOnRight = rightClusterWidth >= leftClusterWidth;
+    const clusterWidth = Math.max(leftClusterWidth, rightClusterWidth);
+    const clusterStart = controlsOnRight ? light.safeArea.x + light.safeArea.width : 0;
+    const cellWidth = clusterWidth / 3;
+    for (const [index, name] of ["minimize", "maximize", "close"].entries()) {
+      const visualIndex = controlsOnRight ? index : 2 - index;
+      moveSystemCursorOverWindow(window, clusterStart + (visualIndex + 0.5) * cellWidth, 16);
+      await delay(180);
+      await captureNativeWindow(window, `native-titlebar-hover-${name}-light.png`);
+      hoverCaptures.push({ cellWidth, clusterWidth, controlsOnRight, name });
+    }
+    if (process.env.HSL_NATIVE_CONTROL_ACTIONS === "1") {
+      const minimizeX = clusterStart + 0.5 * cellWidth;
+      const maximizeX = clusterStart + 1.5 * cellWidth;
+      moveSystemCursorOverWindow(window, minimizeX, 16, true);
+      await delay(280);
+      const minimized = window.isMinimized();
+      window.restore();
+      window.show();
+      window.focus();
+      await delay(180);
+      moveSystemCursorOverWindow(window, maximizeX, 16, true);
+      await delay(280);
+      const maximized = window.isMaximized();
+      window.unmaximize();
+      await delay(180);
+      nativeActions = { closeActivated: false, maximized, minimized };
+    }
+  }
+
+  window.setSize(1900, 900);
+  await delay(60);
+  moveSystemCursorOverWindow(window, 420, 16);
+  await waitForFrames(window);
+  const rails = await window.webContents.executeJavaScript(`(() => {
+    const measure = (selector) => {
+      const element = document.querySelector(selector);
+      const rect = element.getBoundingClientRect();
+      const before = getComputedStyle(element, '::before');
+      const after = getComputedStyle(element, '::after');
+      return {
+        afterBackground: after.backgroundColor,
+        afterPointerEvents: after.pointerEvents,
+        left: rect.left,
+        right: rect.right,
+        beforeBackground: before.backgroundColor,
+        beforePointerEvents: before.pointerEvents,
+      };
+    };
+    return {
+      bodyScrollWidth: document.body.scrollWidth,
+      header: measure('.launcher-header'),
+      innerWidth,
+      main: measure('.app-main'),
+    };
+  })()`);
+  await captureNativeWindow(window, "native-shell-wide-rails.png");
+  if (nativeActions) {
+    const closePromise = new Promise((resolve) => window.once("closed", () => resolve(true)));
+    moveSystemCursorOverWindow(window, window.getBounds().width - hoverCaptures[0].cellWidth / 2, 16, true);
+    nativeActions.closeActivated = await Promise.race([closePromise, delay(800).then(() => false)]);
+  }
+  return { applicationMenu: Menu.getApplicationMenu(), dark, hoverCaptures, light, nativeActions, rails };
 }
 
 async function detailScrollMetrics(window) {
@@ -899,7 +1097,7 @@ app.whenReady().then(async () => {
     minHeight: 620,
     icon: path.join(__dirname, "..", "gui", "renderer", "assets", "native", "app-icon.ico"),
     show: Boolean(screenshotDirectory) || traceVisible || resizeOnly,
-    titleBarOverlay: { color: "#0f172a", height: 32, symbolColor: "#f8fafc" },
+    titleBarOverlay: titleBarOverlay("dark"),
     titleBarStyle: "hidden",
     webPreferences: {
       backgroundThrottling: false,
@@ -998,7 +1196,7 @@ app.whenReady().then(async () => {
     process.stderr.write(`${error.stack || error}\n`);
     process.exitCode = 1;
   } finally {
-    window.destroy();
+    if (!window.isDestroyed()) window.destroy();
     app.exit(process.exitCode || 0);
   }
 });

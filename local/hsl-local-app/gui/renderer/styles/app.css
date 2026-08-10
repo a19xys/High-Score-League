@@ -102,7 +102,7 @@ summary:focus-visible {
 }
 
 .window-titlebar {
-  --window-titlebar-rule: color-mix(in srgb, var(--border) 72%, transparent);
+  --window-caption-cluster-surface: color-mix(in srgb, var(--surface) 18%, transparent);
   display: flex;
   position: relative;
   width: 100%;
@@ -131,22 +131,43 @@ html:not([data-platform="darwin"]) .window-titlebar::before,
 html:not([data-platform="darwin"]) .window-titlebar::after {
   content: "";
   position: absolute;
-  top: 5px;
-  bottom: 5px;
-  width: 1px;
-  background: var(--window-titlebar-rule);
+  top: env(titlebar-area-y, 0px);
+  height: env(titlebar-area-height, var(--native-titlebar-height));
+  background: var(--window-caption-cluster-surface);
   pointer-events: none;
 }
 
 html:not([data-platform="darwin"]) .window-titlebar::before {
-  left: calc(env(titlebar-area-x, 0px) - 1px);
+  left: 0;
+  width: env(titlebar-area-x, 0px);
+  box-shadow:
+    inset -1px 0 0 var(--window-titlebar-rule),
+    inset 0 1px 0 var(--window-titlebar-rule);
 }
 
 html:not([data-platform="darwin"]) .window-titlebar::after {
   left: calc(env(titlebar-area-x, 0px) + env(titlebar-area-width, 100vw));
+  right: 0;
+  box-shadow:
+    inset 1px 0 0 var(--window-titlebar-rule),
+    inset 0 1px 0 var(--window-titlebar-rule);
+}
+
+html[data-platform="win32"] .window-titlebar::before,
+html[data-platform="win32"] .window-titlebar::after {
+  background:
+    linear-gradient(var(--window-titlebar-rule), var(--window-titlebar-rule)) 33.333333% 0 / 1px 100% no-repeat,
+    linear-gradient(var(--window-titlebar-rule), var(--window-titlebar-rule)) 66.666667% 0 / 1px 100% no-repeat,
+    var(--window-caption-cluster-surface);
+}
+
+html:not([data-theme="dark"]) .window-titlebar {
+  --window-caption-cluster-surface: color-mix(in srgb, var(--border) 42%, var(--surface-muted));
 }
 
 .window-titlebar__icon {
+  position: relative;
+  z-index: 1;
   width: 18px;
   height: 18px;
   flex: 0 0 18px;
@@ -154,6 +175,8 @@ html:not([data-platform="darwin"]) .window-titlebar::after {
 }
 
 .window-titlebar__title {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   overflow: hidden;
   font-size: 12px;
@@ -5721,8 +5744,12 @@ h3,
   min-width: 0;
 }
 
-/* Experimental wide-viewport rails; decorative only and intentionally isolated. */
+/* Shell rails appear only above the canonical 1760px content bound. CSS media
+   queries cannot consume the custom property, so this threshold stays coupled
+   explicitly to --launcher-content-max-width. */
 @media (min-width: 1761px) {
+  .launcher-header::before,
+  .launcher-header::after,
   .app-main::before,
   .app-main::after {
     content: "";
@@ -5731,14 +5758,16 @@ h3,
     top: 0;
     bottom: 0;
     width: 1px;
-    background: color-mix(in srgb, var(--border) 72%, transparent);
+    background: var(--window-titlebar-rule);
     pointer-events: none;
   }
 
+  .launcher-header::before,
   .app-main::before {
     left: 0;
   }
 
+  .launcher-header::after,
   .app-main::after {
     right: 0;
   }
@@ -6485,6 +6514,10 @@ html[data-theme="dark"] .status-beacon--pack {
 
 .icon-button .ui-icon--close {
   --icon-glyph-scale: 0.82;
+}
+
+.drawer-close-icon .ui-icon__fallback {
+  display: none;
 }
 
 .pack-card__subtitle {
