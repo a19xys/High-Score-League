@@ -120,7 +120,7 @@ test("la lista no conserva el extent lock y el detalle termina con un spacer rea
   assert.match(styles, /\.game-scroll::after\s*\{[^}]*content: ""[^}]*display: block[^}]*height: 16px[^}]*flex: 0 0 16px/);
 });
 
-test("icon-window distingue icono y cover fallback con overscan compartido", async () => {
+test("Lista e Iconos comparten presentación alpha-aware para iconos y cover fallback", async () => {
   const [{ renderPackCard }, styles, tokens] = await Promise.all([
     import(pathToFileURL(path.join(rendererRoot, "components", "pack-card.js")).href),
     fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
@@ -139,11 +139,15 @@ test("icon-window distingue icono y cover fallback con overscan compartido", asy
   assert.match(listHtml, /pack-card__media--icon/);
   assert.match(fallbackHtml, /pack-card__media--cover-fallback/);
   assert.match(finalCss, /\.pack-card--list \.pack-card__media,\s*\n\.pack-card--icons \.pack-card__media[\s\S]*linear-gradient/);
-  assert.match(finalCss, /\.pack-card--list \.pack-card__media--icon \.pack-card__art,[\s\S]*transform: scale\(var\(--icon-art-overscan\)\)/);
-  assert.match(finalCss, /\.pack-card--list \.pack-card__media--cover-fallback \.pack-card__art,[\s\S]*transform: none/);
+  assert.match(finalCss, /data-art-presentation="transparent"[\s\S]*object-fit: contain[\s\S]*filter: var\(--icon-art-edge\)[\s\S]*padding: 10%/);
+  assert.match(finalCss, /data-art-presentation="opaque"[\s\S]*object-fit: cover[\s\S]*filter: none[\s\S]*padding: 0/);
+  assert.match(finalCss, /data-art-presentation="unknown"[\s\S]*object-fit: contain[\s\S]*padding: 10%/);
   assert.match(tokens, /--icon-stage-base:/);
   assert.match(tokens, /--icon-stage-highlight:/);
   assert.match(tokens, /--icon-stage-shadow:/);
+  assert.match(tokens, /--icon-art-edge:/);
+  assert.doesNotMatch(`${styles}\n${tokens}`, /icon-art-overscan/);
+  assert.doesNotMatch(finalCss, /pack-card__media--(?:icon|cover-fallback)[^}]*object-fit|pack-card__media--(?:icon|cover-fallback)[^}]*padding/);
   assert.doesNotMatch(finalCss, /Galaga|Pac-Man|Donkey Kong|Space Invaders/);
 });
 

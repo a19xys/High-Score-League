@@ -781,7 +781,8 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.pack-card--list \.pack-card__media[\s\S]*overflow: hidden/);
   assert.match(styles, /\.pack-card--list \.pack-card__media[\s\S]*border-radius: 8px/);
   assert.match(styles, /\.pack-card--list \.pack-card__media[\s\S]*background: var\(--surface-muted\)/);
-  assert.match(styles, /\.pack-card--list \.pack-card__media img[\s\S]*object-fit: cover/);
+  assert.match(styles, /\.pack-card--list \.pack-card__media\[data-art-presentation="transparent"\][\s\S]*object-fit: contain/);
+  assert.match(styles, /\.pack-card--list \.pack-card__media\[data-art-presentation="opaque"\][\s\S]*object-fit: cover/);
   assert.match(styles, /\.pack-card--pending/);
   assert.match(styles, /\.pack-card--pending[\s\S]*border-color: var\(--border\)[\s\S]*filter: brightness\(0\.96\)/);
   assert.match(styles, /\.pack-card--pending\.pack-card--active[\s\S]*var\(--circuit\)/);

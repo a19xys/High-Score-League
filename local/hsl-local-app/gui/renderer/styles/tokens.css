@@ -27,7 +27,6 @@
   --icon-stage-highlight: #abc1d4;
   --icon-stage-shadow: #567795;
   --icon-art-edge: drop-shadow(0 1px 0 rgb(255 255 255 / 0.22)) drop-shadow(0 1px 2px rgb(15 39 66 / 0.34));
-  --icon-art-overscan: 1.18;
   --icon-card-gap: 7px;
   --icon-card-padding-inline: 8px;
   --icon-card-title-padding-block: 2px;
@@ -107,7 +106,6 @@
   --icon-stage-highlight: #7890a7;
   --icon-stage-shadow: #344d65;
   --icon-art-edge: drop-shadow(0 1px 0 rgb(255 255 255 / 0.16)) drop-shadow(0 1px 2px rgb(2 6 23 / 0.52));
-  --icon-art-overscan: 1.18;
   --icon-card-gap: 7px;
   --icon-card-padding-inline: 8px;
   --icon-card-title-padding-block: 2px;

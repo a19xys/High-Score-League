@@ -3,7 +3,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const { app, BrowserWindow, Menu } = require("electron");
+const { app, BrowserWindow, Menu, nativeImage } = require("electron");
 
 const profileDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "hsl-library-browserwindow-"));
 app.setPath("userData", profileDirectory);
@@ -18,6 +18,7 @@ const resizeOnly = process.env.HSL_LIBRARY_RESIZE_ONLY === "1";
 const checkOnly = process.env.HSL_LIBRARY_CHECK_ONLY || "";
 const quietOutput = process.env.HSL_LIBRARY_QUIET === "1";
 const TRANSPARENT_TITLE_BAR_OVERLAY = "#00000000";
+let alphaFixtureDirectory = null;
 
 function titleBarOverlay(theme) {
   return {
@@ -29,6 +30,55 @@ function titleBarOverlay(theme) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function prepareAlphaFixtureAssets() {
+  const size = 64;
+  alphaFixtureDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "hsl-library-alpha-"));
+  const definitions = {
+    corners: (x, y) => {
+      const inset = Math.min(x + y, size - 1 - x + y, x + size - 1 - y, size - 1 - x + size - 1 - y);
+      return { alpha: inset < 14 ? 0 : 255, blue: 52, green: 156, red: 235 };
+    },
+    "full-bleed": (x, y) => ({
+      alpha: 255,
+      blue: Math.round(42 + (x / (size - 1)) * 92),
+      green: Math.round(70 + (y / (size - 1)) * 84),
+      red: 24,
+    }),
+    "internal-hole": (x, y) => ({
+      alpha: x >= 22 && x < 42 && y >= 22 && y < 42 ? 0 : 255,
+      blue: 92,
+      green: 180,
+      red: 42,
+    }),
+    sprite: (x, y) => ({
+      alpha: x >= 14 && x < 50 && y >= 14 && y < 50 ? 255 : 0,
+      blue: 225,
+      green: 112,
+      red: 31,
+    }),
+  };
+  const urls = {};
+
+  for (const [name, pixelAt] of Object.entries(definitions)) {
+    const bitmap = Buffer.alloc(size * size * 4);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const offset = (y * size + x) * 4;
+        const pixel = pixelAt(x, y);
+        bitmap[offset] = pixel.blue;
+        bitmap[offset + 1] = pixel.green;
+        bitmap[offset + 2] = pixel.red;
+        bitmap[offset + 3] = pixel.alpha;
+      }
+    }
+    const outputPath = path.join(alphaFixtureDirectory, `${name}.png`);
+    fs.writeFileSync(outputPath, nativeImage.createFromBitmap(bitmap, { height: size, width: size }).toPNG());
+    urls[name.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] = pathToFileURL(outputPath).href;
+  }
+
+  process.env.HSL_LIBRARY_ALPHA_ASSETS = JSON.stringify(urls);
 }
 
 async function waitFor(window, expression, timeoutMs = 5_000) {
@@ -1176,6 +1226,123 @@ async function captureSmokeViews(window) {
   await capture(window, "library-covers-light.png");
 }
 
+async function alphaAwareLibrarySmoke(window) {
+  const cacheStats = () => window.webContents.executeJavaScript(`import(
+    new URL('./library-art-presentation.js', location.href).href
+  ).then((module) => module.getLibraryArtPresentationCacheStats())`);
+  const setView = async (view) => {
+    await window.webContents.executeJavaScript(`document.querySelector(
+      '[data-action="set-library-view"][data-view="${view}"]'
+    )?.click()`);
+    await waitFor(window, `[...document.querySelectorAll('.pack-card')].every((card) =>
+      card.matches('.pack-card--${view}') && card.querySelector('.pack-card__media')?.classList.contains('asset-ready')
+    )`);
+    await waitForFrames(window, 2);
+  };
+  const readCards = () => window.webContents.executeJavaScript(`(() => (
+    [...document.querySelectorAll('.pack-card')].slice(0, 5).map((card) => {
+      const image = card.querySelector('.pack-card__art');
+      const media = card.querySelector('.pack-card__media');
+      const imageStyle = getComputedStyle(image);
+      const imageRect = image.getBoundingClientRect();
+      const mediaRect = media.getBoundingClientRect();
+      return {
+        imageRect: { height: imageRect.height, width: imageRect.width, x: imageRect.x, y: imageRect.y },
+        instanceKey: card.dataset.instanceKey,
+        kind: image.dataset.assetKind,
+        mediaRect: { height: mediaRect.height, width: mediaRect.width, x: mediaRect.x, y: mediaRect.y },
+        natural: { height: image.naturalHeight, width: image.naturalWidth },
+        filter: imageStyle.filter,
+        objectFit: imageStyle.objectFit,
+        padding: {
+          bottom: Number.parseFloat(imageStyle.paddingBottom),
+          left: Number.parseFloat(imageStyle.paddingLeft),
+          right: Number.parseFloat(imageStyle.paddingRight),
+          top: Number.parseFloat(imageStyle.paddingTop),
+        },
+        presentation: media.dataset.artPresentation,
+        rendered: !image.hidden && image.dataset.assetStatus === 'loaded',
+      };
+    })
+  ))()`);
+
+  const initial = {
+    cache: await cacheStats(),
+    view: await window.webContents.executeJavaScript("document.querySelector('.pack-card')?.className"),
+  };
+
+  await window.webContents.executeJavaScript("document.documentElement.dataset.theme = 'dark'");
+  await setView("list");
+  const listDark = { cache: await cacheStats(), cards: await readCards() };
+  await capture(window, "library-alpha-list-dark.png");
+
+  await setView("icons");
+  const iconsDark = { cache: await cacheStats(), cards: await readCards() };
+  await capture(window, "library-alpha-icons-dark.png");
+
+  await window.webContents.executeJavaScript("document.documentElement.dataset.theme = 'light'");
+  await waitForFrames(window, 2);
+  const iconsLight = { cache: await cacheStats(), cards: await readCards() };
+  await capture(window, "library-alpha-icons-light.png");
+
+  await setView("list");
+  const listLight = { cache: await cacheStats(), cards: await readCards() };
+  await capture(window, "library-alpha-list-light.png");
+
+  const selectionSetup = await window.webContents.executeJavaScript(`(() => {
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    const cards = [...scroller.querySelectorAll('.pack-card')].slice(0, 5);
+    scroller.scrollTop = 96;
+    window.__hslAlphaSelectionRefs = {
+      cards: cards.map((card) => ({
+        card,
+        image: card.querySelector('.pack-card__art'),
+        instanceKey: card.dataset.instanceKey,
+        presentation: card.querySelector('.pack-card__media').dataset.artPresentation,
+      })),
+      scroller,
+    };
+    cards[1].click();
+    return { scrollTop: scroller.scrollTop, target: cards[1].dataset.instanceKey };
+  })()`);
+  await waitFor(window, `document.querySelector('.pack-card[data-selected="true"]')?.dataset.instanceKey === ${JSON.stringify("instance-1")}
+    && !document.querySelector('.pack-card--pending')`);
+  await waitForFrames(window, 3);
+  const selection = await window.webContents.executeJavaScript(`(() => {
+    const refs = window.__hslAlphaSelectionRefs;
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    const cards = [...scroller.querySelectorAll('.pack-card')];
+    return {
+      cardsSame: refs.cards.every((ref) => ref.card === cards.find((card) => card.dataset.instanceKey === ref.instanceKey)),
+      imagesSame: refs.cards.every((ref) => ref.image === cards.find((card) => card.dataset.instanceKey === ref.instanceKey)?.querySelector('.pack-card__art')),
+      presentationsSame: refs.cards.every((ref) => ref.presentation === cards.find((card) => card.dataset.instanceKey === ref.instanceKey)?.querySelector('.pack-card__media')?.dataset.artPresentation),
+      scrollerSame: refs.scroller === scroller,
+      scrollTop: scroller.scrollTop,
+    };
+  })()`);
+  selection.initialScrollTop = selectionSetup.scrollTop;
+  selection.target = selectionSetup.target;
+  selection.cache = await cacheStats();
+
+  window.setSize(1200, 680);
+  await delay(40);
+  await window.webContents.executeJavaScript(`(() => {
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    scroller.scrollTop += 80;
+    const card = document.querySelector('.pack-card');
+    card.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    document.documentElement.dataset.theme = 'dark';
+  })()`);
+  await waitForFrames(window, 3);
+  const passiveInteractions = {
+    cache: await cacheStats(),
+    cards: await readCards(),
+    size: window.getSize(),
+  };
+
+  return { iconsDark, iconsLight, initial, listDark, listLight, passiveInteractions, selection };
+}
+
 async function nativeChromeMetrics(window) {
   const read = () => window.webContents.executeJavaScript(`(() => {
     const bar = document.querySelector('.window-titlebar');
@@ -1359,6 +1526,7 @@ async function detailScrollMetrics(window) {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  if (checkOnly === "alpha") prepareAlphaFixtureAssets();
   const window = new BrowserWindow({
     width: 1240,
     height: 820,
@@ -1385,6 +1553,7 @@ app.whenReady().then(async () => {
     if (checkOnly) {
       const checks = {
         accounts: () => accountMetrics(window),
+        alpha: () => alphaAwareLibrarySmoke(window),
         calendar: () => calendarCompanionSmoke(window),
         chrome: () => nativeChromeMetrics(window),
         detail: () => detailScrollMetrics(window),
@@ -1472,6 +1641,9 @@ app.whenReady().then(async () => {
     process.exitCode = 1;
   } finally {
     if (!window.isDestroyed()) window.destroy();
+    if (alphaFixtureDirectory?.startsWith(os.tmpdir())) {
+      fs.rmSync(alphaFixtureDirectory, { force: true, recursive: true });
+    }
     app.exit(process.exitCode || 0);
   }
 });

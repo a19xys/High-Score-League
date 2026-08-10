@@ -42,6 +42,7 @@ import {
   libraryPacksStructuralState,
   syncLibraryPackSelectionState,
 } from "./library-selection-sync.js";
+import { resolveLibraryArtPresentation } from "./library-art-presentation.js";
 import { createRegionRenderer, preservedScrollElements } from "./region-renderer.js";
 import {
   cancelActiveOperationFeedback,
@@ -966,6 +967,14 @@ function visualAssetContext(image) {
 function settleVisualAsset(image, status) {
   if (!image?.isConnected || !assetIdentityMatches(image, visualAssetContext(image))) return false;
   const container = image.closest("[data-asset-container]");
+  if (image.dataset.assetScope === "library") {
+    const adaptiveCard = container?.closest(".pack-card--list, .pack-card--icons");
+    if (adaptiveCard) {
+      container.dataset.artPresentation = status === "loaded"
+        ? resolveLibraryArtPresentation(image)
+        : "unknown";
+    }
+  }
   image.dataset.assetStatus = status;
   image.hidden = status !== "loaded";
   container?.classList.toggle("asset-ready", status === "loaded");

@@ -35,6 +35,24 @@ const packs = Array.from({ length: 40 }, (_, index) => ({
   year: String(1980 + index),
 }));
 
+if (process.env.HSL_LIBRARY_ALPHA_ASSETS) {
+  const alphaAssets = JSON.parse(process.env.HSL_LIBRARY_ALPHA_ASSETS);
+  const fixtures = [
+    { key: "sprite", title: "ALFA EXTERIOR" },
+    { key: "fullBleed", title: "FULL BLEED OPACO" },
+    { key: "internalHole", title: "HUECO INTERIOR" },
+    { key: "corners", title: "ESQUINAS TRANSPARENTES" },
+  ];
+  for (const [index, fixture] of fixtures.entries()) {
+    packs[index].cover = { url: alphaAssets.fullBleed };
+    packs[index].icon = { url: alphaAssets[fixture.key] };
+    packs[index].title = fixture.title;
+  }
+  packs[4].cover = { url: alphaAssets.fullBleed };
+  delete packs[4].icon;
+  packs[4].title = "FALLBACK DE PORTADA";
+}
+
 function snapshot({ samePack = false } = {}) {
   const pack = packs[activeIndex];
   const accounts = [
