@@ -16,17 +16,17 @@ const titles = [
 ];
 
 const packs = Array.from({ length: 40 }, (_, index) => ({
-  cover: { url: "./assets/hero_hsl.png" },
+  cover: { url: "./assets/brand/logo-horizontal.png" },
   deprecated: index % 10 === 1,
   favorite: index % 3 === 0,
   favoriteKey: `pack-${index}`,
   id: `pack-${index}`,
-  icon: { url: "./assets/hero_hsl.png" },
+  icon: { url: "./assets/brand/logo-horizontal.png" },
   instanceKey: `instance-${index}`,
   seasonId: `season-${Math.floor(index / 10)}`,
   seasonName: `Temporada ${Math.floor(index / 10) + 1}`,
   status: index % 10 === 3 ? "error" : index % 10 === 2 ? "warning" : "ok",
-  subtitle: `Semana ${index + 1}`,
+  subtitle: index === 1 ? "Pack de desarrollo" : `Semana ${index + 1}`,
   title: `${titles[index % titles.length]} ${index + 1}`,
   weekId: `week-${index}`,
   weekNumber: index + 1,
@@ -48,7 +48,7 @@ function snapshot({ samePack = false } = {}) {
     autoSync: { status: "idle" },
     bridge: {},
     game: {
-      assets: { logo: { url: "./assets/hero_hsl.png" } },
+      assets: { logo: { url: "./assets/brand/logo-horizontal.png" } },
       developer: "HSL Fixture Studio",
       displayName: `${pack.title}${samePack ? " SAME" : ""}`,
       errors: heroError ? ["Error sintÃ©tico de fixture"] : [],

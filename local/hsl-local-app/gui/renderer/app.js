@@ -1818,11 +1818,6 @@ function bindActions() {
       loadingImage.hidden = true;
       if (loadingImage.nextElementSibling) loadingImage.nextElementSibling.hidden = false;
     }
-    const hero = event.target instanceof Element ? event.target.closest("[data-hsl-fallback-hero]") : null;
-
-    if (hero) {
-      hero.hidden = true;
-    }
   }, true);
 
   root.addEventListener("input", (event) => {

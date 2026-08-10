@@ -554,6 +554,7 @@ using System.Runtime.InteropServices;
 public static class HslNativeCapture {
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint flags);
 }
 '@;
     $rect = New-Object HslNativeCapture+RECT;
@@ -562,7 +563,14 @@ public static class HslNativeCapture {
     $bitmap = New-Object System.Drawing.Bitmap($size.Width, $size.Height);
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap);
     try {
-      $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $size);
+      $hdc = $graphics.GetHdc();
+      try {
+        if (-not [HslNativeCapture]::PrintWindow([IntPtr]${handle}, $hdc, 2)) {
+          throw 'PrintWindow failed';
+        }
+      } finally {
+        $graphics.ReleaseHdc($hdc);
+      }
       $bitmap.Save('${outputPath}', [System.Drawing.Imaging.ImageFormat]::Png);
     } finally {
       $graphics.Dispose();
@@ -794,6 +802,8 @@ async function heroAndDrawerSmoke(window) {
     const drawerRect = document.querySelector('.drawer-layer').getBoundingClientRect();
     return {
       drawer: ${JSON.stringify(drawer)},
+      buttonHeight: buttonRect.height,
+      buttonWidth: buttonRect.width,
       drawerBottom: drawerRect.bottom,
       drawerTop: drawerRect.top,
       fallbackDisplay: getComputedStyle(fallback).display,
@@ -803,6 +813,8 @@ async function heroAndDrawerSmoke(window) {
       glyphMask: glyphStyle.maskImage || glyphStyle.webkitMaskImage,
       glyphTransform: glyphStyle.transform,
       iconColor: getComputedStyle(icon).color,
+      iconHeight: iconRect.height,
+      iconWidth: iconRect.width,
       imageComplete: image.complete && image.naturalWidth > 0,
       imageSource: image.getAttribute('src'),
       modalBottom: modalRect.bottom,
@@ -810,6 +822,27 @@ async function heroAndDrawerSmoke(window) {
       viewportHeight: innerHeight,
       x: iconRect.left + iconRect.width / 2 - (buttonRect.left + buttonRect.width / 2),
       y: iconRect.top + iconRect.height / 2 - (buttonRect.top + buttonRect.height / 2),
+    };
+  })()`);
+  const headerIcons = await window.webContents.executeJavaScript(`(() => {
+    const measure = (selector) => {
+      const button = document.querySelector(selector);
+      const icon = button.querySelector('.ui-icon');
+      const glyph = icon.querySelector('.ui-icon__glyph');
+      const buttonRect = button.getBoundingClientRect();
+      const iconRect = icon.getBoundingClientRect();
+      return {
+        buttonHeight: buttonRect.height,
+        buttonWidth: buttonRect.width,
+        glyphTransform: getComputedStyle(glyph).transform,
+        iconHeight: iconRect.height,
+        iconWidth: iconRect.width,
+        name: icon.dataset.icon,
+      };
+    };
+    return {
+      settings: measure('[data-action="show-settings"]'),
+      theme: measure('[data-action="toggle-theme"]'),
     };
   })()`);
   window.setSize(1600, 820);
@@ -839,7 +872,128 @@ async function heroAndDrawerSmoke(window) {
   await captureNativeWindow(window, "drawer-activity-close.png");
   closeButtons.push(await readCloseButton("activity"));
   await window.webContents.executeJavaScript("document.querySelector('[data-action=\"close-overlay\"]')?.click()");
-  return { closeButtons, compact, errorIndicator, expanded };
+  return { closeButtons, compact, errorIndicator, expanded, headerIcons };
+}
+
+async function calendarCompanionSmoke(window) {
+  const measure = (selector) => window.webContents.executeJavaScript(`(() => {
+    const row = document.querySelector(${JSON.stringify(selector)});
+    const icon = row.querySelector('.text-companion-icon');
+    const glyph = icon.querySelector('.ui-icon__glyph');
+    const text = row.querySelector(':scope > .pack-card__subtitle-text, :scope > span:last-child');
+    const iconRect = icon.getBoundingClientRect();
+    const glyphRect = glyph.getBoundingClientRect();
+    const textRect = text.getBoundingClientRect();
+    const textStyle = getComputedStyle(text);
+    const baselineProbe = document.createElement('span');
+    baselineProbe.style.cssText = 'display:inline-block;width:0;height:0;padding:0;margin:0;vertical-align:baseline';
+    row.append(baselineProbe);
+    const baseline = baselineProbe.getBoundingClientRect().top;
+    baselineProbe.remove();
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    context.font = textStyle.font;
+    const capHeight = context.measureText('H').actualBoundingBoxAscent;
+    return {
+      baseline,
+      bottomDelta: iconRect.bottom - baseline,
+      capHeight,
+      capSupported: CSS.supports('height', '1cap'),
+      glyph: { bottom: glyphRect.bottom, height: glyphRect.height, top: glyphRect.top },
+      icon: { bottom: iconRect.bottom, height: iconRect.height, top: iconRect.top, width: iconRect.width },
+      lineHeight: textStyle.lineHeight,
+      text: { bottom: textRect.bottom, height: textRect.height, top: textRect.top, value: text.textContent.trim() },
+      topDelta: iconRect.top - (baseline - capHeight),
+    };
+  })()`);
+
+  window.setSize(1400, 860);
+  await delay(60);
+  await window.webContents.executeJavaScript(`(() => {
+    document.documentElement.dataset.theme = 'light';
+    document.querySelector('[data-action="set-library-view"][data-view="covers"]')?.click();
+    document.querySelector('[data-render-region="library-packs"]').scrollTop = 0;
+  })()`);
+  await waitForFrames(window);
+  const covers = await measure('.pack-card[data-instance-key="instance-0"] .pack-card__subtitle');
+  await capture(window, 'calendar-covers-semana-1-light.png');
+
+  await window.webContents.executeJavaScript(`(() => {
+    document.querySelector('[data-action="set-library-view"][data-view="list"]')?.click();
+    document.querySelector('[data-render-region="library-packs"]').scrollTop = 0;
+  })()`);
+  await waitForFrames(window);
+  const list = await measure('.pack-card[data-instance-key="instance-1"] .pack-card__subtitle');
+  await capture(window, 'calendar-list-pack-desarrollo-light.png');
+  const detail = await measure('.game-week-subtitle');
+  await capture(window, 'calendar-detail-semana-1-light.png');
+  return { covers, detail, list };
+}
+
+async function brandedFallbackSmoke(window) {
+  const render = async ({ filename, mode, theme }) => {
+    const metrics = await window.webContents.executeJavaScript(`(async () => {
+      const { renderGamePanel } = await import('./components/game-panel.js');
+      const populated = ${JSON.stringify({ instanceKey: "fixture-brand-pack", status: "ok", title: "Fixture brand pack" })};
+      const state = {
+        busy: false,
+        data: {
+          game: null,
+          library: {
+            directory: { available: true, configured: true, path: 'C:/fixture-packs' },
+            packs: ${JSON.stringify(mode)} === 'no-selection' ? [populated] : [],
+            status: ${JSON.stringify(mode)} === 'no-selection' ? 'available-populated' : 'available-empty',
+          },
+          selection: { activeInstanceKey: null },
+        },
+      };
+      document.documentElement.dataset.theme = ${JSON.stringify(theme)};
+      document.querySelector('[data-render-region="game-panel"]').innerHTML = renderGamePanel(state);
+      const logo = document.querySelector('[data-hsl-fallback-logo]');
+      await (logo.complete ? Promise.resolve() : new Promise((resolve) => logo.addEventListener('load', resolve, { once: true })));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const shell = document.querySelector('.game-hero-shell--brand');
+      const safe = shell.querySelector('.game-hero-logo-safe-area');
+      const shellRect = shell.getBoundingClientRect();
+      const safeRect = safe.getBoundingClientRect();
+      const logoRect = logo.getBoundingClientRect();
+      const shellStyle = getComputedStyle(shell);
+      return {
+        afterContent: getComputedStyle(shell, '::after').content,
+        backgroundColor: shellStyle.backgroundColor,
+        backgroundImage: shellStyle.backgroundImage,
+        boxShadow: shellStyle.boxShadow,
+        centeredX: Math.abs((logoRect.left + logoRect.width / 2) - (shellRect.left + shellRect.width / 2)),
+        centeredY: Math.abs((logoRect.top + logoRect.height / 2) - (shellRect.top + shellRect.height / 2)),
+        contained: logoRect.left >= safeRect.left && logoRect.right <= safeRect.right && logoRect.top >= safeRect.top && logoRect.bottom <= safeRect.bottom,
+        logo: { height: logoRect.height, width: logoRect.width },
+        mode: ${JSON.stringify(mode)},
+        objectFit: getComputedStyle(logo).objectFit,
+        safe: { height: safeRect.height, width: safeRect.width },
+        source: logo.getAttribute('src'),
+        theme: ${JSON.stringify(theme)},
+      };
+    })()`);
+    await capture(window, filename);
+    return metrics;
+  };
+
+  window.setSize(1400, 860);
+  await delay(60);
+  const results = [];
+  for (const theme of ['dark', 'light']) {
+    results.push(await render({ filename: `hero-fallback-empty-${theme}.png`, mode: 'empty', theme }));
+    results.push(await render({ filename: `hero-fallback-no-selection-${theme}.png`, mode: 'no-selection', theme }));
+  }
+  return results;
+}
+
+async function finalPolishSmoke(window) {
+  const calendar = await calendarCompanionSmoke(window);
+  const heroAndDrawers = await heroAndDrawerSmoke(window);
+  const fallback = await brandedFallbackSmoke(window);
+  const chrome = await nativeChromeMetrics(window);
+  return { calendar, chrome, fallback, heroAndDrawers };
 }
 
 async function footerResizeMetrics(window) {
@@ -1116,16 +1270,21 @@ app.whenReady().then(async () => {
     if (checkOnly) {
       const checks = {
         accounts: () => accountMetrics(window),
+        calendar: () => calendarCompanionSmoke(window),
         chrome: () => nativeChromeMetrics(window),
         detail: () => detailScrollMetrics(window),
         filters: () => filterScrollMetrics(window),
         hero: () => heroAndDrawerSmoke(window),
         icons: () => iconAlphaMetrics(window),
+        polish: () => finalPolishSmoke(window),
         rows: () => iconRows(window),
         signals: async () => ({ hostile: await hostileSignalMetrics(window), shared: await signalMetrics(window) }),
       };
       if (!checks[checkOnly]) throw new Error(`Unknown check: ${checkOnly}`);
-      process.stdout.write(`${JSON.stringify(await checks[checkOnly]())}\n`);
+      const checkResult = await checks[checkOnly]();
+      const serializedResult = JSON.stringify(checkResult);
+      if (screenshotDirectory) fs.writeFileSync(path.join(screenshotDirectory, "smoke-metrics.json"), serializedResult);
+      process.stdout.write(`${serializedResult}\n`);
       return;
     }
     if (resizeOnly) {

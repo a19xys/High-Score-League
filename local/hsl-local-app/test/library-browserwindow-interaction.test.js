@@ -155,8 +155,20 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
     assert.equal(offset.drawerTop, 32);
     assert.equal(offset.modalBottom, offset.viewportHeight);
     assert.equal(offset.drawerBottom, offset.viewportHeight);
+    assert.equal(offset.buttonHeight, 38);
+    assert.equal(offset.buttonWidth, 38);
+    assert.equal(offset.iconHeight, 18);
+    assert.equal(offset.iconWidth, 18);
+    assert.equal(offset.glyphTransform, "matrix(1, 0, 0, 1, 0, 0)");
   });
   assert.deepEqual(result.heroAndDrawers.closeButtons.map(({ drawer }) => drawer), ["settings", "activity"]);
+  for (const icon of Object.values(result.heroAndDrawers.headerIcons)) {
+    assert.equal(icon.buttonHeight, 38);
+    assert.equal(icon.buttonWidth, 38);
+    assert.equal(icon.iconHeight, 18);
+    assert.equal(icon.iconWidth, 18);
+    assert.equal(icon.glyphTransform, "matrix(1, 0, 0, 1, 0, 0)");
+  }
   assert.ok(result.heroAndDrawers.expanded.laneWidth > 213);
   result.heroAndDrawers.expanded.indicators.forEach((indicator) => {
     assert.ok(indicator.width > 40);
@@ -208,6 +220,10 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
     assert.equal(theme.after.pointerEvents, "none");
   }
   assert.notEqual(result.chrome.dark.background, result.chrome.light.background);
+  assert.equal(result.chrome.light.after.backgroundColor, "rgba(0, 0, 0, 0)");
+  assert.equal(result.chrome.light.before.backgroundColor, "rgba(0, 0, 0, 0)");
+  assert.doesNotMatch(result.chrome.light.after.boxShadow, /0px 1px/);
+  assert.doesNotMatch(result.chrome.light.before.boxShadow, /0px 1px/);
   assert.equal(result.chrome.rails.header.left, result.chrome.rails.main.left);
   assert.equal(result.chrome.rails.header.right, result.chrome.rails.main.right);
   assert.equal(result.chrome.rails.header.beforeBackground, result.chrome.rails.main.beforeBackground);

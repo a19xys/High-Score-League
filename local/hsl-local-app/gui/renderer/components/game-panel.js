@@ -118,14 +118,16 @@ function renderPackErrors(game, readiness, bridge) {
   return renderContextNotice(pack, { className: "pack-error-panel" });
 }
 
-const HSL_FALLBACK_HERO_URL = "./assets/hero_hsl.png";
+const HSL_FALLBACK_LOGO_URL = "./assets/brand/logo-horizontal.png";
 
 function renderHslFallbackHero() {
   return `
-    <div class="game-hero-stage game-hero-stage--fallback game-hero-stage--brand" aria-hidden="true">
-      <div class="game-hero-media">
-        <div class="game-panel__placeholder game-panel__placeholder--brand"><span>High Score League</span><strong>HSL</strong></div>
-        <img class="game-panel__hero game-panel__hero--brand" src="${HSL_FALLBACK_HERO_URL}" alt="" data-hsl-fallback-hero>
+    <div class="game-hero-shell game-hero-shell--brand" aria-hidden="true">
+      <div class="game-hero-stage game-hero-stage--fallback game-hero-stage--brand game-hero-stage--with-logo">
+        <div class="game-hero-media"></div>
+        <div class="game-hero-logo-safe-area">
+          <img class="game-hero__logo game-hero__logo--brand" src="${HSL_FALLBACK_LOGO_URL}" alt="" loading="eager" data-hsl-fallback-logo>
+        </div>
       </div>
     </div>
   `;
@@ -294,7 +296,7 @@ export function renderGameIdentityRegion(state) {
         <div class="game-title-main">
           <h2 title="${escapeHtml(game.displayName)}">${escapeHtml(game.displayName)}</h2>
         </div>
-        ${weekLabel ? `<p class="game-week-subtitle">${renderIcon("calendar", { className: "status-icon game-week-icon", size: "sm" })}<span>${escapeHtml(weekLabel)}</span></p>` : ""}
+        ${weekLabel ? `<p class="game-week-subtitle">${renderIcon("calendar", { className: "status-icon game-week-icon text-companion-icon" })}<span>${escapeHtml(weekLabel)}</span></p>` : ""}
       </div>
     </div>
     ${description ? `<p class="ready-copy">${escapeHtml(description)}</p>` : ""}

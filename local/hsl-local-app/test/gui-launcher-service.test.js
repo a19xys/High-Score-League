@@ -820,9 +820,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.week-status--open[\s\S]*var\(--ok\)/);
   assert.match(styles, /\.week-status--ending[\s\S]*#a78bfa/);
   assert.match(styles, /\.week-status--closed[\s\S]*var\(--warn\)/);
-  assert.match(styles, /\.pack-card__subtitle[\s\S]*align-items: center/);
-  assert.match(styles, /\.pack-card__subtitle-icon \{[\s\S]*flex: 0 0 12px[\s\S]*place-items: center/);
-  assert.match(styles, /\.pack-card__subtitle-icon \.ui-icon \{[\s\S]*color: currentColor/);
+  assert.match(styles, /\.pack-card__subtitle[\s\S]*align-items: baseline/);
+  assert.match(styles, /\.ui-icon\.text-companion-icon\s*\{[^}]*inline-size: 1cap[^}]*block-size: 1cap[^}]*flex: 0 0 1cap/);
+  assert.match(styles, /\.pack-card__subtitle-icon\.ui-icon\s*\{[^}]*color: currentColor/);
   assert.match(styles, /\.view-button \.library-view-icon\.ui-icon[\s\S]*color: currentColor/);
   assert.match(styles, /\.view-button:not\(\.view-button--active\)[\s\S]*color: var\(--text-muted\)/);
   assert.match(styles, /\.view-button--active[\s\S]*color: var\(--circuit\)/);
@@ -1639,11 +1639,24 @@ test("renderer muestra fallback HSL limpio cuando falta la biblioteca", async ()
   };
   const gameHtml = renderGamePanel(state);
   const libraryHtml = renderLibraryPanel(state);
+  const [bundledBrandLogo, canonicalBrandLogo] = await Promise.all([
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "assets", "brand", "logo-horizontal.png")),
+    fsp.readFile(path.join(__dirname, "..", "..", "..", "public", "brand", "logo-horizontal.png")),
+  ]);
+  const styles = await fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"), "utf8");
 
+  assert.deepEqual(bundledBrandLogo, canonicalBrandLogo);
+  assert.match(styles, /\.game-hero-shell\.game-hero-shell--brand\s*\{[^}]*background: var\(--surface-muted\)[^}]*box-shadow: none/);
+  assert.match(styles, /\.game-hero-shell\.game-hero-shell--brand::after\s*\{[^}]*content: none/);
+  assert.match(styles, /\.game-hero-shell \.game-hero__logo\s*\{[^}]*max-inline-size:[^}]*max-block-size:[^}]*object-fit: contain/);
   assert.match(gameHtml, /Biblioteca no disponible/);
   assert.match(gameHtml, /No se encuentra tu biblioteca de packs/);
-  assert.match(gameHtml, /src="\.\/assets\/hero_hsl\.png"/);
-  assert.match(gameHtml, /data-hsl-fallback-hero/);
+  assert.match(gameHtml, /game-hero-shell game-hero-shell--brand/);
+  assert.match(gameHtml, /src="\.\/assets\/brand\/logo-horizontal\.png"/);
+  assert.match(gameHtml, /data-hsl-fallback-logo/);
+  assert.match(gameHtml, /game-hero-logo-safe-area/);
+  assert.match(gameHtml, /game-hero__logo game-hero__logo--brand/);
+  assert.doesNotMatch(gameHtml, /hero_hsl\.png|assets\/icons\/app\.svg|background-image/);
   assert.doesNotMatch(gameHtml, /High Score League Launcher|Elegir carpeta|Reintentar|data-action=|Space Invaders|data-action="play"|data-action="practice"|data-action="open-manual"|data-action="open-ranking"|badge-row|game-metadata-grid|pack-error-panel|activity-summary-card/);
   assert.match(libraryHtml, /Biblioteca no encontrada/);
   assert.match(libraryHtml, /Conecta de nuevo la unidad o elige otra ubicación/);
@@ -1741,7 +1754,9 @@ test("renderer separa biblioteca vacía, sin configurar y sin selección real", 
   });
 
   for (const html of [emptyHtml, unconfiguredHtml, populatedNoSelectionHtml]) {
-    assert.match(html, /src="\.\/assets\/hero_hsl\.png"/);
+    assert.match(html, /src="\.\/assets\/brand\/logo-horizontal\.png"/);
+    assert.match(html, /game-hero-logo-safe-area/);
+    assert.doesNotMatch(html, /hero_hsl\.png|assets\/icons\/app\.svg/);
     assert.doesNotMatch(html, /Space Invaders|Sin datos|badge-row|game-metadata-grid|data-action="play"|data-action="practice"|data-action="open-manual"|data-action="open-ranking"/);
   }
   assert.match(emptyHtml, /Tu biblioteca está vacía/);
@@ -1818,7 +1833,7 @@ test("renderer controla el dialogo missing una vez y permite reintento explicito
   assert.match(app, /libraryUnavailableStatePatch\(data\)/);
   assert.match(app, /Object\.assign\(statePatch, libraryUnavailableStatePatch\(response\.state\), \{ initialLoadError: null \}\)/);
   assert.match(app, /action === "toggle-library-filters"[\s\S]*getLibraryCapabilities\(store\.getState\(\)\)\.filtersEnabled[\s\S]*return/);
-  assert.match(app, /closest\("\[data-hsl-fallback-hero\]"\)[\s\S]*hero\.hidden = true/);
+  assert.doesNotMatch(app, /data-hsl-fallback-hero|hero_hsl\.png/);
   assert.match(app, /action === "choose-unavailable-pack-directory"[\s\S]*window\.hslLauncher\.choosePackDirectory\(\)/);
   assert.match(app, /action === "rescan-pack-directory"[\s\S]*resetUnavailableDirectoryPrompt[\s\S]*window\.hslLauncher\.rescanPackDirectory\(\)/);
   assert.match(app, /action === "close-dialog"[\s\S]*activeDialog: null/);

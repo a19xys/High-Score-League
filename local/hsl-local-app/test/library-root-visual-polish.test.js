@@ -148,12 +148,13 @@ test("icon-window distingue icono y cover fallback con overscan compartido", asy
 });
 
 test("titulo monotono, signal beacon, ring unico y subtitulo estructural comparten primitivas", async () => {
-  const [{ renderPackCard }, styles, tokens, calendar, header, primitives] = await Promise.all([
+  const [{ renderPackCard }, styles, tokens, calendar, header, gamePanel, primitives] = await Promise.all([
     import(pathToFileURL(path.join(rendererRoot, "components", "pack-card.js")).href),
     fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "styles", "tokens.css"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "assets", "icons", "calendar.svg"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "components", "header.js"), "utf8"),
+    fsp.readFile(path.join(rendererRoot, "components", "game-panel.js"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "components", "status-primitives.js"), "utf8"),
   ]);
   const state = rendererState({ packs: [] });
@@ -182,15 +183,19 @@ test("titulo monotono, signal beacon, ring unico y subtitulo estructural compart
   const darkTokens = tokens.slice(tokens.indexOf('[data-theme="dark"]'));
   assert.doesNotMatch(darkTokens, /--signal-(?:success|warning|error|info|neutral):/);
   assert.match(html, /pack-card__subtitle-icon/);
+  assert.match(html, /pack-card__subtitle-icon text-companion-icon/);
+  assert.match(gamePanel, /game-week-icon text-companion-icon/);
   assert.match(html, /pack-card__subtitle-text/);
-  assert.match(finalCss, /\.pack-card__subtitle \{[\s\S]*display: flex[\s\S]*align-items: center/);
+  assert.match(finalCss, /\.pack-card__subtitle \{[\s\S]*display: flex[\s\S]*align-items: baseline/);
+  assert.match(finalCss, /\.ui-icon\.text-companion-icon\s*\{[^}]*display: inline-block[^}]*inline-size: 1cap[^}]*block-size: 1cap[^}]*flex: 0 0 1cap[^}]*vertical-align: baseline/);
+  assert.match(styles, /\.game-week-subtitle\s*\{[^}]*align-items: baseline/);
   assert.match(finalCss, /\.pack-card__subtitle-text[\s\S]*text-overflow: ellipsis/);
   assert.match(finalCss, /\.pack-card--icons \.pack-card__body\s*\{[^}]*display: flex[^}]*align-items: stretch[^}]*justify-content: center/);
   assert.match(finalCss, /\.pack-card--icons \.pack-card__text\s*\{[^}]*display: flex[^}]*height: auto[^}]*align-self: stretch[^}]*flex: 1 1 auto[^}]*flex-direction: column[^}]*justify-content: center/);
   const calendarViewBox = calendar.match(/viewBox="0 0 (\d+) (\d+)"/);
   assert.ok(calendarViewBox);
   assert.equal(calendarViewBox[1], calendarViewBox[2]);
-  assert.doesNotMatch(finalCss, /\.pack-card__subtitle-icon[^}]*translateY/);
+  assert.doesNotMatch(finalCss, /(?:pack-card__subtitle-icon|game-week-icon)[^}]*?(?:translateY|top:|bottom:)/);
 });
 
 test("pack activo conserva current sin fingir disabled y los estados usan la autoridad canonica", async () => {

@@ -170,7 +170,7 @@ export function renderPackCard(pack, state, view = "covers") {
         <div class="pack-card__text">
           <h3>${escapeHtml(pack.title || "Pack local")}</h3>
           <p class="pack-card__subtitle">
-            <span class="pack-card__subtitle-icon">${renderIcon("calendar", { className: "status-icon", size: "sm" })}</span>
+            ${renderIcon("calendar", { className: "status-icon pack-card__subtitle-icon text-companion-icon" })}
             <span class="pack-card__subtitle-text">${escapeHtml(subtitle)}</span>
           </p>
           ${renderMetadata(pack, view)}

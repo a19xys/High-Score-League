@@ -126,6 +126,11 @@ test("native titlebar keeps official controls over one transparent overlay surfa
   assert.doesNotMatch(titlebar, /152px/);
   assert.match(titlebar, /pointer-events: none/);
   assert.match(titlebar, /html\[data-platform="win32"\][\s\S]*33\.333333%[\s\S]*66\.666667%/);
+  assert.match(titlebar, /html:not\(\[data-theme="dark"\]\) \.window-titlebar\s*\{[^}]*--window-caption-cluster-surface: transparent/);
+  assert.match(titlebar, /\.window-titlebar::before\s*\{[^}]*box-shadow: inset -1px 0 0 var\(--window-titlebar-rule\)/);
+  assert.match(titlebar, /\.window-titlebar::after\s*\{[^}]*box-shadow: inset 1px 0 0 var\(--window-titlebar-rule\)/);
+  assert.doesNotMatch(titlebar, /inset 0 1px 0 var\(--window-titlebar-rule\)/);
+  assert.doesNotMatch(titlebar, /\.window-titlebar::after\s*\{[^}]*inset -1px 0 0/);
   assert.doesNotMatch(titlebar, /html\[data-platform="linux"\][\s\S]*33\.333333%/);
   assert.match(titlebar, /html\[data-platform="darwin"\] \.window-titlebar[\s\S]*padding-inline: 78px 12px/);
   assert.doesNotMatch(titlebar, /html\[data-platform="darwin"\] \.window-titlebar::/);
@@ -145,6 +150,10 @@ test("drawers use the canonical close asset and remain below the native titlebar
   assert.match(overlay, /title="Cerrar" aria-label="Cerrar"/);
   assert.doesNotMatch(overlay, />\s*[x×]\s*</i);
   assert.match(closeSvg, /<svg[\s\S]*<path/);
+  assert.match(css, /:is\(\.theme-button--icon, \.icon-button\) > \.button-icon\.ui-icon\s*\{[^}]*width: var\(--circular-control-icon-size\)[^}]*height: var\(--circular-control-icon-size\)/);
+  assert.match(css, /\.theme-button--icon\s*\{[^}]*--circular-control-icon-size: 18px/);
+  assert.match(css, /\.icon-button\s*\{[^}]*--circular-control-icon-size: 18px/);
+  assert.doesNotMatch(css, /\.ui-icon--close\s*\{[^}]*--icon-glyph-scale/);
 });
 
 test("header and main share non-interactive rails without changing workspace geometry", () => {
