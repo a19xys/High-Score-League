@@ -58,10 +58,17 @@ function accountCompactLabel(account) {
   return account?.displayName || account?.initials || initialsFromValue(account?.email || account?.userId) || SESSION_CHIP_EMPTY_LABEL;
 }
 
-function renderAccountAvatar(account, className = "") {
-  const initials = account?.initials || initialsFromValue(account?.displayName || account?.email || account?.userId);
-  const emptyClass = initials ? "" : " account-mini-avatar--empty";
-  const content = initials ? escapeHtml(initials) : renderIcon("user", { className: "account-icon", size: "sm" });
+export function renderAccountAvatar(account, className = "") {
+  const localUrl = typeof account?.avatarLocalUrl === "string" && account.avatarLocalUrl.startsWith("file:///")
+    ? account.avatarLocalUrl
+    : null;
+  const initials = account?.initials || "";
+  const emptyClass = localUrl || initials ? "" : " account-mini-avatar--empty";
+  const content = localUrl
+    ? `<img class="account-mini-avatar__image" src="${escapeHtml(localUrl)}" alt="">`
+    : initials
+      ? escapeHtml(initials)
+      : renderIcon("user", { className: "account-icon", size: "sm" });
 
   return `<span class="account-mini-avatar ${className}${emptyClass}" aria-hidden="true">${content}</span>`;
 }

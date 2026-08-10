@@ -84,3 +84,22 @@ test("an already aborted lifecycle signal prevents a new fetch", async () => {
   assert.equal(result.failureType, "cancelled");
   assert.equal(result.reason, "shutdown");
 });
+
+test("binary responses are streamed with a hard size limit", async () => {
+  const accepted = await executeRemoteRequest({
+    fetchImpl: async () => new Response(Buffer.from([1, 2, 3])),
+    maxResponseBytes: 3,
+    responseType: "arrayBuffer",
+    url: "https://hsl.example/avatar",
+  });
+  assert.deepEqual([...accepted.bodyBuffer], [1, 2, 3]);
+
+  const rejected = await executeRemoteRequest({
+    fetchImpl: async () => new Response(Buffer.from([1, 2, 3, 4])),
+    maxResponseBytes: 3,
+    responseType: "arrayBuffer",
+    url: "https://hsl.example/avatar",
+  });
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.technicalReason, "Error:RESPONSE_TOO_LARGE");
+});

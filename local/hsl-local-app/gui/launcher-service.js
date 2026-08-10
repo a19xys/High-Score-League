@@ -4,6 +4,7 @@ const {
   readKnownAccounts,
   toSafeAccountsState,
 } = require("../src/account-store");
+const { createAccountProfileSync } = require("../src/account-profile-sync");
 const { loadConfig } = require("../src/config");
 const { normalizeHslOrigin } = require("../src/hsl-origin");
 const {
@@ -95,6 +96,7 @@ let pendingAutoSubmitState = {
 };
 let remoteDiagnosticsProvider = null;
 let remoteOperationSignalProvider = null;
+let accountProfileSync = null;
 const libraryOrderModule = import("./shared/library-order.mjs");
 const accountSessionStates = new Map();
 
@@ -168,6 +170,31 @@ function setRemoteDiagnosticsProvider(provider) {
 
 function setRemoteOperationSignalProvider(provider) {
   remoteOperationSignalProvider = typeof provider === "function" ? provider : null;
+}
+
+function configureAccountProfileSync(options = {}) {
+  accountProfileSync?.shutdown();
+  accountProfileSync = createAccountProfileSync({
+    ...options,
+    configProvider: options.configProvider || loadRuntimeConfig,
+  });
+  return accountProfileSync;
+}
+
+function requestAccountProfileSync(trigger, options = {}) {
+  return accountProfileSync?.request(trigger, options) || Promise.resolve({ attempted: false, reason: "not-configured" });
+}
+
+function cancelAccountProfileSync(reason = "account-change") {
+  accountProfileSync?.cancel(reason);
+}
+
+function shutdownAccountProfileSync() {
+  accountProfileSync?.shutdown();
+}
+
+function getAccountProfileSyncDiagnostics() {
+  return accountProfileSync?.getDiagnostics() || { inFlight: false };
 }
 
 function getRemoteOperationSignal() {
@@ -1166,7 +1193,11 @@ async function stateFromContext(context) {
     : getEmptyBridgeState(libraryState);
 
   return {
-    accounts: toSafeAccountsState(accountsStore, session, { savedSessionUserIds, sessionStatuses }),
+    accounts: toSafeAccountsState(accountsStore, session, {
+      savedSessionUserIds,
+      sessionStatuses,
+      userDataDir: baseConfig.userDataDir,
+    }),
     activePack: activeLibraryPack,
     autoSync,
     bridge,
@@ -2346,6 +2377,7 @@ async function loginWithPassword(credentials = {}) {
     password: credentials.password,
   });
 
+  if (result.ok) requestAccountProfileSync("login", { force: true });
   return {
     action: "login",
     lines: [result.message],
@@ -2358,7 +2390,9 @@ async function loginWithPassword(credentials = {}) {
 async function logoutSession() {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
+  const previous = await getAuthState(config, { deferRemote: true });
   const result = await logoutLocal(config, { forgetAccount: true, reason: "gui-logout" });
+  if (previous.userId) await accountProfileSync?.forget(previous.userId);
 
   return {
     action: "logout",
@@ -2404,6 +2438,7 @@ async function switchKnownAccountFromGui(userId, options = {}) {
 
   try {
     await sessionRepository(config).setActive(account.userId);
+    requestAccountProfileSync("switch-account", { force: true });
 
     return {
       action: "switch-account",
@@ -2439,6 +2474,7 @@ async function removeKnownAccountFromGui(userId) {
     forgetAccount: true,
     reason: "remove-account",
   });
+  if (result.removed) await accountProfileSync?.forget(userId);
 
   if (session.hasSession && session.userId === userId) {
 
@@ -2958,12 +2994,14 @@ module.exports = {
   activateLibraryPack,
   activatePackDirectory,
   cancelAccountSessionOperations,
+  cancelAccountProfileSync,
   cancelChoosePackDirectory,
   cancelChooseSharedMameRuntime,
   cancelImportPack,
   cancelOpenPack,
   chooseSharedMameRuntimeFromGui,
   choosePackDirectoryFromGui,
+  configureAccountProfileSync,
   classifyFailureReason,
   deriveOpenedPackConfig,
   drainAccountSessionOperations,
@@ -2973,6 +3011,7 @@ module.exports = {
   getPendingAutoSubmitContext,
   getPendingAutoSubmitContexts,
   getAccountSessionDiagnostics,
+  getAccountProfileSyncDiagnostics,
   getRemoteBootstrapState,
   getLauncherState,
   importPackFromFolderForGui,
@@ -2992,6 +3031,7 @@ module.exports = {
   readPackForGui,
   recheckSeasonMembership,
   removeKnownAccountFromGui,
+  requestAccountProfileSync,
   openConfiguredPackDirectory,
   rescanPackDirectory,
   restoreFailedSubmission,
@@ -2999,6 +3039,7 @@ module.exports = {
   resetAutoSyncStateForTests,
   setRemoteDiagnosticsProvider,
   setRemoteOperationSignalProvider,
+  shutdownAccountProfileSync,
   shutdownAccountSessions,
   runAutoSyncIfEligible,
   runPendingAutoSubmit,

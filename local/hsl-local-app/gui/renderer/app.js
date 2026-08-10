@@ -1470,7 +1470,7 @@ function resultToLog(title, response) {
   const friendly = {
     login: ok
       ? "Login correcto."
-      : "No he podido iniciar sesión. Revisa email y contraseña.",
+      : "El email o la contraseña no son correctos. Inténtalo de nuevo.",
     diagnose: ok
       ? "Diagnóstico completado. El launcher puede seguir usándose."
       : "El diagnóstico encontró algo que conviene revisar.",
@@ -1636,7 +1636,7 @@ async function submitLogin(form) {
     });
 
     store.setState({
-      authError: response.ok ? null : response.summary || "No he podido iniciar sesión.",
+      authError: response.ok ? null : response.summary || "El email o la contraseña no son correctos. Inténtalo de nuevo.",
       authEmail: response.ok ? "" : email,
       authFormOpen: !response.ok,
       accountMenuOpen: !response.ok,
@@ -1647,7 +1647,7 @@ async function submitLogin(form) {
     });
   } catch {
     store.setState({
-      authError: "No he podido iniciar sesión. Revisa email y contraseña.",
+      authError: "El email o la contraseña no son correctos. Inténtalo de nuevo.",
       accountMenuOpen: true,
       authFormOpen: true,
       busy: false,
@@ -1655,7 +1655,7 @@ async function submitLogin(form) {
       logs: appendLog(store.getState().logs, {
         details: [],
         ok: false,
-        summary: "No he podido iniciar sesión. Revisa email y contraseña.",
+        summary: "El email o la contraseña no son correctos. Inténtalo de nuevo.",
         title: "Iniciar sesión",
       }),
     });

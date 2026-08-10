@@ -152,7 +152,10 @@ test("drawers use the canonical close asset and remain below the native titlebar
   assert.match(overlay, /renderIcon\("close", \{ className: "button-icon drawer-close-icon", fallback: "", loading: "eager", size: "sm" \}\)/);
   assert.match(overlay, /title="Cerrar" aria-label="Cerrar"/);
   assert.doesNotMatch(overlay, />\s*[x×]\s*</i);
-  assert.match(closeSvg, /<svg[\s\S]*<path/);
+  assert.match(closeSvg, /<svg[\s\S]*<image/);
+  assert.match(closeSvg, /data:image\/png;base64,/);
+  assert.doesNotMatch(closeSvg, /<script/i);
+  assert.doesNotMatch(closeSvg, /xlink:href="https?:\/\//i);
   assert.match(css, /:is\(\.theme-button--icon, \.icon-button\) > \.button-icon\.ui-icon\s*\{[^}]*width: var\(--circular-control-icon-size\)[^}]*height: var\(--circular-control-icon-size\)/);
   assert.match(css, /\.theme-button--icon\s*\{[^}]*--circular-control-icon-size: 18px/);
   assert.match(css, /\.icon-button\s*\{[^}]*--circular-control-icon-size: 18px/);

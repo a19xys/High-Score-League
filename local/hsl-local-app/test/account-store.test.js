@@ -13,6 +13,7 @@ const {
   removeKnownAccount,
   safeInitials,
   toSafeAccountsState,
+  updateKnownAccountProfile,
 } = require("../src/account-store");
 
 async function withTempDir(fn) {
@@ -301,4 +302,58 @@ test("clearActiveAccount conserva cuentas conocidas", async () => {
 test("safeInitials genera siglas estables", () => {
   assert.equal(safeInitials("player@example.com"), "PE");
   assert.equal(safeInitials(""), "J");
+});
+
+test("actualizar perfil no reordena ni toca autoridad de cuenta o sesion", async () => {
+  await withTempDir(async (dir) => {
+    const cfg = config(dir);
+    await rememberAccount(cfg, { email: "one@example.test", userId: "user-1" }, {
+      now: "2026-08-01T00:00:00.000Z",
+      sessionRevision: 7,
+    });
+    await rememberAccount(cfg, { email: "two@example.test", userId: "user-2" }, {
+      now: "2026-08-02T00:00:00.000Z",
+      sessionRevision: 4,
+      setActive: false,
+    });
+    const before = await readKnownAccounts(cfg);
+    await updateKnownAccountProfile(cfg, "user-1", {
+      avatarCacheIdentity: "storage-identity",
+      avatarCachePath: "accounts/avatars/user_hash/avatar.webp",
+      avatarStoragePath: "avatars/user-1/avatar.webp",
+      avatarUrl: null,
+      initials: null,
+      username: "player-one",
+    });
+    const after = await readKnownAccounts(cfg);
+    assert.deepEqual(after.accounts.map((account) => account.userId), before.accounts.map((account) => account.userId));
+    assert.equal(after.lastActiveUserId, before.lastActiveUserId);
+    const oldAccount = before.accounts.find((account) => account.userId === "user-1");
+    const account = after.accounts.find((item) => item.userId === "user-1");
+    assert.equal(account.addedAt, oldAccount.addedAt);
+    assert.equal(account.lastUsedAt, oldAccount.lastUsedAt);
+    assert.equal(account.requiresLogin, oldAccount.requiresLogin);
+    assert.equal(account.sessionRevision, oldAccount.sessionRevision);
+    assert.equal(account.initials, null);
+    assert.equal(account.username, "player-one");
+  });
+});
+
+test("renderer solo recibe file URL existente dentro de la cache de avatares", async () => {
+  await withTempDir(async (dir) => {
+    const cfg = config(dir);
+    await rememberAccount(cfg, { userId: "user-1" });
+    const relative = path.join("accounts", "avatars", "user_hash", "avatar.webp");
+    const avatarPath = path.join(cfg.userDataDir, relative);
+    await fsp.mkdir(path.dirname(avatarPath), { recursive: true });
+    await fsp.writeFile(avatarPath, "avatar");
+    await updateKnownAccountProfile(cfg, "user-1", { avatarCachePath: relative, avatarUrl: "https://remote.example/avatar.webp" });
+    const safe = toSafeAccountsState(await readKnownAccounts(cfg), {}, { userDataDir: cfg.userDataDir });
+    assert.match(safe.knownAccounts[0].avatarLocalUrl, /^file:\/\/\//);
+    assert.equal(Object.prototype.hasOwnProperty.call(safe.knownAccounts[0], "avatarUrl"), false);
+    assert.equal(JSON.stringify(safe).includes("remote.example"), false);
+    await fsp.rm(avatarPath);
+    const missing = toSafeAccountsState(await readKnownAccounts(cfg), {}, { userDataDir: cfg.userDataDir });
+    assert.equal(missing.knownAccounts[0].avatarLocalUrl, null);
+  });
 });

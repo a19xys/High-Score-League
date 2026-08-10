@@ -822,7 +822,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.week-status--ending[\s\S]*#a78bfa/);
   assert.match(styles, /\.week-status--closed[\s\S]*var\(--warn\)/);
   assert.match(styles, /\.pack-card__subtitle[\s\S]*align-items: baseline/);
-  assert.match(styles, /\.ui-icon\.text-companion-icon\s*\{[^}]*inline-size: 1cap[^}]*block-size: 1cap[^}]*flex: 0 0 1cap/);
+  assert.match(styles, /\.ui-icon\.text-companion-icon\s*\{[^}]*inline-size: 1\.16cap[^}]*block-size: 1\.16cap[^}]*flex: 0 0 1\.16cap/);
   assert.match(styles, /\.pack-card__subtitle-icon\.ui-icon\s*\{[^}]*color: currentColor/);
   assert.match(styles, /\.view-button \.library-view-icon\.ui-icon[\s\S]*color: currentColor/);
   assert.match(styles, /\.view-button:not\(\.view-button--active\)[\s\S]*color: var\(--text-muted\)/);

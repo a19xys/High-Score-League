@@ -407,7 +407,7 @@ async function signInWithPassword(config, credentials = {}, options = {}) {
   }
   const supabase = options.supabaseClient || createSupabaseClient(config);
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { message: "No he podido iniciar sesion. Revisa email y contrasena.", ok: false, status: "auth_failed", technicalMessage: redactValues(error.message, [password]) };
+  if (error) return { message: "El email o la contraseña no son correctos. Inténtalo de nuevo.", ok: false, status: "auth_failed", technicalMessage: redactValues(error.message, [password]) };
   if (!data?.session || !data?.user?.id) return { message: "Login realizado, pero Supabase no devolvio sesion valida.", ok: false, status: "missing_session" };
   const repository = getAccountSessionRepository(config, options);
   await ensureMigration(repository);

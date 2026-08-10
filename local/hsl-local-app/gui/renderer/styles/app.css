@@ -982,6 +982,14 @@ button:disabled {
   font-size: 12px;
   font-weight: 900;
   line-height: 1;
+  overflow: hidden;
+}
+
+.account-mini-avatar__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .known-accounts span,
@@ -3537,17 +3545,27 @@ body {
   text-align: left;
 }
 
+.account-row__button:hover,
+.account-row__button:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
 div.account-row__button {
   cursor: default;
 }
 
-.account-row__button:hover,
-.account-row__button:focus-visible,
 .account-row--active .account-row__surface,
-.account-row__surface:focus-within,
-.account-row__surface:hover {
+.account-row:not(.account-row--active) .account-row__surface:hover {
   border-color: color-mix(in srgb, var(--circuit) 26%, var(--border));
   background: color-mix(in srgb, var(--circuit) 8%, var(--surface-muted));
+}
+
+.account-row__surface:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--circuit) 74%, transparent);
+  outline-offset: 2px;
 }
 
 .account-row__check {
@@ -3577,6 +3595,10 @@ div.account-row__button {
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.account-row--active .account-row__email {
+  color: var(--circuit);
 }
 
 .icon-slot--check::before { content: "✓"; }
@@ -6736,16 +6758,23 @@ html[data-theme="dark"] .status-beacon--pack {
 }
 
 .game-hero-indicator__icon.ui-icon {
-  width: 17px;
-  height: 17px;
-  flex: 0 0 17px;
-  color: currentColor;
-}
-
-.game-hero-indicator--favorite .game-hero-indicator__icon.ui-icon {
   width: 19px;
   height: 19px;
   flex: 0 0 19px;
+  color: currentColor;
+  --icon-optical-x: -0.5px;
+  --icon-optical-y: 1px;
+}
+
+.game-hero-indicator--favorite .game-hero-indicator__icon.ui-icon {
+  --hero-indicator-icon-size: 20px;
+  --icon-optical-y: -0.1px;
+}
+
+.game-hero-indicator--error .game-hero-indicator__icon.ui-icon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
 }
 
 html:not([data-theme="dark"]) .game-hero-indicator {

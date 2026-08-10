@@ -9,6 +9,7 @@ let launcherStateRevision = 1;
 let launcherStateListener = null;
 let selectionPhase = "initial";
 let switchAccountCalls = 0;
+const fixtureAvatarUrl = process.env.HSL_ACCOUNT_AVATAR_FILE_URL || null;
 
 const titles = [
   "SPACE INVADERS Y EL TEMPLO DEL MALO MALOSO",
@@ -56,8 +57,8 @@ if (process.env.HSL_LIBRARY_ALPHA_ASSETS) {
 function snapshot({ samePack = false } = {}) {
   const pack = packs[activeIndex];
   const accounts = [
-    { displayName: "Fixture", email: "fixture@example.test", hasLocalSession: true, isActive: activeUserId === "fixture", userId: "fixture" },
-    { displayName: "Cuenta disponible", email: "valid@example.test", hasLocalSession: true, isActive: activeUserId === "valid", userId: "valid" },
+    { avatarLocalUrl: fixtureAvatarUrl, displayName: "Fixture", email: "fixture@example.test", hasLocalSession: true, initials: "FI", isActive: activeUserId === "fixture", userId: "fixture" },
+    { displayName: "Cuenta disponible", email: "valid@example.test", hasLocalSession: true, initials: "VA", isActive: activeUserId === "valid", userId: "valid" },
     { displayName: "Cuenta caducada inesperadamente", email: "expired@example.test", hasLocalSession: true, isActive: false, userId: "expired" },
     { displayName: "Cuenta bloqueada", email: "relogin@example.test", hasLocalSession: false, isActive: false, requiresLogin: true, userId: "relogin" },
   ];

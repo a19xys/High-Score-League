@@ -66,13 +66,17 @@ test("play hover changes its surface without moving or over-brightening the acti
 
 test("light account rows keep distinct idle, hover and active surfaces", async () => {
   const styles = await fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8");
-  const sharedHover = styles.match(/\.account-row__button:hover,[\s\S]*?\.account-row__surface:hover\s*\{[^}]*\}/)?.[0] || "";
+  const innerButton = styles.match(/\.account-row__button:hover,[\s\S]*?\.account-row__button:focus-visible\s*\{[^}]*\}/)?.[0] || "";
+  const sharedHover = styles.match(/\.account-row--active \.account-row__surface,[\s\S]*?\.account-row:not\(\.account-row--active\) \.account-row__surface:hover\s*\{[^}]*\}/)?.[0] || "";
   const lightIdle = styles.match(/html:not\(\[data-theme="dark"\]\) \.account-row__surface\s*\{[^}]*\}/)?.[0] || "";
   const lightActive = styles.match(/html:not\(\[data-theme="dark"\]\) \.account-row--active \.account-row__surface\s*\{[^}]*\}/)?.[0] || "";
   const lightHover = styles.match(/html:not\(\[data-theme="dark"\]\) \.account-row:not\(\.account-row--active\) \.account-row__surface:hover,[\s\S]*?\{[^}]*\}/)?.[0] || "";
 
   assert.match(sharedHover, /var\(--circuit\) 26%/);
   assert.match(sharedHover, /var\(--circuit\) 8%/);
+  assert.match(innerButton, /border-color: transparent/);
+  assert.match(innerButton, /background: transparent/);
+  assert.match(innerButton, /outline: none/);
   assert.match(lightIdle, /border-color: var\(--border-soft\)/);
   assert.match(lightIdle, /background: var\(--surface-subtle\)/);
   assert.match(lightActive, /var\(--circuit\) 30%/);
@@ -81,7 +85,7 @@ test("light account rows keep distinct idle, hover and active surfaces", async (
   assert.match(lightHover, /var\(--circuit\) 12%/);
   assert.notEqual(lightHover, lightActive);
   assert.doesNotMatch(`${lightIdle}\n${lightActive}\n${lightHover}`, /!important/);
-  assert.match(styles, /\.account-forget-button:hover,[\s\S]*?background: color-mix\(in srgb, var\(--circuit\) 14%, transparent\)/);
+  assert.match(styles, /\.account-forget-button:hover,[\s\S]*?background: color-mix\(in srgb, var\(--circuit\) 14%, var\(--surface-muted\)\)/);
 });
 
 test("connection inherits chip tone through a smaller beacon while pack signals stay canonical", async () => {

@@ -20,6 +20,23 @@ const quietOutput = process.env.HSL_LIBRARY_QUIET === "1";
 const TRANSPARENT_TITLE_BAR_OVERLAY = "#00000000";
 let alphaFixtureDirectory = null;
 
+function prepareAccountFixtureAvatar() {
+  const size = 48;
+  const bitmap = Buffer.alloc(size * size * 4);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const offset = (y * size + x) * 4;
+      bitmap[offset] = 220;
+      bitmap[offset + 1] = Math.round(80 + (x / size) * 100);
+      bitmap[offset + 2] = Math.round(30 + (y / size) * 100);
+      bitmap[offset + 3] = 255;
+    }
+  }
+  const avatarPath = path.join(profileDirectory, "fixture-account-avatar.png");
+  fs.writeFileSync(avatarPath, nativeImage.createFromBitmap(bitmap, { height: size, width: size }).toPNG());
+  process.env.HSL_ACCOUNT_AVATAR_FILE_URL = pathToFileURL(avatarPath).href;
+}
+
 function titleBarOverlay(theme) {
   return {
     color: TRANSPARENT_TITLE_BAR_OVERLAY,
@@ -831,6 +848,69 @@ async function accountMetrics(window) {
   return { addAccount, requiresLogin, unexpectedRelogin, valid };
 }
 
+async function profileAccountSmoke(window) {
+  const movePointerTo = async (selector) => {
+    const coordinates = await window.webContents.executeJavaScript(`(() => {
+      const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+    })()`);
+    window.webContents.sendInputEvent({ type: "mouseMove", ...coordinates });
+    await delay(190);
+    await waitForFrames(window);
+  };
+  const movePointerAway = async () => {
+    window.webContents.sendInputEvent({ type: "mouseMove", x: 4, y: 400 });
+    await delay(190);
+    await waitForFrames(window);
+  };
+  const style = (selector) => window.webContents.executeJavaScript(`(() => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    const value = getComputedStyle(element);
+    return { background: value.backgroundColor, border: value.borderColor, color: value.color, outline: value.outline };
+  })()`);
+  const results = {};
+  for (const theme of ["dark", "light"]) {
+    await window.webContents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
+    await window.webContents.executeJavaScript("if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
+    await waitFor(window, "document.querySelector('[data-account-menu] .account-mini-avatar__image')?.complete");
+    await delay(190);
+    await waitForFrames(window, 2);
+    await movePointerAway();
+    const activeIdle = await style('.account-row--active .account-row__surface');
+    await movePointerTo('.account-row--active .account-row__button');
+    const activeHover = await style('.account-row--active .account-row__surface');
+    await movePointerTo('[data-action="switch-account"][data-user-id="valid"]');
+    const rowHover = await style('.account-row:not(.account-row--active) .account-row__surface');
+    const innerHover = await style('[data-action="switch-account"][data-user-id="valid"]');
+    await movePointerTo('[data-action="remove-known-account"][data-user-id="valid"]');
+    const rowForgetHover = await style('.account-row:not(.account-row--active) .account-row__surface');
+    const forgetHover = await style('[data-action="remove-known-account"][data-user-id="valid"]');
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"switch-account\"][data-user-id=\"valid\"]')?.focus()");
+    const mainFocus = {
+      button: await style('[data-action="switch-account"][data-user-id="valid"]'),
+      surface: await style('.account-row:not(.account-row--active) .account-row__surface'),
+    };
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"remove-known-account\"][data-user-id=\"valid\"]')?.focus()");
+    const forgetFocus = {
+      button: await style('[data-action="remove-known-account"][data-user-id="valid"]'),
+      surface: await style('.account-row:not(.account-row--active) .account-row__surface'),
+    };
+    const avatars = await window.webContents.executeJavaScript(`(() => ({
+      image: {
+        complete: document.querySelector('.account-row--active .account-mini-avatar__image')?.complete || false,
+        naturalWidth: document.querySelector('.account-row--active .account-mini-avatar__image')?.naturalWidth || 0,
+        source: document.querySelector('.account-row--active .account-mini-avatar__image')?.src || null,
+      },
+      fallback: document.querySelector('[data-action="switch-account"][data-user-id="valid"] .account-mini-avatar')?.textContent.trim(),
+      activeEmail: getComputedStyle(document.querySelector('.account-row--active .account-row__email')).color,
+      idleEmail: getComputedStyle(document.querySelector('[data-action="switch-account"][data-user-id="valid"] .account-row__email')).color,
+      menuOpen: Boolean(document.querySelector('[data-account-menu]')),
+    }))()`);
+    results[theme] = { activeHover, activeIdle, avatars, forgetFocus, forgetHover, innerHover, mainFocus, rowForgetHover, rowHover };
+  }
+  return results;
+}
+
 async function heroAndDrawerSmoke(window) {
   const readIndicators = () => window.webContents.executeJavaScript(`(() => ({
     indicators: [...document.querySelectorAll('.game-hero-indicator')].map((indicator) => ({
@@ -1526,6 +1606,7 @@ async function detailScrollMetrics(window) {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  prepareAccountFixtureAvatar();
   if (checkOnly === "alpha") prepareAlphaFixtureAssets();
   const window = new BrowserWindow({
     width: 1240,
@@ -1562,6 +1643,7 @@ app.whenReady().then(async () => {
         icons: () => iconAlphaMetrics(window),
         microinteractions: () => microinteractionSmoke(window),
         polish: () => finalPolishSmoke(window),
+        profiles: () => profileAccountSmoke(window),
         rows: () => iconRows(window),
         signals: async () => ({ hostile: await hostileSignalMetrics(window), shared: await signalMetrics(window) }),
       };

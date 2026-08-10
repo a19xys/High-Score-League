@@ -1,5 +1,7 @@
 const fsp = require("node:fs/promises");
+const fs = require("node:fs");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const { acquireFileLock } = require("./file-lock");
 const { atomicWriteJson } = require("./secure-session-storage");
 
@@ -56,11 +58,17 @@ function sanitizeAccount(input = {}, now = new Date().toISOString()) {
 
   const email = sanitizeString(input.email);
   const displayName = sanitizeString(input.displayName || input.name);
-  const initials = sanitizeString(input.initials)?.toUpperCase().replace(/[^A-Z0-9]/g, "") ||
-    safeInitials(displayName || email || userId);
+  const hasExplicitInitials = Object.prototype.hasOwnProperty.call(input, "initials");
+  const initials = hasExplicitInitials && input.initials === null
+    ? null
+    : sanitizeString(input.initials)?.toUpperCase().replace(/[^A-Z0-9]/g, "") ||
+      safeInitials(displayName || email || userId);
 
   return {
     addedAt: sanitizeString(input.addedAt) || now,
+    avatarCacheIdentity: sanitizeString(input.avatarCacheIdentity),
+    avatarCachePath: sanitizeString(input.avatarCachePath),
+    avatarStoragePath: sanitizeString(input.avatarStoragePath),
     avatarUrl: sanitizeString(input.avatarUrl),
     displayName,
     email,
@@ -68,8 +76,57 @@ function sanitizeAccount(input = {}, now = new Date().toISOString()) {
     lastUsedAt: sanitizeString(input.lastUsedAt) || now,
     requiresLogin: input.requiresLogin === true,
     sessionRevision: Math.max(0, Number(input.sessionRevision) || 0),
+    username: sanitizeString(input.username),
     userId,
   };
+}
+
+async function updateKnownAccountProfile(config = {}, userId, profile = {}, options = {}) {
+  const safeUserId = sanitizeString(userId);
+  if (!safeUserId) return readKnownAccounts(config);
+  const allowedFields = [
+    "avatarCacheIdentity",
+    "avatarCachePath",
+    "avatarStoragePath",
+    "avatarUrl",
+    "initials",
+    "username",
+  ];
+
+  return mutateKnownAccounts(config, (current) => {
+    const existing = current.accounts.find((account) => account.userId === safeUserId);
+    if (!existing) return null;
+    const next = { ...existing };
+    let changed = false;
+    for (const field of allowedFields) {
+      if (!Object.prototype.hasOwnProperty.call(profile, field)) continue;
+      const raw = profile[field];
+      const value = field === "initials"
+        ? (raw === null ? null : sanitizeString(raw)?.toUpperCase().replace(/[^A-Z0-9]/g, "") || null)
+        : sanitizeString(raw);
+      if (next[field] !== value) {
+        next[field] = value;
+        changed = true;
+      }
+    }
+    if (!changed) return null;
+    return {
+      accounts: current.accounts.map((account) => account.userId === safeUserId ? next : account),
+      lastActiveUserId: current.lastActiveUserId,
+    };
+  }, options);
+}
+
+function resolveLocalAvatarUrl(config = {}, relativePath) {
+  if (!config.userDataDir || !sanitizeString(relativePath)) return null;
+  const cacheRoot = path.resolve(config.userDataDir, "accounts", "avatars");
+  const candidate = path.resolve(config.userDataDir, relativePath);
+  if (candidate === cacheRoot || !candidate.startsWith(`${cacheRoot}${path.sep}`)) return null;
+  try {
+    return fs.statSync(candidate).isFile() ? pathToFileURL(candidate).href : null;
+  } catch {
+    return null;
+  }
 }
 
 function accountFromSession(session = {}, now = new Date().toISOString()) {
@@ -222,6 +279,9 @@ async function rememberAccount(config = {}, accountInput = {}, options = {}) {
       ...existing,
       ...account,
       addedAt: existing?.addedAt || account.addedAt,
+      avatarCacheIdentity: account.avatarCacheIdentity || existing?.avatarCacheIdentity || null,
+      avatarCachePath: account.avatarCachePath || existing?.avatarCachePath || null,
+      avatarStoragePath: account.avatarStoragePath || existing?.avatarStoragePath || null,
       avatarUrl: account.avatarUrl || existing?.avatarUrl || null,
       displayName: account.displayName || existing?.displayName || null,
       email: account.email || existing?.email || null,
@@ -233,6 +293,7 @@ async function rememberAccount(config = {}, accountInput = {}, options = {}) {
         Number(account.sessionRevision) || 0,
         Number(options.sessionRevision) || 0,
       ),
+      username: account.username || existing?.username || null,
     });
     return { accounts, lastActiveUserId: options.setActive === false ? current.lastActiveUserId : account.userId };
   }, { ...options, now });
@@ -315,7 +376,7 @@ function toSafeAccountsState(store = emptyStore(), session = {}, options = {}) {
       && ["corrupt", "revoked", "unavailable"].includes(sessionState?.status));
 
     return {
-      avatarUrl: account.avatarUrl,
+      avatarLocalUrl: resolveLocalAvatarUrl({ userDataDir: options.userDataDir }, account.avatarCachePath),
       displayName: account.displayName,
       email: account.email,
       hasSavedSession: savedSessionUserIds.has(account.userId),
@@ -357,4 +418,5 @@ module.exports = {
   safeInitials,
   setActiveAccount,
   toSafeAccountsState,
+  updateKnownAccountProfile,
 };

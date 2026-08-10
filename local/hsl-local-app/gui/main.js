@@ -83,6 +83,9 @@ function membershipCoordinationPaused() {
 
 async function withMembershipContextMutation(reason, operation) {
   invalidateMembershipContext(reason);
+  if (["login", "logout", "remove-account", "switch-account"].includes(reason)) {
+    service.cancelAccountProfileSync(reason === "remove-account" ? "remove-account" : reason);
+  }
   service.cancelPendingAutoSubmit(reason);
   pendingAutoSubmitCoordinator?.cancelCurrentRun(reason);
   const runId = ++membershipContextMutationSequence;
@@ -194,6 +197,7 @@ function applyNativeWindowTheme(window, theme) {
 
 function handlePowerSuspend() {
   productOperationsController.abort("suspend");
+  service.cancelAccountProfileSync("suspend");
   cancelManualMembershipRun("suspend");
   service.cancelAccountSessionOperations(null, "suspend");
   service.cancelPendingAutoSubmit("suspend");
@@ -225,6 +229,20 @@ function sendRendererEvent(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(channel, payload);
   }
+}
+
+async function publishAccountProfileState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const revision = launcherStateAuthority.reserveRevision();
+  const state = await service.getLauncherState({ deferRemoteMembership: true });
+  const syncedState = syncRemoteContext(state, {
+    coordinateMembership: false,
+    scheduleAutoSubmit: false,
+  });
+  sendRendererEvent("launcher:state", {
+    accountProfiles: true,
+    state: launcherStateAuthority.publishSnapshot(syncedState, revision),
+  });
 }
 
 function schedulePendingAutoSubmit(trigger) {
@@ -313,6 +331,11 @@ function initializeRemoteServices() {
     netIsOnline: () => net.isOnline(),
     webBaseUrl: trustedHslOrigin,
   });
+  service.configureAccountProfileSync({
+    fetchImpl: (url, init) => net.fetch(url, init),
+    getConnectivityState: () => connectivity.getState(),
+    onChanged: publishAccountProfileState,
+  });
   service.setRemoteOperationSignalProvider(() => productOperationsController.signal);
   rankingCapabilities = createRankingCapabilitiesService({
     fetchImpl: (url, init) => net.fetch(url, init),
@@ -399,6 +422,7 @@ function initializeRemoteServices() {
       coordinator: pendingAutoSubmitCoordinator.getDiagnostics(),
     },
     sessions: service.getAccountSessionDiagnostics(),
+    accountProfiles: service.getAccountProfileSyncDiagnostics(),
     membershipResolution: membershipStartupCoordinator.getDiagnostics(),
     sessionStorage: getSessionStorageDiagnostics(),
     startup: { milestones: { ...startupTimings } },
@@ -433,6 +457,7 @@ function initializeRemoteServices() {
     previousReachability = state.reachability;
     rankingCapabilities.updateDeployment();
     sendRendererEvent("launcher:connectivity-state", state);
+    if (state.reachability === "offline") service.cancelAccountProfileSync("external-abort");
     if (activeManualMembershipRun && activeManualMembershipRun.connectionGeneration !== null && (
       state.reachability !== "connected"
       || Number(state.reachabilityGeneration) !== Number(activeManualMembershipRun.connectionGeneration)
@@ -446,6 +471,11 @@ function initializeRemoteServices() {
       );
     }
     if (isCommittedConnected(state)) {
+      const manual = state.probe?.phase === "manual" || state.source === "manual";
+      service.requestAccountProfileSync(
+        becameConnected ? (state.source === "startup" ? "startup" : "connectivity-restored") : manual ? "manual-connectivity" : "connectivity-confirmed",
+        { force: manual },
+      );
       rankingCapabilities.refresh(becameConnected ? "connectivity-restored" : "connectivity-confirmed").catch(() => {});
       if (becameConnected) schedulePendingAutoSubmit(state.source === "startup" ? "startup" : "connectivity-restored");
     }
@@ -477,6 +507,7 @@ function initializeSecureSessionStorage() {
 
 async function stopRemoteServices() {
   productOperationsController.abort("shutdown");
+  service.shutdownAccountProfileSync();
   membershipStartupCoordinator?.shutdown("shutdown");
   cancelManualMembershipRun("shutdown");
   const sessionDrain = service.shutdownAccountSessions({ reason: "shutdown", timeoutMs: 3000 });

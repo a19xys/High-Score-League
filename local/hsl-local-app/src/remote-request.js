@@ -89,16 +89,47 @@ async function executeRemoteRequest(options = {}) {
   const operation = (async () => {
     const response = await fetchImpl(options.url, {
       ...(options.init || {}),
-      redirect: "error",
+      redirect: options.redirect || "error",
       signal: controller.signal,
     });
+    if (options.responseType === "arrayBuffer") {
+      const declaredLength = Number(response.headers?.get?.("content-length"));
+      if (Number.isFinite(options.maxResponseBytes) && declaredLength > options.maxResponseBytes) {
+        throw Object.assign(new Error("response-too-large"), { code: "RESPONSE_TOO_LARGE" });
+      }
+      let bodyBuffer;
+      if (response.body?.getReader && Number.isFinite(options.maxResponseBytes)) {
+        const reader = response.body.getReader();
+        const chunks = [];
+        let total = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = Buffer.from(value);
+          total += chunk.byteLength;
+          if (total > options.maxResponseBytes) {
+            await reader.cancel("response-too-large").catch(() => {});
+            throw Object.assign(new Error("response-too-large"), { code: "RESPONSE_TOO_LARGE" });
+          }
+          chunks.push(chunk);
+        }
+        bodyBuffer = Buffer.concat(chunks, total);
+      } else {
+        bodyBuffer = Buffer.from(await response.arrayBuffer());
+      }
+      if (Number.isFinite(options.maxResponseBytes) && bodyBuffer.byteLength > options.maxResponseBytes) {
+        throw Object.assign(new Error("response-too-large"), { code: "RESPONSE_TOO_LARGE" });
+      }
+      return { bodyBuffer, response };
+    }
     const bodyText = await response.text();
     return { bodyText, response };
   })();
 
   try {
-    const { bodyText, response } = await Promise.race([operation, cancellation]);
+    const { bodyBuffer, bodyText, response } = await Promise.race([operation, cancellation]);
     return {
+      bodyBuffer,
       bodyText,
       httpStatus: response.status,
       ok: true,
