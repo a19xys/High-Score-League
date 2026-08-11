@@ -76,6 +76,24 @@ test("login persists one canonical session and a monotonic active pointer", asyn
   });
 });
 
+test("una sesion canonica valid autocura requiresLogin persistido obsoleto", async () => {
+  await withTempDir(async (root) => {
+    const cfg = config(root);
+    const repo = repository(cfg);
+    const saved = await repo.saveLogin(stored("user-1"));
+    await rememberAccount(cfg, { userId: "user-1" }, {
+      requiresLogin: true,
+      sessionRevision: saved.sessionRevision,
+      setActive: false,
+    });
+    assert.equal((await readKnownAccounts(cfg)).accounts[0].requiresLogin, true);
+    const canonical = await repo.read("user-1");
+    assert.equal(canonical.status, "valid");
+    assert.equal(canonical.requiresLogin, false);
+    assert.equal((await readKnownAccounts(cfg)).accounts[0].requiresLogin, false);
+  });
+});
+
 test("same-user resolves share one refresh and different users remain independent", async () => {
   await withTempDir(async (root) => {
     const cfg = config(root);

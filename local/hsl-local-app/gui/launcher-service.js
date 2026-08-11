@@ -35,6 +35,7 @@ const { createPlayTimeRecorder } = require("../src/playtime-recorder");
 const { createPlayTimeStore } = require("../src/playtime-store");
 const { createPlayTimeSyncService } = require("../src/playtime-sync-service");
 const { evaluatePackReadiness } = require("../src/pack-readiness");
+const { deriveCompetitionAccess } = require("../src/competition-access");
 const {
   importPackFromFolder: importPackFolder,
   importPackFromZip: importPackZip,
@@ -100,6 +101,7 @@ let pendingAutoSubmitState = {
 };
 let remoteDiagnosticsProvider = null;
 let remoteOperationSignalProvider = null;
+let competitionAuthorityProvider = null;
 let accountProfileSync = null;
 let playTimeSync = null;
 const playTimeRecorder = createPlayTimeRecorder();
@@ -177,6 +179,25 @@ function setRemoteDiagnosticsProvider(provider) {
 
 function setRemoteOperationSignalProvider(provider) {
   remoteOperationSignalProvider = typeof provider === "function" ? provider : null;
+}
+
+function setCompetitionAuthorityProvider(provider) {
+  competitionAuthorityProvider = provider && typeof provider === "object" ? provider : null;
+}
+
+function getCompetitionAuthorityContext() {
+  return competitionAuthorityProvider?.getContext?.() || {};
+}
+
+function getWeekCapability(weekId) {
+  return competitionAuthorityProvider?.getWeekCapability?.(weekId) || {
+    canPlayCompetition: false,
+    conclusive: false,
+    publicState: weekId ? "unknown" : "unlinked",
+    reason: weekId ? "not-checked" : "not-linked",
+    seasonId: null,
+    weekId: weekId || null,
+  };
 }
 
 function configureAccountProfileSync(options = {}) {
@@ -1142,9 +1163,14 @@ async function getLauncherContext(options = {}) {
       ? getEffectiveConfig(runtimeConfig)
       : deriveNoActivePackConfig(runtimeConfig);
     const accountsStore = await readKnownAccounts(baseConfig);
+    const weekId = baseConfig.defaultWeekId || baseConfig.pack?.weekId || null;
+    const weekCapability = getWeekCapability(weekId);
+    const authorityContext = getCompetitionAuthorityContext();
     const membership = await checkSeasonMembership(baseConfig, session, {
-      deferRemote: options.deferRemoteMembership === true,
+      authorityContext,
+      deferRemote: options.deferRemoteMembership === true || authorityContext.connected === false,
       signal: remoteSignal.signal,
+      weekCapability,
     });
     const scoped = await getScopedGuiConfig(baseConfig, session);
     const queue = scoped.scope
@@ -1162,6 +1188,7 @@ async function getLauncherContext(options = {}) {
       scoped,
       selection,
       session,
+      weekCapability,
     };
   } finally {
     remoteSignal.dispose();
@@ -1180,6 +1207,7 @@ async function stateFromContext(context) {
     scoped,
     selection,
     session,
+    weekCapability,
   } = context;
   const autoSync = getAutoSyncDisplayState({
     autoSyncInProgress,
@@ -1230,6 +1258,7 @@ async function stateFromContext(context) {
       ...pack,
       favorite: pack.duplicatePackId ? false : Boolean(favoriteMap[pack.favoriteKey]),
       favoriteDisabled: Boolean(pack.duplicatePackId),
+      weekCapability: getWeekCapability(pack.weekId),
     })),
     preferences: libraryPreferences,
   };
@@ -1270,6 +1299,7 @@ async function stateFromContext(context) {
         queue,
         scope: scoped.scope,
         session,
+        weekCapability,
       });
   const bridge = activeLibraryPack
     ? getBridgeState(config, activeLibraryPack)
@@ -1291,6 +1321,8 @@ async function stateFromContext(context) {
     notices: recentPackNotices,
     queue,
     readiness,
+    competitionAccess: readiness.competitionAccess || null,
+    weekCapability,
     remoteConfiguration: baseConfig.remoteConfiguration || config.remoteConfiguration || {
       hslOrigin: config.hslOrigin || null,
       message: "El launcher no tiene un origen HSL configurado.",
@@ -1388,6 +1420,38 @@ async function runAutoSyncIfEligible(context, options = {}) {
   } finally {
     autoSyncInProgress = false;
   }
+}
+
+function applyCompetitionAuthorityState(state) {
+  if (!state || typeof state !== "object") return state;
+  const packs = (state.library?.packs || []).map((pack) => ({ ...pack, weekCapability: getWeekCapability(pack.weekId) }));
+  const weekCapability = getWeekCapability(state.game?.weekId || state.membership?.weekId || null);
+  const readiness = state.readiness || {};
+  const competitionAccess = deriveCompetitionAccess({
+    local: {
+      canCapture: readiness.canCapture === true,
+      canPractice: readiness.canPractice === true,
+      canSubmitLocally: readiness.localSubmissionReady === true,
+      hasCompetitionScope: readiness.localCompetitionReady === true,
+      hasWeek: Boolean(state.game?.weekId),
+    },
+    membership: state.membership,
+    session: state.session,
+    week: weekCapability,
+  });
+  return {
+    ...state,
+    competitionAccess,
+    game: state.game ? { ...state.game, weekCapability } : null,
+    library: state.library ? { ...state.library, packs } : state.library,
+    readiness: {
+      ...readiness,
+      canPlayCompetition: competitionAccess.canPlayCompetition,
+      canSubmit: competitionAccess.canSubmitNow,
+      competitionAccess,
+    },
+    weekCapability,
+  };
 }
 
 async function runPendingAutoSubmit(options = {}) {
@@ -2253,6 +2317,7 @@ async function playCompetition() {
     queue: readinessQueue,
     scope: scoped.scope,
     session,
+    weekCapability: context.weekCapability,
   });
   const readinessBlock = readinessBlockedResponse("play-competition", readiness, "competition");
 
@@ -2351,6 +2416,7 @@ async function playPractice() {
     queue: context.queue,
     scope: context.scoped.scope,
     session: context.session,
+    weekCapability: context.weekCapability,
   });
   const readinessBlock = readinessBlockedResponse("practice", readiness, "practice");
 
@@ -2543,15 +2609,15 @@ async function switchKnownAccountFromGui(userId, options = {}) {
     };
   } catch (error) {
     return {
-      action: "switch-account-login-required",
+      action: "switch-account-failed",
       email: account.email,
       lines: [
         "No se pudo activar esta cuenta. Su sesion y sus puntuaciones se conservan.",
         normalizeMessage(error),
       ],
       ok: false,
-      requiresLogin: true,
-      summary: "No se pudo activar esta cuenta.",
+      requiresLogin: false,
+      summary: "No se pudo cambiar de cuenta.",
       state: await getLauncherState(),
     };
   }
@@ -3104,6 +3170,7 @@ async function activateLibraryPack(packId, options = {}) {
 
 module.exports = {
   adoptNewStagingEvents,
+  applyCompetitionAuthorityState,
   activateLibraryPack,
   activatePackDirectory,
   cancelAccountSessionOperations,
@@ -3157,6 +3224,7 @@ module.exports = {
   selectReplacementAccount,
   setRemoteDiagnosticsProvider,
   setRemoteOperationSignalProvider,
+  setCompetitionAuthorityProvider,
   shutdownAccountProfileSync,
   shutdownPlayTime,
   pausePlayTime,

@@ -1,8 +1,9 @@
 # Test submissions
 
 Esta guía permite crear submissions de prueba manualmente en Supabase SQL Editor
-para validar el leaderboard semanal real. No implementa subida desde la web,
-endpoint de ingestión, Storage, plugin MAME ni app local.
+para validar el leaderboard semanal real. No prueba el endpoint autenticado
+`POST /api/submissions/ingest` ni implementa la subida privada de capturas; usa
+SQL de desarrollo de forma deliberada.
 
 ## Pasos previos
 
@@ -104,7 +105,8 @@ insert into public.submissions (
 
 ## Submission oculta
 
-Las submissions ocultas no deben revelar puntuación antes de que la semana esté
+Las submissions ocultas no deben revelar puntuación antes del cierre. La
+reconciliación las hace visibles cuando la semana pasa a `closed` o
 `published`.
 
 ```sql

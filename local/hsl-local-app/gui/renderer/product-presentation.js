@@ -177,7 +177,7 @@ export function deriveRememberedAccountPresentation(account = {}) {
 export function deriveMembershipPresentation(membership = {}, session = {}, context = {}) {
   membership = membership || {};
   session = session || {};
-  if (session.requiresLogin === true || membership.status === "unauthenticated") {
+  if (session.requiresLogin === true) {
     return presentation("membership", "requires-login", "blocked", "Vuelve a iniciar sesión", "Necesitas autenticar esta cuenta antes de competir.");
   }
   const status = membership.status || "unknown";
@@ -191,7 +191,7 @@ export function deriveMembershipPresentation(membership = {}, session = {}, cont
     unknown: ["warning", "No se pudo consultar la participación", "No se pudo comprobar ahora. Si juegas, la puntuación quedará guardada localmente."],
     error: ["warning", "No se pudo consultar la participación", "La consulta falló temporalmente. Puedes volver a comprobarla."],
   };
-  let normalizedStatus = status;
+  let normalizedStatus = status === "unauthenticated" ? "unknown" : status;
   const resolution = membership.resolution?.active === true ? membership.resolution : membership.request;
   const activeCurrentResolution = Boolean(resolution)
     && (resolution.active === true || resolution.inFlight === true)
@@ -433,12 +433,28 @@ export function derivePrimaryActions(state = {}) {
   const membership = deriveMembershipPresentation(data.membership, session, membershipContext(state));
   const pack = derivePackPresentation({ game, readiness, bridge: data.bridge });
   const ranking = deriveRankingPresentation(state, game || {});
+  const access = data.competitionAccess || readiness.competitionAccess || null;
   const busyReason = state.busy ? state.busyLabel || "Hay otra operación en curso." : null;
 
   let competitionReason = null;
   if (busyReason) competitionReason = busyReason;
   else if (!game) competitionReason = "Selecciona un pack para competir.";
   else if (["duplicate", "invalid", "mame-unavailable"].includes(pack.status)) competitionReason = pack.description;
+  else if (access?.canPlayCompetition === false) {
+    const reasons = {
+      "requires-login": "Vuelve a iniciar sesiÃ³n con esta cuenta para competir.",
+      "no-account": "Inicia sesiÃ³n para competir.",
+      "not-member": membership.description,
+      "membership-unknown": membership.status === "checking" ? membership.title : "TodavÃ­a no se ha confirmado la participaciÃ³n de esta cuenta.",
+      "week-inactive": "La semana todavÃ­a no estÃ¡ activa.",
+      "week-closed": "La semana estÃ¡ cerrada.",
+      "week-unlinked": "El pack no estÃ¡ vinculado a una semana competitiva.",
+      "week-unknown": "TodavÃ­a no se ha confirmado el estado de la semana.",
+      "local-pack-unavailable": firstReadinessBlocker(readiness, "Este pack no puede ejecutarse localmente."),
+      "local-capture-unavailable": firstReadinessBlocker(readiness, "La captura competitiva local no estÃ¡ preparada."),
+    };
+    competitionReason = reasons[access.reason] || "La competiciÃ³n no estÃ¡ disponible.";
+  }
   else if (session.requiresLogin) competitionReason = "Vuelve a iniciar sesión con esta cuenta para competir.";
   else if (!session.hasSession) competitionReason = "Inicia sesión para competir.";
   else if (membership.status === "checking") competitionReason = membership.title;

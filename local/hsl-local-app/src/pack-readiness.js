@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { deriveCompetitionAccess } = require("./competition-access");
 const { getV2CaptureReadiness } = require("./mame-plugin-run");
 
 function exists(targetPath) {
@@ -126,7 +127,7 @@ function buildMessage({ checks, status, canPlayCompetition, canPractice, canSubm
   return "No se pudo determinar si el pack esta listo.";
 }
 
-function evaluatePackReadiness({ config = {}, session = {}, membership = {}, scope = null, queue = {}, autoSync = {} } = {}) {
+function evaluatePackReadiness({ config = {}, session = {}, membership = {}, weekCapability = {}, scope = null, queue = {}, autoSync = {} } = {}) {
   const checks = [];
   const pack = config.pack || null;
   const isPackV2 = pack?.packVersion === 2 || pack?.contract?.version === 2 || config.requiresSharedMameRuntime === true;
@@ -380,6 +381,18 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
     checks.push(check("membership", "error", "Participacion", membership?.message || "No participas en esta temporada."));
   }
 
+  if (weekCapability?.publicState === "active") {
+    checks.push(check("week-capability", "ok", "Competicion", "La semana esta activa."));
+  } else if (weekCapability?.publicState === "inactive") {
+    checks.push(check("week-capability", "warning", "Competicion", "La semana todavia no esta activa."));
+  } else if (weekCapability?.publicState === "closed") {
+    checks.push(check("week-capability", "warning", "Competicion", "La semana esta cerrada."));
+  } else if (weekCapability?.publicState === "unlinked") {
+    checks.push(check("week-capability", "warning", "Competicion", "El pack no esta vinculado a una semana publica."));
+  } else {
+    checks.push(check("week-capability", "warning", "Competicion", "No se pudo confirmar el estado de la semana."));
+  }
+
   if (config.webBaseUrl) {
     checks.push(check("web-base-url", "ok", "Sync", "Web configurada.", [config.webBaseUrl]));
   } else {
@@ -413,20 +426,30 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
   const hasWeek = Boolean(weekId);
   const hasDuplicateConflict = Boolean(pack?.duplicatePackId || pack?.duplicateGroup);
   const hasPackErrors = Boolean(config.packErrors?.length > 0 || pack?.errors?.length > 0);
-  const membershipStatus = membership?.status || "unknown";
-  const membershipAllowsCompetition = membershipStatus === "member" || membershipStatus === "unknown" || membershipStatus === "error";
   const canPractice = !hasDuplicateConflict && !hasPackErrors && hasMame && hasRom && hasRomDir;
   const canCapture = hasPlugin;
-  const canPlayCompetition = canPractice && canCapture && hasSession && hasScope && hasWeek && membershipAllowsCompetition;
-  const canSubmit = Boolean(hasSession && hasScope && hasWeek && config.webBaseUrl && membership?.canSubmit === true);
+  const competitionAccess = deriveCompetitionAccess({
+    local: {
+      canCapture,
+      canPractice,
+      canSubmitLocally: Boolean(hasSession && hasScope && hasWeek && config.webBaseUrl),
+      hasCompetitionScope: hasScope,
+      hasWeek,
+    },
+    membership,
+    session,
+    week: weekCapability,
+  });
+  const canPlayCompetition = competitionAccess.canPlayCompetition;
+  const canSubmit = competitionAccess.canSubmitNow;
   const status = summarizeStatus(checks.filter((item) => {
-    if (item.id === "session" || item.id === "scope" || item.id === "membership" || item.id === "web-base-url") {
+    if (item.id === "session" || item.id === "scope" || item.id === "membership" || item.id === "week-capability" || item.id === "web-base-url") {
       return false;
     }
 
     return true;
   }));
-  const effectiveStatus = !canPractice || (!canPlayCompetition && hasSession && membershipStatus !== "unknown" && membershipStatus !== "error")
+  const effectiveStatus = !canPractice
     ? "blocked"
     : status === "blocked"
       ? "blocked"
@@ -443,6 +466,9 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, sco
     canPractice,
     canSubmit,
     checks,
+    competitionAccess,
+    localCompetitionReady: canPractice && canCapture && hasScope && hasWeek,
+    localSubmissionReady: Boolean(hasSession && hasScope && hasWeek && config.webBaseUrl),
     message: buildMessage({ checks, status: effectiveStatus, canPlayCompetition, canPractice, canSubmit }),
     status: effectiveStatus,
     title: buildTitle(effectiveStatus),

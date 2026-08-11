@@ -160,7 +160,7 @@ test("temporary refresh 503 preserves the expired session without calling member
       assert.equal(result.status, "unknown");
       assert.equal(result.authDeferred, true);
       assert.equal(result.sessionStatus, "deferred");
-      assert.equal(result.canPlayCompetition, true);
+      assert.equal(result.canPlayCompetition, false);
       assert.equal(result.canSubmit, false);
       assert.match(result.technicalReason, /^auth-deferred:/);
       assert.doesNotMatch(JSON.stringify(result), /expired-access-token|initial-refresh-token|Authorization/);

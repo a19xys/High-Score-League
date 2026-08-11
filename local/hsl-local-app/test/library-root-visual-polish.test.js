@@ -163,7 +163,14 @@ test("titulo monotono, signal beacon, ring unico y subtitulo estructural compart
   ]);
   const state = rendererState({ packs: [] });
   state.data.selection.activeInstanceKey = "instance-a";
-  const html = renderPackCard({ id: "a", instanceKey: "instance-a", status: "ok", title: "Pack A" }, state, "icons");
+  const html = renderPackCard({
+    id: "a",
+    instanceKey: "instance-a",
+    status: "ok",
+    title: "Pack A",
+    weekId: "week-a",
+    weekCapability: { publicState: "active" },
+  }, state, "icons");
   const finalCss = styles.split("/* LOCAL-LAUNCHER-LIBRARY-ROOT-AND-VISUAL-POLISH-5:")[1];
 
   assert.match(finalCss, /container-type: inline-size/);
@@ -181,7 +188,7 @@ test("titulo monotono, signal beacon, ring unico y subtitulo estructural compart
   assert.match(finalCss, /\.status-beacon--success[\s\S]*color: var\(--signal-success\)/);
   assert.match(finalCss, /\.status-beacon--warning[\s\S]*color: var\(--signal-warning\)/);
   assert.match(finalCss, /\.status-beacon--error[\s\S]*color: var\(--signal-error\)/);
-  assert.match(html, /status-beacon status-beacon--success status-beacon--pack pack-card__status-dot[^>]*aria-label="LISTO"/);
+  assert.match(html, /status-beacon status-beacon--success status-beacon--pack pack-card__status-dot[^>]*aria-label="ACTIVA"/);
   assert.match(header, /renderStatusBeacon\(signalTone, \{ className: "connection-dot", decorative: true, variant: "connection" \}\)/);
   assert.match(tokens, /:root[\s\S]*--signal-success: #22e36f[\s\S]*--signal-warning: #ffc62e[\s\S]*--signal-error: #ff4d5f/);
   const darkTokens = tokens.slice(tokens.indexOf('[data-theme="dark"]'));
@@ -227,20 +234,25 @@ test("pack activo conserva current sin fingir disabled y los estados usan la aut
 
   assert.deepEqual(
     [
+      packCardTestApi.statusMeta({ status: "ok", weekCapability: { publicState: "active" }, weekId: "week-1" }),
+      packCardTestApi.statusMeta({ deprecated: true, status: "ok", weekCapability: { publicState: "inactive" }, weekId: "week-2" }),
+      packCardTestApi.statusMeta({ status: "warning", weekCapability: { publicState: "closed" }, weekId: "week-3" }),
       packCardTestApi.statusMeta({ status: "ok" }),
-      packCardTestApi.statusMeta({ deprecated: true, status: "ok" }),
-      packCardTestApi.statusMeta({ status: "warning" }),
+      packCardTestApi.statusMeta({ status: "ok", weekId: "week-4" }),
       packCardTestApi.statusMeta({ status: "error" }),
     ].map(({ className, label }) => [className, label]),
     [
-      ["week-status--ready", "LISTO"],
-      ["week-status--legacy", "LEGACY"],
-      ["week-status--warning", "AVISO"],
+      ["week-status--ready", "ACTIVA"],
+      ["week-status--warning", "INACTIVA"],
+      ["week-status--closed", "CERRADA"],
+      ["week-status--warning", "SIN VINCULAR"],
+      ["week-status--unknown", "SIN DATOS"],
       ["week-status--error", "REQUIERE ATENCION"],
     ],
   );
   assert.match(styles, /\.pack-card__status \.week-status-badge\.week-status--ready\s*\{[^}]*var\(--state-success\)[^}]*var\(--state-success-bg\)[^}]*color: var\(--state-success\)/);
-  assert.match(styles, /\.pack-card__status \.week-status-badge\.week-status--legacy,[\s\S]*var\(--state-warning-bg\)[^}]*color: var\(--state-warning\)/);
+  assert.match(styles, /\.pack-card__status \.week-status-badge\.week-status--closed\s*\{[^}]*var\(--state-warning-bg\)[^}]*color: var\(--state-warning\)/);
+  assert.match(styles, /\.pack-card__status \.week-status-badge\.week-status--unknown\s*\{[^}]*var\(--surface\)[^}]*color: var\(--text-muted\)/);
   assert.match(styles, /\.pack-card__status \.week-status-badge\.week-status--error\s*\{[^}]*var\(--state-error\)[^}]*var\(--state-error-bg\)[^}]*color: var\(--state-error\)/);
 });
 

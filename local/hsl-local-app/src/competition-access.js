@@ -1,0 +1,87 @@
+const ACCESS_REASONS = Object.freeze({
+  LOCAL_PACK: "local-pack-unavailable",
+  LOCAL_CAPTURE: "local-capture-unavailable",
+  NO_ACCOUNT: "no-account",
+  REQUIRES_LOGIN: "requires-login",
+  MEMBERSHIP_NOT_MEMBER: "not-member",
+  MEMBERSHIP_UNKNOWN: "membership-unknown",
+  WEEK_INACTIVE: "week-inactive",
+  WEEK_CLOSED: "week-closed",
+  WEEK_UNLINKED: "week-unlinked",
+  WEEK_UNKNOWN: "week-unknown",
+  READY: "competition-ready",
+});
+
+function deriveCompetitionAccess({
+  local = {},
+  membership = {},
+  session = {},
+  week = {},
+} = {}) {
+  const canPractice = local.canPractice === true;
+  const localCompetitionReady = canPractice
+    && local.canCapture === true
+    && local.hasCompetitionScope === true
+    && local.hasWeek === true;
+  const hasStableIdentity = session.hasSession === true && Boolean(session.userId);
+  const requiresLogin = session.requiresLogin === true;
+  const membershipStatus = membership.effectiveStatus || membership.status || "unknown";
+  const weekStatus = week.publicState || "unknown";
+
+  let reason = ACCESS_REASONS.READY;
+  let reasonCategory = "ready";
+  if (!canPractice) {
+    reason = ACCESS_REASONS.LOCAL_PACK;
+    reasonCategory = "local";
+  } else if (local.canCapture !== true || local.hasCompetitionScope !== true || local.hasWeek !== true) {
+    reason = ACCESS_REASONS.LOCAL_CAPTURE;
+    reasonCategory = "local";
+  } else if (requiresLogin) {
+    reason = ACCESS_REASONS.REQUIRES_LOGIN;
+    reasonCategory = "session";
+  } else if (!hasStableIdentity) {
+    reason = ACCESS_REASONS.NO_ACCOUNT;
+    reasonCategory = "session";
+  } else if (membershipStatus === "not_member") {
+    reason = ACCESS_REASONS.MEMBERSHIP_NOT_MEMBER;
+    reasonCategory = "membership";
+  } else if (membershipStatus !== "member") {
+    reason = ACCESS_REASONS.MEMBERSHIP_UNKNOWN;
+    reasonCategory = "membership";
+  } else if (weekStatus === "inactive") {
+    reason = ACCESS_REASONS.WEEK_INACTIVE;
+    reasonCategory = "week";
+  } else if (weekStatus === "closed") {
+    reason = ACCESS_REASONS.WEEK_CLOSED;
+    reasonCategory = "week";
+  } else if (weekStatus === "unlinked") {
+    reason = ACCESS_REASONS.WEEK_UNLINKED;
+    reasonCategory = "week";
+  } else if (weekStatus !== "active") {
+    reason = ACCESS_REASONS.WEEK_UNKNOWN;
+    reasonCategory = "week";
+  }
+
+  const canPlayCompetition = reason === ACCESS_REASONS.READY && localCompetitionReady;
+  const canSubmitNow = canPlayCompetition
+    && local.canSubmitLocally !== false
+    && membership.canSubmit === true
+    && session.remoteUsable === true;
+
+  return {
+    canPlayCompetition,
+    canPractice,
+    canSubmitNow,
+    hasStableIdentity,
+    membershipStatus,
+    reason,
+    reasonCategory,
+    requiresLogin,
+    weekStatus,
+  };
+}
+
+module.exports = {
+  ACCESS_REASONS,
+  deriveCompetitionAccess,
+};

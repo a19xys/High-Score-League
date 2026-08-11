@@ -98,6 +98,16 @@ test("requiresLogin canonico devuelve unauthenticated sin una peticion remota", 
   assert.equal(result.sessionRevision, 3);
 });
 
+test("unauthenticated remoto no canonico se normaliza sin pedir login", () => {
+  const result = normalizeMembershipResponse(config(), {
+    seasonId: "season-1",
+    status: "unauthenticated",
+    weekId: "week-1",
+  });
+  assert.equal(result.status, "unknown");
+  assert.doesNotMatch(result.message, /autenticar|sesion no es valida/i);
+});
+
 test("sin weekId devuelve missing_week", async () => {
   const result = await checkSeasonMembership(config({ defaultWeekId: null }), sessionState(), {
     sessionResult: remoteSessionResult(),
@@ -119,7 +129,7 @@ test("deferred membership returns immediately without a remote request", async (
 
   assert.equal(fetched, false);
   assert.equal(result.status, "unknown");
-  assert.equal(result.canPlayCompetition, true);
+  assert.equal(result.canPlayCompetition, false);
   assert.equal(result.canSubmit, false);
   assert.equal(result.checkedAt, null);
   assert.equal(result.request, null);
@@ -177,20 +187,25 @@ test("respuesta not_member bloquea competicion y subida", async () => {
   assert.equal(shouldBlockSubmit(result), true);
 });
 
-test("endpoint 401 devuelve unauthenticated", async () => {
+test("un 401 fuerza una sola resolucion canonica y reintenta con el token rotado", async () => {
+  const authorizations = [];
   const result = await checkSeasonMembership(config(), sessionState(), {
-    fetchImpl: async () => jsonResponse(401, {
-      ok: false,
-      status: "unauthenticated",
-      message: "Necesitas una sesion valida.",
-    }),
+    fetchImpl: async (_url, init) => {
+      authorizations.push(init.headers.Authorization);
+      return authorizations.length === 1
+        ? jsonResponse(401, { ok: false, status: "unauthenticated" })
+        : jsonResponse(200, { ok: true, status: "member", weekId: "week-1", seasonId: "season-1" });
+    },
+    resolveCanonicalSessionResultImpl: async (_config, resolveOptions) => {
+      assert.equal(resolveOptions.force, true);
+      return remoteSessionResult("rotated-access-token", { status: "refreshed" });
+    },
     sessionResult: remoteSessionResult(),
   });
 
-  assert.equal(result.status, "unauthenticated");
-  assert.equal(result.canPlayCompetition, false);
-  assert.equal(result.response.httpStatus, 401);
-  assert.equal(result.response.bodyStatus, "unauthenticated");
+  assert.equal(result.status, "member");
+  assert.equal(result.canPlayCompetition, true);
+  assert.deepEqual(authorizations, ["Bearer secret-access-token", "Bearer rotated-access-token"]);
 });
 
 test("respuesta 500 JSON error devuelve error diagnostico", async () => {
@@ -204,7 +219,7 @@ test("respuesta 500 JSON error devuelve error diagnostico", async () => {
   });
 
   assert.equal(result.status, "error");
-  assert.equal(result.canPlayCompetition, true);
+  assert.equal(result.canPlayCompetition, false);
   assert.equal(result.canSubmit, false);
   assert.equal(result.response.httpStatus, 500);
   assert.equal(result.response.bodyStatus, "error");
@@ -229,7 +244,7 @@ test("respuesta HTML no guarda HTML completo y devuelve error seguro", async () 
   assert.equal(serialized.includes("very-secret-token"), false);
 });
 
-test("error de red devuelve unknown y permite competir con advertencia", async () => {
+test("error de red devuelve unknown y bloquea competir sin cache concluyente", async () => {
   const result = await checkSeasonMembership(config(), sessionState(), {
     fetchImpl: async () => {
       throw new Error("network down");
@@ -238,10 +253,10 @@ test("error de red devuelve unknown y permite competir con advertencia", async (
   });
 
   assert.equal(result.status, "unknown");
-  assert.equal(result.canPlayCompetition, true);
+  assert.equal(result.canPlayCompetition, false);
   assert.equal(result.canSubmit, false);
   assert.match(result.message, /No se pudo comprobar/);
-  assert.equal(shouldBlockCompetition(result), false);
+  assert.equal(shouldBlockCompetition(result), true);
   assert.equal(result.request.url, "https://high-score-league.example/api/local/season-membership?weekId=week-1");
   assert.equal(result.response, null);
   assert.equal(result.technicalReason, "transport-failure:request-failed");
@@ -266,7 +281,7 @@ test("deferred con un access token expirado preservado no envia Authorization", 
   assert.equal(fetched, false);
   assert.equal(result.status, "unknown");
   assert.equal(result.authDeferred, true);
-  assert.equal(result.canPlayCompetition, true);
+  assert.equal(result.canPlayCompetition, false);
   assert.equal(result.canSubmit, false);
   assert.equal(result.sessionStatus, "deferred");
   assert.equal(result.sessionRevision, 4);

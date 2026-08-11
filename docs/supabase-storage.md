@@ -1,5 +1,9 @@
 # Supabase Storage for score screenshots
 
+Este documento describe un sistema futuro y privado para evidencias de
+submissions. No es el bucket público `hsl-public-media`, que ya está operativo
+para avatar, juegos y cuestionarios, y no debe reutilizarse para capturas.
+
 ## Bucket
 
 Nombre recomendado:
@@ -28,13 +32,14 @@ En produccion se usaran UUID reales. El nombre final puede usar extension
 Si una submission incluye captura, la fila asociada guarda `screenshot_path`,
 `screenshot_mime_type` y `screenshot_size_bytes`.
 
-Desde `0002_submission_events.sql`, `screenshot_path` es opcional. El flujo
-futuro principal podra registrar eventos automaticos desde MAME/app local sin
-bloquearse por no tener captura.
+Desde `0002_submission_events.sql`, `screenshot_path` es opcional. Los clientes
+integradores pueden registrar eventos automáticos mediante el endpoint de ingest
+sin bloquearse por no tener captura.
 
 ## Permisos previstos
 
-No se crean politicas de Storage en esta tarea. La idea inicial es:
+El repositorio todavía no crea el bucket privado ni sus políticas. La idea
+inicial es:
 
 - Los jugadores autenticados pueden subir capturas propias.
 - Cada jugador puede leer sus propias capturas.

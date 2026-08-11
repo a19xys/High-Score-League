@@ -81,22 +81,25 @@ documentadas en `docs/profile-revamp.md`.
 Si hay sesión y perfil, muestra identidad, fecha de creación, resultados
 oficiales, mejores marcas y envíos propios. El email vive solo en el bloque
 privado de sesión. Permite actualizar username, initials, descripción,
-`avatar_url` como URL temporal y la preferencia de visibilidad
-`play_time_public`. Al
-guardar se actualiza también `user_metadata` y se refresca la ruta.
+avatar mediante `MediaUpload` y la preferencia de visibilidad
+`play_time_public`. Al guardar se actualiza también `user_metadata` y se
+refresca la ruta.
 
 Si hay sesión pero no hay perfil, `/profile` muestra un formulario inline para
 crearlo. Si no hay sesión, muestra enlace a `/login`.
 
 El avatar usa `MediaUpload` y `avatar_storage_path` con fallback a `avatar_url` y
-siglas. Las migraciones `0024_media_uploads.sql` y `0025_play_time.sql` deben
-aplicarse antes del deploy de sus funciones respectivas.
+siglas. `0024_media_uploads.sql` ya está aplicada en el entorno remoto actual.
+En una instalación nueva, `0024_media_uploads.sql` y `0025_play_time.sql` deben
+aplicarse, en ese orden, antes del código que consulta sus funciones
+respectivas; esta auditoría no confirma la aplicación remota de `0025`.
 
-El launcher registra Playtime de práctica y competición siempre que exista una
-identidad local canónica, también offline. `play_time_public` solo decide si
-otros jugadores pueden ver el agregado; el propietario siempre lo ve. La
-privacidad se aplica en RLS y `track_play_time` queda legacy, sin gobernar la
-recopilación ni convertirse automáticamente en consentimiento público.
+El contrato de Playtime registra eventos identificados de práctica y
+competición. `play_time_public` solo decide si otros jugadores pueden ver el
+agregado; el propietario siempre lo ve. La privacidad se aplica en RLS y
+`track_play_time` queda legacy, sin gobernar el registro ni convertirse
+automáticamente en consentimiento público. Playtime no representa presencia ni
+última actividad.
 
 `localStorage` no es fuente principal de verdad para perfiles. Solo Supabase Auth
 metadata y `public.profiles` se usan para este flujo.
@@ -108,8 +111,7 @@ metadata y `public.profiles` se usan para este flujo.
 
 ## Eliminacion de cuenta
 
-El borrado fisico de cuenta de prueba esta deshabilitado antes del primer
-despliegue publico.
+El borrado físico de cuenta está deshabilitado.
 
 La futura accion "Eliminar cuenta" debe implementarse como anonimizacion, no
 como borrado fisico de actividad historica. Debe anonimizar datos de perfil

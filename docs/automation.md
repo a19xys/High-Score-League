@@ -1,7 +1,8 @@
 # Automatizacion de calendario
 
-High Score League sincroniza estados internos de semanas y temporadas mediante
-un endpoint cron protegido:
+High Score League deriva en las vistas el estado actual de las semanas a partir
+de sus fechas. Además, sincroniza estados persistidos y efectos laterales
+mediante un endpoint cron protegido:
 
 ```text
 POST /api/cron/process-schedule
@@ -44,10 +45,11 @@ El cron procesa semanas con `public_start_at` y `final_deadline_at`:
 El tramo final usa `public_freeze_at`. Si no existe, la semana pasa de
 `active` a cierre directamente.
 
-El cron reutiliza la reconciliación de semana: ajusta el estado por fechas,
-recalcula `is_hidden` de submissions válidas, revela puntuaciones al cerrar y
-retira `weekly_results` si una semana publicada fue reabierta al mover su cierre
-al futuro.
+El cron reutiliza la reconciliación de semana para semanas no publicadas: ajusta
+el estado por fechas, recalcula `is_hidden` de submissions válidas y revela
+puntuaciones al cerrar. Las semanas ya `published` se omiten. La edición admin
+usa el mismo helper y, si un cambio de fechas reabre una semana con resultados,
+retira sus `weekly_results` para que deje de contar hasta una nueva publicación.
 
 El cron no genera `weekly_results`. La publicación oficial queda como acción
 manual de admin desde `/admin/weeks/[weekId]`. Esto separa:
@@ -56,8 +58,14 @@ manual de admin desde `/admin/weeks/[weekId]`. Esto separa:
   clasificación de temporada;
 - `published`: `weekly_results` generados y semana contabilizada oficialmente.
 
-El endpoint es idempotente: ejecutarlo varias veces no duplica resultados y no
-cambia una semana `published` a `closed`.
+El endpoint es idempotente: ejecutarlo varias veces no duplica resultados y
+omite las semanas `published`.
+
+La UI pública y administrativa usa el mismo calendario derivado para mostrar el
+estado vigente aunque la última ejecución del cron todavía no haya persistido
+el cambio. El cron sigue siendo necesario para actualizar filas y reconciliar
+`is_hidden`; la edición admin usa el helper compartido para retirar resultados
+si reabre una semana. El cron no es la única fuente del estado visual.
 
 ## Temporadas
 
@@ -69,6 +77,9 @@ El cron procesa temporadas con `starts_at` y `ends_at`:
 
 Temporadas sin fechas completas se consideran configuracion incompleta y no se
 procesan automaticamente.
+
+Las lecturas de temporadas también derivan el estado desde las fechas para la
+UI; el cron persiste esa misma decisión en `seasons.status`.
 
 ## Prueba local
 
@@ -94,11 +105,7 @@ CRON_SECRET=
 
 ## Pendiente
 
-No hay todavia:
-
-- Vercel Cron configurado en el repositorio;
-- medallas;
-- Storage;
-- capturas;
-- plugin MAME;
-- app local.
+No hay todavía una configuración de Vercel Cron versionada en el repositorio.
+Debe configurarse operativamente este endpoint, o un programador equivalente,
+sin convertirlo en la siguiente prioridad de producto por encima del roadmap de
+perfiles.

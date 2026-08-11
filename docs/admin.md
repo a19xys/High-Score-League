@@ -1,7 +1,8 @@
 # Administracion minima
 
 El panel admin minimo sirve para gestionar el flujo semanal sin SQL manual. No
-sustituye todavia a un panel completo de usuarios, medallas, Storage ni MAME.
+sustituye todavia a un panel completo de usuarios, memberships, medallas ni
+moderacion.
 
 ## Acceso
 
@@ -49,7 +50,8 @@ Tambien incluye el boton `Crear semana`, que abre `/admin/weeks/new`.
 `/admin/games` gestiona el catalogo real de juegos. Permite listar, buscar,
 crear y editar juegos con metadatos multiples: desarrolladores, editores,
 perspectivas, temas y generos. Tambien incluye instrucciones base y URL externa
-de manual.
+de manual. Header y logo usan `MediaUpload`, paths administrados en
+`hsl-public-media` y fallback de URLs legacy.
 
 La edicion de un juego muestra borrado seguro. Solo se puede eliminar si no esta
 asociado a ninguna semana.
@@ -67,17 +69,21 @@ Los estados de temporada se sincronizan por fechas:
 
 ## Cuestionarios
 
-`/admin/polls` gestiona el cuestionario único preparado para Home. Permite
+`/admin/polls` gestiona el cuestionario único de Home. Permite
 editar pregunta, fecha de cierre, estado habilitado/deshabilitado, opciones,
 estadísticas agregadas y reinicio del cuestionario.
 
-La tarjeta pública, voto desde Home, Realtime y comentarios quedan para una fase
-posterior.
+La tarjeta de la Home privada, el voto editable, los resultados agregados tras
+votar y Realtime ya están implementados. Las imágenes de opciones usan el
+uploader administrado con regla todo-o-nada. Comentarios, historial y múltiples
+cuestionarios quedan para una fase posterior.
 
 ## Crear y editar semanas
 
-`/admin/weeks/new` crea semanas reales asociando temporada, juego, numero,
-apertura, tramo final opcional, cierre e instrucciones específicas opcionales.
+`/admin/weeks/new` crea semanas reales asociando temporada, juego, apertura,
+tramo final opcional, cierre e instrucciones específicas opcionales. El número
+se calcula en servidor por posición cronológica y se renumera al insertar o
+mover semanas.
 
 `/admin/weeks/[weekId]/edit` edita esos mismos datos principales y separa la
 edicion de metadatos del cuadro de mandos operativo.
@@ -96,7 +102,8 @@ por fechas:
 - cierre por fecha: `closed`;
 - publicación manual admin: `published`.
 
-El endpoint `/api/cron/process-schedule` actualiza estados y revela
+Las vistas derivan el estado actual desde las fechas. El endpoint
+`/api/cron/process-schedule` persiste estados, reconcilia visibilidad y revela
 puntuaciones al cierre, pero no genera `weekly_results`. Consulta
 `docs/automation.md`.
 
@@ -135,8 +142,7 @@ en `closed`; cuando el admin publica, se generan `weekly_results` y pasa a
 
 ## Eliminacion de cuenta
 
-El borrado fisico de cuenta esta deshabilitado para el primer despliegue
-publico.
+El borrado físico de cuenta está deshabilitado.
 
 La futura opcion de perfil "Eliminar cuenta" debe implementarse como
 anonimizacion: retirar o reemplazar datos personales del perfil y bloquear el
@@ -146,7 +152,7 @@ ni actividad necesaria para mantener la historia competitiva.
 ## Pendiente
 
 - Panel completo de usuarios.
-- Creacion avanzada de semanas con manuales, descargas y configuracion MAME.
+- Gestión avanzada de memberships.
 - Medallas.
-- Storage y capturas.
-- Plugin MAME y app local.
+- Storage privado de capturas y evidencias.
+- Moderación UI del chat.

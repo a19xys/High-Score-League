@@ -42,8 +42,15 @@ acepta submissions hasta que el admin asigne un juego real.
 
 `/game` redirige a `/weeks/[weekId]` de la semana activa o en tramo final.
 
-`/submit` sigue siendo una pantalla provisional de respaldo, sin subida manual
-real todavia.
+`/profile` carga sesión, perfil propio, trayectoria competitiva y Playtime con
+la visibilidad del propietario. `/players/[username]` exige sesión y entrega
+sólo identidad pública, trayectoria visible y Playtime cuando
+`play_time_public = true` o el visitante es el propietario.
+
+`/submit` es una herramienta legacy/interna protegida para admin. El formulario
+muestra preview local, pero su botón sigue deshabilitado y no guarda
+submissions. La integración autenticada vigente usa
+`POST /api/submissions/ingest`; `/submit` no es el flujo normal.
 
 ## Diagnostico
 
@@ -58,7 +65,5 @@ protegida para admin y no forma parte de la navegacion principal.
 
 - Storage privado de capturas y evidencias.
 - Capturas reales.
-- Subida manual real desde `/submit`.
-- App local y plugin MAME.
 - Panel completo de usuarios.
 - Medallas y bonus.

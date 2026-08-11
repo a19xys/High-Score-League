@@ -6394,6 +6394,18 @@ html:not([data-theme="dark"]) .pack-card[role="button"]:hover {
   color: var(--state-error);
 }
 
+.pack-card__status .week-status-badge.week-status--closed {
+  border-color: color-mix(in srgb, var(--state-warning) 46%, var(--border));
+  background: color-mix(in srgb, var(--state-warning-bg) 82%, var(--surface));
+  color: var(--state-warning);
+}
+
+.pack-card__status .week-status-badge.week-status--unknown {
+  border-color: color-mix(in srgb, var(--text-muted) 42%, var(--border));
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text-muted);
+}
+
 .pack-card--list .pack-card__media,
 .pack-card--icons .pack-card__media {
   overflow: hidden;

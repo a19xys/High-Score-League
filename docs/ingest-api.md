@@ -1,7 +1,8 @@
 # Ingest API
 
-Endpoint mínimo para recibir submissions automáticas desde una app local futura.
-No implementa plugin MAME, app local, Storage, capturas ni admin funcional.
+Endpoint web implementado para recibir submissions automáticas desde clientes
+autenticados. Este documento describe el contrato HTTP; el estado interno de
+cada cliente se documenta fuera de la documentación web.
 
 ## Endpoint
 
@@ -12,10 +13,11 @@ POST /api/submissions/ingest
 Requiere sesión Supabase válida. El endpoint usa la anon key y RLS; no usa
 `service_role`.
 
-`player_id` no se acepta desde cliente. Se deriva siempre del usuario
+`playerId` no se acepta desde cliente. `player_id` se deriva siempre del usuario
 autenticado.
 
-`submitted_at` no se acepta desde cliente. Lo fuerza la base de datos.
+`submittedAt` no se acepta desde cliente. `submitted_at` lo fuerza la base de
+datos.
 
 El usuario autenticado debe pertenecer a la temporada de la semana. La
 membership se comprueba con `season_memberships.season_id = weeks.season_id`,
@@ -60,8 +62,8 @@ Campos:
 
 - `active`: permite submissions visibles u ocultas. Si `isHidden` no llega, se
   usa `false`.
-- `frozen`: solo permite submissions ocultas. Si `isHidden` no llega, se usa
-  `true`. Si llega `false`, devuelve error.
+- `frozen`: solo permite submissions ocultas. La API fuerza `true` tanto si
+  `isHidden` no llega como si el cliente envía `false`.
 - `draft`, `closed`, `published`: no permiten submissions.
 
 ## Membresia de temporada
@@ -78,13 +80,13 @@ endpoint rechaza la submission:
 }
 ```
 
-La app local debe tratar `NOT_SEASON_MEMBER` como un error recuperable de
-producto: informar al jugador de que debe unirse a la temporada desde la web y
-no reintentar en bucle la misma submission hasta que la membership exista.
+El cliente integrador debe tratar `NOT_SEASON_MEMBER` como un error recuperable
+de producto: informar al jugador de que debe unirse a la temporada desde la web
+y no reintentar en bucle la misma submission hasta que exista la membership.
 
-## Comprobacion previa para app local
+## Comprobación previa opcional
 
-La app local puede consultar la misma regla antes de jugar competicion:
+Un cliente puede consultar la misma regla antes de iniciar una competición:
 
 ```text
 GET /api/local/season-membership?weekId=<weekId>
@@ -184,8 +186,7 @@ await fetch("/api/submissions/ingest", {
 ```
 
 `curl` sin cookies de sesión o sin `Authorization: Bearer <access_token>` no
-funcionará. La app local futura deberá autenticarse correctamente con Supabase
-Auth o con el mecanismo seguro que se defina.
+funcionará. Cualquier cliente debe autenticarse correctamente con Supabase Auth.
 
 ## Auditoria de submissions sin membership
 
@@ -238,11 +239,9 @@ where w.id = sub.week_id
 
 Este SQL es solo de auditoria; no se ejecuta automaticamente desde la app.
 
-## Pendiente
+## Fuera del alcance actual
 
-- App local High Score League.
-- Plugin MAME.
-- Cola local de reintentos.
-- Capturas y Storage.
-- UI de pruebas dedicada.
-- Admin funcional.
+- capturas y Storage privado de evidencias;
+- una UI web de prueba dedicada; `/submit` continúa como herramienta admin
+  legacy con el envío deshabilitado;
+- decisiones de reintento, cola y UX propias de cada cliente.

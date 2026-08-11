@@ -85,6 +85,5 @@ El componente mantiene soporte visual para empates:
 
 - Medallas.
 - Bonus.
-- Panel admin completo.
-- Cambios de estado de semana desde UI.
+- Gestión avanzada de usuarios y memberships.
 - Clasificacion global multi-temporada.

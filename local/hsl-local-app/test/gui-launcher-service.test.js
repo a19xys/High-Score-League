@@ -502,7 +502,8 @@ test("renderer maps membership statuses and manual recheck action", async () => 
 
   assert.match(gamePanel, /deriveGameSummaryPresentation/);
   assert.match(presentation, /no_session:/);
-  assert.match(presentation, /membership\.status === "unauthenticated"/);
+  assert.doesNotMatch(presentation, /membership\.status === "unauthenticated"/);
+  assert.match(presentation, /session\.requiresLogin === true/);
   assert.equal(/"Sin cuenta"/.test(gamePanel), false);
   assert.match(presentation, /"No se pudo consultar la participación"/);
   assert.equal(/data-action="check-membership"/.test(gamePanel), false);
@@ -684,8 +685,12 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /pack-card__placeholder/);
   assert.match(packCard, /statusMeta/);
   assert.match(packCard, /REQUIERE ATENCION/);
-  assert.match(packCard, /LEGACY/);
-  assert.match(packCard, /LISTO/);
+  assert.doesNotMatch(packCard, /label: "LEGACY"|label: "LISTO"/);
+  assert.match(packCard, /ACTIVA/);
+  assert.match(packCard, /INACTIVA/);
+  assert.match(packCard, /CERRADA/);
+  assert.match(packCard, /SIN VINCULAR/);
+  assert.match(packCard, /SIN DATOS/);
   assert.match(packCard, /week-status-badge/);
   assert.match(packCard, /week-status--ready/);
   assert.equal(/ABIERTO/.test(packCard), false);
@@ -2280,8 +2285,8 @@ test("pack directory actions are exposed without legacy location UI", async () =
   assert.match(devTools, /data-action="open-pack-directory"/);
   assert.match(devTools, /data-action="choose-shared-mame-runtime"/);
   assert.match(packCard, /REQUIERE ATENCION/);
-  assert.match(packCard, /LEGACY/);
-  assert.match(packCard, /LISTO/);
+  assert.doesNotMatch(packCard, /label: "LEGACY"|label: "LISTO"/);
+  assert.match(packCard, /ACTIVA|INACTIVA|CERRADA|SIN VINCULAR|SIN DATOS/);
   assert.equal(/ABIERTO/.test(packCard), false);
   assert.equal(/addLibraryLocation|removeLibraryLocation|launcher:add-library-location|launcher:remove-library-location/.test(main + preload + app), false);
 });

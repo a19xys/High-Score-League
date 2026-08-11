@@ -1,17 +1,17 @@
 const { resolveCanonicalSessionResult } = require("./auth");
+const { executeCanonicalAuthenticatedRequest } = require("./authenticated-request");
+const { createMembershipCache } = require("./competitive-authority-cache");
 const { normalizeWebBaseUrl, parseResponseText } = require("./submission-http");
 const { executeRemoteRequest } = require("./remote-request");
 const { parseRetryAfter, RETRYABLE_HTTP_STATUSES } = require("./submission-outcome");
 const {
   createSessionResult,
-  isCanonicalSessionResult,
-  isSessionRemoteUsableNow,
-  requiresSessionLogin,
 } = require("./session-result");
 
 const NETWORK_STATUSES = new Set(["unknown", "error"]);
 const SAFE_BODY_STATUSES = new Set(["member", "not_member", "unauthenticated", "invalid_week", "error", "unknown"]);
-const BLOCKING_STATUSES = new Set(["checking", "no_session", "missing_week", "invalid_week", "not_member", "unauthenticated"]);
+const BLOCKING_STATUSES = new Set(["checking", "error", "no_session", "missing_week", "invalid_week", "not_member", "unauthenticated", "unknown"]);
+const membershipCaches = new Map();
 const PLAYER_MESSAGES = {
   member: "Participas en esta temporada. Puedes jugar competicion.",
   not_member: "No participas en esta temporada. Unete desde la web para competir.",
@@ -68,7 +68,7 @@ function deferredSessionState(config, weekId, sessionResult, options = {}, reaso
   const sessionStatus = sessionResult?.status || "unknown";
   return baseState({
     authDeferred: true,
-    canPlayCompetition: true,
+    canPlayCompetition: false,
     canSubmit: false,
     checkedAt: options.checkedAt || new Date().toISOString(),
     joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
@@ -254,11 +254,11 @@ function normalizeMembershipResponse(config, body, options = {}) {
       checkedAt,
       joinUrl,
       joinUrlRejected: joinUrlResult.rejected,
-      message: PLAYER_MESSAGES.unauthenticated,
+      message: PLAYER_MESSAGES.unknown,
       request,
       response,
       seasonId,
-      status,
+      status: "unknown",
       technicalReason,
       weekId,
     });
@@ -266,7 +266,7 @@ function normalizeMembershipResponse(config, body, options = {}) {
 
   if (status === "error") {
     return baseState({
-      canPlayCompetition: true,
+      canPlayCompetition: false,
       canSubmit: false,
       checkedAt,
       joinUrl,
@@ -282,7 +282,7 @@ function normalizeMembershipResponse(config, body, options = {}) {
   }
 
   return baseState({
-    canPlayCompetition: true,
+    canPlayCompetition: false,
     canSubmit: false,
     checkedAt,
     joinUrl,
@@ -295,6 +295,76 @@ function normalizeMembershipResponse(config, body, options = {}) {
     technicalReason: technicalReason || sanitizeResponseBody(body).technicalReason,
     weekId,
   });
+}
+
+function membershipAuthorityContext(config, options = {}) {
+  return {
+    deploymentKey: options.authorityContext?.deploymentKey || options.deploymentKey || "unknown:unknown:0",
+    origin: options.authorityContext?.origin || config.webBaseUrl || null,
+  };
+}
+
+function membershipCacheFor(config, options = {}) {
+  if (options.membershipCache) return options.membershipCache;
+  if (!config.userDataDir) return null;
+  if (!membershipCaches.has(config.userDataDir)) {
+    membershipCaches.set(config.userDataDir, createMembershipCache(config));
+  }
+  return membershipCaches.get(config.userDataDir);
+}
+
+async function cachedMembership(config, sessionState, options = {}) {
+  const cache = membershipCacheFor(config, options);
+  const userId = options.userId || sessionState?.userId || options.sessionResult?.storedSession?.user?.id || null;
+  const seasonId = options.weekCapability?.seasonId || options.seasonId || null;
+  if (!cache || !userId || !seasonId) return null;
+  await cache.initialize();
+  const cached = cache.read(membershipAuthorityContext(config, options), userId, seasonId);
+  if (!cached) return null;
+  return baseState({
+    canPlayCompetition: cached.status === "member",
+    canSubmit: false,
+    checkedAt: cached.checkedAt,
+    effectiveSource: "durable-cache",
+    joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
+    message: PLAYER_MESSAGES[cached.status],
+    revalidationRequired: true,
+    seasonId,
+    status: cached.status,
+    technicalReason: "cached-conclusive-membership",
+    weekId: config.defaultWeekId || config.pack?.weekId || null,
+  });
+}
+
+async function preserveConclusiveMembership(config, sessionState, state, options = {}) {
+  const cached = await cachedMembership(config, sessionState, options);
+  return cached ? {
+    ...cached,
+    authDeferred: state.authDeferred === true,
+    remoteFailure: state.remoteFailure,
+    request: state.request,
+    response: state.response,
+    retryAfterMs: state.retryAfterMs,
+    retryable: state.retryable,
+    sessionRevision: state.sessionRevision,
+    sessionStatus: state.sessionStatus,
+    technicalReason: `${state.technicalReason || state.status};using-cache`,
+  } : state;
+}
+
+async function rememberConclusiveMembership(config, sessionState, state, options = {}) {
+  if (!["member", "not_member"].includes(state.status) || !state.seasonId) return state;
+  const cache = membershipCacheFor(config, options);
+  const userId = options.userId || sessionState?.userId || options.sessionResult?.storedSession?.user?.id || null;
+  if (!cache || !userId) return state;
+  await cache.initialize();
+  await cache.remember(membershipAuthorityContext(config, options), {
+    checkedAt: state.checkedAt,
+    seasonId: state.seasonId,
+    status: state.status,
+    userId,
+  });
+  return { ...state, effectiveSource: "remote-conclusive", revalidationRequired: false };
 }
 
 async function checkSeasonMembership(config, sessionState, options = {}) {
@@ -328,73 +398,79 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
   }
 
   if (!config.webBaseUrl) {
-    return baseState({
-      canPlayCompetition: true,
+    return preserveConclusiveMembership(config, sessionState, baseState({
+      canPlayCompetition: false,
       canSubmit: false,
       checkedAt: options.checkedAt || new Date().toISOString(),
       message: PLAYER_MESSAGES.unknown,
       status: "unknown",
       technicalReason: "missing webBaseUrl",
       weekId,
-    });
+    }), options);
   }
 
   if (options.deferRemote === true) {
-    return baseState({
-      canPlayCompetition: true,
+    return preserveConclusiveMembership(config, sessionState, baseState({
+      canPlayCompetition: false,
       canSubmit: false,
       joinUrl: normalizeWebBaseUrl(config.webBaseUrl),
       message: PLAYER_MESSAGES.unknown,
       status: "unknown",
       technicalReason: "deferred",
       weekId,
-    });
+    }), options);
   }
 
-  let sessionResult;
-
   try {
-    sessionResult = await resolveMembershipSessionResult(config, sessionState, options);
-  } catch (error) {
-    if (requiresSessionLogin(error?.sessionResult)) {
-      return unauthenticatedSessionState(config, weekId, request, error.sessionResult, options);
+    const authenticated = await executeCanonicalAuthenticatedRequest({
+      execute: ({ accessToken }) => executeRemoteRequest({
+        fetchImpl: options.fetchImpl,
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        url: request.url,
+        init: { headers: { Authorization: `Bearer ${accessToken}` } },
+      }),
+      remoteUsableOptions: { config, nowMs: options.nowMs },
+      resolveSession: ({ force }) => resolveMembershipSessionResult(config, sessionState, {
+        ...options,
+        forceSessionRefresh: force,
+        sessionResult: undefined,
+      }),
+      sessionResult: options.sessionResult,
+    });
+
+    if (authenticated.status === "requires-login") {
+      return unauthenticatedSessionState(config, weekId, request, authenticated.sessionResult, options);
     }
-    return deferredSessionState(config, weekId, error?.sessionResult, options, error?.code || "session-resolution-failed");
-  }
+    if (authenticated.status === "deferred") {
+      return preserveConclusiveMembership(config, sessionState, deferredSessionState(
+        config,
+        weekId,
+        authenticated.sessionResult,
+        options,
+        authenticated.reason || authenticated.error?.code,
+      ), options);
+    }
+    if (authenticated.status === "credential-rejected") {
+      return preserveConclusiveMembership(config, sessionState, baseState({
+        checkedAt: options.checkedAt || new Date().toISOString(),
+        joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
+        message: PLAYER_MESSAGES.unknown,
+        request,
+        response: createResponseDetails(authenticated.requestResult.response, parseResponseText(authenticated.requestResult.bodyText)),
+        retryable: true,
+        sessionRevision: Number(authenticated.sessionResult?.sessionRevision) || 0,
+        sessionStatus: authenticated.sessionResult?.status || null,
+        status: "unknown",
+        technicalReason: "credential-rejected-after-canonical-refresh",
+        weekId,
+      }), options);
+    }
 
-  if (!isCanonicalSessionResult(sessionResult)) {
-    return deferredSessionState(config, weekId, null, options, "invalid-session-result");
-  }
-
-  if (requiresSessionLogin(sessionResult)) {
-    return unauthenticatedSessionState(config, weekId, request, sessionResult, options);
-  }
-
-  if (!isSessionRemoteUsableNow(sessionResult, { config, nowMs: options.nowMs })) {
-    return deferredSessionState(config, weekId, sessionResult, options);
-  }
-
-  const accessToken = sessionResult.storedSession?.session?.access_token;
-
-  if (!accessToken) {
-    return deferredSessionState(config, weekId, sessionResult, options, "remote-credential-missing");
-  }
-
-  try {
-    const requestResult = await executeRemoteRequest({
-      fetchImpl: options.fetchImpl,
-      signal: options.signal,
-      timeoutMs: options.timeoutMs,
-      url: request.url,
-      init: {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      },
-    });
+    const requestResult = authenticated.requestResult;
     if (!requestResult.ok) {
-      return baseState({
-        canPlayCompetition: true,
+      return preserveConclusiveMembership(config, sessionState, baseState({
+        canPlayCompetition: false,
         canSubmit: false,
         checkedAt: options.checkedAt || new Date().toISOString(),
         joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
@@ -405,7 +481,7 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
         status: "unknown",
         technicalReason: `${requestResult.failureType}:${requestResult.reason}`,
         weekId,
-      });
+      }), options);
     }
     const response = requestResult.response;
     const body = parseResponseText(requestResult.bodyText);
@@ -416,16 +492,6 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
       ? parseRetryAfter(response.headers?.get?.("retry-after"), { nowMs: options.nowMs })
       : null;
 
-    if (response.status === 401) {
-      return normalizeMembershipResponse(config, { ...safeBody, status: "unauthenticated", weekId }, {
-        checkedAt: options.checkedAt,
-        request,
-        response: responseDetails,
-        technicalReason: getTechnicalReason(responseDetails),
-        weekId,
-      });
-    }
-
     if (!response.ok && safeBody?.status) {
       const normalized = normalizeMembershipResponse(config, { ...safeBody, weekId }, {
         checkedAt: options.checkedAt,
@@ -434,12 +500,15 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
         technicalReason: getTechnicalReason(responseDetails),
         weekId,
       });
-      return { ...normalized, retryAfterMs, retryable };
+      const result = { ...normalized, retryAfterMs, retryable };
+      return ["member", "not_member"].includes(result.status)
+        ? rememberConclusiveMembership(config, sessionState, result, options)
+        : preserveConclusiveMembership(config, sessionState, result, options);
     }
 
     if (!response.ok) {
-      return baseState({
-        canPlayCompetition: true,
+      return preserveConclusiveMembership(config, sessionState, baseState({
+        canPlayCompetition: false,
         canSubmit: false,
         checkedAt: options.checkedAt || new Date().toISOString(),
         joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
@@ -451,19 +520,19 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
         status: "error",
         technicalReason: getTechnicalReason(responseDetails),
         weekId,
-      });
+      }), options);
     }
 
-    return normalizeMembershipResponse(config, safeBody, {
+    return rememberConclusiveMembership(config, sessionState, normalizeMembershipResponse(config, safeBody, {
       checkedAt: options.checkedAt,
       request,
       response: responseDetails,
       technicalReason: getTechnicalReason(responseDetails),
       weekId,
-    });
+    }), options);
   } catch (error) {
-    return baseState({
-      canPlayCompetition: true,
+    return preserveConclusiveMembership(config, sessionState, baseState({
+      canPlayCompetition: false,
       canSubmit: false,
       checkedAt: options.checkedAt || new Date().toISOString(),
       joinUrl: normalizeWebBaseUrl(config.webBaseUrl || ""),
@@ -474,7 +543,7 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
       status: "unknown",
       technicalReason: error?.name || "Error",
       weekId,
-    });
+    }), options);
   }
 }
 
@@ -488,6 +557,7 @@ function shouldBlockSubmit(membership) {
 
 module.exports = {
   checkSeasonMembership,
+  cachedMembership,
   createResponseDetails,
   getMembershipUrl,
   normalizeMembershipResponse,

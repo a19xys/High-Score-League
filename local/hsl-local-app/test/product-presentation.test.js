@@ -217,6 +217,28 @@ test("primary actions use deterministic competition precedence and preserve prac
   assert.equal(checkingActions.competition.reason, "Comprobando participación");
 });
 
+test("primary actions consumen la proyeccion competitiva para semanas y no convierten membership 401 en login", async () => {
+  const { deriveMembershipPresentation, derivePrimaryActions } = await presentationApi();
+  const closed = state({
+    data: {
+      competitionAccess: { canPlayCompetition: false, canPractice: true, reason: "week-closed" },
+      readiness: { ...state().data.readiness, canPlayCompetition: false },
+      weekCapability: { publicState: "closed" },
+    },
+  });
+  const actions = derivePrimaryActions(closed);
+  assert.equal(actions.competition.available, false);
+  assert.match(actions.competition.reason, /cerrada/);
+  assert.equal(actions.practice.available, true);
+
+  const rejectedConsumer = deriveMembershipPresentation(
+    { status: "unauthenticated" },
+    { hasSession: true, requiresLogin: false },
+  );
+  assert.notEqual(rejectedConsumer.status, "requires-login");
+  assert.doesNotMatch(rejectedConsumer.title, /iniciar sesiÃ³n/i);
+});
+
 test("confirmed member plus ready pack uses the exact Pack listo success summary", async () => {
   const { deriveGameSummaryPresentation } = await presentationApi();
   const summary = deriveGameSummaryPresentation(state());

@@ -79,7 +79,14 @@ async function createReadyFixture(root, overrides = {}) {
     session: {
       email: "player@example.test",
       hasSession: true,
+      remoteUsable: true,
       userId: "user-1",
+    },
+    weekCapability: {
+      canPlayCompetition: true,
+      publicState: "active",
+      seasonId: "season-1",
+      weekId: "week-1",
     },
     ...overrides,
   };
@@ -215,14 +222,14 @@ test("membership not_member bloquea competicion y subida", async () => {
 
     const result = evaluatePackReadiness(context);
 
-    assert.equal(result.status, "blocked");
+    assert.equal(result.status, "warning");
     assert.equal(result.canPractice, true);
     assert.equal(result.canPlayCompetition, false);
     assert.equal(result.canSubmit, false);
   });
 });
 
-test("membership unknown permite competir con warning pero no subir", async () => {
+test("membership unknown bloquea competir sin cache concluyente", async () => {
   await withTempDir(async (dir) => {
     const context = await createReadyFixture(dir, {
       membership: {
@@ -237,7 +244,7 @@ test("membership unknown permite competir con warning pero no subir", async () =
 
     assert.equal(result.status, "warning");
     assert.equal(result.canPractice, true);
-    assert.equal(result.canPlayCompetition, true);
+    assert.equal(result.canPlayCompetition, false);
     assert.equal(result.canSubmit, false);
   });
 });
@@ -255,7 +262,7 @@ test("membership checking bloquea Jugar con la misma razon de participacion", as
     const membership = result.checks.find((item) => item.id === "membership");
 
     assert.equal(result.canPlayCompetition, false);
-    assert.equal(result.status, "blocked");
+    assert.equal(result.status, "warning");
     assert.equal(membership.level, "error");
     assert.equal(membership.message, "Comprobando participación.");
     assert.match(result.blockers.join(" "), /Comprobando participación/);

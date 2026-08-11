@@ -227,11 +227,6 @@ mantener separadas las operaciones semanales de la edición de datos.
 No se implementa todavia:
 
 - configuracion de Vercel Cron en el repositorio;
-- subida de manuales;
-- ZIPs o descargas configuradas;
-- configuraciones MAME;
-- Storage;
-- capturas reales;
+- Storage privado y capturas reales para evidencias;
 - medallas;
-- plugin MAME;
-- app local.
+- gestión avanzada de miembros y usuarios.

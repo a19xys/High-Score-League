@@ -1,9 +1,10 @@
 # MEDIA-UPLOADS-1: imágenes públicas administrables
 
 La web dispone de un sistema único para avatar, cabecera y logo de juego e
-imagen de opción del cuestionario. La migración
-`supabase/migrations/0024_media_uploads.sql` debe aplicarse manualmente antes de
-desplegar este código; no se ha aplicado al proyecto remoto desde el repositorio.
+imagen de opción del cuestionario. `MEDIA-UPLOADS-1` está implementada,
+`supabase/migrations/0024_media_uploads.sql` ya está aplicada en el Supabase
+remoto y el sistema está funcional. Esto confirma la infraestructura, no qué
+revisión concreta de la web está desplegada.
 
 ## Storage y rutas
 
@@ -82,12 +83,18 @@ un aviso no bloqueante. En cuestionarios, la regla «todas las opciones con
 imagen o ninguna» contempla conjuntamente URLs legacy, paths actuales,
 reemplazos y retiradas pendientes.
 
-## Despliegue y verificación
+## Instalación o despliegue en un entorno nuevo
 
-Orden obligatorio: aplicar `0024_media_uploads.sql`, verificar bucket/columnas/
-policies/constraints y solo después desplegar la web. El código anterior puede
-seguir funcionando tras la migración porque ignora las columnas nuevas; por
-eso un rollback web continúa siendo posible.
+En un Supabase nuevo, o en uno que todavía no tenga esta migración, se deben
+aplicar las migraciones en orden y ejecutar `0024_media_uploads.sql` antes de
+desplegar código que consulte los paths administrados. En el entorno remoto
+actual `0024` ya está aplicada y no debe volver a ejecutarse como si siguiera
+pendiente.
+
+El código anterior puede seguir funcionando tras la migración porque ignora las
+columnas nuevas; por eso un rollback web continúa siendo posible. Aplicar la
+migración no demuestra por sí solo que la revisión web más reciente esté
+desplegada.
 
 Checklist en Supabase:
 

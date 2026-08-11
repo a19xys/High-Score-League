@@ -630,7 +630,7 @@ test("deadline settles from the stable base when the latest observed snapshot is
   h.advanceBy(5000);
   const settled = h.coordinator.getCurrentState();
   assert.equal(settled.membership.status, "error");
-  assert.equal(settled.readiness.canPlayCompetition, true);
+  assert.equal(settled.readiness.canPlayCompetition, false);
   assert.equal(settled.readiness.status, "warning");
   assert.equal(settled.readiness.title, "Listo con avisos");
   assert.doesNotMatch(settled.readiness.message, /Comprobando participación/);

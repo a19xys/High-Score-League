@@ -1,150 +1,199 @@
-﻿# Project status
+# Estado actual de la web
 
-High Score League esta conectada a Supabase y usa datos reales en la experiencia
-normal.
+Este documento es la fotografía canónica de la web de High Score League. Separa
+lo implementado en el repositorio, la infraestructura cuya aplicación remota
+está confirmada, el procedimiento para entornos nuevos y el estado de despliegue
+de una revisión concreta.
 
-## Estado actual
+## Producto web implementado
 
-- Next.js App Router, TypeScript y Tailwind.
-- Landing publica para visitantes sin sesion.
-- Rutas privadas protegidas con `AccessRequired`.
-- Auth real con email/password y perfiles reales.
-- Los avatares han recuperado el tratamiento anterior al revamp, sin aro
-  multicolor. Las identidades compartidas de jugadores muestran en escritorio
-  una preview pública tras 600 ms de intención de hover, con portal, colisiones,
-  altura natural, bio completa y caché compartida de 45 segundos por ID y
-  username. La caché deduplica solicitudes, se invalida al editar el perfil y
-  descarta respuestas obsoletas tras un cambio de username.
-- Perfiles propio y público comparten una tarjeta de jugador finalista, métricas
-  competitivas reales, trayectoria y fallbacks de avatar. Las identidades de
-  leaderboard, clasificación, podios, historial, archivos y chat enlazan al
-  perfil público autenticado.
-- Juegos, temporadas, semanas, submissions, leaderboards, `weekly_results`,
-  clasificacion de temporada, benchmarks y chat global leen Supabase. El chat
-  permite editar el último mensaje propio durante 15 minutos.
-- El panel admin permite gestionar juegos, temporadas, semanas, submissions,
-  benchmarks, cuestionarios y resultados oficiales. El catálogo de juegos usa
-  metadatos múltiples para desarrolladores, editores, perspectivas, temas y
-  géneros.
-- La Home privada muestra un cuestionario único para usuarios registrados cuando
-  está habilitado y abierto. El voto es editable y los resultados agregados se
-  muestran solo después de votar. Las opciones admiten imagen opcional en modo
-  todo-o-nada, con etiquetas compactas de hasta 80 caracteres.
-- Los juegos pueden guardar header y logo administrados en Storage, conservan
-  URLs externas como fallback y mantienen la descarga externa y colores de
-  acento para el borde/glow del hero.
-  `image_url` y `rom_name` quedan como campos legacy/internos.
-- Las semanas futuras pueden existir sin juego asignado (`weeks.game_id = null`).
-  La UI pública las muestra como `Por anunciar` y el admin como
-  `Sin juego asignado`; ya no se usa un juego placeholder real.
-- `/game` redirige a la semana activa real.
-- `/week` y `/leaderboard` redirigen a `/game`.
-- `/archive` es el shell neutral del historial, sin sección activa ni carga de
-  tablas; `/archive/weeks` es el destino de `ARCHIVO` en la navegación principal
-  y `/archive/seasons` conserva el índice de temporadas. Los breadcrumbs de
-  Archivo abren el estado neutral. Los alias antiguos y el parámetro `section`
-  mantienen compatibilidad mediante redirecciones permanentes.
-- Los archivos de semanas y temporadas filtran por todos los años naturales que
-  cruza cada intervalo visible en `Europe/Madrid`; los activos no anuncian años
-  futuros. Las columnas y ordenación por estado se conservan.
-- Todos los historiales basados en `SubmissionsTable` se paginan después de los
-  cálculos y el orden global, con tamaños 10, 25 y 50. En móvil sólo muestran
-  flechas y rango; en escritorio centran ese bloque y alinean el tamaño a la
-  derecha, sin indicador de página. Las páginas no vacías se completan con slots
-  presentacionales inaccesibles hasta el tamaño elegido. El perfil propio ya no
-  limita el historial a ocho envíos y el público no recibe filas privadas.
-- Los logos estáticos se solicitan directamente desde `/brand` y usan fallback
-  sólo ante un error real del navegador, sin detección server-side del filesystem.
-- Las pantallas internas usan breadcrumbs compartidos que siempre empiezan en
-  `Liga`; Home conserva su navegación principal sin migas.
-- `/submit` se conserva como herramienta legacy/interna para admins. El flujo
-  normal de puntuaciones sera la app local/MAME.
-- `lib/mock-data.ts` fue eliminado y ya no existe fallback de producto a datos
-  locales.
-- `NEXT_PUBLIC_DATA_SOURCE` ya no se usa.
+- Next.js App Router, TypeScript, Tailwind y Supabase como fuente real; no hay
+  fallback de producto a mocks.
+- Supabase Auth con email/password, sesión SSR refrescada por middleware,
+  onboarding inline en `/profile`, rutas privadas con `AccessRequired` y
+  comprobación server-side de `is_admin` en las rutas administrativas.
+- Perfiles propio y público con identidad, bio de hasta 150 caracteres,
+  trayectoria competitiva real, hover cards autenticadas, historial completo
+  en el perfil propio y avatar administrado.
+- Playtime identificado separado de su visibilidad pública. El propietario ve
+  su agregado; otro miembro sólo lo recibe cuando `play_time_public = true`.
+  `track_play_time` es legacy y no gobierna ni el registro ni la publicación.
+- Catálogo de juegos, temporadas, semanas, memberships, submissions,
+  benchmarks, resultados oficiales, clasificación de temporada, chat global y
+  cuestionario único de Home conectados a Supabase.
+- Panel admin para juegos, temporadas, semanas, submissions, benchmarks,
+  cuestionarios y publicación/regeneración manual de `weekly_results`.
+- `/submit` se conserva como herramienta legacy/interna para admins, pero el
+  botón de envío manual está deshabilitado. El contrato de integración vigente
+  es `POST /api/submissions/ingest` con sesión o bearer token Supabase.
+- `/supabase-test` y `/real-data-test` son diagnósticos protegidos para admin y
+  no forman parte de la navegación pública.
 
-## Supabase
+## MEDIA-UPLOADS-1
 
-- La migracion principal esta en `supabase/migrations/0001_initial_schema.sql`.
-- Las migraciones posteriores preparan submissions automaticas, memberships,
-  benchmarks, chat, Realtime, preferencias de perfil y metadatos múltiples de
-  juegos. `0012_optional_week_game.sql` hace opcional `weeks.game_id` para
-  semanas futuras no anunciadas.
-- `0016_game_week_assets.sql` añade `header_image_url` y `logo_image_url` a
-  `games` para preparar la cabecera visual de semana.
-- `0017_game_accent_colors.sql` añade `accent_color_primary` y
-  `accent_color_secondary` con validación `#RRGGBB`.
-- `0018_game_download_url.sql` añade `download_url` como enlace externo
-  opcional con validación `http/https`.
-- `0019_week_benchmark_icon_key.sql` añade `icon_key` a benchmarks para elegir
-  entre `speedometer_1`, `speedometer_2` y `speedometer_3`.
-- `0020_home_polls.sql` prepara el cuestionario único de Home con opciones,
-  votos, singleton y RLS.
-- `0021_home_poll_votes_realtime.sql` activa Realtime para votos del
-  cuestionario.
-- `0022_home_poll_option_images.sql` añade `image_url` opcional a las opciones
-  del cuestionario de Home.
-- `0024_media_uploads.sql` añade paths administrados, configura
-  `hsl-public-media` y limita RLS por propietario/admin. Su aplicación remota es
-  manual y debe preceder al deploy web.
-- `0023_profile_bio_max_length.sql` añade el límite de 150 caracteres para la
-  bio tras una precomprobación que falla sin truncar datos incompatibles.
-- `POST /api/submissions/ingest` crea submissions autenticadas.
-- `POST /api/cron/process-schedule` sincroniza calendario por fechas.
-- `POST /api/admin/weeks/[weekId]/weekly-results` genera resultados oficiales
-  para admins.
-- `/supabase-test` y `/real-data-test` siguen como rutas de diagnostico
-  protegidas para admin.
+Estado operativo confirmado en agosto de 2026:
 
-## Documentacion principal
+```text
+IMPLEMENTADA
+MIGRACIÓN 0024 APLICADA
+FUNCIONAL
+```
 
-- Conexion Supabase: `docs/supabase-setup.md`.
-- Auth: `docs/auth-setup.md`.
-- Carga de datos: `docs/data-loading.md`.
-- Submissions automaticas: `docs/submission-architecture.md`.
-- API de ingest: `docs/ingest-api.md`.
-- Resultados semanales: `docs/weekly-results.md`.
-- Clasificacion de temporada: `docs/season-standings.md`.
-- Chat: `docs/chat.md`.
-- Admin: `docs/admin.md`, `docs/admin-weeks.md`, `docs/admin-games.md`,
-  `docs/admin-seasons.md`.
-- Cuestionario de Home: `docs/home-polls.md`.
-- Perfiles y decisiones futuras de privacidad/media: `docs/profile-revamp.md`.
-- Archivo unificado y paginación: `docs/archive.md`.
-- Automatizacion: `docs/automation.md`.
-- Checklist de despliegue: `docs/deploy-checklist.md`.
+`MediaUpload` gestiona avatar, header y logo de juego e imágenes de opciones de
+cuestionario. Procesa JPEG, PNG o WebP en el navegador, genera WebP, muestra una
+preview y sólo sube al guardar. Los objetos viven en el bucket público
+`hsl-public-media` bajo paths nuevos y no sobrescribibles:
 
-## Preparacion de despliegue
+- `avatars/<USER_ID>/<UUID>.webp`;
+- `games/headers/<UUID>.webp`;
+- `games/logos/<UUID>.webp`;
+- `polls/options/<UUID>.webp`.
 
-El proyecto esta preparado para despliegue pendiente de ejecutar el checklist
-manual de `docs/deploy-checklist.md` en el entorno real de Vercel y Supabase.
+El guardado sigue `upload → persistencia → cleanup`. Si falla una subida o la
+persistencia, elimina los objetos nuevos ya creados; nunca elimina el anterior
+antes de confirmar la base de datos. Los campos URL anteriores siguen como
+compatibilidad: el path administrado es canónico para el lifecycle y la URL
+legacy actúa como fallback. Las URLs externas existentes no se rehostean ni se
+migran automáticamente.
 
-## Sigue pendiente
+Las capturas de submissions no usan este bucket. El Storage privado de
+evidencias sigue pendiente y necesitará un diseño separado.
 
-- App local y plugin MAME.
-- Aplicación manual de `0024_media_uploads.sql` en Supabase antes del deploy.
-- Capturas reales.
-- App local y plugin MAME como flujo principal de envios.
-- Panel completo de usuarios.
-- `PROFILE-PRIVACY-1`: controles persistentes de visibilidad y presencia.
-- `PROFILE-ANONYMIZATION-1`: baja por anonimización sin borrar historia.
-- `MEDIA-UPLOADS-1`: completado en código para avatar, juegos y cuestionarios;
-  conserva URLs legacy. La aplicación remota de `0024` es manual y pendiente.
-- Medallas y bonus.
-- Moderacion UI del chat.
-- Configuracion de Vercel Cron o equivalente para ejecutar
-  `/api/cron/process-schedule`.
-- Comentarios del cuestionario, historial de cuestionarios y múltiples
-  cuestionarios simultáneos.
-- `SUBMISSIONS-SERVER-PAGINATION-1`: estudiar consultas paginadas, conteos e
-  índices cuando el volumen ya no permita cargar historiales completos.
-- `POSTDEPLOY-MIGRATIONS-1`: consolidar migraciones para instalacion limpia con
-  estrategia de fresh install o snapshot, sin alterar produccion sin backup.
+## Archivo, filtros, paginación y marca
 
-## Proximo objetivo recomendado
+- `/archive` es un shell neutral, sin sección seleccionada ni consulta de
+  tablas; `/archive/weeks` y `/archive/seasons` son las secciones canónicas.
+- `ARCHIVO` en la navegación principal lleva a `/archive/weeks`; el breadcrumb
+  `Archivo` lleva a `/archive`. Los alias `/weeks`, `/seasons`, `/season` y
+  `/archive?section=...` mantienen redirecciones permanentes.
+- Semanas y temporadas filtran por `AÑO`. Un intervalo pertenece a todos los
+  años que cruza en `Europe/Madrid`; los activos se recortan a `now` para no
+  revelar años futuros. La columna, los badges y la ordenación por Estado se
+  conservan.
+- `SubmissionsTable` calcula intentos, mejor score, visibilidad y orden sobre el
+  conjunto completo y pagina después. Usa 10 por defecto y permite 10/25/50.
+  En móvil muestra `[‹] 1–10 de 24 [›]`; en escritorio centra ese bloque y
+  alinea `[10] por página` a la derecha. No muestra `1 / 3`.
+- Las páginas no vacías se completan con slots presentacionales
+  `aria-hidden=true`; no son submissions ni afectan conteos, orden, intentos,
+  score, visibilidad o rango. Con cero filas se usa `EmptyState`.
+- La navegación solicita `/brand/logo.png` y la landing
+  `/brand/logo-horizontal.png` directamente. El fallback textual sólo aparece
+  tras un `onError` real del navegador; no existe detección server-side con
+  `existsSync`, `process.cwd()` o `hasBrandLogo`.
 
-Aplicar y verificar `0024_media_uploads.sql` en Supabase y después desplegar la
-web que integra `MEDIA-UPLOADS-1`.
+## Cuestionario y media administrativa
 
-`POSTDEPLOY-ARCHIVE-1` está completado: la navegación usa `ARCHIVO`, mantiene las
-rutas de detalle y conserva los índices antiguos como redirecciones permanentes.
+El cuestionario de Home permite votar y cambiar el voto mientras esté abierto.
+Los resultados agregados aparecen después de votar; Realtime acelera los
+cambios y un polling de 10 segundos actúa como respaldo. Las imágenes de sus
+opciones usan `image_storage_path`, con `image_url` como fallback legacy, y la
+regla todo-o-nada evita mezclar opciones con y sin imagen. El guardado y el
+reinicio aplican rollback y cleanup conjuntos mediante el lifecycle compartido.
+
+Los formularios de juego usan el mismo uploader para header y logo. Conservan
+internamente URLs legacy y `games.image_url`, además de `download_url`, colores
+de acento y metadatos múltiples, pero no muestran inputs URL para las imágenes
+administradas.
+
+## Calendario y automatización
+
+Las vistas derivan el estado actual de semanas y temporadas a partir de sus
+fechas, por lo que una UI no necesita esperar al cron para mostrar apertura,
+tramo final, cierre o temporada activa. `POST /api/cron/process-schedule`,
+protegido por `CRON_SECRET`, sigue siendo necesario para persistir estados y
+efectos laterales:
+
+- sincroniza `draft`, `active`, `frozen` y `closed`;
+- recalcula `is_hidden` de submissions válidas y las revela al cierre;
+- sincroniza temporadas fechadas como `draft`, `active` o `completed`.
+
+No genera `weekly_results`: la publicación oficial continúa siendo una acción
+admin explícita y el cron omite semanas ya `published`. La edición admin sí usa
+la reconciliación compartida para retirar `weekly_results` cuando un cambio de
+fechas reabre una semana. La configuración de Vercel Cron o de un programador
+equivalente no está versionada en el repositorio.
+
+## Migraciones e infraestructura
+
+Secuencia relevante del repositorio, en orden:
+
+1. `0022_home_poll_option_images.sql`: añade la URL legacy de imágenes de poll.
+2. `0023_profile_bio_max_length.sql`: añade el límite de 150 caracteres sin
+   truncar datos incompatibles. **Aplicada remotamente**.
+3. `0024_media_uploads.sql`: añade paths, constraints, bucket y policies de
+   media pública. **Aplicada remotamente**.
+4. `0025_play_time.sql`: define el ledger, agregados, RLS y RPC de Playtime y
+   formaliza `play_time_public`. Está en el repositorio y el código web lo usa;
+   esta auditoría no confirma su aplicación remota.
+
+En un entorno nuevo se aplican todas las migraciones ausentes, en orden, antes
+de desplegar código que consulte sus columnas. En el entorno remoto actual no
+se deben volver a ejecutar `0023` ni `0024`: ya están aplicadas. La aplicación
+de una migración y el despliegue de una revisión web son estados distintos.
+
+## Estado de despliegue
+
+El repositorio contiene el comportamiento descrito y `0023`/`0024` están
+confirmadas en la infraestructura remota. Esta auditoría no dispone de una
+fuente fiable para identificar qué SHA web está actualmente en producción, ni
+afirma que HEAD esté desplegado. `docs/deploy-checklist.md` es un procedimiento
+reutilizable para cada release, no una prueba de que haya un deploy pendiente o
+completado.
+
+## Documentación por dominio
+
+- Estado, datos y despliegue: [README](../README.md),
+  [modelo de datos](database.md), [carga de datos](data-loading.md),
+  [Supabase setup](supabase-setup.md) y
+  [checklist de despliegue](deploy-checklist.md).
+- Auth y perfiles: [Auth](auth-setup.md), [perfiles](profile-revamp.md) e
+  [imágenes administradas](media-uploads.md).
+- Archivo y competición: [Archivo](archive.md),
+  [resultados semanales](weekly-results.md),
+  [clasificación de temporada](season-standings.md) y
+  [benchmarks](week-benchmarks.md).
+- Submissions e integración: [arquitectura](submission-architecture.md),
+  [ingest](ingest-api.md), [contrato para clientes](launcher-api.md),
+  [pruebas SQL](test-submissions.md) y
+  [Storage privado futuro](supabase-storage.md).
+- Administración: [visión general](admin.md), [juegos](admin-games.md),
+  [temporadas](admin-seasons.md), [semanas](admin-weeks.md) y
+  [cuestionario](home-polls.md).
+- Servicios transversales: [chat](chat.md) y
+  [automatización](automation.md).
+
+La documentación del cliente local se mantiene fuera de este estado web.
+
+## Roadmap web
+
+### 1. Próximo objetivo: PROFILE-ANONYMIZATION-1
+
+Diseñar la baja de cuenta eliminando o anulando la identidad personal sin
+destruir `submissions`, `weekly_results`, memberships, puntos, posiciones ni
+estadísticas históricas. La tarea futura deberá resolver Auth, email, username,
+avatar, bio, chat, votos, identificadores, FKs, auditoría y la representación
+de un usuario eliminado. Todavía no hay schema, endpoints ni UX definitivos.
+
+### 2. Después: PROFILE-PRESENCE-1
+
+Diseñar online/offline, jugando ahora, última actividad, expiración de heartbeat
+y controles de visibilidad. No existe todavía presencia, heartbeat público ni
+última conexión, y Playtime no debe usarse para inferirlos.
+
+### Otros pendientes reales
+
+- panel completo de usuarios y gestión avanzada de memberships;
+- medallas, logros y bonus;
+- moderación UI del chat e historial de ediciones;
+- Storage privado de capturas y evidencias;
+- comentarios, historial y múltiples cuestionarios de Home;
+- `SUBMISSIONS-SERVER-PAGINATION-1` cuando cargar el conjunto completo deje de
+  ser viable;
+- consolidación documentada para instalaciones limpias sin reescribir la
+  historia de migraciones aplicada;
+- configuración operativa de un programador para el endpoint cron.
+
+`MEDIA-UPLOADS-1`, la aplicación remota de `0023`/`0024` y el pulido de Archivo,
+filtros, paginación y marca están cerrados y no forman parte del roadmap
+pendiente.

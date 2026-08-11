@@ -73,12 +73,14 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
       assert.notEqual(favorite.color, "rgba(0, 0, 0, 0)");
     }
     assert.deepEqual(theme.selectedBadge.active, theme.selectedBadge.other);
-    assert.equal(theme.badges.LISTO.color, theme.semanticColors.success);
-    assert.equal(theme.badges.LEGACY.color, theme.semanticColors.warning);
-    assert.equal(theme.badges.AVISO.color, theme.semanticColors.warning);
+    assert.equal(theme.badges.ACTIVA.color, theme.semanticColors.success);
+    assert.equal(theme.badges.INACTIVA.color, theme.semanticColors.warning);
+    assert.equal(theme.badges.CERRADA.color, theme.semanticColors.warning);
+    assert.equal(theme.badges["SIN VINCULAR"].color, theme.semanticColors.warning);
+    assert.equal(theme.badges["SIN DATOS"].color, theme.semanticColors.textMuted);
     assert.equal(theme.badges["REQUIERE ATENCION"].color, theme.semanticColors.error);
-    assert.notEqual(theme.badges.LISTO.background, theme.badges.LEGACY.background);
-    assert.notEqual(theme.badges.LEGACY.background, theme.badges["REQUIERE ATENCION"].background);
+    assert.notEqual(theme.badges.ACTIVA.background, theme.badges.INACTIVA.background);
+    assert.notEqual(theme.badges.INACTIVA.background, theme.badges["REQUIERE ATENCION"].background);
   }
   assert.deepEqual(result.rows.map(({ columns }) => columns), [2, 3, 4]);
   result.rows.forEach(({ cards }) => {

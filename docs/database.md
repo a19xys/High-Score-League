@@ -1,6 +1,6 @@
 ﻿# High Score League database model
 
-Este documento describe el esquema de Supabase del MVP. La app usa estas tablas
+Este documento describe el esquema actual de Supabase. La app usa estas tablas
 como fuente real; las migraciones viven en `supabase/migrations/`.
 
 ## Tablas principales
@@ -8,8 +8,8 @@ como fuente real; las migraciones viven en `supabase/migrations/`.
 ### profiles
 
 Representa a los jugadores. Cada fila está asociada a `auth.users(id)` y guarda
-datos públicos de liga: `username`, siglas, `avatar_url` opcional, bio pública,
-preferencia de registro de tiempo e indicador `is_admin`.
+datos públicos de liga: `username`, siglas, avatar, bio pública, visibilidad de
+Playtime e indicador `is_admin`.
 
 La identidad visible principal son las siglas de 3 caracteres. Debajo se muestra
 el username con `@`, por ejemplo `LVC` y `@lauravc`.
@@ -30,17 +30,20 @@ La bandera `is_admin` se usa para políticas RLS de gestión. El primer admin de
 crearse manualmente desde SQL Dashboard o con service role, porque un usuario
 normal no puede promocionarse a si mismo mediante las politicas iniciales.
 
-Desde `0010_profile_preferences.sql` incluye:
+Desde `0010_profile_preferences.sql` incluye `bio` y `track_play_time`:
 
 - `bio`: descripción pública opcional del jugador. Puede ser `null`, pero si
   existe no puede quedar en blanco. Desde `0023_profile_bio_max_length.sql`
   tampoco puede superar 150 caracteres (`char_length(bio) <= 150`). La
   migración comprueba primero los datos existentes y falla de forma explícita
   si encuentra valores incompatibles; nunca los trunca.
-- `play_time_public`: visibilidad del agregado de Playtime para otros jugadores.
-  Es `false` por defecto y el propietario conserva siempre la lectura.
-- `track_play_time`: columna legacy; ya no gobierna el registro del launcher ni
-  se migra a la preferencia pública.
+- `track_play_time`: columna legacy; ya no gobierna el registro identificado de
+  Playtime ni se migra a la preferencia pública.
+
+`0025_play_time.sql` añade `play_time_public`: controla la visibilidad del
+agregado de Playtime para otros jugadores, vale `false` por defecto y el
+propietario conserva siempre la lectura. `track_play_time` no gobierna este
+control ni el registro identificado.
 
 `avatar_url` se conserva como compatibilidad. `0024_media_uploads.sql` añade
 `avatar_storage_path`; el resolver prefiere el objeto de `hsl-public-media` y
@@ -55,18 +58,18 @@ del estado competitivo de la semana. RLS permite leer los agregados al dueño,
 al administrador o a otros usuarios autenticados solo si
 `play_time_public = true`.
 
-El launcher guarda eventos offline por jugador y los sincroniza sin feedback.
-Los UUID de evento hacen los reintentos idempotentes. Playtime no representa
-presencia, última actividad, ranking ni submissions; todavía no hay descarga de
-totales remotos para fusionar varios launchers.
+El endpoint `POST /api/launcher/playtime/ingest` llama a la RPC con la sesión
+autenticada. Los UUID de evento hacen los reintentos idempotentes. Playtime no
+representa presencia, última actividad, ranking ni submissions; no debe usarse
+para inferir ninguno de esos estados.
 
 ### seasons
 
 Representa una temporada completa, por ejemplo `Temporada I`. Tiene `slug`,
 `version`, fechas opcionales y estado `draft`, `active` o `completed`.
 
-El panel admin mínimo permite crear y editar temporadas, pero no las borra ni
-crea semanas automáticamente.
+El panel admin permite crear, editar y borrar temporadas cuando el borrado es
+seguro. Crear una temporada no crea semanas automáticamente.
 
 ### games
 
@@ -126,7 +129,7 @@ control:
 - `is_valid`: permite invalidar una puntuación desde administración.
 - `source`: origen de la submission (`web`, `mame_memory`, `mame_plugin`,
   `local_app` o `admin_import`).
-- `detected_at`: momento detectado por MAME o la app local.
+- `detected_at`: momento de detección declarado por el cliente.
 - `submitted_at`: momento recibido por la web; lo fuerza el servidor.
 - `rom_name`, `mame_version`, `client_version`: contexto técnico del evento.
 - `raw_event`: payload original para depuración y auditoría.
@@ -135,13 +138,12 @@ control:
 - `screenshot_mime_type`: tipo MIME informado para la captura optimizada.
 - `screenshot_size_bytes`: tamaño final de la captura en bytes, si se conoce.
 
-Las capturas son opcionales desde `0002_submission_events.sql`, porque el flujo
-futuro principal será automático: plugin MAME, evento JSON local, app local y API
-web. La subida manual desde la web queda como fallback o herramienta
-provisional.
+Las capturas son opcionales desde `0002_submission_events.sql`. El flujo web
+vigente de integración es `POST /api/submissions/ingest`; `/submit` queda como
+herramienta legacy/interna para admins y su botón de envío está deshabilitado.
 
-La app permite subir puntuaciones aunque no superen el récord personal. La mejor
-puntuación semanal de cada jugador se podrá calcular desde esta tabla, mientras
+La API permite registrar puntuaciones aunque no superen el récord personal. La
+mejor puntuación semanal de cada jugador se calcula desde esta tabla, mientras
 el número de subidas cuenta todas las submissions válidas de la semana. El
 resultado final publicado queda separado en `weekly_results`.
 
@@ -151,7 +153,7 @@ Representa resultados finales publicados por semana. Guarda una fila estable por
 jugador y semana con `final_score`, `rank`, `league_points` y flags para primer,
 segundo o tercer puesto.
 
-La clasificación de temporada podrá agregarse desde esta tabla sumando puntos y
+La clasificación de temporada se agrega desde esta tabla sumando puntos y
 contando primeros, segundos y terceros puestos.
 
 Desde `0003_season_memberships_and_results.sql`, estos resultados se calculan
@@ -253,7 +255,7 @@ que la opción votada pertenece al mismo cuestionario.
 El panel admin `/admin/polls` permite editar pregunta, cierre, estado, opciones,
 imágenes administradas o legacy, estadísticas agregadas y reinicio del
 cuestionario.
-La tarjeta pública en Home permite votar, cambiar voto y ver resultados
+La tarjeta de la Home privada permite votar, cambiar voto y ver resultados
 agregados tras votar, con Realtime y polling de respaldo cada 10 segundos.
 Comentarios e historial de cuestionarios quedan para una fase posterior.
 
@@ -277,8 +279,9 @@ ordenarse por `username` o `initials`, pero ese orden no rompe el empate.
 El movimiento de posición compara la posición competitiva compartida actual
 contra la posición competitiva compartida de la semana anterior.
 
-No se calcula automaticamente en esta fase. Mas adelante el panel admin podra
-generar o revisar estas filas antes de publicar una semana.
+La clasificación y el movimiento se calculan desde `weekly_results`. La creación
+o regeneración de esas filas sigue siendo una acción manual del admin al
+publicar una semana.
 
 ## Relaciones
 
@@ -306,9 +309,8 @@ generar o revisar estas filas antes de publicar una semana.
 
 1. Un admin crea una temporada, juegos y semanas.
 2. Una semana pasa a `active`.
-3. Los jugadores autenticados insertan filas en `submissions` con su puntuación.
-   En una fase posterior, la API de ingestión recibirá eventos automáticos desde
-   la app local.
+3. Un cliente autenticado envía eventos a `POST /api/submissions/ingest`, que
+   deriva el jugador de la sesión y crea filas en `submissions`.
 4. En estado `active`, una submission puede insertarse visible u oculta.
 5. En estado `frozen`, una submission solo puede insertarse con
    `is_hidden = true`.
@@ -343,9 +345,9 @@ La interfaz formatea rangos y horas en `Europe/Madrid`. Los tiempos relativos,
 como `hace 4 días`, incluyen la fecha/hora exacta en el atributo HTML `title`
 para poder verla al pasar el ratón.
 
-## Uso en el MVP
+## Uso actual
 
-Para el MVP inicial se necesitan:
+Las tablas centrales son:
 
 - `profiles` para jugadores y admins.
 - `seasons`, `games`, `weeks` para calendario competitivo.
@@ -353,18 +355,17 @@ Para el MVP inicial se necesitan:
 - `weekly_results` para resultados publicados y clasificación estable.
 - `league_chat_messages` para el chat global real de la liga.
 
-En la interfaz, `positionChange` simula el movimiento de cada jugador
-respecto a la semana anterior. Más adelante se calculará comparando resultados
-publicados en `weekly_results`.
+En la interfaz, `positionChange` compara la clasificación actual con la anterior
+excluyendo la última semana con resultados oficiales.
 
-## RLS inicial
+## RLS
 
 Todas las tablas principales tienen Row Level Security activado.
 
 - `profiles`: usuarios autenticados pueden leer perfiles; cada usuario puede
   insertar o actualizar su propio perfil sin poder activar `is_admin`; admins
-  pueden gestionar perfiles. El perfil usa `username`, `initials`,
-  `avatar_url` opcional e `is_admin`.
+  pueden gestionar perfiles. El avatar usa `avatar_storage_path` como referencia
+  administrada y `avatar_url` como compatibilidad.
 - `seasons`, `games`, `weeks`: usuarios autenticados pueden leer; solo admins
   pueden insertar, actualizar o borrar.
 - `submissions`: usuarios autenticados pueden leer submissions visibles y
@@ -393,23 +394,26 @@ Todas las tablas principales tienen Row Level Security activado.
 - `home_poll_votes`: usuarios autenticados solo pueden leer su propio voto y
   votar o cambiar su voto en un cuestionario habilitado y abierto; admins pueden
   gestionar todo.
+- `play_time_events`: sólo admins pueden leer el ledger; la escritura directa
+  está revocada y el ingest autenticado usa la RPC.
+- `player_game_play_time` y `player_play_time_totals`: lectura para propietario,
+  admin o miembros autenticados cuando `play_time_public = true`.
 
 Nota: si la home pública debe leer datos directamente desde Supabase sin sesión,
 habrá que decidir más adelante si se añaden políticas `anon` de solo lectura o
 si esas lecturas se resuelven desde servidor.
 
-## Queda para mas adelante
+## Queda para más adelante
 
-- Trigger de creacion automatica de `profiles` al registrarse un usuario.
-- Consultas reales desde Next.js.
-- Subida real a Supabase Storage.
-- Panel admin completo para revisar y publicar resultados.
-- Panel admin completo de temporadas, juegos y usuarios.
-- Vistas SQL para leaderboard semanal y clasificación de temporada, incluyendo
-  movimiento de posición respecto a la semana anterior.
+- `PROFILE-ANONYMIZATION-1`, antes de Presence, para retirar identidad sin
+  destruir historia competitiva.
+- `PROFILE-PRESENCE-1` con heartbeat, expiración y privacidad propios.
+- Panel completo de usuarios y gestión avanzada de memberships.
+- Storage privado y subida de capturas/evidencias.
+- Medallas, logros y bonus.
 - Auditoría de cambios administrativos.
 - Metadatos adicionales de capturas como `original_file_name`, si se necesitan
-  para moderacion u optimizacion.
+  para moderación u optimización.
 
 ## Tema claro/oscuro
 
@@ -434,16 +438,18 @@ La compresion real no se implementa todavia.
 El esquema ya reserva `screenshot_mime_type` y `screenshot_size_bytes` para
 guardar el tipo y tamano del archivo resultante.
 
-## Aplicacion manual en Supabase Dashboard
+## Instalación en un entorno nuevo
 
-1. Abrir el proyecto en Supabase.
-2. Ir a `SQL Editor`.
-3. Crear una nueva query.
-4. Pegar el contenido de `supabase/migrations/0001_initial_schema.sql`.
-5. Ejecutar la query.
-6. Revisar que las tablas existen en `Table Editor`.
-7. Crear manualmente el primer perfil admin o actualizar `is_admin = true` para
-   el usuario que vaya a gestionar la liga.
+Aplicar todas las migraciones ausentes de `supabase/migrations/` en orden
+numérico, no sólo `0001_initial_schema.sql`, y verificar después tablas,
+constraints, RLS, Realtime y Storage. `0023` debe preceder a `0024`, y `0024`
+debe preceder a `0025`.
 
-Si se usa Supabase CLI mas adelante, el archivo puede aplicarse como migracion
-normal desde la carpeta `supabase/migrations`.
+En el entorno remoto actual `0023_profile_bio_max_length.sql` y
+`0024_media_uploads.sql` ya están aplicadas y no deben repetirse. La aplicación
+remota de `0025_play_time.sql` no se ha confirmado en esta auditoría. El
+procedimiento completo y las comprobaciones están en el
+[checklist de despliegue](deploy-checklist.md).
+
+El primer perfil admin se crea manualmente o se actualiza con privilegios de
+servidor; un usuario normal nunca puede asignarse `is_admin = true`.

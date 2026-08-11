@@ -271,7 +271,7 @@ test("stable membership outcomes replace checking and remain retryable through e
     ["not_member", "not_member"],
     ["error", "error"],
     ["unknown", "unknown"],
-    ["unauthenticated", "requires-login"],
+    ["unauthenticated", "unknown"],
   ];
 
   for (const [technical, visible] of cases) {

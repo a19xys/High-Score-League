@@ -12,6 +12,7 @@ let switchAccountCalls = 0;
 let accountFixtureMode = "existing";
 let sessionFixtureMode = "valid";
 let membershipFixtureStatus = "member";
+let weekFixtureState = null;
 const forgottenAccountIds = new Set();
 const fixtureAvatarUrl = process.env.HSL_ACCOUNT_AVATAR_FILE_URL || null;
 
@@ -21,6 +22,27 @@ const titles = [
   "GALAGA",
   "DONKEY KONG",
 ];
+
+const publicWeekStates = ["active", "inactive", "closed", "unlinked", "unknown"];
+
+function weekCapability(publicState, weekId) {
+  const linked = publicState !== "unlinked";
+  return {
+    canPlayCompetition: publicState === "active",
+    conclusive: publicState !== "unknown",
+    publicState,
+    reason: publicState === "active"
+      ? "week-active"
+      : publicState === "inactive"
+        ? "week-inactive"
+        : publicState === "closed"
+          ? "week-closed"
+          : publicState === "unlinked" ? "not-linked" : "not-checked",
+    seasonId: linked ? `season-${weekId}` : null,
+    source: publicState === "unknown" ? "none" : "fixture",
+    weekId: linked ? weekId : null,
+  };
+}
 
 const packs = Array.from({ length: 40 }, (_, index) => ({
   cover: { url: "./assets/brand/logo-horizontal.png" },
@@ -35,6 +57,7 @@ const packs = Array.from({ length: 40 }, (_, index) => ({
   status: index % 10 === 3 ? "error" : index % 10 === 2 ? "warning" : "ok",
   subtitle: index === 1 ? "Pack de desarrollo" : `Semana ${index + 1}`,
   title: `${titles[index % titles.length]} ${index + 1}`,
+  weekCapability: weekCapability(publicWeekStates[index % publicWeekStates.length], `week-${index}`),
   weekId: `week-${index}`,
   weekNumber: index + 1,
   year: String(1980 + index),
@@ -72,6 +95,60 @@ function snapshot({ samePack = false } = {}) {
   const noActiveSession = accountFixtureMode === "remembered";
   const heroChecking = heroStatus === "checking" || membershipFixtureStatus === "checking";
   const heroError = heroStatus === "error";
+  const currentWeekCapability = weekFixtureState
+    ? weekCapability(weekFixtureState, pack.weekId)
+    : pack.weekCapability;
+  const hasSession = accountFixtureMode !== "empty" && !noActiveSession && sessionFixtureMode !== "revoked";
+  const requiresLogin = sessionFixtureMode === "revoked";
+  const effectiveMembershipStatus = membershipFixtureStatus === "cached_error" ? "member" : membershipFixtureStatus;
+  const member = effectiveMembershipStatus === "member";
+  const canPractice = !heroError;
+  const canPlayCompetition = canPractice
+    && !heroChecking
+    && hasSession
+    && !requiresLogin
+    && member
+    && currentWeekCapability.publicState === "active";
+  const competitionReason = !canPractice
+    ? "local-pack-unavailable"
+    : requiresLogin
+      ? "requires-login"
+      : !hasSession
+        ? "no-account"
+        : effectiveMembershipStatus === "not_member"
+          ? "not-member"
+          : !member
+            ? "membership-unknown"
+            : currentWeekCapability.publicState === "inactive"
+              ? "week-inactive"
+              : currentWeekCapability.publicState === "closed"
+                ? "week-closed"
+                : currentWeekCapability.publicState === "unlinked" ? "week-unlinked" : "week-unknown";
+  const membership = heroChecking
+    ? {
+        canPlayCompetition: false,
+        canSubmit: false,
+        generation: 7,
+        resolution: {
+          accountId: activeUserId,
+          active: true,
+          contextCurrent: true,
+          generation: 7,
+          instanceKey: pack.instanceKey,
+          weekId: pack.weekId,
+        },
+        status: "checking",
+        weekId: pack.weekId,
+      }
+    : membershipFixtureStatus === "not_member"
+      ? { canPlayCompetition: false, canSubmit: false, status: "not_member", weekId: pack.weekId }
+      : membershipFixtureStatus === "unauthenticated"
+        ? { canPlayCompetition: false, canSubmit: false, status: "unauthenticated", weekId: pack.weekId }
+        : membershipFixtureStatus === "cached_error"
+          ? { canPlayCompetition: true, canSubmit: false, effectiveStatus: "member", revalidationRequired: true, status: "unknown", weekId: pack.weekId }
+          : membershipFixtureStatus === "unknown"
+            ? { canPlayCompetition: false, canSubmit: false, remoteFailure: "fixture", status: "unknown", weekId: pack.weekId }
+            : { canPlayCompetition: true, canSubmit: true, effectiveStatus: "member", status: "member", weekId: pack.weekId };
   return {
     launcherStateRevision,
     accounts: {
@@ -80,6 +157,14 @@ function snapshot({ samePack = false } = {}) {
     },
     autoSync: { status: "idle" },
     bridge: {},
+    competitionAccess: {
+      canPlayCompetition,
+      canPractice,
+      canSubmitNow: canPlayCompetition && connectivityStatus === "connected",
+      reason: canPlayCompetition ? "competition-ready" : competitionReason,
+      requiresLogin,
+      weekStatus: currentWeekCapability.publicState,
+    },
     game: {
       assets: { logo: { url: "./assets/brand/logo-horizontal.png" } },
       developer: "HSL Fixture Studio",
@@ -96,10 +181,14 @@ function snapshot({ samePack = false } = {}) {
       weekId: pack.weekId,
       weekNumber: pack.weekNumber,
       year: pack.year,
+      weekCapability: currentWeekCapability,
     },
     library: {
       directory: { available: true, configured: true, path: "C:/fixture-packs" },
-      packs: packs.map((libraryPack) => ({ ...libraryPack })),
+      packs: packs.map((libraryPack) => ({
+        ...libraryPack,
+        weekCapability: libraryPack.id === pack.id ? currentWeekCapability : libraryPack.weekCapability,
+      })),
       preferences: {
         filtersOpen: false,
         sidebarWidth: 440,
@@ -110,34 +199,20 @@ function snapshot({ samePack = false } = {}) {
       status: "available-populated",
       totals: { packs: packs.length },
     },
-    membership: heroChecking
-      ? {
-          canPlayCompetition: false,
-          canSubmit: false,
-          generation: 7,
-          resolution: {
-            accountId: activeUserId,
-            active: true,
-            contextCurrent: true,
-            generation: 7,
-            instanceKey: pack.instanceKey,
-            weekId: pack.weekId,
-          },
-          status: "checking",
-          weekId: pack.weekId,
-        }
-      : membershipFixtureStatus === "not_member"
-        ? { canPlayCompetition: false, canSubmit: false, status: "not_member", weekId: pack.weekId }
-        : membershipFixtureStatus === "unauthenticated"
-          ? { canPlayCompetition: false, canSubmit: false, status: "unauthenticated", weekId: pack.weekId }
-          : membershipFixtureStatus === "unknown"
-            ? { canPlayCompetition: true, canSubmit: false, remoteFailure: "fixture", status: "unknown", weekId: pack.weekId }
-            : { canPlayCompetition: true, status: "member" },
+    membership,
     notices: [],
     queue: { totals: { failed: 0, pending: 0, sent: 0 } },
     readiness: {
-      canPlayCompetition: !heroError && !heroChecking && !["not_member", "unauthenticated"].includes(membershipFixtureStatus),
-      canPractice: !heroError,
+      canPlayCompetition,
+      canPractice,
+      competitionAccess: {
+        canPlayCompetition,
+        canPractice,
+        canSubmitNow: canPlayCompetition && connectivityStatus === "connected",
+        reason: canPlayCompetition ? "competition-ready" : competitionReason,
+        requiresLogin,
+        weekStatus: currentWeekCapability.publicState,
+      },
       blockers: heroChecking ? ["Comprobando participaciÃ³n."] : [],
       checks: heroError
         ? [{ id: "rom", level: "error" }]
@@ -150,8 +225,8 @@ function snapshot({ samePack = false } = {}) {
     },
     remoteConfiguration: { status: "configured" },
     selection: { activeInstanceKey: pack.instanceKey },
-    session: accountFixtureMode === "empty" || noActiveSession
-      ? { hasSession: false, userId: null }
+    session: accountFixtureMode === "empty" || noActiveSession || requiresLogin
+      ? { hasSession: false, remoteUsable: false, requiresLogin, status: requiresLogin ? "revoked" : "missing", userId: requiresLogin ? activeUserId : null }
       : {
           email: accounts.find((account) => account.userId === activeUserId)?.email || "fixture@example.test",
           hasSession: true,
@@ -162,6 +237,7 @@ function snapshot({ samePack = false } = {}) {
           terminal: false,
           userId: activeUserId,
         },
+    weekCapability: currentWeekCapability,
   };
 }
 
@@ -274,13 +350,18 @@ contextBridge.exposeInMainWorld("hslFixture", {
     launcherStateListener?.({ state: snapshot() });
   },
   emitMembershipStatus(status) {
-    membershipFixtureStatus = ["checking", "not_member", "unauthenticated", "unknown"].includes(status) ? status : "member";
+    membershipFixtureStatus = ["cached_error", "checking", "not_member", "unauthenticated", "unknown"].includes(status) ? status : "member";
     heroStatus = "ready";
     launcherStateRevision += 1;
     launcherStateListener?.({ state: snapshot() });
   },
   emitSessionStatus(status) {
-    sessionFixtureMode = status === "deferred" ? "deferred" : "valid";
+    sessionFixtureMode = ["deferred", "revoked"].includes(status) ? status : "valid";
+    launcherStateRevision += 1;
+    launcherStateListener?.({ state: snapshot() });
+  },
+  emitWeekStatus(status) {
+    weekFixtureState = ["active", "inactive", "closed", "unlinked", "unknown"].includes(status) ? status : null;
     launcherStateRevision += 1;
     launcherStateListener?.({ state: snapshot() });
   },

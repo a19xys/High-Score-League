@@ -4,6 +4,7 @@ const { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, powerMonito
 const service = require("./launcher-service");
 const { createConnectivityService, isCommittedConnected } = require("../src/connectivity-service");
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
+const { createWeekCapabilitiesService } = require("../src/week-capabilities-service");
 const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
 const { createMembershipStartupCoordinator, membershipResolutionContext } = require("../src/membership-startup-coordinator");
@@ -39,10 +40,13 @@ let themeAuthority = null;
 let localStartupPromise = Promise.resolve();
 let connectivity = null;
 let rankingCapabilities = null;
+let weekCapabilities = null;
 let topologyMonitor = null;
 let activeRankingWeekId = null;
 let removeConnectivityListener = null;
 let removeRankingListener = null;
+let removeWeekCapabilitiesListener = null;
+let weekAuthorityStartupPromise = Promise.resolve();
 let previousReachability = "unknown";
 let lastCommittedAt = null;
 
@@ -257,6 +261,20 @@ async function publishAccountProfileState() {
   });
 }
 
+async function publishWeekCapabilityState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const revision = launcherStateAuthority.reserveRevision();
+  const state = await service.getLauncherState({ deferRemoteMembership: true });
+  const syncedState = syncRemoteContext(state, {
+    coordinateMembership: false,
+    scheduleAutoSubmit: false,
+  });
+  sendRendererEvent("launcher:state", {
+    competitionAuthority: true,
+    state: launcherStateAuthority.publishSnapshot(syncedState, revision),
+  });
+}
+
 function schedulePendingAutoSubmit(trigger) {
   if (membershipCoordinationPaused()) return;
   pendingAutoSubmitCoordinator?.request(trigger).catch(() => {});
@@ -267,7 +285,7 @@ function syncRemoteContext(state, options = {}) {
     state.developerToolsEnabled = developerToolsEnabled;
     state.remoteConfiguration = remoteConfiguration;
   }
-  if (!state || !connectivity || !rankingCapabilities) return state;
+  if (!state || !connectivity || !rankingCapabilities || !weekCapabilities) return state;
   const nextUserId = state.session?.hasSession ? state.session.userId || null : null;
   const accountChanged = nextUserId !== activeUserId;
   if (accountChanged) {
@@ -284,9 +302,15 @@ function syncRemoteContext(state, options = {}) {
     packs: state.library?.packs || [],
     webBaseUrl: trustedHslOrigin,
   });
+  weekCapabilities.updateContext({
+    packs: state.library?.packs || [],
+    webBaseUrl: trustedHslOrigin,
+  });
+  state = service.applyCompetitionAuthorityState(state);
 
   if (isCommittedConnected(connectivity.getState())) {
     rankingCapabilities.refresh("launcher-state").catch(() => {});
+    weekCapabilities.refresh("launcher-state").catch(() => {});
     if (accountChanged) service.requestPlayTimeSync("account-change").catch(() => {});
   }
 
@@ -299,9 +323,9 @@ function syncRemoteContext(state, options = {}) {
     schedulePendingAutoSubmit(accountChanged ? "account-change" : "state-ready");
   }
 
-  return options.coordinateMembership === false || membershipCoordinationPaused()
-    ? state
-    : membershipStartupCoordinator?.observeState(state, options.membershipTrigger || "launcher-state") || state;
+  if (options.coordinateMembership === false || membershipCoordinationPaused()) return state;
+  const coordinated = membershipStartupCoordinator?.observeState(state, options.membershipTrigger || "launcher-state") || state;
+  return service.applyCompetitionAuthorityState(coordinated);
 }
 
 async function withRemoteContext(promise) {
@@ -358,6 +382,20 @@ function initializeRemoteServices() {
     fetchImpl: (url, init) => net.fetch(url, init),
     getConnectivityState: () => connectivity.getState(),
     onTransportFailure: () => requestConnectivityConfirmation("ranking-product-signal"),
+  });
+  weekCapabilities = createWeekCapabilitiesService({
+    fetchImpl: (url, init) => net.fetch(url, init),
+    getConnectivityState: () => connectivity.getState(),
+    onTransportFailure: () => requestConnectivityConfirmation("week-capabilities-product-signal"),
+    userDataDir: app.getPath("userData"),
+  });
+  weekAuthorityStartupPromise = weekCapabilities.initialize();
+  service.setCompetitionAuthorityProvider({
+    getContext: () => ({
+      connected: isCommittedConnected(connectivity.getState()),
+      ...weekCapabilities.getAuthorityContext(),
+    }),
+    getWeekCapability: (weekId) => weekCapabilities.getCapability(weekId),
   });
   topologyMonitor = createNetworkTopologyMonitor({
     onChange(change) {
@@ -465,6 +503,7 @@ function initializeRemoteServices() {
       ...rankingCapabilities.getDiagnostics(activeRankingWeekId),
       renderer: rankingRendererTiming,
     },
+    weekCapabilities: weekCapabilities.getDiagnostics(),
     libraryRemoteContext: { ...lastLibraryRemoteContext },
   }));
   removeConnectivityListener = connectivity.subscribe((state) => {
@@ -474,6 +513,7 @@ function initializeRemoteServices() {
     }
     previousReachability = state.reachability;
     rankingCapabilities.updateDeployment();
+    weekCapabilities.updateDeployment();
     sendRendererEvent("launcher:connectivity-state", state);
     if (state.reachability === "offline") service.cancelAccountProfileSync("external-abort");
     if (state.reachability === "offline") service.cancelPlayTimeSync("external-abort");
@@ -499,11 +539,18 @@ function initializeRemoteServices() {
         becameConnected ? (state.source === "startup" ? "startup" : "connectivity-restored") : manual ? "manual-connectivity" : "connectivity-confirmed",
       ).catch(() => {});
       rankingCapabilities.refresh(becameConnected ? "connectivity-restored" : "connectivity-confirmed").catch(() => {});
+      weekCapabilities.refresh(
+        becameConnected ? "connectivity-restored" : "connectivity-confirmed",
+        { force: becameConnected },
+      ).catch(() => {});
       if (becameConnected) schedulePendingAutoSubmit(state.source === "startup" ? "startup" : "connectivity-restored");
     }
   });
   removeRankingListener = rankingCapabilities.subscribe((state) => {
     sendRendererEvent("launcher:ranking-capabilities-state", state);
+  });
+  removeWeekCapabilitiesListener = weekCapabilities.subscribe(() => {
+    publishWeekCapabilityState().catch(() => {});
   });
 }
 
@@ -539,15 +586,19 @@ async function stopRemoteServices() {
   pendingAutoSubmitCoordinator?.shutdown("shutdown");
   removeConnectivityListener?.();
   removeRankingListener?.();
+  removeWeekCapabilitiesListener?.();
   removeConnectivityListener = null;
   removeRankingListener = null;
+  removeWeekCapabilitiesListener = null;
   rankingCapabilities?.stop();
+  weekCapabilities?.stop();
   topologyMonitor?.stop();
   if (sessionMaintenanceTimer !== null) clearInterval(sessionMaintenanceTimer);
   sessionMaintenanceTimer = null;
   connectivity?.stop();
   service.setRemoteDiagnosticsProvider(null);
   service.setRemoteOperationSignalProvider(null);
+  service.setCompetitionAuthorityProvider(null);
   return Promise.allSettled([playTimeDrain, sessionDrain]);
 }
 
@@ -1042,7 +1093,7 @@ if (!hasSingleInstanceLock) {
     initializeSecureSessionStorage();
     initializeRemoteServices();
     registerIpc();
-    localStartupPromise = service.migrateRememberedSessionsForGui()
+    localStartupPromise = Promise.all([service.migrateRememberedSessionsForGui(), weekAuthorityStartupPromise])
       .then(async () => {
         await service.initializePlayTime();
         service.requestPlayTimeSync("startup-local-ready").catch(() => {});

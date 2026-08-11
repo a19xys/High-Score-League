@@ -38,6 +38,14 @@ Se eligen manualmente en el admin para evitar extracción automática de colores
 desde imágenes remotas. La tarjeta visual de semana usa estos acentos para su
 borde y glow; si faltan, conserva el fallback circuit/cian.
 
+`0024_media_uploads.sql`, ya aplicada en el Supabase remoto, añade
+`header_image_storage_path` y `logo_image_storage_path`. El formulario actual
+usa `MediaUpload` para seleccionar, procesar y guardar ambas imágenes como WebP;
+no muestra textboxes de URL para editarlas. Los paths administrados gobiernan el
+lifecycle y las URLs anteriores se conservan como fallback. Tras confirmar la
+persistencia se elimina el objeto sustituido o retirado; un fallo anterior hace
+rollback de los objetos nuevos.
+
 `image_url` y `rom_name` se conservan en base de datos como campos legacy o
 internos. No se muestran en el formulario normal de crear/editar juego y no se
 deben borrar desde esta UI.
@@ -120,11 +128,5 @@ admin como `Sin juego asignado`.
 
 ## Pendiente
 
-- La subida de header y logo a Storage está implementada mediante `MediaUpload`;
-  requiere aplicar manualmente `0024_media_uploads.sql` antes del deploy.
 - Subida real de manuales a Storage.
-- Gestión de ZIPs o packs MAME.
-- Configuraciones MAME.
-- Los assets administrados se borran tras confirmar reemplazo o retirada; los
-  objetos legacy externos no se tocan.
 - Editor rico o Markdown avanzado.

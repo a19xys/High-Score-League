@@ -2,6 +2,7 @@ const fsp = require("node:fs/promises");
 const crypto = require("node:crypto");
 const path = require("node:path");
 const {
+  clearAccountRequiresLogin,
   markAccountRequiresLogin,
   readKnownAccounts,
   rememberAccount,
@@ -388,6 +389,9 @@ function createAccountSessionRepository(options = {}) {
       return terminal;
     }
     const canonical = resultFromStored(inspected.validated.storedSession, canonicalRevision);
+    if (canonical.requiresLogin !== true) {
+      await clearAccountRequiresLogin(config, userId, { sessionRevision: canonicalRevision }).catch(() => {});
+    }
     noteRequiresLoginTransition(userId, canonical, { storedSession: inspected.validated.storedSession });
     accountStates.set(userId, {
       expiresAt: inspected.validated.storedSession.session?.expires_at || null,

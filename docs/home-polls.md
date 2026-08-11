@@ -38,6 +38,12 @@ opcional. `0024_media_uploads.sql` añade `image_storage_path` y el panel proces
 y sube WebP a `polls/options/<UUID>.webp`. Las URLs externas existentes siguen
 siendo fallback y no se migran automáticamente.
 
+El panel actual usa `MediaUpload`, no un textbox de URL. Al guardar, sube todos
+los reemplazos, persiste conjuntamente paths y URLs compatibles y después limpia
+los objetos anteriores. Si falla una subida o la persistencia, elimina todos los
+objetos nuevos ya creados. El reinicio del cuestionario usa el mismo ciclo para
+retirar las imágenes administradas después de confirmar el reset.
+
 Regla visual: un cuestionario usa imágenes en todas sus opciones o en ninguna.
 No se permite mezclar algunas opciones con imagen y otras sin imagen. Si no hay
 imágenes, la tarjeta de Home no reserva espacio ni muestra placeholder.
@@ -77,7 +83,8 @@ porcentajes ni número de votos.
 Después de votar, ve:
 
 - opción elegida;
-- mini imagen si todas las opciones tienen `image_url`;
+- mini imagen si todas las opciones tienen imagen resuelta, ya sea por path
+  administrado o URL legacy;
 - porcentajes por opción;
 - votos por opción en pantallas con espacio;
 - total de votos;
@@ -144,7 +151,7 @@ Ruta:
 Permite:
 
 - editar pregunta;
-- configurar fecha y hora de cierre;
+- configurar el día de cierre, guardado como `23:59:59` en `Europe/Madrid`;
 - habilitar o deshabilitar;
 - añadir, ordenar por posición visual y eliminar opciones;
 - ver estadísticas agregadas;

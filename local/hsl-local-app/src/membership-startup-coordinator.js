@@ -42,13 +42,16 @@ function membershipExecutionKey(context, connection = {}) {
 }
 
 function isInitialDeferredMembership(membership = {}) {
-  return membership.status === "unknown"
+  return membership.revalidationRequired === true || (
+    membership.status === "unknown"
     && membership.technicalReason === "deferred"
-    && !membership.checkedAt;
+    && !membership.checkedAt
+  );
 }
 
 function isRetryableMembership(membership = {}) {
-  return RETRYABLE_MEMBERSHIP_STATUSES.has(membership.status)
+  return membership.revalidationRequired === true
+    || RETRYABLE_MEMBERSHIP_STATUSES.has(membership.status)
     || membership.authDeferred === true
     || ["cancelled", "timeout", "transport-failure"].includes(membership.remoteFailure);
 }
@@ -75,17 +78,17 @@ function membershipCheck(checks = [], patch) {
   return next;
 }
 
-function checkingReadiness(readiness = {}) {
+function checkingReadiness(readiness = {}, preserveCompetition = false) {
   const message = "Comprobando participación.";
   const checks = membershipCheck(readiness.checks || [], {
     details: [],
-    level: "error",
+    level: "warning",
     message,
   });
   return {
     ...readiness,
-    blockers: [...new Set([...(readiness.blockers || []), message])],
-    canPlayCompetition: false,
+    blockers: (readiness.blockers || []).filter((item) => item !== message),
+    canPlayCompetition: preserveCompetition && Boolean(readiness.canPlayCompetition),
     checks,
     message,
     status: "blocked",
@@ -110,12 +113,13 @@ function checkingMembershipState(state, operation) {
     stage: operation.stage,
     startedAt: operation.startedAt,
   };
+  const preserveCompetition = (state.membership?.effectiveStatus || state.membership?.status) === "member";
   return {
     ...state,
     membership: {
       ...(state.membership || {}),
       authDeferred: false,
-      canPlayCompetition: false,
+      canPlayCompetition: preserveCompetition && state.membership?.canPlayCompetition === true,
       canSubmit: false,
       checkedAt: null,
       generation: operation.generation,
@@ -128,7 +132,7 @@ function checkingMembershipState(state, operation) {
       technicalReason: requestActive ? "membership-request-active" : "waiting-for-connectivity",
       weekId: operation.context.weekId,
     },
-    readiness: checkingReadiness(state.readiness),
+    readiness: checkingReadiness(state.readiness, preserveCompetition),
   };
 }
 
@@ -148,7 +152,8 @@ function settledMembershipState(state, reason, nowIso = new Date().toISOString()
   const membership = {
     ...(state.membership || {}),
     authDeferred: false,
-    canPlayCompetition: true,
+    canPlayCompetition: (state.membership?.effectiveStatus || state.membership?.status) === "member"
+      && state.membership?.canPlayCompetition === true,
     canSubmit: false,
     checkedAt: nowIso,
     generation: null,
@@ -233,7 +238,7 @@ function membershipOutcomeFromState(state = {}, executionKey = null) {
 }
 
 function membershipAllowsCompetition(membership = {}) {
-  return ["member", "unknown", "error"].includes(membership.status);
+  return (membership.effectiveStatus || membership.status) === "member";
 }
 
 function readinessTitle(status) {
@@ -280,6 +285,7 @@ function mergeMembershipReadiness(state, outcome, resultState = null) {
       canPlayCompetition = Boolean(readiness.canPractice);
     }
   }
+  canPlayCompetition = canPlayCompetition && readiness.canPractice !== false;
 
   const submitPrerequisiteFailure = checks.some((item) => (
     ["session", "scope", "web-base-url"].includes(item.id) && item.level === "error"
@@ -288,8 +294,7 @@ function mergeMembershipReadiness(state, outcome, resultState = null) {
   const structuralBlocker = checks.some((item) => (
     item.level === "error" && !READINESS_SUMMARY_IGNORED_CHECKS.has(item.id)
   ));
-  const membershipBlocks = !membershipAllowed && state.session?.hasSession === true;
-  const status = readiness.canPractice === false || structuralBlocker || membershipBlocks
+  const status = readiness.canPractice === false || structuralBlocker
     ? "blocked"
     : warnings.length > 0 || !canSubmit
       ? "warning"
@@ -689,7 +694,7 @@ function createMembershipStartupCoordinator(options = {}) {
       return nextState;
     }
 
-    if (nextState.membership?.status !== "unknown" || !isInitialDeferredMembership(nextState.membership)) {
+    if (!isInitialDeferredMembership(nextState.membership)) {
       return nextState;
     }
     if (connection.activity === "suspended") return nextState;

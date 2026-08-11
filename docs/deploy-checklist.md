@@ -1,6 +1,7 @@
 # Deploy checklist
 
-Checklist final para publicar High Score League en Vercel con Supabase.
+Checklist reutilizable para publicar una revisión de High Score League en
+Vercel con Supabase. No representa por sí solo el estado actual de producción.
 
 ## 1. Variables de entorno
 
@@ -48,7 +49,12 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 0022_home_poll_option_images.sql
 0023_profile_bio_max_length.sql
 0024_media_uploads.sql
+0025_play_time.sql
 ```
+
+En el Supabase remoto actual, `0023` y `0024` ya están aplicadas. No deben
+repetirse. Esta auditoría no confirma la aplicación remota de `0025`; comprobar
+el historial real del entorno antes de ejecutar cualquier migración.
 
 Comprobar despues:
 
@@ -56,14 +62,20 @@ Comprobar despues:
 - Primer usuario admin creado manualmente en `profiles.is_admin = true`.
 - Datos reales minimos: temporada, juegos, semanas y memberships.
 - `types/supabase.ts` contiene las tablas y columnas usadas por la app.
-- Antes de `0023`, ejecutar la consulta previa de bios y confirmar que devuelve
-  cero filas con `char_length(bio) > 150`. Si devuelve alguna, revisar esos
-  perfiles antes de reintentar; no truncar datos automáticamente.
-- Para `0024`, comprobar `hsl-public-media`: público, límite 2 MiB y solo
-  `image/webp`; verificar las cuatro columnas, constraints y seis policies de
-  avatar/admin. Probar con usuario normal y admin antes de desplegar la web.
-- El orden de esta entrega es obligatorio: migración `0024` primero y deploy web
-  después. Un rollback de la web es compatible con las columnas nullable.
+- Si el entorno aún no tiene `0023`, ejecutar la consulta previa de bios y
+  confirmar que devuelve cero filas con `char_length(bio) > 150`. Si devuelve
+  alguna, revisar esos perfiles antes de reintentar; no truncar datos
+  automáticamente.
+- Si el entorno aún no tiene `0024`, aplicarla después de `0023` y comprobar
+  `hsl-public-media`: público, límite 2 MiB y solo `image/webp`; verificar las
+  cuatro columnas, constraints y seis policies de avatar/admin. Probar con
+  usuario normal y admin antes de desplegar la web.
+- En una instalación nueva, `0024` debe preceder al código que consulta sus
+  columnas y `0025` debe preceder al código de Playtime. Un rollback web es
+  compatible con las columnas nullable de `0024`.
+- Si el entorno aún no tiene `0025`, verificar el ledger, los dos agregados, la
+  RPC `ingest_play_time_event`, sus grants/RLS y que el propietario pueda leer
+  su total mientras otro miembro sólo lo vea con `play_time_public = true`.
 
 ## 3. Realtime
 
@@ -200,20 +212,21 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
 - Si una migracion falla, detener deploy y no aplicar migraciones posteriores.
 - Si el problema es de datos, deshabilitar temporalmente cron y revisar desde
   Supabase SQL Editor.
-- Si el problema afecta submissions, pausar app local/cliente externo hasta
+- Si el problema afecta submissions, pausar los clientes integradores hasta
   validar el endpoint.
 
-## Estado
+## Estado de este checklist
 
-El proyecto queda preparado para despliegue pendiente de ejecutar este checklist
-manual en el entorno real.
+Debe ejecutarse antes de cada despliegue y adaptarse a las migraciones que falten
+en el entorno destino. La aplicación remota de `0023` y `0024` está confirmada,
+pero no se ha verificado qué SHA web está desplegado actualmente.
 
-## Postdeploy no bloqueante
+## Roadmap no bloqueante para releases actuales
 
-- `POSTDEPLOY-PROFILE-1`: implementar eliminacion de cuenta por anonimizacion
-  de perfil y bloqueo de acceso, sin borrar actividad historica.
-- `POSTDEPLOY-ARCHIVE-1` completado: `ARCHIVO` reúne `Semanas` y `Temporadas`
-  mediante URLs canónicas y conserva compatibilidad con los índices anteriores.
+- `PROFILE-ANONYMIZATION-1`: siguiente objetivo; baja por anonimización sin
+  borrar actividad histórica.
+- `PROFILE-PRESENCE-1`: objetivo posterior; presencia y última actividad con
+  heartbeat, expiración y privacidad propios.
 - `SUBMISSIONS-SERVER-PAGINATION-1`: evaluar consultas paginadas, conteos e
   índices cuando cargar el conjunto completo deje de ser viable.
 - `POSTDEPLOY-MIGRATIONS-1`: consolidar migraciones para instalacion limpia.

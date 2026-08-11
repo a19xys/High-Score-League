@@ -30,29 +30,49 @@ function statusMeta(pack) {
     };
   }
 
-  if (pack.deprecated) {
+  const state = pack.weekCapability?.publicState || (pack.weekId ? "unknown" : "unlinked");
+
+  if (state === "active") {
     return {
-      className: "week-status--legacy",
-      signalTone: "warning",
-      label: "LEGACY",
-      title: "Este pack usa un contrato antiguo.",
+      className: "week-status--ready",
+      signalTone: "success",
+      label: "ACTIVA",
+      title: "La semana competitiva esta activa.",
     };
   }
 
-  if (pack.status === "warning") {
+  if (state === "inactive") {
     return {
       className: "week-status--warning",
       signalTone: "warning",
-      label: "AVISO",
-      title: "Este pack puede usarse, pero tiene avisos.",
+      label: "INACTIVA",
+      title: "La semana competitiva todavia no esta activa.",
+    };
+  }
+
+  if (state === "closed") {
+    return {
+      className: "week-status--closed",
+      signalTone: "warning",
+      label: "CERRADA",
+      title: "La semana competitiva esta cerrada.",
+    };
+  }
+
+  if (state === "unlinked") {
+    return {
+      className: "week-status--warning",
+      signalTone: "warning",
+      label: "SIN VINCULAR",
+      title: "El pack no esta vinculado a una semana publica.",
     };
   }
 
   return {
-    className: "week-status--ready",
-    signalTone: "success",
-    label: "LISTO",
-    title: "Pack detectado y listo para abrir.",
+    className: "week-status--unknown",
+    signalTone: "inactive",
+    label: "SIN DATOS",
+    title: "Todavia no se ha confirmado el estado de la semana.",
   };
 }
 

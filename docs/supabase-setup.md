@@ -39,6 +39,18 @@ Abrir:
 http://localhost:3000
 ```
 
+## Migraciones
+
+En un entorno nuevo, aplicar todas las migraciones ausentes de
+`supabase/migrations/` en orden numérico antes de arrancar una revisión que
+consulte sus columnas. En el entorno remoto actual,
+`0023_profile_bio_max_length.sql` y `0024_media_uploads.sql` ya están aplicadas;
+no deben volver a ejecutarse. Esta auditoría no confirma la aplicación remota de
+`0025_play_time.sql` ni qué revisión web está desplegada.
+
+Consulta el [checklist de despliegue](deploy-checklist.md) para el orden completo
+y las comprobaciones de RLS, Realtime y Storage.
+
 ## Diagnostico
 
 `/supabase-test` es una ruta de diagnostico protegida para admin y comprueba:

@@ -345,6 +345,23 @@ async function markAccountRequiresLogin(config = {}, userId, details = {}, optio
   }), options);
 }
 
+async function clearAccountRequiresLogin(config = {}, userId, details = {}, options = {}) {
+  const safeUserId = sanitizeString(userId);
+  if (!safeUserId) return readKnownAccounts(config);
+  return mutateKnownAccounts(config, (current) => {
+    const account = current.accounts.find((item) => item.userId === safeUserId);
+    if (!account?.requiresLogin) return null;
+    return {
+      accounts: current.accounts.map((item) => item.userId === safeUserId ? {
+        ...item,
+        requiresLogin: false,
+        sessionRevision: Math.max(Number(item.sessionRevision) || 0, Number(details.sessionRevision) || 0),
+      } : item),
+      lastActiveUserId: current.lastActiveUserId,
+    };
+  }, options);
+}
+
 async function removeKnownAccount(config = {}, userId, options = {}) {
   const safeUserId = sanitizeString(userId);
 
@@ -372,7 +389,9 @@ function toSafeAccountsState(store = emptyStore(), session = {}, options = {}) {
   const accounts = store.accounts.map((account) => {
     const sessionState = sessionStatuses.get(account.userId) || null;
     const hasPending = Number(sessionState?.pendingCount) > 0;
-    const requiresLogin = account.requiresLogin === true || sessionState?.requiresLogin === true;
+    const requiresLogin = sessionState
+      ? sessionState.requiresLogin === true
+      : false;
 
     return {
       avatarLocalUrl: resolveLocalAvatarUrl({ userDataDir: options.userDataDir }, account.avatarCachePath),
@@ -405,6 +424,7 @@ function toSafeAccountsState(store = emptyStore(), session = {}, options = {}) {
 
 module.exports = {
   accountFromSession,
+  clearAccountRequiresLogin,
   clearActiveAccount,
   getKnownAccountsPath,
   getKnownAccountsLockPath,

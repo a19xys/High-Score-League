@@ -181,9 +181,8 @@ revela puntuaciones; `weekly_results` se generan cuando el admin publica.
 
 ## Pendiente
 
-- Panel admin completo de temporadas, juegos y usuarios.
+- Panel admin completo de usuarios y gestión avanzada de memberships.
 - Automatizar publicación en un único flujo transaccional si se decide más
   adelante.
 - Medallas.
-- Capturas y Storage.
-- Plugin MAME y app local.
+- Capturas y Storage privado de evidencias.

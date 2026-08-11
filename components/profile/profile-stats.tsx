@@ -72,7 +72,7 @@ export function ProfileStats({ stats, playTime }: ProfileStatsProps) {
         <dd className={`${playTime.visibility === "private" ? "text-base leading-6 sm:text-lg" : "text-3xl leading-none sm:text-4xl"} mt-2 font-black theme-text`}>
           {playTime.visibility === "visible"
             ? formatPlayTime(playTime.totalSeconds)
-            : "Información privada"}
+            : "Privado"}
         </dd>
         <p className="mt-2 text-xs leading-5 theme-text-muted">
           {playTime.visibility === "visible"

@@ -466,6 +466,7 @@ async function visualMetrics(window) {
         circuit: semanticColor('--circuit'),
         error: semanticColor('--state-error'),
         success: semanticColor('--state-success'),
+        textMuted: semanticColor('--text-muted'),
         textInverse: semanticColor('--text-inverse'),
         warning: semanticColor('--state-warning'),
       },
@@ -1528,6 +1529,65 @@ async function captureSmokeViews(window) {
   await capture(window, "library-covers-light.png");
 }
 
+async function competitionAuthoritySmoke(window) {
+  const settle = async () => waitForFrames(window, 2);
+  const read = (label) => window.webContents.executeJavaScript(`(() => {
+    const competition = document.querySelector('[data-action="play"]');
+    const practice = document.querySelector('[data-action="practice"]');
+    const badge = document.querySelector('.pack-card[data-selected="true"] .week-status-badge');
+    const pageText = document.body.innerText;
+    const badgeStyle = badge ? getComputedStyle(badge) : null;
+    return {
+      label: ${JSON.stringify(label)},
+      competitionDisabled: competition?.disabled ?? null,
+      practiceDisabled: practice?.disabled ?? null,
+      badge: badge?.textContent.trim() || null,
+      badgeStyle: badgeStyle ? {
+        background: badgeStyle.backgroundColor,
+        border: badgeStyle.borderColor,
+        color: badgeStyle.color,
+      } : null,
+      asksForLogin: /autenticar|inicia sesi[oÃ³]n|vuelve a iniciar/i.test(pageText),
+    };
+  })()`);
+  const emit = async (script, label) => {
+    await window.webContents.executeJavaScript(script);
+    await settle();
+    return read(label);
+  };
+
+  await window.webContents.executeJavaScript(`(async () => {
+    await window.hslLauncher.setAccountFixtureMode('existing');
+    await window.hslLauncher.setActiveFixtureAccount('fixture');
+    window.hslFixture.emitSessionStatus('valid');
+    window.hslFixture.emitMembershipStatus('member');
+    window.hslFixture.emitWeekStatus('active');
+    window.hslFixture.emitConnectivityStatus('connected');
+  })()`);
+  await settle();
+  const scenarios = {
+    active: await read("active"),
+    closed: await emit("window.hslFixture.emitWeekStatus('closed')", "closed"),
+    inactive: await emit("window.hslFixture.emitWeekStatus('inactive')", "inactive"),
+    offlineCached: await emit("window.hslFixture.emitWeekStatus('active'); window.hslFixture.emitConnectivityStatus('disconnected')", "offline-cached"),
+    offlineUnknown: await emit("(async () => { await window.hslLauncher.setAccountFixtureMode('remembered'); window.hslFixture.emitMembershipStatus('unknown'); window.hslFixture.emitWeekStatus('unknown'); })()", "offline-unknown"),
+    cachedTemporaryFailure: await emit("(async () => { await window.hslLauncher.setAccountFixtureMode('existing'); window.hslFixture.emitSessionStatus('valid'); window.hslFixture.emitMembershipStatus('cached_error'); window.hslFixture.emitWeekStatus('active'); })()", "cached-temporary-failure"),
+    revoked: await emit("window.hslFixture.emitConnectivityStatus('connected'); window.hslFixture.emitMembershipStatus('member'); window.hslFixture.emitWeekStatus('active'); window.hslFixture.emitSessionStatus('revoked')", "revoked"),
+  };
+
+  const badges = {};
+  await window.webContents.executeJavaScript("window.hslFixture.emitSessionStatus('valid'); window.hslFixture.emitMembershipStatus('member')");
+  for (const theme of ["dark", "light"]) {
+    badges[theme] = {};
+    await window.webContents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
+    for (const status of ["active", "inactive", "closed", "unlinked", "unknown"]) {
+      badges[theme][status] = await emit(`window.hslFixture.emitWeekStatus(${JSON.stringify(status)})`, `${theme}-${status}`);
+    }
+    await capture(window, `competition-authority-${theme}.png`);
+  }
+  return { badges, scenarios };
+}
+
 async function alphaAwareLibrarySmoke(window) {
   const cacheStats = () => window.webContents.executeJavaScript(`import(
     new URL('./library-art-presentation.js', location.href).href
@@ -1857,6 +1917,7 @@ app.whenReady().then(async () => {
       const checks = {
         accounts: () => accountMetrics(window),
         alpha: () => alphaAwareLibrarySmoke(window),
+        authority: () => competitionAuthoritySmoke(window),
         calendar: () => calendarCompanionSmoke(window),
         chrome: () => nativeChromeMetrics(window),
         detail: () => detailScrollMetrics(window),

@@ -67,8 +67,9 @@ vacías ni placeholders de sistemas futuros.
 ## Datos del perfil público
 
 La consulta de identidad selecciona `id`, `username`, `initials`, `avatar_url`,
-`bio`, `play_time_public` y `created_at`. El `id` y la preferencia se usan
-únicamente en servidor para resolver trayectoria y visibilidad; no se
+`avatar_storage_path`, `bio`, `play_time_public` y `created_at`. El path se
+resuelve en servidor y tiene prioridad sobre la URL legacy. El `id` y la
+preferencia se usan únicamente para resolver trayectoria y visibilidad; no se
 renderizan como datos del perfil.
 
 La vista muestra identidad, fecha de incorporación, métricas oficiales,
@@ -140,7 +141,7 @@ La edición comparte un límite de 150 caracteres entre UI y validación. El
 textarea muestra ayuda, contador y `maxLength`; un pegado que exceda el límite
 se rechaza con error explícito antes de Supabase. La migración
 `0023_profile_bio_max_length.sql` replica el contrato en base de datos sin
-truncar bios existentes.
+truncar bios existentes y ya está aplicada en el Supabase remoto.
 
 El ID autenticado se distribuye una vez desde el layout para reconocer la
 identidad propia sin prop drilling. Sus triggers y botón llevan a `/profile`,
@@ -159,14 +160,23 @@ respetan `prefers-reduced-motion`.
 
 ## Avatar actual
 
-`avatar_url` sigue siendo compatible con todas las imágenes existentes. El
-editor prioriza preview y fallback; el campo URL vive dentro de la acción
-`Cambiar imagen mediante URL`, por lo que la composición definitiva no depende
-visualmente de un input desnudo. Dejarlo vacío recupera las siglas. No existe un
-botón de subida falso.
+`ProfileAvatarEditor` usa el componente compartido `MediaUpload`; la edición
+actual ya no presenta un textbox de URL. El flujo real es:
 
-La frontera `ProfileAvatarEditor` permite reemplazar el control URL por un
-uploader futuro sin rediseñar el editor ni los perfiles.
+1. seleccionar JPEG, PNG o WebP;
+2. validar, redimensionar y convertir localmente a WebP;
+3. mostrar la preview del archivo procesado;
+4. al guardar, subirlo a `avatars/<USER_ID>/<UUID>.webp`;
+5. persistir `avatar_storage_path` y la URL pública compatible;
+6. limpiar el objeto administrado anterior después de confirmar la base de
+   datos.
+
+Si falla la subida o la persistencia, se eliminan los objetos nuevos ya creados
+y se conserva el avatar anterior. Quitar la imagen persiste ambos campos como
+`null` y recupera el fallback de siglas. `avatar_storage_path` es la referencia
+canónica del lifecycle; `avatar_url` se conserva para imágenes legacy y para
+consumidores que todavía sólo conocen URLs. Consulta
+[media uploads](media-uploads.md) para límites, procesamiento, RLS y rollback.
 
 El aro multicolor introducido por el revamp se retiró tras auditar el estado
 inmediatamente anterior (`a56976f`). `ProfileAvatar` vuelve a centralizar el
@@ -177,9 +187,10 @@ del avatar y conserva tamaños, composición del hero y el resto del revamp.
 
 ## Privacidad actual
 
-El launcher registra Playtime identificado independientemente de
-`track_play_time`, que queda legacy. `play_time_public` controla únicamente la
-visibilidad del agregado. Se mantienen separados:
+La web recibe Playtime identificado mediante el contrato autenticado de ingest
+independientemente de `track_play_time`, que queda legacy.
+`play_time_public` controla únicamente la visibilidad del agregado. Se mantienen
+separados:
 
 1. registro identificado de tiempo;
 2. visibilidad pública del tiempo;
@@ -189,15 +200,24 @@ visibilidad del agregado. Se mantienen separados:
 No se muestran controles sin persistencia. La vista pública no consulta
 `track_play_time`; tampoco hay presencia, última conexión ni tiempo ficticio.
 
+## Estado de MEDIA-UPLOADS-1
+
+Implementada, con `0024_media_uploads.sql` aplicada remotamente y funcional.
+Avatar, imágenes de juego y opciones de cuestionario usan
+el componente común `MediaUpload`, procesamiento WebP en navegador y el bucket
+`hsl-public-media`. Se conservan las URLs legacy y el resolver prefiere el path
+Storage cuando existe. El ciclo sube, persiste y solo entonces limpia el objeto
+anterior, con rollback de subidas nuevas si falla la persistencia.
+
+En una instalación nueva, `0024` sí debe aplicarse antes del código que consulta
+sus columnas. Los detalles de rutas, presets, RLS, límites y despliegue están en
+[media uploads](media-uploads.md).
+
 ## Tareas futuras
 
-### Presencia y actividad futura
-
-La presencia, última conexión y actividad reciente siguen fuera de alcance.
-Necesitarían heartbeats, expiración explícita y reglas RLS propias; nunca deben
-inferirse del agregado de Playtime.
-
 ### PROFILE-ANONYMIZATION-1
+
+Es el siguiente gran objetivo recomendado.
 
 Diseñar la baja preservando `submissions`, `weekly_results`, memberships,
 posiciones, puntos y estadísticas históricas. Debe anonimizar o retirar username,
@@ -210,29 +230,24 @@ eliminado`, chat, votos, auditoría admin, confirmación, periodo de gracia y
 reversibilidad. El endpoint físico continúa bloqueado y esta tarea no añade
 botones destructivos ni migraciones.
 
-### MEDIA-UPLOADS-1
+### PROFILE-PRESENCE-1
 
-Completado en código. Avatar, imágenes de juego y opciones de cuestionario usan
-el componente común `MediaUpload`, procesamiento WebP en navegador y el bucket
-`hsl-public-media`. Se conservan las URLs legacy y el resolver prefiere el path
-Storage cuando existe. El ciclo sube, persiste y solo entonces limpia el objeto
-anterior, con rollback de subidas nuevas si falla la persistencia.
-
-La migración `0024_media_uploads.sql` continúa pendiente de aplicación manual
-en el Supabase remoto. Detalles de rutas, presets, RLS, límites y despliegue:
-`docs/media-uploads.md`.
+Es el objetivo posterior a `PROFILE-ANONYMIZATION-1`. Deberá diseñar
+online/offline, jugando ahora, última actividad, expiración del heartbeat y
+controles de visibilidad con reglas propias. Todavía no existen presencia,
+última conexión, heartbeat web ni heartbeat público. Nunca deben inferirse del
+agregado de Playtime.
 
 ## Limitaciones conscientes
 
-- La implementación de Storage público está terminada; `0024` debe aplicarse
-  manualmente antes del deploy. No hay Storage privado de capturas, presencia,
-  última conexión ni tiempo jugado real.
-- No hay controles de visibilidad adicionales ni schema nuevo.
+- Storage público de media está operativo; no hay Storage privado de capturas,
+  presencia ni última conexión.
+- `play_time_public` es el único control de visibilidad de Playtime. No hay
+  controles de presencia ni schema de Presence aprobado.
 - El archivo de mejores marcas depende de submissions que RLS y el estado de
   semana permiten leer.
 - El historial privado pagina en cliente el conjunto completo ya cargado. La
   paginación en servidor queda reservada para `SUBMISSIONS-SERVER-PAGINATION-1`.
 - El centro admin no incorpora gestión de usuarios.
 
-No se modifican schema, puntos, generación de `weekly_results`, ingest, cron,
-Auth SSR, launcher, MAME ni nada dentro de `local/`.
+El perfil no usa Playtime para inferir presencia ni última actividad.
