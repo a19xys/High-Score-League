@@ -206,6 +206,8 @@ function applyNativeWindowTheme(window, theme) {
 
 function handlePowerSuspend() {
   productOperationsController.abort("suspend");
+  service.pausePlayTime();
+  service.cancelPlayTimeSync("suspend");
   service.cancelAccountProfileSync("suspend");
   cancelManualMembershipRun("suspend");
   service.cancelAccountSessionOperations(null, "suspend");
@@ -222,6 +224,7 @@ function handlePowerSuspend() {
 function handlePowerResume() {
   suspendDrainPromise = null;
   productOperationsController = new AbortController();
+  service.resumePlayTime();
   connectivity?.setActivity("active", "resume");
   if (!membershipCoordinationPaused()) membershipStartupCoordinator?.resume("resume");
   topologyMonitor?.start();
@@ -284,6 +287,7 @@ function syncRemoteContext(state, options = {}) {
 
   if (isCommittedConnected(connectivity.getState())) {
     rankingCapabilities.refresh("launcher-state").catch(() => {});
+    if (accountChanged) service.requestPlayTimeSync("account-change").catch(() => {});
   }
 
   const membership = state.membership;
@@ -344,6 +348,10 @@ function initializeRemoteServices() {
     fetchImpl: (url, init) => net.fetch(url, init),
     getConnectivityState: () => connectivity.getState(),
     onChanged: publishAccountProfileState,
+  });
+  service.configurePlayTimeSync({
+    fetchImpl: (url, init) => net.fetch(url, init),
+    getConnectivityState: () => connectivity.getState(),
   });
   service.setRemoteOperationSignalProvider(() => productOperationsController.signal);
   rankingCapabilities = createRankingCapabilitiesService({
@@ -432,6 +440,7 @@ function initializeRemoteServices() {
     },
     sessions: service.getAccountSessionDiagnostics(),
     accountProfiles: service.getAccountProfileSyncDiagnostics(),
+    playTime: service.getPlayTimeDiagnostics(),
     membershipResolution: membershipStartupCoordinator.getDiagnostics(),
     sessionStorage: getSessionStorageDiagnostics(),
     startup: { milestones: { ...startupTimings } },
@@ -467,6 +476,7 @@ function initializeRemoteServices() {
     rankingCapabilities.updateDeployment();
     sendRendererEvent("launcher:connectivity-state", state);
     if (state.reachability === "offline") service.cancelAccountProfileSync("external-abort");
+    if (state.reachability === "offline") service.cancelPlayTimeSync("external-abort");
     if (activeManualMembershipRun && activeManualMembershipRun.connectionGeneration !== null && (
       state.reachability !== "connected"
       || Number(state.reachabilityGeneration) !== Number(activeManualMembershipRun.connectionGeneration)
@@ -485,6 +495,9 @@ function initializeRemoteServices() {
         becameConnected ? (state.source === "startup" ? "startup" : "connectivity-restored") : manual ? "manual-connectivity" : "connectivity-confirmed",
         { force: manual },
       );
+      service.requestPlayTimeSync(
+        becameConnected ? (state.source === "startup" ? "startup" : "connectivity-restored") : manual ? "manual-connectivity" : "connectivity-confirmed",
+      ).catch(() => {});
       rankingCapabilities.refresh(becameConnected ? "connectivity-restored" : "connectivity-confirmed").catch(() => {});
       if (becameConnected) schedulePendingAutoSubmit(state.source === "startup" ? "startup" : "connectivity-restored");
     }
@@ -516,6 +529,7 @@ function initializeSecureSessionStorage() {
 
 async function stopRemoteServices() {
   productOperationsController.abort("shutdown");
+  const playTimeDrain = service.shutdownPlayTime();
   service.shutdownAccountProfileSync();
   membershipStartupCoordinator?.shutdown("shutdown");
   cancelManualMembershipRun("shutdown");
@@ -534,7 +548,7 @@ async function stopRemoteServices() {
   connectivity?.stop();
   service.setRemoteDiagnosticsProvider(null);
   service.setRemoteOperationSignalProvider(null);
-  return sessionDrain;
+  return Promise.allSettled([playTimeDrain, sessionDrain]);
 }
 
 async function prepareRemoteAction(source) {
@@ -1028,7 +1042,13 @@ if (!hasSingleInstanceLock) {
     initializeSecureSessionStorage();
     initializeRemoteServices();
     registerIpc();
-    localStartupPromise = service.migrateRememberedSessionsForGui().catch(() => []);
+    localStartupPromise = service.migrateRememberedSessionsForGui()
+      .then(async () => {
+        await service.initializePlayTime();
+        service.requestPlayTimeSync("startup-local-ready").catch(() => {});
+        return [];
+      })
+      .catch(() => []);
     connectivity.start("startup").catch(() => {});
     topologyMonitor.start();
     sessionMaintenanceTimer = setInterval(() => schedulePendingAutoSubmit("session-maintenance"), 60 * 1000);

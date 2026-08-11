@@ -1,7 +1,9 @@
 import type { PlayerProfileStats } from "@/lib/data/player-profile";
+import { formatPlayTime, type PlayerPlayTime } from "@/lib/playtime";
 
 type ProfileStatsProps = {
   stats: PlayerProfileStats;
+  playTime: PlayerPlayTime;
 };
 
 const statDefinitions: Array<{
@@ -36,11 +38,11 @@ const statDefinitions: Array<{
   },
 ];
 
-export function ProfileStats({ stats }: ProfileStatsProps) {
+export function ProfileStats({ stats, playTime }: ProfileStatsProps) {
   return (
     <dl
-      aria-label="Resumen competitivo"
-      className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-[var(--border)] shadow-panel theme-border lg:grid-cols-4"
+      aria-label="Resumen del jugador"
+      className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-[var(--border)] shadow-panel theme-border lg:grid-cols-5"
     >
       {statDefinitions.map((stat) => (
         <div
@@ -62,6 +64,22 @@ export function ProfileStats({ stats }: ProfileStatsProps) {
           </p>
         </div>
       ))}
+      <div className="relative min-w-0 overflow-hidden px-4 py-5 theme-surface sm:px-6">
+        <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
+        <dt className="text-[11px] font-extrabold uppercase tracking-[0.12em] theme-text-muted sm:text-xs">
+          Tiempo jugado
+        </dt>
+        <dd className={`${playTime.visibility === "private" ? "text-base leading-6 sm:text-lg" : "text-3xl leading-none sm:text-4xl"} mt-2 font-black theme-text`}>
+          {playTime.visibility === "visible"
+            ? formatPlayTime(playTime.totalSeconds)
+            : "Información privada"}
+        </dd>
+        <p className="mt-2 text-xs leading-5 theme-text-muted">
+          {playTime.visibility === "visible"
+            ? "Práctica y competición registradas por el launcher"
+            : "Esta información no se muestra al resto"}
+        </p>
+      </div>
     </dl>
   );
 }

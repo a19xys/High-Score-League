@@ -328,7 +328,34 @@ function assertLaunchResources(config, launch) {
   }
 }
 
-function launchMame(config, rom, mode, spawnImpl = spawn) {
+function attachProcessLifecycle(child, lifecycle, resolve, reject, resultFactory) {
+  let spawned = false;
+  let settled = false;
+  let spawnHook = Promise.resolve();
+
+  child.on("spawn", () => {
+    spawned = true;
+    spawnHook = Promise.resolve(lifecycle?.onSpawn?.()).catch(() => {});
+  });
+  child.on("error", (error) => {
+    if (spawned || settled) return;
+    settled = true;
+    reject(error);
+  });
+  child.on("close", async (code) => {
+    if (settled) return;
+    settled = true;
+    await spawnHook;
+    if (spawned) {
+      try {
+        await lifecycle?.onClose?.(code ?? 1);
+      } catch {}
+    }
+    resolve(resultFactory(code ?? 1));
+  });
+}
+
+function launchMame(config, rom, mode, spawnImpl = spawn, lifecycle = null) {
   const launch = buildMameArgs(config, rom, mode);
   assertLaunchResources(config, launch);
   printLaunchSummary(launch);
@@ -339,8 +366,7 @@ function launchMame(config, rom, mode, spawnImpl = spawn) {
       stdio: "inherit",
     });
 
-    child.on("error", reject);
-    child.on("close", (code) => resolve(code ?? 1));
+    attachProcessLifecycle(child, lifecycle, resolve, reject, (code) => code);
   });
 }
 
@@ -355,7 +381,7 @@ function trimOutputLines(lines) {
   ];
 }
 
-function launchMameDetailed(config, rom, mode, spawnImpl = spawn) {
+function launchMameDetailed(config, rom, mode, spawnImpl = spawn, lifecycle = null) {
   const launch = buildMameArgs(config, rom, mode);
   assertLaunchResources(config, launch);
   printLaunchSummary(launch);
@@ -381,8 +407,7 @@ function launchMameDetailed(config, rom, mode, spawnImpl = spawn) {
       child.stderr.on("data", collect(stderrLines));
     }
 
-    child.on("error", reject);
-    child.on("close", (code) => resolve({
+    attachProcessLifecycle(child, lifecycle, resolve, reject, (code) => ({
       exitCode: code ?? 1,
       launch,
       stderrLines: trimOutputLines(stderrLines),

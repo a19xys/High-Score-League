@@ -5,7 +5,9 @@ export type RealProfile = {
   avatar_url: string | null;
   avatar_storage_path?: string | null;
   bio?: string | null;
+  /** @deprecated Legacy collection preference. Playtime is recorded for identified sessions. */
   track_play_time?: boolean;
+  play_time_public?: boolean;
   is_admin: boolean;
   created_at?: string;
   updated_at?: string;

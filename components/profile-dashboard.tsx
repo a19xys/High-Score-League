@@ -13,6 +13,7 @@ import type {
   AdminCenterData,
   ProfileAuthData,
 } from "@/components/profile/profile-types";
+import type { PlayerPlayTime } from "@/lib/playtime";
 
 export type { ProfileAuthData } from "@/components/profile/profile-types";
 export type {
@@ -24,6 +25,7 @@ type ProfileDashboardProps = {
   auth: ProfileAuthData;
   adminCenter: AdminCenterData;
   competitive: PlayerCompetitiveProfile;
+  playTime: PlayerPlayTime;
 };
 
 function ProfileAccessState({
@@ -110,6 +112,7 @@ export function ProfileDashboard({
   auth,
   adminCenter,
   competitive,
+  playTime,
 }: ProfileDashboardProps) {
   if (auth.status === "not-configured" || auth.status === "signed-out") {
     return <ProfileAccessState status={auth.status} />;
@@ -124,7 +127,7 @@ export function ProfileDashboard({
       <Breadcrumbs items={[{ label: "Mi perfil" }]} />
       <ProfileNavigation showAdmin={adminCenter.isAdmin} />
       <ProfileHero mode="owner" profile={auth.profile} />
-      <ProfileStats stats={competitive.stats} />
+      <ProfileStats playTime={playTime} stats={competitive.stats} />
       <ProfileHistory
         data={competitive}
         mode="owner"

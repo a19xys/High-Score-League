@@ -11,6 +11,7 @@ import {
   getPublicPlayerProfile,
 } from "@/lib/data/player-profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getPlayerPlayTime } from "@/lib/data/player-playtime";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -64,14 +65,20 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     notFound();
   }
 
-  const competitive = await getPlayerCompetitiveProfile(
-    profileResult.profile.id,
-    "public",
-  );
+  const { data: visitor } = await supabase.auth.getUser();
+  const isOwner = visitor.user?.id === profileResult.profile.id;
+  const [competitive, playTime] = await Promise.all([
+    getPlayerCompetitiveProfile(profileResult.profile.id, "public"),
+    getPlayerPlayTime(supabase, profileResult.profile.id, {
+      isOwner,
+      playTimePublic: profileResult.profile.play_time_public === true,
+    }),
+  ]);
 
   return (
     <PublicProfileView
       competitive={competitive}
+      playTime={playTime}
       profile={profileResult.profile}
     />
   );

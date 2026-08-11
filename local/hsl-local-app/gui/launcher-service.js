@@ -30,6 +30,10 @@ const { buildDiagnoseReport } = require("../src/diagnose");
 const { writeDiagnosticReport } = require("../src/diagnostic-logs");
 const { listJsonFiles, readEventFile } = require("../src/event-files");
 const { launchMame, launchMameDetailed } = require("../src/mame-launcher");
+const { formatPlayTime } = require("../src/playtime-format");
+const { createPlayTimeRecorder } = require("../src/playtime-recorder");
+const { createPlayTimeStore } = require("../src/playtime-store");
+const { createPlayTimeSyncService } = require("../src/playtime-sync-service");
 const { evaluatePackReadiness } = require("../src/pack-readiness");
 const {
   importPackFromFolder: importPackFolder,
@@ -97,6 +101,9 @@ let pendingAutoSubmitState = {
 let remoteDiagnosticsProvider = null;
 let remoteOperationSignalProvider = null;
 let accountProfileSync = null;
+let playTimeSync = null;
+const playTimeRecorder = createPlayTimeRecorder();
+const launcherClientVersion = require("../package.json").version;
 const libraryOrderModule = import("./shared/library-order.mjs");
 const accountSessionStates = new Map();
 
@@ -195,6 +202,70 @@ function shutdownAccountProfileSync() {
 
 function getAccountProfileSyncDiagnostics() {
   return accountProfileSync?.getDiagnostics() || { inFlight: false };
+}
+
+function configurePlayTimeSync(options = {}) {
+  playTimeSync?.shutdown();
+  playTimeSync = createPlayTimeSyncService({
+    ...options,
+    configProvider: options.configProvider || loadRuntimeConfig,
+  });
+  return playTimeSync;
+}
+
+function requestPlayTimeSync(trigger) {
+  return playTimeSync?.request(trigger) || Promise.resolve({ attempted: false, reason: "not-configured" });
+}
+
+function cancelPlayTimeSync(reason = "external-abort") {
+  playTimeSync?.cancel(reason);
+}
+
+function getPlayTimeDiagnostics() {
+  return {
+    activeSessions: playTimeRecorder.getActiveCount(),
+    sync: playTimeSync?.getDiagnostics() || { inFlight: false },
+  };
+}
+
+async function initializePlayTime() {
+  const config = loadRuntimeConfig();
+  const accounts = await readKnownAccounts(config);
+  await Promise.allSettled((accounts.accounts || []).map(async (account) => {
+    const playerKey = derivePlayerKey({ hasSession: true, userId: account.userId });
+    const store = createPlayTimeStore(config, playerKey);
+    await store.abandonActive();
+    await store.readSummary();
+  }));
+}
+
+function createMamePlayTimeLifecycle(context, mode) {
+  const { baseConfig, session } = context;
+  const playerKey = derivePlayerKey(session);
+  if (!session?.hasSession || !session.userId || !playerKey) return null;
+  return playTimeRecorder.prepare({
+    clientVersion: launcherClientVersion,
+    gameKey: baseConfig.pack?.gameId,
+    mode,
+    playerKey,
+    rom: baseConfig.pack?.rom,
+    store: createPlayTimeStore(baseConfig, playerKey),
+    userId: session.userId,
+    weekId: baseConfig.pack?.weekId || baseConfig.defaultWeekId,
+  });
+}
+
+function pausePlayTime() {
+  playTimeRecorder.pauseAll();
+}
+
+function resumePlayTime() {
+  playTimeRecorder.resumeAll();
+}
+
+async function shutdownPlayTime() {
+  playTimeSync?.shutdown();
+  await playTimeRecorder.finalizeAll();
 }
 
 function getRemoteOperationSignal() {
@@ -1165,12 +1236,24 @@ async function stateFromContext(context) {
   const activeLibraryPack = selection.activeInstanceKey
     ? libraryState.packs.find((pack) => pack.instanceKey === selection.activeInstanceKey) || null
     : null;
-  const game = activeLibraryPack
+  let game = activeLibraryPack
     ? {
         ...getGameState(config, activeLibraryPack),
         favorite: Boolean(activeLibraryPack.favorite),
       }
     : null;
+  const playerKey = derivePlayerKey(session);
+  if (game && playerKey) {
+    let totalSeconds = 0;
+    try {
+      const playTime = await createPlayTimeStore(baseConfig, playerKey).readSummary();
+      totalSeconds = playTime.games[game.gameId]?.totalSeconds || 0;
+    } catch {}
+    game = {
+      ...game,
+      playTime: formatPlayTime(totalSeconds),
+    };
+  }
   const readiness = !activeLibraryPack
     ? {
         blockers: ["Selecciona un pack real de la biblioteca para continuar."],
@@ -2204,11 +2287,13 @@ async function playCompetition() {
   }
 
   const startedAtMs = Date.now();
+  const playTimeLifecycle = createMamePlayTimeLifecycle(context, "competition");
   const captured = await captureConsoleAsync(() => (
     isPackV2
-      ? launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition")
-      : launchMame(launchConfig, baseConfig.pack.rom, "competition")
+      ? launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition", undefined, playTimeLifecycle)
+      : launchMame(launchConfig, baseConfig.pack.rom, "competition", undefined, playTimeLifecycle)
   ));
+  requestPlayTimeSync("mame-close").catch(() => {});
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.result?.exitCode ?? captured.exitCode;
   const mameOutputLines = summarizeMameOutput(captured.result);
   const adoption = await adoptNewStagingEvents(
@@ -2276,7 +2361,15 @@ async function playPractice() {
     };
   }
 
-  const captured = await captureConsoleAsync(() => launchMame(context.config, context.config.pack.rom, "practice"));
+  const playTimeLifecycle = createMamePlayTimeLifecycle(context, "practice");
+  const captured = await captureConsoleAsync(() => launchMame(
+    context.config,
+    context.config.pack.rom,
+    "practice",
+    undefined,
+    playTimeLifecycle,
+  ));
+  requestPlayTimeSync("mame-close").catch(() => {});
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
 
   return {
@@ -3022,6 +3115,7 @@ module.exports = {
   chooseSharedMameRuntimeFromGui,
   choosePackDirectoryFromGui,
   configureAccountProfileSync,
+  configurePlayTimeSync,
   classifyFailureReason,
   deriveOpenedPackConfig,
   drainAccountSessionOperations,
@@ -3032,6 +3126,7 @@ module.exports = {
   getPendingAutoSubmitContexts,
   getAccountSessionDiagnostics,
   getAccountProfileSyncDiagnostics,
+  getPlayTimeDiagnostics,
   getRemoteBootstrapState,
   getLauncherState,
   importPackFromFolderForGui,
@@ -3042,6 +3137,7 @@ module.exports = {
   listPendingFileSnapshot,
   logoutSession,
   migrateRememberedSessionsForGui,
+  initializePlayTime,
   openPackDirectory,
   openPackManual,
   openPackRanking,
@@ -3052,6 +3148,7 @@ module.exports = {
   recheckSeasonMembership,
   removeKnownAccountFromGui,
   requestAccountProfileSync,
+  requestPlayTimeSync,
   openConfiguredPackDirectory,
   rescanPackDirectory,
   restoreFailedSubmission,
@@ -3061,6 +3158,10 @@ module.exports = {
   setRemoteDiagnosticsProvider,
   setRemoteOperationSignalProvider,
   shutdownAccountProfileSync,
+  shutdownPlayTime,
+  pausePlayTime,
+  resumePlayTime,
+  cancelPlayTimeSync,
   shutdownAccountSessions,
   runAutoSyncIfEligible,
   runPendingAutoSubmit,

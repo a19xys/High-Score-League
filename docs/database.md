@@ -37,19 +37,28 @@ Desde `0010_profile_preferences.sql` incluye:
   tampoco puede superar 150 caracteres (`char_length(bio) <= 150`). La
   migración comprueba primero los datos existentes y falla de forma explícita
   si encuentra valores incompatibles; nunca los trunca.
-- `track_play_time`: preferencia para permitir registrar tiempo de juego desde
-  la futura app local. Por defecto es `true`.
+- `play_time_public`: visibilidad del agregado de Playtime para otros jugadores.
+  Es `false` por defecto y el propietario conserva siempre la lectura.
+- `track_play_time`: columna legacy; ya no gobierna el registro del launcher ni
+  se migra a la preferencia pública.
 
 `avatar_url` se conserva como compatibilidad. `0024_media_uploads.sql` añade
 `avatar_storage_path`; el resolver prefiere el objeto de `hsl-public-media` y
 usa la URL antigua cuando el path es null. La subida se procesa como WebP en el
 navegador. No hay Storage privado de capturas en esta fase.
 
-`track_play_time` es exclusivamente permiso de recopilación. No debe
-reinterpretarse como visibilidad pública del tiempo, presencia online o última
-conexión. La arquitectura y las tareas `PROFILE-PRIVACY-1`,
-`PROFILE-ANONYMIZATION-1` y `MEDIA-UPLOADS-1` se detallan en
-`docs/profile-revamp.md`.
+`0025_play_time.sql` añade el ledger idempotente `play_time_events`, los
+agregados `player_game_play_time` y `player_play_time_totals`, y la RPC
+transaccional `ingest_play_time_event`. El jugador procede de `auth.uid()` y el
+juego se resuelve desde `weeks.game_id`; Playtime no depende de membership ni
+del estado competitivo de la semana. RLS permite leer los agregados al dueño,
+al administrador o a otros usuarios autenticados solo si
+`play_time_public = true`.
+
+El launcher guarda eventos offline por jugador y los sincroniza sin feedback.
+Los UUID de evento hacen los reintentos idempotentes. Playtime no representa
+presencia, última actividad, ranking ni submissions; todavía no hay descarga de
+totales remotos para fusionar varios launchers.
 
 ### seasons
 

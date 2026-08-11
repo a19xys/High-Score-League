@@ -6,15 +6,18 @@ import type {
 import { ProfileHero } from "./profile-hero";
 import { ProfileHistory } from "./profile-history";
 import { ProfileStats } from "./profile-stats";
+import type { PlayerPlayTime } from "@/lib/playtime";
 
 type PublicProfileViewProps = {
   profile: PublicPlayerProfile;
   competitive: PlayerCompetitiveProfile;
+  playTime: PlayerPlayTime;
 };
 
 export function PublicProfileView({
   profile,
   competitive,
+  playTime,
 }: PublicProfileViewProps) {
   return (
     <div className="space-y-6">
@@ -22,7 +25,7 @@ export function PublicProfileView({
         items={[{ label: "Jugadores" }, { label: `@${profile.username}` }]}
       />
       <ProfileHero mode="public" profile={profile} />
-      <ProfileStats stats={competitive.stats} />
+      <ProfileStats playTime={playTime} stats={competitive.stats} />
       <ProfileHistory
         data={competitive}
         mode="public"

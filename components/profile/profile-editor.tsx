@@ -44,8 +44,8 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
   const [avatarSelection, setAvatarSelection] = useState<MediaSelection>(
     UNCHANGED_MEDIA_SELECTION,
   );
-  const [trackPlayTime, setTrackPlayTime] = useState(
-    auth.profile?.track_play_time ?? true,
+  const [playTimePublic, setPlayTimePublic] = useState(
+    auth.profile?.play_time_public ?? false,
   );
   const [error, setError] = useState<string | null>(auth.profileError);
   const [message, setMessage] = useState<string | null>(null);
@@ -117,7 +117,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
             bio: cleanBio || null,
             avatar_url: avatar.publicUrl,
             avatar_storage_path: avatar.storagePath,
-            track_play_time: trackPlayTime,
+            play_time_public: playTimePublic,
           };
           const response = auth.profile
             ? await supabase
@@ -125,14 +125,14 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                 .update(payload)
                 .eq("id", userData.user.id)
                 .select(
-                  "id,username,initials,avatar_url,avatar_storage_path,bio,track_play_time,is_admin,created_at,updated_at",
+                  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,created_at,updated_at",
                 )
                 .single()
             : await supabase
                 .from("profiles")
                 .insert({ id: userData.user.id, ...payload })
                 .select(
-                  "id,username,initials,avatar_url,avatar_storage_path,bio,track_play_time,is_admin,created_at,updated_at",
+                  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,created_at,updated_at",
                 )
                 .single();
 
@@ -182,7 +182,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
     setAvatarUrl(profile.avatar_url ?? "");
     setAvatarStoragePath(profile.avatar_storage_path ?? null);
     setAvatarSelection(UNCHANGED_MEDIA_SELECTION);
-    setTrackPlayTime(profile.track_play_time ?? true);
+    setPlayTimePublic(profile.play_time_public ?? false);
     setMessage((current) => current ?? "Perfil guardado correctamente.");
     setIsSubmitting(false);
     router.refresh();
@@ -274,17 +274,17 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
 
         <label className="flex items-start gap-3 rounded-2xl border p-4 theme-border theme-surface-muted">
           <input
-            checked={trackPlayTime}
+            checked={playTimePublic}
             className="mt-1 h-4 w-4 accent-circuit"
-            onChange={(event) => setTrackPlayTime(event.target.checked)}
+            onChange={(event) => setPlayTimePublic(event.target.checked)}
             type="checkbox"
           />
           <span>
             <span className="block font-extrabold theme-text">
-              Permitir registrar mi tiempo de juego
+              Mostrar mi tiempo de juego
             </span>
             <span className="mt-1 block text-xs leading-5 theme-text-muted">
-              Es un permiso de recopilación para la app local. No hace público tu tiempo, tu presencia ni tu última actividad.
+              High Score League registra tu tiempo de juego para tus estadísticas. Si lo ocultas, tú seguirás pudiendo verlo, pero no se mostrará al resto de jugadores.
             </span>
           </span>
         </label>

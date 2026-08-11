@@ -56,7 +56,7 @@ Se muestran:
 - historial completo de envíos propios ya cargados, incluidos los que RLS
   permite ver solo al dueño, paginado a 10, 25 o 50 filas;
 - email únicamente dentro del bloque privado de sesión;
-- preferencia real `track_play_time` como permiso de recopilación;
+- preferencia `play_time_public` como control exclusivo de visibilidad;
 - tema Claro, Oscuro o Sistema;
 - centro admin solo si `is_admin` es real.
 
@@ -66,14 +66,21 @@ vacías ni placeholders de sistemas futuros.
 
 ## Datos del perfil público
 
-La consulta de identidad solo selecciona `id`, `username`, `initials`,
-`avatar_url`, `bio` y `created_at`. El `id` se usa únicamente en servidor para
-agregar la trayectoria y nunca se renderiza.
+La consulta de identidad selecciona `id`, `username`, `initials`, `avatar_url`,
+`bio`, `play_time_public` y `created_at`. El `id` y la preferencia se usan
+únicamente en servidor para resolver trayectoria y visibilidad; no se
+renderizan como datos del perfil.
 
 La vista muestra identidad, fecha de incorporación, métricas oficiales,
 resultados recientes y mejores scores públicos. No selecciona ni envía al árbol
 público email, `is_admin`, `track_play_time`, preferencias Auth o timestamps
 internos de actualización.
+
+Playtime se consulta por separado de la trayectoria competitiva. El propietario
+ve siempre el total; otro jugador solo lo recibe cuando
+`play_time_public = true`. En privado, el servidor no consulta ni entrega el
+número al árbol cliente. La quinta tarjeta muestra el agregado de práctica y
+competición o la indicación de información privada.
 
 Las mejores marcas públicas excluyen submissions inválidas y submissions
 ocultas mientras la semana no esté `closed` o `published`. Este filtro se aplica
@@ -170,29 +177,25 @@ del avatar y conserva tamaños, composición del hero y el resto del revamp.
 
 ## Privacidad actual
 
-`track_play_time` significa permiso para recopilar tiempo de juego. No controla
-visibilidad pública, presencia, estado jugando ni última conexión. Esos cuatro
-conceptos se mantienen separados:
+El launcher registra Playtime identificado independientemente de
+`track_play_time`, que queda legacy. `play_time_public` controla únicamente la
+visibilidad del agregado. Se mantienen separados:
 
-1. recopilación de tiempo;
+1. registro identificado de tiempo;
 2. visibilidad pública del tiempo;
 3. presencia online/jugando;
 4. última actividad.
 
 No se muestran controles sin persistencia. La vista pública no consulta
-`track_play_time` y no hay presencia ni tiempo ficticio.
+`track_play_time`; tampoco hay presencia, última conexión ni tiempo ficticio.
 
 ## Tareas futuras
 
-### PROFILE-PRIVACY-1
+### Presencia y actividad futura
 
-Diseñar y persistir controles independientes para visibilidad del tiempo,
-presencia, última conexión y, si el producto lo aprueba, actividad reciente o
-estadísticas concretas. La presencia necesitará heartbeats web/launcher,
-timestamp de último heartbeat, expiración explícita, Realtime o polling y reglas
-RLS. Una última conexión no debe inferirse de actividad exacta del launcher. La
-tarea debe decidir defaults, migración, semántica y qué datos se excluyen en
-servidor; ocultarlos con CSS no es suficiente.
+La presencia, última conexión y actividad reciente siguen fuera de alcance.
+Necesitarían heartbeats, expiración explícita y reglas RLS propias; nunca deben
+inferirse del agregado de Playtime.
 
 ### PROFILE-ANONYMIZATION-1
 

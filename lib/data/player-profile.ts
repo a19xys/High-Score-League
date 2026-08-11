@@ -56,6 +56,7 @@ export type PublicPlayerProfile = Pick<
   | "avatar_url"
   | "avatar_storage_path"
   | "bio"
+  | "play_time_public"
   | "created_at"
 >;
 
@@ -93,7 +94,7 @@ export async function getPublicPlayerProfile(
 ): Promise<PublicPlayerProfileResult> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,username,initials,avatar_url,avatar_storage_path,bio,created_at")
+    .select("id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,created_at")
     .eq("username", username)
     .maybeSingle();
 
