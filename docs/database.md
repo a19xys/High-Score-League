@@ -40,10 +40,12 @@ Desde `0010_profile_preferences.sql` incluye `bio` y `track_play_time`:
 - `track_play_time`: columna legacy; ya no gobierna el registro identificado de
   Playtime ni se migra a la preferencia pública.
 
-`0025_play_time.sql` añade `play_time_public`: controla la visibilidad del
-agregado de Playtime para otros jugadores, vale `false` por defecto y el
-propietario conserva siempre la lectura. `track_play_time` no gobierna este
-control ni el registro identificado.
+`0025_play_time.sql` añadió `play_time_public` con el default histórico
+`false`. `0029_profile_privacy_defaults.sql` cambia a `true` el default para
+perfiles nuevos, sin reescribir filas existentes. El campo controla la
+visibilidad del agregado de Playtime para otros jugadores y el propietario
+conserva siempre la lectura. `track_play_time` no gobierna este control ni el
+registro identificado.
 
 `avatar_url` se conserva como compatibilidad. `0024_media_uploads.sql` añade
 `avatar_storage_path`; el resolver prefiere el objeto de `hsl-public-media` y
@@ -477,9 +479,11 @@ servidor; un usuario normal nunca puede asignarse `is_admin = true`.
 
 ## Presence efímera
 
-`0028_player_presence.sql` añade `profiles.presence_public boolean not null
-default false` sin backfill desde Playtime y crea
-`player_presence_sessions`. Su clave es `(player_id, source, client_id)`; las
+`0028_player_presence.sql` añade `profiles.presence_public boolean not null`
+con el default histórico `false`, sin backfill desde Playtime, y crea
+`player_presence_sessions`. `0029_profile_privacy_defaults.sql` cambia el
+default a `true` solo para perfiles nuevos y conserva todos los valores
+existentes. Su clave es `(player_id, source, client_id)`; las
 fuentes son `web|launcher`, las actividades `connected|playing` y el contexto
 opcional de juego se limita a `game_id`, `week_id` y
 `practice|competition`. `created_at` y `last_seen_at` usan reloj de servidor.

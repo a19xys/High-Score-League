@@ -1,3 +1,5 @@
+import { renderIcon } from "./components/icon.js";
+
 function isActivePack(pack, state) {
   return Boolean(
     pack?.instanceKey &&
@@ -54,7 +56,24 @@ export function syncLibraryPackCardSelection(card, pack, state) {
   }
 
   const favorite = card.querySelector('[data-action="toggle-library-favorite"]');
-  if (favorite) favorite.disabled = interaction.favoriteDisabled;
+  if (favorite) {
+    const active = Boolean(pack.favorite);
+    const blocked = !state.data?.session?.hasSession || pack.favoriteDisabled || pack.duplicatePackId;
+    const label = blocked
+      ? "Inicia sesión para marcar favoritos"
+      : active ? "Quitar de favoritos" : "Marcar como favorito";
+    favorite.disabled = interaction.favoriteDisabled;
+    favorite.classList.toggle("favorite-slot--active", active);
+    favorite.classList.toggle("favorite-slot--locked", Boolean(blocked));
+    favorite.classList.toggle("favorite-slot--pending", Boolean(pack.favoritePending));
+    favorite.setAttribute("aria-label", label);
+    favorite.setAttribute("aria-pressed", active ? "true" : "false");
+    favorite.setAttribute("title", label);
+    const iconName = active ? "star-filled" : "star-empty";
+    if (favorite.querySelector(".ui-icon")?.dataset.icon !== iconName) {
+      favorite.innerHTML = renderIcon(iconName, { className: "favorite-icon", size: "sm" });
+    }
+  }
 
   return interaction;
 }
@@ -77,6 +96,8 @@ export function syncLibraryPackSelectionState(region, state) {
 export function libraryPacksStructuralState(state) {
   const packs = state.data?.library?.packs || [];
   if (packs.length === 0) return state;
+  const favoritesOnly = state.libraryFavoriteFilter === "favorites"
+    && Boolean(state.data?.session?.hasSession);
 
   return {
     ...state,
@@ -85,6 +106,12 @@ export function libraryPacksStructuralState(state) {
     pendingLibraryPackId: null,
     data: {
       ...state.data,
+      library: {
+        ...state.data.library,
+        packs: favoritesOnly
+          ? packs
+          : packs.map((pack) => ({ ...pack, favorite: false, favoritePending: false })),
+      },
       selection: {
         ...state.data.selection,
         activeInstanceKey: null,

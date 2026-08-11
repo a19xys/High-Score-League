@@ -28,6 +28,7 @@ function sessionState() {
 
 test("the canonical backend guard rejects checking before MAME can launch", () => {
   assert.equal(shouldBlockCompetition({ status: "checking" }), true);
+  assert.equal(shouldBlockCompetition({ effectiveStatus: "member", status: "checking" }), false);
   assert.equal(shouldBlockSubmit({ status: "checking", canSubmit: false }), true);
 });
 

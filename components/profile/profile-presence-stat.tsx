@@ -17,14 +17,10 @@ function copy(presence: PlayerPresence, owner: boolean) {
   if (presence.status === "playing") {
     return {
       label: "JUGANDO",
-      detail: presence.game ? `${presence.game.title} · Launcher` : "Launcher",
+      detail: presence.game?.title || null,
     };
   }
-  const sources = presence.sources;
-  const detail = sources.includes("web") && sources.includes("launcher")
-    ? "Web y launcher"
-    : sources.includes("launcher") ? "Launcher" : "Web";
-  return { label: "CONECTADO", detail };
+  return { label: "CONECTADO", detail: null };
 }
 
 export function ProfilePresenceStat({
@@ -105,4 +101,3 @@ export function ProfilePresenceStat({
     </div>
   );
 }
-

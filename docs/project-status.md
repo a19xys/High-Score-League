@@ -197,10 +197,13 @@ el roadmap.
 
 `PROFILE-PRESENCE-1` está implementado en código y schema mediante `0028`:
 heartbeats web/launcher de 30 s, TTL de 90 s, `JUGANDO > CONECTADO >
-DESCONECTADO` y privacidad opt-in con `PRIVADO` prioritario. No hay última
+DESCONECTADO` y `PRIVADO` prioritario. `0029` cambia a público el default de
+Presence y Playtime para perfiles nuevos, sin backfill de valores históricos;
+la UI formula ambas preferencias como acciones de ocultación. No hay última
 conexión, historial ni outbox. Playtime no se usa para inferir Presence y las
-submissions conservan toda la autoridad competitiva. Falta aplicar `0028` en el
-entorno remoto antes de considerar operativa esta función.
+submissions conservan toda la autoridad competitiva. Falta aplicar `0028` y
+`0029`, en ese orden, en el entorno remoto antes de considerar operativa esta
+función.
 
 ### Otros pendientes reales
 

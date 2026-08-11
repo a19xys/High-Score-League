@@ -278,13 +278,64 @@ test("selection-only states share structural HTML while real library changes inv
   assert.equal(regions.get("library-packs").writes, 1);
 });
 
+test("favorite ON/OFF is incremental in Covers, List and Icons while Favorites filtering stays structural", async () => {
+  const [{ createRegionRenderer }, { renderLibraryPacks }, { libraryPacksStructuralState }] = await Promise.all([
+    import(pathToFileURL(path.join(appDir, "region-renderer.js"))),
+    import(pathToFileURL(path.join(appDir, "components", "library-panel.js"))),
+    import(pathToFileURL(path.join(appDir, "library-selection-sync.js"))),
+  ]);
+  const structuralHtml = (state) => renderLibraryPacks(libraryPacksStructuralState(state));
+
+  for (const libraryView of ["covers", "list", "icons"]) {
+    const initial = rendererState({ libraryView });
+    const favorite = rendererState({ libraryView });
+    favorite.data.library.packs = favorite.data.library.packs.map((pack) => ({
+      ...pack,
+      favorite: true,
+      favoritePending: true,
+    }));
+    assert.equal(structuralHtml(favorite), structuralHtml(initial), libraryView);
+
+    const acknowledged = rendererState({ libraryView });
+    acknowledged.data.library.packs = acknowledged.data.library.packs.map((pack) => ({ ...pack, favorite: true }));
+    const rolledBack = rendererState({ libraryView });
+    const { regions, renderer } = fakeRenderer(createRegionRenderer, ["library-packs"]);
+    const region = regions.get("library-packs");
+    region.scrollTop = 417;
+    renderer.prime("library-packs", structuralHtml(initial));
+    for (const next of [favorite, acknowledged, rolledBack]) {
+      renderer.render("library-packs", structuralHtml(next));
+      assert.equal(region.scrollTop, 417, libraryView);
+    }
+    assert.equal(region.writes, 0, libraryView);
+
+    const favoritesOnly = { ...favorite, libraryFavoriteFilter: "favorites" };
+    const noneFavorite = rendererState({ libraryFavoriteFilter: "favorites", libraryView });
+    assert.notEqual(structuralHtml(favoritesOnly), structuralHtml(noneFavorite), libraryView);
+  }
+});
+
 test("incremental selection preserves card identity and synchronizes accessibility", async () => {
   const { syncLibraryPackSelectionState } = await import(pathToFileURL(path.join(appDir, "library-selection-sync.js")));
   const attributes = (entries = {}) => new Map(Object.entries(entries));
   const fakeCard = (instanceKey) => {
     const cardAttributes = attributes({ "aria-current": "false", "data-action": "use-library-pack", "data-pack-id": instanceKey.replace("instance", "pack"), role: "button", tabindex: "0" });
     const classes = new Set(["pack-card"]);
-    const favorite = { disabled: false };
+    const favoriteAttributes = attributes({ "aria-pressed": "false", title: "Marcar como favorito" });
+    const favoriteClasses = new Set(["favorite-slot"]);
+    const favorite = {
+      disabled: false,
+      innerHTML: "",
+      classList: {
+        contains: (name) => favoriteClasses.has(name),
+        toggle(name, enabled) {
+          if (enabled) favoriteClasses.add(name);
+          else favoriteClasses.delete(name);
+        },
+      },
+      querySelector: () => ({ dataset: { icon: "star-empty" } }),
+      setAttribute: (name, value) => favoriteAttributes.set(name, String(value)),
+    };
     return {
       attributes: cardAttributes,
       classList: {

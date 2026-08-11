@@ -44,11 +44,11 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
   const [avatarSelection, setAvatarSelection] = useState<MediaSelection>(
     UNCHANGED_MEDIA_SELECTION,
   );
-  const [playTimePublic, setPlayTimePublic] = useState(
-    auth.profile?.play_time_public ?? false,
+  const [hidePlayTime, setHidePlayTime] = useState(
+    auth.profile?.play_time_public === false,
   );
-  const [presencePublic, setPresencePublic] = useState(
-    auth.profile?.presence_public ?? false,
+  const [hidePresence, setHidePresence] = useState(
+    auth.profile?.presence_public === false,
   );
   const [error, setError] = useState<string | null>(auth.profileError);
   const [message, setMessage] = useState<string | null>(null);
@@ -120,8 +120,8 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
             bio: cleanBio || null,
             avatar_url: avatar.publicUrl,
             avatar_storage_path: avatar.storagePath,
-            play_time_public: playTimePublic,
-            presence_public: presencePublic,
+            play_time_public: !hidePlayTime,
+            presence_public: !hidePresence,
           };
           const response = auth.profile
             ? await supabase
@@ -186,8 +186,8 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
     setAvatarUrl(profile.avatar_url ?? "");
     setAvatarStoragePath(profile.avatar_storage_path ?? null);
     setAvatarSelection(UNCHANGED_MEDIA_SELECTION);
-    setPlayTimePublic(profile.play_time_public ?? false);
-    setPresencePublic(profile.presence_public ?? false);
+    setHidePlayTime(profile.play_time_public === false);
+    setHidePresence(profile.presence_public === false);
     if (auth.profile?.presence_public !== true && profile.presence_public === true) {
       window.dispatchEvent(new Event("hsl:presence-preference-changed"));
     }
@@ -293,14 +293,14 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
               <h3 className="text-lg font-black theme-text">Privacidad</h3>
               <label className="mt-3 flex items-start gap-3">
                 <input
-                  checked={playTimePublic}
+                  checked={hidePlayTime}
                   className="mt-1 h-4 w-4 accent-circuit"
-                  onChange={(event) => setPlayTimePublic(event.target.checked)}
+                  onChange={(event) => setHidePlayTime(event.target.checked)}
                   type="checkbox"
                 />
                 <span>
                   <span className="block font-extrabold theme-text">
-                    Mostrar mi tiempo de juego
+                    Ocultar mi tiempo de juego
                   </span>
                   <span className="mt-1 block text-xs leading-5 theme-text-muted">
                     Tú siempre puedes verlo; al ocultarlo deja de mostrarse al resto de jugadores.
@@ -309,17 +309,17 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
               </label>
               <label className="mt-4 flex items-start gap-3">
                 <input
-                  checked={presencePublic}
+                  checked={hidePresence}
                   className="mt-1 h-4 w-4 accent-circuit"
-                  onChange={(event) => setPresencePublic(event.target.checked)}
+                  onChange={(event) => setHidePresence(event.target.checked)}
                   type="checkbox"
                 />
                 <span>
                   <span className="block font-extrabold theme-text">
-                    Mostrar mi estado en línea y juego actual
+                    Ocultar mi estado en línea y juego actual
                   </span>
                   <span className="mt-1 block text-xs leading-5 theme-text-muted">
-                    Desactivado por defecto. No guardamos un historial de conexión.
+                    Si lo ocultas, tu perfil mostrará «Privado». No guardamos un historial de conexión.
                   </span>
                 </span>
               </label>

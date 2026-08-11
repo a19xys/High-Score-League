@@ -167,10 +167,13 @@ lectura conserva el último valor válido o muestra `—`, nunca inventa una
 desconexión. `JUGANDO` tiene prioridad sobre conexiones web o launcher y el
 detalle del juego siempre procede del `game_id` canónico resuelto en servidor.
 
-Presence es efímera y opt-in mediante `presence_public`, que vale `false` por
-defecto. Web y launcher emiten heartbeats independientes cada 30 segundos y el
-servidor solo considera vivas las filas de los últimos 90 segundos. No se
-publica última conexión, historial, número de dispositivos ni timestamps.
+Presence es efímera y su privacidad se presenta como la acción de ocultarla.
+Desde `0029_profile_privacy_defaults.sql`, `presence_public` vale `true` para
+perfiles nuevos; los valores históricos no se migran porque no hay una señal
+fiable que distinga privacidad elegida del antiguo default. Web y launcher
+emiten heartbeats independientes cada 30 segundos y el servidor solo considera
+vivas las filas de los últimos 90 segundos. No se publica última conexión,
+historial, número de dispositivos, vía de conexión ni timestamps.
 Playtime continúa siendo histórico/acumulativo y las submissions continúan
 siendo la autoridad competitiva: ninguno se usa para inferir Presence.
 

@@ -22,7 +22,7 @@ const validEvent = {
 test("web formatter matches the launcher Playtime contract", () => {
   assert.deepEqual(
     [0, 30, 60, 480, 6600, 7199, 7200, 12240, 46080].map(formatPlayTime),
-    ["0 minutos", "Menos de 1 minuto", "1 minuto", "8 minutos", "110 minutos", "119 minutos", "2,0 horas", "3,4 horas", "12,8 horas"],
+    ["0 min", "0 min", "1 min", "8 min", "110 min", "119 min", "2,0 h", "3,4 h", "12,8 h"],
   );
 });
 
@@ -74,8 +74,11 @@ test("owner and public readers see RLS-backed totals; absent aggregate is zero",
   });
 });
 
-test("migration keeps Playtime transactional, idempotent and private by default", async () => {
-  const sql = await readFile(join(process.cwd(), "supabase/migrations/0025_play_time.sql"), "utf8");
+test("migrations keep Playtime transactional and idempotent while changing only the new-profile default", async () => {
+  const [sql, defaults] = await Promise.all([
+    readFile(join(process.cwd(), "supabase/migrations/0025_play_time.sql"), "utf8"),
+    readFile(join(process.cwd(), "supabase/migrations/0029_profile_privacy_defaults.sql"), "utf8"),
+  ]);
   assert.match(sql, /play_time_public boolean not null default false/i);
   assert.doesNotMatch(sql, /update\s+public\.profiles[\s\S]*track_play_time/i);
   assert.match(sql, /primary key \(player_id, event_id\)/i);
@@ -87,6 +90,8 @@ test("migration keeps Playtime transactional, idempotent and private by default"
   assert.match(sql, /player_play_time_totals\.total_seconds \+ excluded\.total_seconds/i);
   assert.match(sql, /player_id = auth\.uid\(\)[\s\S]*play_time_public = true/i);
   assert.match(sql, /security definer[\s\S]*set search_path = ''/i);
+  assert.match(defaults, /alter column play_time_public set default true/i);
+  assert.doesNotMatch(defaults, /update\s+public\.profiles/i);
 });
 
 test("profile UI has a fifth card and persists only the new visibility preference", async () => {
@@ -97,8 +102,9 @@ test("profile UI has a fifth card and persists only the new visibility preferenc
   ]);
   assert.match(stats, /lg:grid-cols-5/);
   assert.match(stats, /Esta información no se muestra al resto/);
-  assert.match(editor, /play_time_public: playTimePublic/);
-  assert.match(editor, /play_time_public \?\? false/);
+  assert.match(editor, /play_time_public: !hidePlayTime/);
+  assert.match(editor, /profile\?\.play_time_public === false/);
+  assert.match(editor, /Ocultar mi tiempo de juego/);
   assert.doesNotMatch(editor, /track_play_time:\s*trackPlayTime/);
   assert.match(route, /supabase\.rpc\("ingest_play_time_event"/);
   assert.doesNotMatch(route, /season_memberships|weekly_results|submissions/);

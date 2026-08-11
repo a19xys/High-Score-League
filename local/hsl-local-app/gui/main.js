@@ -9,7 +9,10 @@ const { createNetworkTopologyMonitor } = require("../src/network-topology-monito
 const { createPresenceService } = require("../src/presence-service");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
 const { createMembershipStartupCoordinator, membershipResolutionContext } = require("../src/membership-startup-coordinator");
-const { runCompetitionPlayPreflight } = require("../src/competition-play-preflight");
+const {
+  membershipResolutionBlocksCompetition,
+  runCompetitionPlayPreflight,
+} = require("../src/competition-play-preflight");
 const { runAccountMutationWithProfileRefresh } = require("../src/account-profile-orchestration");
 const { createLauncherStateAuthority, isLauncherSnapshot } = require("../src/launcher-state-authority");
 const { safeMembershipJoinUrl } = require("../src/season-membership");
@@ -389,6 +392,7 @@ function initializeRemoteServices() {
   service.configurePlayTimeSync({
     fetchImpl: (url, init) => net.fetch(url, init),
     getConnectivityState: () => connectivity.getState(),
+    resolveSessionResultImpl: (_config, options) => service.resolveCanonicalSessionForRemote(options),
   });
   presence = createPresenceService({
     configProvider: () => ({
@@ -398,6 +402,7 @@ function initializeRemoteServices() {
     }),
     fetchImpl: (url, init) => net.fetch(url, init),
     getConnectivityState: () => connectivity.getState(),
+    resolveSessionResultImpl: (_config, options) => service.resolveCanonicalSessionForRemote(options),
   });
   service.setPresenceLifecycleProvider((context) => presence?.createMameLifecycle(context));
   service.setPresenceAccountLifecycleProvider({
@@ -1068,16 +1073,20 @@ function registerIpc() {
   });
   registerLauncherStateHandler("launcher:diagnose", () => service.runDiagnose());
   registerLauncherStateHandler("launcher:play-competition", async () => {
-    if (membershipStartupCoordinator?.isActive() || membershipCoordinationPaused()) {
+    const membershipResolutionActive = membershipStartupCoordinator?.isActive() || membershipCoordinationPaused();
+    if (membershipResolutionActive) {
       const state = membershipStartupCoordinator?.getCurrentState()
         || await service.getLauncherState({ deferRemoteMembership: true });
-      return {
-        action: "play-competition",
-        lines: ["Comprobando participación."],
-        ok: false,
-        state,
-        summary: "Comprobando participación.",
-      };
+      if (membershipResolutionBlocksCompetition(state, true)) {
+        return {
+          action: "play-competition",
+          lines: ["Comprobando participación."],
+          ok: false,
+          reason: "membership-not-confirmed",
+          state,
+          summary: "Comprobando participación.",
+        };
+      }
     }
     const readPreflightState = async () => syncRemoteContext(
       await service.getLauncherState({ deferRemoteMembership: true }),
@@ -1147,6 +1156,8 @@ if (!hasSingleInstanceLock) {
     registerIpc();
     localStartupPromise = Promise.all([service.migrateRememberedSessionsForGui(), weekAuthorityStartupPromise])
       .then(async () => {
+        const startupSession = await service.getAuthStateForGui();
+        presence?.setActiveUserId(startupSession.hasSession ? startupSession.userId : null).catch(() => {});
         await service.initializePlayTime();
         service.requestPlayTimeSync("startup-local-ready").catch(() => {});
         return [];

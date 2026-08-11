@@ -81,9 +81,10 @@ documentadas en `docs/profile-revamp.md`.
 Si hay sesión y perfil, muestra identidad, fecha de creación, resultados
 oficiales, mejores marcas y envíos propios. El email vive solo en el bloque
 privado de sesión. Permite actualizar username, initials, descripción,
-avatar mediante `MediaUpload` y la preferencia de visibilidad
-`play_time_public`. Al guardar se actualiza también `user_metadata` y se
-refresca la ruta.
+avatar mediante `MediaUpload` y las preferencias de visibilidad
+`play_time_public` y `presence_public`. La UI las presenta como acciones de
+ocultación: desmarcadas publican la información y marcadas persisten `false`.
+Al guardar se actualiza también `user_metadata` y se refresca la ruta.
 
 Si hay sesión pero no hay perfil, `/profile` muestra un formulario inline para
 crearlo. Si no hay sesión, muestra enlace a `/login`.
@@ -133,10 +134,13 @@ conservan y podrían contener datos que requieren moderación aparte.
 
 ## Privacidad de Presence
 
-`presence_public` es una preferencia independiente, opt-in y privada por
-defecto. El guardado normal del perfil puede activarla o desactivarla; al pasar
-a `false`, la barrera de base de datos elimina inmediatamente todas las
-sesiones efímeras. La anonimización también fuerza `false` y limpia Presence.
+`presence_public` es una preferencia independiente. Desde
+`0029_profile_privacy_defaults.sql`, los perfiles nuevos parten en `true` y la
+UI permite optar por ocultarla; los valores históricos se conservan porque un
+`false` antiguo no permite distinguir una elección explícita del default
+anterior. Al pasar a `false`, la barrera de base de datos elimina
+inmediatamente todas las sesiones efímeras. La anonimización también fuerza
+`false` y limpia Presence.
 
 El heartbeat web usa la cookie de sesión canónica. El launcher usa el bearer de
 la única cuenta activa y la misma política de renovación canónica que el resto

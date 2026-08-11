@@ -110,8 +110,11 @@ test("Presence payload contracts reject spoofed authority, arbitrary browser act
   }).ok, false);
 });
 
-test("0028 is private by default, service-role-only, server-clocked and cleans privacy/tombstones", async () => {
-  const sql = await readFile(join(process.cwd(), "supabase/migrations/0028_player_presence.sql"), "utf8");
+test("0028 keeps its historical default and 0029 changes only new profiles without backfill", async () => {
+  const [sql, defaults] = await Promise.all([
+    readFile(join(process.cwd(), "supabase/migrations/0028_player_presence.sql"), "utf8"),
+    readFile(join(process.cwd(), "supabase/migrations/0029_profile_privacy_defaults.sql"), "utf8"),
+  ]);
   assert.match(sql, /presence_public boolean not null default false/i);
   assert.doesNotMatch(sql, /update\s+public\.profiles[\s\S]*play_time_public/i);
   assert.match(sql, /primary key \(player_id, source, client_id\)/i);
@@ -124,6 +127,8 @@ test("0028 is private by default, service-role-only, server-clocked and cleans p
   assert.match(sql, /for update/i);
   assert.match(sql, /clock_timestamp\(\)/i);
   assert.match(sql, /last_seen_at < clock_timestamp\(\) - interval '24 hours'/i);
+  assert.match(defaults, /alter column presence_public set default true/i);
+  assert.doesNotMatch(defaults, /update\s+public\.profiles/i);
 });
 
 test("server read checks privacy before sessions and public DTOs omit internal identity/timestamps", async () => {
@@ -148,14 +153,18 @@ test("profile reuses the fifth Estado cell with SSR, polling and privacy prefere
   assert.match(stats, /lg:grid-cols-5/);
   assert.match(stats, /ProfilePresenceStat/);
   for (const label of ["JUGANDO", "CONECTADO", "DESCONECTADO", "PRIVADO"]) assert.match(presenceStat, new RegExp(label));
-  assert.match(presenceStat, /Web y launcher/);
+  assert.doesNotMatch(presenceStat, /Web y launcher|· Launcher/);
+  assert.match(presenceStat, /label: "CONECTADO", detail: null/);
+  assert.match(presenceStat, /detail: presence\.game\?\.title \|\| null/);
   assert.match(presenceStat, /Tu estado no se muestra al resto/);
   assert.match(presenceStat, /Este jugador ha ocultado su estado/);
   assert.match(presenceStat, /POLL_INTERVAL_MS = 15_000/);
   assert.match(presenceStat, /visibilityState === "hidden"/);
   assert.match(presenceStat, /Keep the last valid state/);
-  assert.match(editor, /presence_public: presencePublic/);
-  assert.match(editor, /Mostrar mi estado en línea y juego actual/);
+  assert.match(editor, /presence_public: !hidePresence/);
+  assert.match(editor, /profile\?\.presence_public === false/);
+  assert.match(editor, /Ocultar mi estado en línea y juego actual/);
+  assert.match(editor, /auth\.profile\?\.presence_public !== true[\s\S]*hsl:presence-preference-changed/);
   assert.match(layout, /WebPresenceHeartbeat/);
   assert.match(ownerPage, /getPlayerPresence/);
   assert.match(publicPage, /getPlayerPresence/);

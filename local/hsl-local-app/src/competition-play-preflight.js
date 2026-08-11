@@ -45,14 +45,29 @@ function competitionAttemptsMatch(left, right) {
     && left.weekId === right.weekId;
 }
 
-function blockedResult(state, summary, line = summary) {
+function blockedResult(state, summary, line = summary, reason = "competition-blocked") {
   return {
     action: "play-competition",
     lines: [line],
     ok: false,
+    reason,
     state,
     summary,
   };
+}
+
+function confirmedCompetitionFromState(state = {}) {
+  return {
+    competitionAccess: state.competitionAccess || null,
+    membership: state.membership || null,
+    weekCapability: state.weekCapability || state.game?.weekCapability || null,
+  };
+}
+
+function membershipResolutionBlocksCompetition(state = {}, resolutionActive = false) {
+  if (!resolutionActive) return false;
+  return state.competitionAccess?.canPlayCompetition !== true
+    && state.readiness?.canPlayCompetition !== true;
 }
 
 function weekBlockMessage(publicState) {
@@ -68,11 +83,14 @@ async function runCompetitionPlayPreflight(options = {}) {
   const attempt = competitionAttemptFromState(initialState, initialAuthority);
 
   if (initialAuthority.connected !== true) {
-    return options.launch({ expectedCompetitionAttempt: attempt });
+    return options.launch({
+      confirmedCompetition: confirmedCompetitionFromState(initialState),
+      expectedCompetitionAttempt: attempt,
+    });
   }
 
   if (!attempt.weekId) {
-    return blockedResult(initialState, "No se puede jugar competición con este pack.");
+    return blockedResult(initialState, "No se puede jugar competición con este pack.", undefined, "local-competition-not-ready");
   }
 
   const remote = await options.ensureFreshCapability(attempt.weekId);
@@ -85,6 +103,7 @@ async function runCompetitionPlayPreflight(options = {}) {
       currentState,
       "El contexto competitivo ha cambiado.",
       "La cuenta, el pack o la conexión han cambiado. Vuelve a intentarlo.",
+      "competition-context-changed",
     );
   }
 
@@ -93,12 +112,13 @@ async function runCompetitionPlayPreflight(options = {}) {
       currentState,
       "No se pudo confirmar la semana activa.",
       "No se pudo confirmar que la semana siga activa. Puedes practicar.",
+      "week-refresh-failed",
     );
   }
 
   const publicState = currentState.weekCapability?.publicState;
   if (publicState !== "active") {
-    return blockedResult(currentState, weekBlockMessage(publicState));
+    return blockedResult(currentState, weekBlockMessage(publicState), undefined, `week-${publicState || "unknown"}`);
   }
 
   if (currentState.competitionAccess?.canPlayCompetition !== true) {
@@ -106,17 +126,23 @@ async function runCompetitionPlayPreflight(options = {}) {
       currentState,
       "No se puede jugar competición con este pack.",
       currentState.readiness?.message || "No se puede jugar competición con este pack.",
+      currentState.competitionAccess?.reason || "local-competition-not-ready",
     );
   }
 
-  return options.launch({ expectedCompetitionAttempt: currentAttempt });
+  return options.launch({
+    confirmedCompetition: confirmedCompetitionFromState(currentState),
+    expectedCompetitionAttempt: currentAttempt,
+  });
 }
 
 module.exports = {
   competitionAttemptFromLauncherContext,
   competitionAttemptFromState,
   competitionAttemptsMatch,
+  confirmedCompetitionFromState,
   createCompetitionAttemptFingerprint,
+  membershipResolutionBlocksCompetition,
   runCompetitionPlayPreflight,
   weekBlockMessage,
 };

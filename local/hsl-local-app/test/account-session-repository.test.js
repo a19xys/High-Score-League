@@ -122,6 +122,73 @@ test("same-user resolves share one refresh and different users remain independen
   });
 });
 
+for (const companion of ["membership", "Playtime"]) {
+  test(`Presence y ${companion} simultáneos serializan un único refresh sin falso requiresLogin`, async () => {
+    await withTempDir(async (root) => {
+    const cfg = config(root);
+    let calls = 0;
+    let release;
+    let started;
+    const refreshStarted = new Promise((resolve) => { started = resolve; });
+    const repo = repository(cfg, {
+      refreshProvider: async ({ storedSession }) => {
+        calls += 1;
+        started();
+        await new Promise((resolve) => { release = resolve; });
+        return {
+          ...storedSession,
+          session: { ...storedSession.session, expires_at: Math.floor(Date.now() / 1000) + 3600 },
+        };
+      },
+    });
+    await repo.saveLogin(stored("user-1", "one", 1));
+    const presenceSignal = new AbortController();
+    const membershipSignal = new AbortController();
+    const presence = repo.resolve("user-1", { connected: true, signal: presenceSignal.signal });
+    await refreshStarted;
+    const membership = repo.resolve("user-1", { connected: true, signal: membershipSignal.signal });
+    release();
+    const [presenceResult, membershipResult] = await Promise.all([presence, membership]);
+    assert.equal(calls, 1);
+    assert.equal(presenceResult.requiresLogin, false);
+    assert.equal(membershipResult.requiresLogin, false);
+    assert.ok(["refreshed", "stale", "valid"].includes(presenceResult.status));
+    assert.ok(["refreshed", "stale", "valid"].includes(membershipResult.status));
+    assert.equal((await repo.read("user-1")).requiresLogin, false);
+    });
+  });
+}
+
+test("suspend o cambio de cuenta durante refresh producen cancelled/stale y conservan la sesión", async () => {
+  for (const reason of ["suspend", "switch-account"]) {
+    await withTempDir(async (root) => {
+      const cfg = config(root);
+      let started;
+      const refreshStarted = new Promise((resolve) => { started = resolve; });
+      const repo = repository(cfg, {
+        refreshProvider: async ({ signal, storedSession }) => {
+          started();
+          await new Promise((resolve, reject) => {
+            signal.addEventListener("abort", () => reject(Object.assign(new Error("cancelled"), { name: "AbortError" })), { once: true });
+          });
+          return storedSession;
+        },
+      });
+      await repo.saveLogin(stored("user-1", "one", 1));
+      const controller = new AbortController();
+      const operation = repo.resolve("user-1", { connected: true, signal: controller.signal });
+      await refreshStarted;
+      if (reason === "suspend") controller.abort(reason);
+      else repo.cancelUserOperations("user-1", reason);
+      const result = await operation;
+      assert.ok(["cancelled", "stale"].includes(result.status));
+      assert.equal(result.requiresLogin, false);
+      assert.equal((await repo.read("user-1")).hasLocalSession, true);
+      assert.equal((await repo.read("user-1")).requiresLogin, false);
+    });
+  }
+});
+
 test("different users refresh concurrently without a global lock", async () => {
   await withTempDir(async (root) => {
     const cfg = config(root);

@@ -68,8 +68,12 @@ test("una semana cerrada bloquea antes de iniciar MAME competitivo", async () =>
     launcher.indexOf("async function playCompetition"),
     launcher.indexOf("async function playPractice()"),
   );
-  assert.match(competition, /weekCapability: context\.weekCapability/);
+  assert.match(competition, /weekCapability = options\.confirmedCompetition\?\.weekCapability \|\| context\.weekCapability/);
   assert.match(competition, /expectedCompetitionAttempt/);
+  assert.match(competition, /deferRemoteMembership: Boolean\(options\.confirmedCompetition\)/);
+  assert.match(competition, /options\.confirmedCompetition\?\.membership \|\| context\.membership/);
+  assert.match(competition, /options\.confirmedCompetition\?\.weekCapability \|\| context\.weekCapability/);
+  assert.match(competition, /membership\?\.effectiveStatus \|\| membership\?\.status/);
   assert.ok(competition.indexOf("readinessBlockedResponse") < competition.indexOf("launchMameDetailed"));
   assert.ok(competition.indexOf("readinessBlockedResponse") < competition.indexOf("launchMame("));
 });

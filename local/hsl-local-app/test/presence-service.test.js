@@ -36,7 +36,13 @@ function harness(overrides = {}) {
     resolveSessionResultImpl: async (_config, options) => overrides.sessionResult || validSession(options.userId),
     setTimeout(callback, delay) {
       const id = ++timerId;
-      timers.set(id, { callback, delay });
+      timers.set(id, {
+        callback() {
+          timers.delete(id);
+          callback();
+        },
+        delay,
+      });
       return id;
     },
     clearTimeout(id) { timers.delete(id); },
@@ -102,6 +108,18 @@ test("only the active account heartbeats and account switch clears B before conn
     ["POST", "token-C"],
   ]);
   assert.equal(h.calls[1].payload.activity, "connected");
+  await h.service.shutdown();
+});
+
+test("a remembered active account assigned during startup emits launcher connected without selector interaction", async () => {
+  const h = harness();
+  await h.service.setActiveUserId("B");
+  assert.equal(h.calls.length, 0);
+  await h.service.start();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].method, "POST");
+  assert.equal(h.calls[0].payload.activity, "connected");
+  assert.equal(h.calls[0].token, "token-B");
   await h.service.shutdown();
 });
 
@@ -187,6 +205,10 @@ test("heartbeat is 30 seconds, single-flight, auth failures stay silent and shut
   await stable.service.setActiveUserId("A");
   assert.equal([...stable.timers.values()][0].delay, PRESENCE_HEARTBEAT_INTERVAL_MS);
   assert.equal(stable.timers.size, 1);
+  stable.calls.length = 0;
+  [...stable.timers.values()][0].callback();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(stable.calls.at(-1).payload.activity, "connected");
   await stable.service.shutdown();
   assert.equal(stable.timers.size, 0);
 
@@ -209,6 +231,8 @@ test("launcher integration composes Presence and Playtime over the same MAME lif
   assert.match(service, /createMameOperationLifecycle\(context, "practice"\)/);
   assert.match(service, /createMameOperationLifecycle\(context, "competition"\)/);
   assert.match(main, /presence\?\.setActiveUserId\(nextUserId\)/);
+  assert.match(main, /startupSession[\s\S]*presence\?\.setActiveUserId/);
+  assert.match(main, /presence = createPresenceService\([\s\S]*resolveSessionResultImpl:[^\n]*resolveCanonicalSessionForRemote/);
   assert.match(main, /presence\?\.shutdown\(\)/);
   assert.match(service, /preparePresenceAccountChange\("logout"\)/);
   assert.match(service, /preparePresenceAccountChange\("switch-account"\)/);

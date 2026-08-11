@@ -548,7 +548,7 @@ async function checkSeasonMembership(config, sessionState, options = {}) {
 }
 
 function shouldBlockCompetition(membership) {
-  return BLOCKING_STATUSES.has(membership?.status);
+  return BLOCKING_STATUSES.has(membership?.effectiveStatus || membership?.status);
 }
 
 function shouldBlockSubmit(membership) {

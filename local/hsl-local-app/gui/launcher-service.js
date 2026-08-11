@@ -175,6 +175,10 @@ function getRemoteBootstrapState() {
   };
 }
 
+function resolveCanonicalSessionForRemote(options = {}) {
+  return resolveCanonicalSessionResult(loadRuntimeConfig(), options);
+}
+
 function getPackPluginName(pack) {
   return pack?.mame?.pluginName || pack?.capture?.pluginName || pack?.contract?.capture?.pluginName || pack?.plugin?.name || "hsl-score";
 }
@@ -2198,6 +2202,9 @@ function readinessBlockedResponse(action, readiness, capability) {
       ...(readiness?.blockers || []).filter((item) => item !== readiness?.message),
     ],
     ok: false,
+    reason: capability === "competition"
+      ? readiness?.competitionAccess?.reason || "local-competition-not-ready"
+      : "local-practice-not-ready",
     summary,
   };
 }
@@ -2318,8 +2325,10 @@ async function runDiagnose(options = {}) {
 }
 
 async function playCompetition(options = {}) {
-  const context = await getLauncherContext();
-  const { baseConfig, membership, session } = context;
+  const context = await getLauncherContext({
+    deferRemoteMembership: Boolean(options.confirmedCompetition),
+  });
+  const { baseConfig, session } = context;
 
   if (options.expectedCompetitionAttempt && !competitionAttemptsMatch(
     options.expectedCompetitionAttempt,
@@ -2329,16 +2338,22 @@ async function playCompetition(options = {}) {
       action: "play-competition",
       lines: ["La cuenta, el pack o la conexión han cambiado. Vuelve a intentarlo."],
       ok: false,
+      reason: "launch-context-changed",
       summary: "El contexto competitivo ha cambiado.",
       state: await getLauncherState({ deferRemoteMembership: true }),
     };
   }
+
+  const membership = options.confirmedCompetition?.membership || context.membership;
+  const weekCapability = options.confirmedCompetition?.weekCapability || context.weekCapability;
+  const membershipStatus = membership?.effectiveStatus || membership?.status || "unknown";
 
   if (!session.hasSession) {
     return {
       action: "play-competition",
       lines: ["Inicia sesion para jugar en competicion y guardar puntuaciones en tu cola local."],
       ok: false,
+      reason: session.requiresLogin ? "session-requires-login" : "session-missing",
       summary: "Inicia sesion para jugar en competicion.",
       state: await getLauncherState({ connected: true }),
     };
@@ -2349,6 +2364,7 @@ async function playCompetition(options = {}) {
       action: "play-competition",
       lines: [membership.message],
       ok: false,
+      reason: membershipStatus === "not_member" ? "not-member" : "membership-not-confirmed",
       summary: membership.message,
       state: await getLauncherState({ connected: true }),
     };
@@ -2361,6 +2377,7 @@ async function playCompetition(options = {}) {
       action: "play-competition",
       lines: [scoped.reason || "No se pudo preparar la cola local de esta cuenta."],
       ok: false,
+      reason: "local-competition-not-ready",
       summary: "No se pudo preparar la cola local.",
       state: await getLauncherState({ connected: true }),
     };
@@ -2374,7 +2391,7 @@ async function playCompetition(options = {}) {
     queue: readinessQueue,
     scope: scoped.scope,
     session,
-    weekCapability: context.weekCapability,
+    weekCapability,
   });
   const readinessBlock = readinessBlockedResponse("play-competition", readiness, "competition");
 
@@ -3255,6 +3272,7 @@ module.exports = {
   getAccountProfileSyncDiagnostics,
   getPlayTimeDiagnostics,
   getRemoteBootstrapState,
+  resolveCanonicalSessionForRemote,
   getLauncherState,
   importPackFromFolderForGui,
   importPackFromZipForGui,
