@@ -56,6 +56,7 @@ function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR, options = {}) {
     configSource: configExists ? "config.json" : pack ? "pack.json" : "defaults",
     eventsFailedDir: config.eventsFailedDir || null,
     eventsPendingDir: config.eventsPendingDir || null,
+    eventsRejectedDir: config.eventsRejectedDir || null,
     eventsSentDir: config.eventsSentDir || null,
     pack,
     packErrors: packResult.errors,
@@ -71,6 +72,7 @@ function getBoxDir(config, box) {
   if (box === "pending") return config.eventsPendingDirAbs;
   if (box === "sent") return config.eventsSentDirAbs;
   if (box === "failed") return config.eventsFailedDirAbs;
+  if (box === "rejected") return config.eventsRejectedDirAbs;
 
   throw new Error(`Caja desconocida: ${box}`);
 }

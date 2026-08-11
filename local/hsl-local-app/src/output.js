@@ -123,7 +123,7 @@ function printSubmitResult(result) {
     return;
   }
 
-  console.log(`[ERROR] ${result.filename}`);
+  console.log(`${result.action === "rejected" ? "[RECHAZADA]" : "[ERROR]"} ${result.filename}`);
   console.log(result.message || "Error desconocido");
 
   if (result.action === "network_error" || result.action === "auth_required" || result.action === "pending") {
@@ -135,7 +135,7 @@ function printSubmitResult(result) {
   }
 
   if (result.movedTo) {
-    console.log(`Movido a failed: ${result.movedTo}`);
+    console.log(`Movido a ${result.action === "rejected" ? "rejected" : "failed"}: ${result.movedTo}`);
   }
 
   if (result.body) {

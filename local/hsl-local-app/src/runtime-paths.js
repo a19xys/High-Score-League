@@ -62,13 +62,15 @@ function resolveEventDirs(config = {}, context) {
   const explicitPending = resolvePathValue(config.eventsPendingDir, context);
   const explicitSent = resolvePathValue(config.eventsSentDir, context);
   const explicitFailed = resolvePathValue(config.eventsFailedDir, context);
+  const explicitRejected = resolvePathValue(config.eventsRejectedDir, context);
 
-  if (explicitPending || explicitSent || explicitFailed) {
+  if (explicitPending || explicitSent || explicitFailed || explicitRejected) {
     return {
       eventsBaseDirAbs: null,
       eventsPendingDirAbs: explicitPending || path.resolve(context.userDataDir, "events", "pending"),
       eventsSentDirAbs: explicitSent || path.resolve(context.userDataDir, "events", "sent"),
       eventsFailedDirAbs: explicitFailed || path.resolve(context.userDataDir, "events", "failed"),
+      eventsRejectedDirAbs: explicitRejected || path.resolve(context.userDataDir, "events", "rejected"),
       eventsSource: "explicit",
     };
   }
@@ -80,6 +82,7 @@ function resolveEventDirs(config = {}, context) {
     eventsPendingDirAbs: path.join(eventsBaseDirAbs, "pending"),
     eventsSentDirAbs: path.join(eventsBaseDirAbs, "sent"),
     eventsFailedDirAbs: path.join(eventsBaseDirAbs, "failed"),
+    eventsRejectedDirAbs: path.join(eventsBaseDirAbs, "rejected"),
     eventsSource: config.eventsBaseDir ? "eventsBaseDir" : "userData",
   };
 }

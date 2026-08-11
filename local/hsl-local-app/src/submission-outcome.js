@@ -4,7 +4,20 @@ const {
 } = require("./submission-payload");
 
 const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429]);
-const TERMINAL_HTTP_STATUSES = new Set([400, 403, 409]);
+const AMBIGUOUS_HTTP_STATUSES = new Set([403, 404, 409]);
+const REJECTED_DOMAIN_CODES = new Set([
+  "DETECTED_AT_IN_FUTURE",
+  "NOT_SEASON_MEMBER",
+  "WEEK_CLOSED_AT_DETECTION",
+  "WEEK_GAME_NOT_ASSIGNED",
+  "WEEK_NOT_FOUND",
+  "WEEK_NOT_OPEN_AT_DETECTION",
+  "WEEK_WINDOW_UNAVAILABLE",
+]);
+const FAILED_TECHNICAL_CODES = new Set([
+  "DUPLICATE_KEY_CONFLICT",
+  "SUBMISSION_POLICY_REJECTED",
+]);
 const MIN_RETRY_AFTER_MS = 5000;
 const MAX_RETRY_AFTER_MS = 15 * 60 * 1000;
 
@@ -45,6 +58,7 @@ function baseOutcome(overrides = {}) {
 function classifySubmissionHttpResult(input = {}) {
   const status = Number(input.status) || 0;
   const body = input.body || null;
+  const domainCode = typeof body?.code === "string" ? body.code.trim().toUpperCase() : null;
   const duplicate = responseLooksDuplicate(status, body);
 
   if (responseLooksOk(status, body) || duplicate) {
@@ -69,6 +83,30 @@ function classifySubmissionHttpResult(input = {}) {
     });
   }
 
+  if (domainCode && REJECTED_DOMAIN_CODES.has(domainCode)) {
+    return baseOutcome({
+      domainCode,
+      httpStatus: status,
+      outcome: "rejected-domain",
+      playerMessage: "La puntuacion no pertenece a una ventana competitiva valida y se conserva como rechazada.",
+      preservePending: false,
+      technicalReason: `domain-${domainCode.toLowerCase()}`,
+      terminal: true,
+    });
+  }
+
+  if (domainCode && FAILED_TECHNICAL_CODES.has(domainCode)) {
+    return baseOutcome({
+      domainCode,
+      httpStatus: status,
+      outcome: "attention-required",
+      playerMessage: "La puntuacion sigue guardada localmente y requiere atencion tecnica.",
+      preservePending: false,
+      technicalReason: `technical-${domainCode.toLowerCase()}`,
+      terminal: true,
+    });
+  }
+
   if (RETRYABLE_HTTP_STATUSES.has(status) || status >= 500) {
     return baseOutcome({
       httpStatus: status,
@@ -80,21 +118,21 @@ function classifySubmissionHttpResult(input = {}) {
     });
   }
 
-  if (TERMINAL_HTTP_STATUSES.has(status)) {
+  if (AMBIGUOUS_HTTP_STATUSES.has(status)) {
     return baseOutcome({
       httpStatus: status,
-      outcome: "terminal-failure",
-      playerMessage: "La puntuacion fue rechazada y se ha movido a Requiere atencion.",
-      preservePending: false,
-      technicalReason: `http-${status}`,
-      terminal: true,
+      outcome: "ambiguous-http",
+      playerMessage: "El servicio no confirmo el resultado. La puntuacion sigue guardada para un reintento seguro.",
+      retryable: true,
+      technicalReason: `ambiguous-http-${status}`,
     });
   }
 
   return baseOutcome({
     httpStatus: status || null,
     outcome: "attention-required",
-    playerMessage: "La respuesta del servicio no era la esperada. La puntuacion sigue guardada y requiere atencion.",
+    playerMessage: "La respuesta del servicio no era compatible y la puntuacion requiere atencion tecnica.",
+    preservePending: false,
     technicalReason: `unexpected-http-${status || "unknown"}`,
     terminal: true,
   });
@@ -126,10 +164,12 @@ function classifySubmissionRequestFailure(failure = {}) {
 }
 
 module.exports = {
+  AMBIGUOUS_HTTP_STATUSES,
+  FAILED_TECHNICAL_CODES,
   MAX_RETRY_AFTER_MS,
   MIN_RETRY_AFTER_MS,
+  REJECTED_DOMAIN_CODES,
   RETRYABLE_HTTP_STATUSES,
-  TERMINAL_HTTP_STATUSES,
   baseOutcome,
   classifySubmissionHttpResult,
   classifySubmissionRequestFailure,

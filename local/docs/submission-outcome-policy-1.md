@@ -5,16 +5,20 @@ Politica canonica de resultados para CLI y autoenvio de puntuaciones.
 | Resultado | Cola | Reintento | Terminal |
 | --- | --- | --- | --- |
 | `success` / `duplicate` | mover a `sent` | no | si |
-| `auth-required` (401) | conservar `pending` | tras nueva revision de sesion | no |
-| `terminal-failure` (400/403/409 no duplicado) | mover a `failed` | manual | si |
+| `auth-required` (401 tras refresh canonico revocado) | conservar `pending` | tras nueva revision de sesion | no |
+| `rejected-domain` (codigo competitivo conclusivo) | mover a `rejected` interno | no | si |
+| `ambiguous-http` (403/404/409 sin codigo) | conservar `pending` | automatico prudente | no |
 | `retryable-http` (408/425/429/5xx) | conservar `pending` | automatico | no |
 | `transport-failure` / `timeout` | conservar `pending` | automatico | no |
 | `cancelled` | conservar `pending` | nuevo contexto | no |
-| `attention-required` (otro 4xx o respuesta inesperada) | conservar `pending` | requiere revision | si, estable |
+| `attention-required` (conflicto/politica/respuesta imposible) | mover a `failed` | revision manual | si |
 
 Todos los resultados exponen `outcome`, `ok`, `httpStatus`, `preservePending`,
 `retryable`, `authRequired`, `terminal`, `retryAfterMs`, `playerMessage` y
 `technicalReason`. `ok` solo es verdadero para exito logico o duplicado.
+`rejected` conserva el JSON y una nota saneada, pero queda fuera de Actividad,
+conteos y reintentos. Un primer 401 fuerza una unica renovacion canonica y un
+segundo 401 conserva `pending` sin bucle.
 
 ## Cadencia
 

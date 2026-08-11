@@ -6,21 +6,44 @@ const {
   parseRetryAfter,
 } = require("../src/submission-outcome");
 
-test("canonical submission outcomes cover success, duplicate, auth, terminal and unexpected 4xx", () => {
+test("canonical submission outcomes use domain codes instead of status alone", () => {
   assert.equal(classifySubmissionHttpResult({ status: 200, body: { ok: true } }).outcome, "success");
   assert.equal(classifySubmissionHttpResult({ status: 409, body: { duplicate: true } }).outcome, "duplicate");
   const auth = classifySubmissionHttpResult({ status: 401 });
   assert.equal(auth.authRequired, true);
   assert.equal(auth.preservePending, true);
-  for (const status of [400, 403, 409]) {
-    const result = classifySubmissionHttpResult({ status, body: { ok: false } });
-    assert.equal(result.outcome, "terminal-failure");
+
+  for (const code of [
+    "WEEK_NOT_FOUND",
+    "WEEK_GAME_NOT_ASSIGNED",
+    "NOT_SEASON_MEMBER",
+    "WEEK_WINDOW_UNAVAILABLE",
+    "WEEK_NOT_OPEN_AT_DETECTION",
+    "WEEK_CLOSED_AT_DETECTION",
+    "DETECTED_AT_IN_FUTURE",
+  ]) {
+    const result = classifySubmissionHttpResult({ status: 409, body: { code, ok: false } });
+    assert.equal(result.outcome, "rejected-domain", code);
     assert.equal(result.terminal, true);
     assert.equal(result.preservePending, false);
   }
+
+  for (const code of ["DUPLICATE_KEY_CONFLICT", "SUBMISSION_POLICY_REJECTED"]) {
+    const result = classifySubmissionHttpResult({ status: 409, body: { code, ok: false } });
+    assert.equal(result.outcome, "attention-required", code);
+    assert.equal(result.preservePending, false);
+  }
+
+  for (const status of [403, 404, 409]) {
+    const result = classifySubmissionHttpResult({ status, body: { ok: false } });
+    assert.equal(result.outcome, "ambiguous-http", status);
+    assert.equal(result.preservePending, true);
+    assert.equal(result.retryable, true);
+  }
+
   const unexpected = classifySubmissionHttpResult({ status: 422 });
   assert.equal(unexpected.outcome, "attention-required");
-  assert.equal(unexpected.preservePending, true);
+  assert.equal(unexpected.preservePending, false);
   assert.equal(unexpected.ok, false);
 });
 

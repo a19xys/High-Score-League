@@ -28,11 +28,12 @@ userData/
           events/
             pending/
             failed/
+            rejected/
             sent/
 ```
 
 `pending`, `failed` y `sent` del scope activo son los que ve, sube y restaura
-la GUI.
+la GUI. `rejected` queda deliberadamente fuera de esa proyeccion visible.
 
 ## playerKey
 
@@ -85,7 +86,7 @@ escribiendo en:
 Para la GUI esa carpeta pasa a ser staging: una bandeja de captura temporal.
 La cola final del jugador vive en el scope de `userData`.
 
-`userData/events/{pending,sent,failed}` queda como file queue global
+`userData/events/{pending,sent,failed,rejected}` queda como file queue global
 legacy/CLI. No debe confundirse con el scope de la GUI ni con staging real de
 un pack v2. Para `packVersion: 2`, el staging competitivo se crea por ejecucion
 en `userData/runtime/runs/<runId>/events/pending`.
@@ -153,5 +154,7 @@ para una tarea explicita posterior si hace falta.
 ## Integración en Actividad local
 
 Los totales y detalles de pending/sent/failed se leen exclusivamente del scope
-activo. `Puntuaciones con error`, restauración y subida manual reutilizan los
-flujos existentes; no se mueven puntuaciones entre cuentas o packs.
+activo. `rejected` comparte ese scope, pero es una caja interna terminal: no se
+muestra, cuenta, restaura, reintenta ni borra desde Actividad. `Puntuaciones con
+error`, restauración y subida manual reutilizan los flujos existentes; no se
+mueven puntuaciones entre cuentas o packs.

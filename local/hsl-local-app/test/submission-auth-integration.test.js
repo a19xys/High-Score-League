@@ -55,16 +55,19 @@ async function createConfig(root, origin) {
   const eventsPendingDirAbs = path.join(root, "events", "pending");
   const eventsSentDirAbs = path.join(root, "events", "sent");
   const eventsFailedDirAbs = path.join(root, "events", "failed");
+  const eventsRejectedDirAbs = path.join(root, "events", "rejected");
   await Promise.all([
     fsp.mkdir(eventsPendingDirAbs, { recursive: true }),
     fsp.mkdir(eventsSentDirAbs, { recursive: true }),
     fsp.mkdir(eventsFailedDirAbs, { recursive: true }),
+    fsp.mkdir(eventsRejectedDirAbs, { recursive: true }),
   ]);
   return {
     clientVersion: "0.1.0",
     defaultWeekId: "week-1",
     eventsFailedDirAbs,
     eventsPendingDirAbs,
+    eventsRejectedDirAbs,
     eventsSentDirAbs,
     recentEventThresholdMs: 0,
     sessionFileAbs: path.join(userDataDir, "session.json"),
@@ -92,6 +95,18 @@ async function saveExpiredCanonical(config) {
   await saveSession(config, {
     access_token: "old-access-token",
     expires_at: 1,
+    refresh_token: "old-refresh-token",
+    token_type: "bearer",
+  }, {
+    email: "player@example.com",
+    id: "user-one",
+  });
+}
+
+async function saveValidCanonical(config) {
+  await saveSession(config, {
+    access_token: "old-access-token",
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
     refresh_token: "old-refresh-token",
     token_type: "bearer",
   }, {
@@ -211,6 +226,92 @@ test("temporary refresh failure with an expired token never reaches ingest and p
       assert.equal(canonical.sessionRevision, 1);
       assert.equal(canonical.storedSession.session.access_token, "old-access-token");
       assert.equal(canonical.storedSession.session.refresh_token, "old-refresh-token");
+    });
+  });
+});
+
+test("a first ingest 401 performs one canonical refresh and retries once with the rotated token", async () => {
+  await withTempDir(async (root) => {
+    let refreshCalls = 0;
+    const ingestTokens = [];
+    await withServer(async (request, response) => {
+      if (request.url === "/auth/v1/token?grant_type=refresh_token") {
+        refreshCalls += 1;
+        await readRequestBody(request);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({
+          access_token: "rotated-access-token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          refresh_token: "rotated-refresh-token",
+          token_type: "bearer",
+          user: { email: "player@example.com", id: "user-one" },
+        }));
+        return;
+      }
+      if (request.url === "/api/submissions/ingest") {
+        ingestTokens.push(request.headers.authorization);
+        await readRequestBody(request);
+        response.writeHead(ingestTokens.length === 1 ? 401 : 201, { "content-type": "application/json" });
+        response.end(JSON.stringify(ingestTokens.length === 1 ? { ok: false } : { ok: true }));
+        return;
+      }
+      response.writeHead(404).end();
+    }, async (origin) => {
+      const config = await createConfig(root, origin);
+      const filename = "401-refresh.json";
+      await fsp.writeFile(path.join(config.eventsPendingDirAbs, filename), JSON.stringify(event()), "utf8");
+      await saveValidCanonical(config);
+
+      const result = await submitPendingFile(config, filename, { timeoutMs: 1000 });
+
+      assert.equal(result.action, "sent");
+      assert.equal(refreshCalls, 1);
+      assert.deepEqual(ingestTokens, ["Bearer old-access-token", "Bearer rotated-access-token"]);
+      assert.equal(await exists(path.join(config.eventsSentDirAbs, filename)), true);
+    });
+  });
+});
+
+test("a second ingest 401 stops without a loop and preserves pending for diagnosis", async () => {
+  await withTempDir(async (root) => {
+    let refreshCalls = 0;
+    let ingestCalls = 0;
+    await withServer(async (request, response) => {
+      if (request.url === "/auth/v1/token?grant_type=refresh_token") {
+        refreshCalls += 1;
+        await readRequestBody(request);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({
+          access_token: "rotated-access-token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          refresh_token: "rotated-refresh-token",
+          token_type: "bearer",
+          user: { email: "player@example.com", id: "user-one" },
+        }));
+        return;
+      }
+      if (request.url === "/api/submissions/ingest") {
+        ingestCalls += 1;
+        await readRequestBody(request);
+        response.writeHead(401, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: false }));
+        return;
+      }
+      response.writeHead(404).end();
+    }, async (origin) => {
+      const config = await createConfig(root, origin);
+      const filename = "second-401.json";
+      const pendingPath = path.join(config.eventsPendingDirAbs, filename);
+      await fsp.writeFile(pendingPath, JSON.stringify(event()), "utf8");
+      await saveValidCanonical(config);
+
+      const result = await submitPendingFile(config, filename, { timeoutMs: 1000 });
+
+      assert.equal(result.action, "pending");
+      assert.equal(result.outcome, "credential-rejected");
+      assert.equal(refreshCalls, 1);
+      assert.equal(ingestCalls, 2);
+      assert.equal(await exists(pendingPath), true);
     });
   });
 });

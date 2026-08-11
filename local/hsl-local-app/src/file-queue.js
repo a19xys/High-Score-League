@@ -54,6 +54,30 @@ async function writeFailureNote(config, jsonFilename, reason) {
   await fsp.writeFile(notePath, lines.join("\n"), "utf8");
 }
 
+function sanitizedNoteValue(value, fallback) {
+  const normalized = String(value || fallback || "")
+    .replace(/[\r\n=]+/g, " ")
+    .trim()
+    .slice(0, 240);
+  return normalized || fallback || "unknown";
+}
+
+async function writeRejectionNote(config, jsonFilename, rejection = {}) {
+  const safeName = path.basename(jsonFilename);
+  const notePath = path.join(config.eventsRejectedDirAbs, `${safeName}.rejected.txt`);
+  const status = Number.isInteger(rejection.httpStatus) ? rejection.httpStatus : 0;
+  const lines = [
+    `rejectedAt=${sanitizedNoteValue(rejection.rejectedAt, new Date().toISOString())}`,
+    `httpStatus=${status}`,
+    `domainCode=${sanitizedNoteValue(rejection.domainCode, "UNKNOWN")}`,
+    `reason=${sanitizedNoteValue(rejection.reason, "Rechazo competitivo definitivo")}`,
+    "",
+  ];
+
+  await fsp.writeFile(notePath, lines.join("\n"), "utf8");
+  return notePath;
+}
+
 function parseFailureNote(raw) {
   const result = {
     failedAt: null,
@@ -106,6 +130,55 @@ async function readFailureNote(config, jsonFilename) {
 
     throw error;
   }
+}
+
+async function readRejectionNote(config, jsonFilename) {
+  const safeName = path.basename(jsonFilename);
+  const notePath = path.join(config.eventsRejectedDirAbs, `${safeName}.rejected.txt`);
+
+  try {
+    const raw = await fsp.readFile(notePath, "utf8");
+    const values = {};
+    for (const line of raw.split(/\r?\n/)) {
+      const separator = line.indexOf("=");
+      if (separator > 0) values[line.slice(0, separator)] = line.slice(separator + 1);
+    }
+    return { exists: true, notePath, ...values };
+  } catch (error) {
+    if (error && error.code === "ENOENT") return { exists: false, notePath };
+    throw error;
+  }
+}
+
+function isLegacyGeneric409Reason(reason) {
+  return /^HTTP 409:\s*env[ií]o rechazado por el servicio\.?$/i.test(String(reason || "").trim());
+}
+
+async function reconcileLegacyGeneric409Failures(config) {
+  const result = { inspected: 0, requeued: 0 };
+  let entries;
+  try {
+    entries = await fsp.readdir(config.eventsFailedDirAbs, { withFileTypes: true });
+  } catch (error) {
+    if (error && error.code === "ENOENT") return result;
+    throw error;
+  }
+
+  await fsp.mkdir(config.eventsPendingDirAbs, { recursive: true });
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".json")) continue;
+    result.inspected += 1;
+    const note = await readFailureNote(config, entry.name);
+    if (!note.exists || !isLegacyGeneric409Reason(note.reason)) continue;
+    const sourcePath = path.join(config.eventsFailedDirAbs, entry.name);
+    const targetPath = path.join(config.eventsPendingDirAbs, entry.name);
+    await moveFileSafe(sourcePath, targetPath);
+    await fsp.unlink(note.notePath).catch((error) => {
+      if (!error || error.code !== "ENOENT") throw error;
+    });
+    result.requeued += 1;
+  }
+  return result;
 }
 
 async function restoreBoxToPending(config, fromBox, filename) {
@@ -261,16 +334,30 @@ async function movePendingToFailed(config, filename, reason) {
   return finalPath;
 }
 
+async function movePendingToRejected(config, filename, rejection) {
+  const safeName = path.basename(filename);
+  const sourcePath = path.join(config.eventsPendingDirAbs, safeName);
+  const desiredTargetPath = path.join(config.eventsRejectedDirAbs, safeName);
+  await fsp.mkdir(config.eventsRejectedDirAbs, { recursive: true });
+  const finalPath = await moveFileSafe(sourcePath, desiredTargetPath);
+  await writeRejectionNote(config, path.basename(finalPath), rejection);
+  return finalPath;
+}
+
 module.exports = {
   getNonClashingPath,
   markFailed,
   markSent,
   moveFileSafe,
   movePendingToFailed,
+  movePendingToRejected,
   movePendingToSent,
   parseFailureNote,
   readFailureNote,
+  readRejectionNote,
+  reconcileLegacyGeneric409Failures,
   restoreBoxToPending,
   restoreToPending,
   writeFailureNote,
+  writeRejectionNote,
 };

@@ -29,10 +29,12 @@ async function createQueueConfig(root, overrides = {}) {
   const pending = path.join(root, "events", "pending");
   const sent = path.join(root, "events", "sent");
   const failed = path.join(root, "events", "failed");
+  const rejected = path.join(root, "events", "rejected");
 
   await fsp.mkdir(pending, { recursive: true });
   await fsp.mkdir(sent, { recursive: true });
   await fsp.mkdir(failed, { recursive: true });
+  await fsp.mkdir(rejected, { recursive: true });
 
   return {
     clientVersion: "0.1.0",
@@ -40,6 +42,7 @@ async function createQueueConfig(root, overrides = {}) {
     eventsPendingDirAbs: pending,
     eventsSentDirAbs: sent,
     eventsFailedDirAbs: failed,
+    eventsRejectedDirAbs: rejected,
     recentEventThresholdMs: 60000,
     supabaseAnonKey: "anon-key",
     supabaseUrl: "https://example.supabase.co",
@@ -145,7 +148,7 @@ test("submit moves an old invalid JSON to failed", async () => {
   });
 });
 
-test("HTTP outcomes move only success and terminal failures while retryable and unexpected responses stay pending", async () => {
+test("HTTP outcomes separate sent, pending, rejected and failed boxes", async () => {
   await withTempDir(async (dir) => {
     const config = await createQueueConfig(dir, { recentEventThresholdMs: 0 });
     const sessionResult = createSessionResult({ status: "valid", storedSession: storedSession() });
@@ -153,9 +156,12 @@ test("HTTP outcomes move only success and terminal failures while retryable and 
       { expectedAction: "sent", expectedBox: "sent", filename: "success.json", status: 200, body: { ok: true } },
       { expectedAction: "pending", expectedBox: "pending", filename: "retry.json", status: 503, body: { error: "temporary" } },
       { expectedAction: "pending", expectedBox: "pending", filename: "rate.json", status: 429, body: { error: "slow" }, retryAfter: "60" },
-      { expectedAction: "pending", expectedBox: "pending", filename: "unexpected.json", status: 422, body: { error: "unexpected" } },
-      { expectedAction: "auth_required", expectedBox: "pending", filename: "auth.json", status: 401, body: { error: "auth" } },
-      { expectedAction: "failed", expectedBox: "failed", filename: "terminal.json", status: 400, body: { error: "invalid" } },
+      { expectedAction: "pending", expectedBox: "pending", filename: "legacy-409.json", status: 409, body: { error: "legacy" } },
+      { expectedAction: "pending", expectedBox: "pending", filename: "legacy-403.json", status: 403, body: { error: "legacy" } },
+      { expectedAction: "pending", expectedBox: "pending", filename: "legacy-404.json", status: 404, body: { error: "legacy" } },
+      { expectedAction: "rejected", expectedBox: "rejected", filename: "closed.json", status: 409, body: { code: "WEEK_CLOSED_AT_DETECTION", error: "closed" } },
+      { expectedAction: "failed", expectedBox: "failed", filename: "conflict.json", status: 409, body: { code: "DUPLICATE_KEY_CONFLICT", error: "conflict" } },
+      { expectedAction: "failed", expectedBox: "failed", filename: "unexpected.json", status: 422, body: { error: "unexpected" } },
     ];
 
     for (const item of cases) {
@@ -173,6 +179,7 @@ test("HTTP outcomes move only success and terminal failures while retryable and 
       assert.equal(await fileExists(path.join(config.eventsPendingDirAbs, item.filename)), item.expectedBox === "pending");
       assert.equal(await fileExists(path.join(config.eventsSentDirAbs, item.filename)), item.expectedBox === "sent");
       assert.equal(await fileExists(path.join(config.eventsFailedDirAbs, item.filename)), item.expectedBox === "failed");
+      assert.equal(await fileExists(path.join(config.eventsRejectedDirAbs, item.filename)), item.expectedBox === "rejected");
       assert.equal(JSON.stringify(result).includes("secret-token-one"), false);
       assert.equal(JSON.stringify(result).includes("temporary"), false);
       if (item.status === 503 || item.status === 429) assert.equal(result.retryable, true);
@@ -319,5 +326,31 @@ test("session resolution errors are deferred instead of forcing login", async ()
     assert.equal(result.authRequired, false);
     assert.equal(result.terminal, false);
     assert.equal(await fileExists(pendingPath), true);
+  });
+});
+
+test("offline capture survives restart and is sent by the later idempotent retry", async () => {
+  await withTempDir(async (dir) => {
+    const config = await createQueueConfig(dir, { recentEventThresholdMs: 0 });
+    const filename = "offline-then-online.json";
+    const pendingPath = path.join(config.eventsPendingDirAbs, filename);
+    const sessionResult = createSessionResult({ status: "valid", storedSession: storedSession("offline") });
+    await fsp.writeFile(pendingPath, JSON.stringify(validEvent()), "utf8");
+
+    const offline = await submitPendingFile(config, filename, {
+      fetchImpl: async () => { throw new TypeError("offline"); },
+      sessionResult,
+    });
+    assert.equal(offline.action, "network_error");
+    assert.equal(offline.preservePending, true);
+    assert.equal(await fileExists(pendingPath), true);
+
+    const online = await submitPendingFile(config, filename, {
+      fetchImpl: async () => new Response(JSON.stringify({ ok: true, duplicate: false }), { status: 201 }),
+      sessionResult,
+    });
+    assert.equal(online.action, "sent");
+    assert.equal(await fileExists(pendingPath), false);
+    assert.equal(await fileExists(path.join(config.eventsSentDirAbs, filename)), true);
   });
 });

@@ -11,9 +11,10 @@ Puntuaciones con error
 Requieren atencion
 ```
 
-Una puntuacion en `failed` sigue guardada localmente. Normalmente llego ahi por
-un error controlado: cuenta no unida a la temporada, sesion no valida, evento
-rechazado por el endpoint o JSON local invalido.
+Una puntuacion en `failed` sigue guardada localmente. Llega ahi por una anomalia
+que requiere revision, como JSON local invalido, conflicto de idempotencia,
+desacuerdo de politica RLS o respuesta remota imposible. Los rechazos de dominio
+conclusivos viven en `rejected` y no se exponen en esta interfaz.
 
 Desde `LOCAL-ACCOUNT-PACK-SCOPED-QUEUE-1`, la GUI interpreta `failed` dentro
 del scope activo:
@@ -68,7 +69,9 @@ No se pudo enviar esta puntuacion.
 movimiento seguro de la cola local. Si ya existe un archivo con el mismo nombre
 en `pending`, se usa un sufijo como `__2` para no sobrescribir nada.
 
-La nota `.failed.txt` no se borra automaticamente en esta tarea.
+La nota `.failed.txt` se conserva en la restauracion manual. La reconciliacion
+automatica excepcional de fallos legacy HTTP 409 genericos si la elimina al
+devolver el JSON a `pending`.
 
 Despues de restaurar, el jugador puede corregir el problema y pulsar
 `Subir pendientes`.

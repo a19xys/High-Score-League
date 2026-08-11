@@ -26,6 +26,7 @@ function baseConfig(root, overrides = {}) {
     defaultWeekId: "week-1",
     eventsFailedDirAbs: path.join(root, "staging", "failed"),
     eventsPendingDirAbs: path.join(root, "staging", "pending"),
+    eventsRejectedDirAbs: path.join(root, "staging", "rejected"),
     eventsSentDirAbs: path.join(root, "staging", "sent"),
     mame: { workingDir: path.join(root, "pack") },
     userDataDir: path.join(root, "userData"),
@@ -105,6 +106,7 @@ test("ensureScopedQueue creates directories and meta without tokens", async () =
 
     await fsp.access(scope.scopedPendingDir);
     await fsp.access(scope.scopedFailedDir);
+    await fsp.access(scope.scopedRejectedDir);
     await fsp.access(scope.scopedSentDir);
     assert.equal(scope.playerKey, "user_user-1");
     assert.equal(scope.packKey, "pack_space-invaders-week-1");
@@ -138,6 +140,7 @@ test("applyScopedQueue keeps staging paths and switches active event dirs", () =
   const scoped = applyScopedQueue(config, scope);
 
   assert.equal(scoped.eventsPendingDirAbs, scope.scopedPendingDir);
+  assert.equal(scoped.eventsRejectedDirAbs, scope.scopedRejectedDir);
   assert.equal(scoped.stagingEventsPendingDirAbs, config.eventsPendingDirAbs);
   assert.equal(scoped.eventsSource, "scoped-user-pack");
 });

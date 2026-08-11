@@ -23,8 +23,8 @@ La migración `supabase/migrations/0002_submission_events.sql` amplía
 `public.submissions` con campos para eventos automáticos:
 
 - `source`: `web`, `mame_memory`, `mame_plugin`, `local_app` o `admin_import`;
-- `detected_at`: momento declarado de detección, con zona horaria;
-- `submitted_at`: momento de recepción, forzado por el servidor/base de datos;
+- `detected_at`: momento competitivo canónico de detección, con zona horaria;
+- `submitted_at`: momento de recepción y auditoría, forzado por el servidor;
 - `rom_name`, `mame_version` y `client_version`: contexto técnico opcional;
 - `raw_event`: objeto JSON auxiliar para depuración y auditoría;
 - `duplicate_key`: clave opcional de idempotencia.
@@ -69,11 +69,13 @@ El endpoint exige:
 - `detectedAt` ISO con zona horaria explícita;
 - semana existente y con `game_id` asignado;
 - membership `active` del jugador en la temporada de la semana;
-- estado derivado que todavía acepte submissions.
+- ventana histórica válida en `detectedAt`.
 
-En `active`, `isHidden` es opcional y vale `false` por defecto. En `frozen`, la
-API fuerza `is_hidden = true` aunque el cliente envíe `isHidden: false`. Semanas
-`draft`, `closed` o `published` rechazan la submission.
+La captura se acepta desde `public_start_at` (incluido) hasta
+`final_deadline_at` (excluido). Desde `public_freeze_at` se fuerza
+`is_hidden = true`. El estado actual de la semana no invalida una captura que
+ocurrió dentro de esa ventana; se toleran 10 minutos de adelanto de reloj y no
+se impone antigüedad máxima.
 
 La API acepta `rom` como metadato opcional, pero el código actual no comprueba
 que coincida con una ROM esperada del catálogo. Esa ausencia no se corrige en
@@ -81,11 +83,18 @@ esta tarea documental.
 
 ## Reintentos e idempotencia
 
-`duplicate_key` tiene un índice único parcial cuando no es `null`. Una
+`duplicate_key` tiene un índice único parcial por `(player_id, duplicate_key)`
+cuando no es `null`. Una
 integración puede reintentar el mismo evento: si la clave ya existe, la API
 responde `ok: true`, `duplicate: true` y no crea una segunda fila. La clave debe
 incluir suficiente contexto para no colisionar entre jugador, semana, juego,
 puntuación y momento detectado.
+
+El launcher conserva respuestas temporales o ambiguas en `pending`, anomalías
+técnicas en `failed` y rechazos de dominio conclusivos en una caja interna
+`rejected`. Esta última mantiene el JSON original y una nota saneada, pero no se
+expone en Actividad ni se reintenta. Los fallos legacy con nota genérica HTTP 409
+se reclasifican una sola vez a `pending` para poder obtener el nuevo código.
 
 ## Seguridad
 

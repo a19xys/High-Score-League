@@ -77,6 +77,7 @@ test("resolveRuntimePaths resolves MAME paths from pack metadata", () => {
   assert.equal(paths.mame.executablePath, path.resolve("/tmp/pack", "mame/mame.exe"));
   assert.equal(paths.mame.workingDir, path.resolve("/tmp/pack", "mame"));
   assert.equal(paths.mame.pluginName, "hsl-score");
+  assert.equal(paths.eventsRejectedDirAbs, path.resolve("/home/player/.local/share/high-score-league/events/rejected"));
 });
 
 test("resolveRuntimePaths does not treat packVersion 2 as embedded MAME", () => {

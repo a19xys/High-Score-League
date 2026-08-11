@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getSynchronizedWeekStatus } from "@/lib/week-status";
+import { deriveSubmissionWindowAt } from "@/lib/submission-window";
 import type { SubmissionSource, WeekRow } from "@/types/supabase";
 
 const allowedSources = [
@@ -238,30 +238,53 @@ async function createAuthenticatedClient(request: NextRequest) {
   return createSupabaseServerClient();
 }
 
-function resolveHiddenState(week: WeekRow, requestedHidden: boolean | null) {
-  const synchronizedStatus = getSynchronizedWeekStatus(week);
+type ExistingSubmission = {
+  detected_at: string | null;
+  id: string;
+  score: number;
+  submitted_at: string;
+  week_id: string;
+};
 
-  if (synchronizedStatus === "active") {
-    return { ok: true as const, isHidden: requestedHidden ?? false };
-  }
+function canonicalEventMatches(
+  existing: ExistingSubmission,
+  input: { detectedAt: string; score: number; weekId: string },
+) {
+  return (
+    existing.week_id === input.weekId &&
+    Number(existing.score) === input.score &&
+    existing.detected_at !== null &&
+    Date.parse(existing.detected_at) === Date.parse(input.detectedAt)
+  );
+}
 
-  if (synchronizedStatus === "frozen") {
-    return { ok: true as const, isHidden: true };
-  }
+function duplicateResponse(existing: ExistingSubmission) {
+  return NextResponse.json(
+    {
+      ok: true,
+      duplicate: true,
+      submission: {
+        id: existing.id,
+        submittedAt: existing.submitted_at,
+      },
+    },
+    { status: 200 },
+  );
+}
 
-  const messages = {
-    draft: "La semana todavía no ha abierto y no admite submissions.",
-    active: "",
-    frozen: "",
-    closed: "La semana ya está cerrada y no admite submissions.",
-    published: "La semana ya tiene resultados publicados y no admite submissions.",
-  } satisfies Record<string, string>;
+function duplicateConflict() {
+  return jsonCodeError(
+    "DUPLICATE_KEY_CONFLICT",
+    "La clave de duplicado ya identifica otro evento competitivo.",
+    409,
+  );
+}
 
-  return {
-    ok: false as const,
-    status: 409,
-    error: messages[synchronizedStatus],
-  };
+function isSubmissionPolicyError(error: { code?: string; message?: string }) {
+  return (
+    error.code === "42501" ||
+    /row-level security|row level security|policy/i.test(error.message ?? "")
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -293,6 +316,29 @@ export async function POST(request: NextRequest) {
 
   const input = validation.value;
 
+  if (input.duplicateKey) {
+    const { data: existing, error: duplicateError } = await supabase
+      .from("submissions")
+      .select("id,week_id,score,detected_at,submitted_at")
+      .eq("player_id", userData.user.id)
+      .eq("duplicate_key", input.duplicateKey)
+      .maybeSingle<ExistingSubmission>();
+
+    if (duplicateError) {
+      return jsonCodeError(
+        "SUBMISSION_DATABASE_ERROR",
+        "No se pudo comprobar la idempotencia de la submission.",
+        500,
+      );
+    }
+
+    if (existing) {
+      return canonicalEventMatches(existing, input)
+        ? duplicateResponse(existing)
+        : duplicateConflict();
+    }
+  }
+
   const { data: week, error: weekError } = await supabase
     .from("weeks")
     .select(
@@ -306,7 +352,11 @@ export async function POST(request: NextRequest) {
   }
 
   if (!week) {
-    return jsonError("La semana indicada no existe o no es visible.", 404);
+    return jsonCodeError(
+      "WEEK_NOT_FOUND",
+      "La semana indicada no existe o no es visible.",
+      404,
+    );
   }
 
   if (!week.game_id) {
@@ -341,33 +391,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const hiddenState = resolveHiddenState(week, input.isHidden);
+  const historicalWindow = deriveSubmissionWindowAt(week, input.detectedAt);
 
-  if (!hiddenState.ok) {
-    return jsonError(hiddenState.error, hiddenState.status);
+  if (!historicalWindow.accepted && historicalWindow.code) {
+    const messages = {
+      DETECTED_AT_IN_FUTURE:
+        "La fecha de detección supera el margen de reloj permitido.",
+      WEEK_CLOSED_AT_DETECTION:
+        "La puntuación se detectó cuando la semana ya estaba cerrada.",
+      WEEK_NOT_OPEN_AT_DETECTION:
+        "La puntuación se detectó antes de la apertura de la semana.",
+      WEEK_WINDOW_UNAVAILABLE:
+        "La semana no tiene una ventana competitiva válida.",
+    } satisfies Record<NonNullable<typeof historicalWindow.code>, string>;
+
+    return jsonCodeError(
+      historicalWindow.code,
+      messages[historicalWindow.code],
+      409,
+    );
   }
 
-  if (input.duplicateKey) {
-    const { data: existing } = await supabase
-      .from("submissions")
-      .select("id,submitted_at")
-      .eq("duplicate_key", input.duplicateKey)
-      .maybeSingle<{ id: string; submitted_at: string }>();
-
-    if (existing) {
-      return NextResponse.json(
-        {
-          ok: true,
-          duplicate: true,
-          submission: {
-            id: existing.id,
-            submittedAt: existing.submitted_at,
-          },
-        },
-        { status: 200 },
-      );
-    }
-  }
+  const isHidden = historicalWindow.forceHidden || input.isHidden === true;
 
   const { data: inserted, error: insertError } = await supabase
     .from("submissions")
@@ -383,7 +428,7 @@ export async function POST(request: NextRequest) {
       raw_event: input.rawEvent,
       duplicate_key: input.duplicateKey,
       comment: input.comment,
-      is_hidden: hiddenState.isHidden,
+      is_hidden: isHidden,
       is_valid: true,
     })
     .select(
@@ -393,17 +438,33 @@ export async function POST(request: NextRequest) {
 
   if (insertError) {
     if (insertError.code === "23505" && input.duplicateKey) {
-      return NextResponse.json(
-        {
-          ok: true,
-          duplicate: true,
-          submission: null,
-        },
-        { status: 200 },
+      const { data: existing, error: duplicateError } = await supabase
+        .from("submissions")
+        .select("id,week_id,score,detected_at,submitted_at")
+        .eq("player_id", userData.user.id)
+        .eq("duplicate_key", input.duplicateKey)
+        .maybeSingle<ExistingSubmission>();
+
+      if (!duplicateError && existing) {
+        return canonicalEventMatches(existing, input)
+          ? duplicateResponse(existing)
+          : duplicateConflict();
+      }
+    }
+
+    if (isSubmissionPolicyError(insertError)) {
+      return jsonCodeError(
+        "SUBMISSION_POLICY_REJECTED",
+        "La política de persistencia rechazó una submission validada por la API.",
+        409,
       );
     }
 
-    return jsonError("No se pudo guardar la submission.", 500);
+    return jsonCodeError(
+      "SUBMISSION_DATABASE_ERROR",
+      "No se pudo guardar la submission.",
+      500,
+    );
   }
 
   return NextResponse.json(

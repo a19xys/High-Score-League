@@ -1,5 +1,6 @@
 const path = require("path");
 const { assertAuthConfig, resolveCanonicalSessionResult } = require("./auth");
+const { executeCanonicalAuthenticatedRequest } = require("./authenticated-request");
 const { assertDirExists, pathExists } = require("./file-utils");
 const {
   RECENT_EVENT_THRESHOLD_MS,
@@ -7,7 +8,11 @@ const {
   readEventFile,
   listJsonFiles,
 } = require("./event-files");
-const { movePendingToFailed, movePendingToSent } = require("./file-queue");
+const {
+  movePendingToFailed,
+  movePendingToRejected,
+  movePendingToSent,
+} = require("./file-queue");
 const { printHeader, printSubmitResult } = require("./output");
 const { buildSubmissionPayload } = require("./submission-payload");
 const {
@@ -23,7 +28,6 @@ const {
 const {
   assertSessionResult,
   isSessionDeferred,
-  isSessionRemoteUsableNow,
   requiresSessionLogin,
 } = require("./session-result");
 
@@ -153,45 +157,76 @@ async function submitPendingFile(config, filename, options = {}) {
   }
 
   const submission = buildSubmitSummary(config, result.event);
-  const sessionResult = await getSubmissionSessionResult(config, options);
-  if (sessionResult.resolutionError || !isSessionRemoteUsableNow(sessionResult, { config, nowMs: options.nowMs })) {
-    return buildSessionUnavailableResult(sessionResult.resolutionError ? null : sessionResult, {
-      filename: safeName,
-      recentWarning,
-      submission,
-    });
-  }
-  const storedSession = sessionResult.storedSession;
-  const hasRemoteCredential = typeof storedSession?.session?.access_token === "string"
-    && storedSession.session.access_token.length > 0
-    && typeof storedSession?.user?.id === "string"
-    && storedSession.user.id.length > 0;
-  if (!hasRemoteCredential) {
-    return buildSessionUnavailableResult(null, {
-      filename: safeName,
-      recentWarning,
-      submission,
-    });
-  }
-
-  const payload = buildSubmissionPayload(config, result.event, storedSession);
-
-  let serverResult;
-
+  let payload = null;
+  let authenticated;
   try {
-    serverResult = await postSubmission(
-      config,
-      storedSession.session.access_token,
-      payload,
-      options,
-    );
+    authenticated = await executeCanonicalAuthenticatedRequest({
+      execute: async ({ accessToken, sessionResult }) => {
+        payload = buildSubmissionPayload(config, result.event, sessionResult.storedSession);
+        return postSubmission(config, accessToken, payload, options);
+      },
+      remoteUsableOptions: { config, nowMs: options.nowMs },
+      resolveSession: async ({ force }) => {
+        const resolved = await getSubmissionSessionResult(config, {
+          ...options,
+          force,
+          sessionResult: force ? undefined : options.sessionResult,
+        });
+        if (resolved.resolutionError) throw resolved.resolutionError;
+        return resolved;
+      },
+      sessionResult: options.sessionResult,
+    });
   } catch (error) {
-    serverResult = {
+    const outcome = classifySubmissionRequestFailure({
       failureType: "transport-failure",
-      ok: false,
       technicalReason: error?.name || "Error",
-    };
+    });
+    return withOutcome({
+      action: "network_error",
+      filename: safeName,
+      message: outcome.playerMessage,
+      recentWarning,
+      submission,
+    }, outcome);
   }
+
+  if (authenticated.status === "requires-login") {
+    return buildSessionUnavailableResult(authenticated.sessionResult, {
+      filename: safeName,
+      recentWarning,
+      submission,
+    });
+  }
+
+  if (authenticated.status === "deferred") {
+    return buildSessionUnavailableResult(authenticated.sessionResult, {
+      filename: safeName,
+      recentWarning,
+      submission,
+    });
+  }
+
+  if (authenticated.status === "credential-rejected") {
+    const playerMessage = "La credencial siguio siendo rechazada tras actualizarla. La puntuacion permanece guardada.";
+    return withOutcome({
+      action: "pending",
+      filename: safeName,
+      message: playerMessage,
+      recentWarning,
+      sessionStatus: authenticated.sessionResult?.status || null,
+      submission,
+    }, baseOutcome({
+      outcome: "credential-rejected",
+      playerMessage,
+      preservePending: true,
+      retryable: true,
+      technicalReason: "second-401-after-canonical-refresh",
+      terminal: false,
+    }));
+  }
+
+  const serverResult = authenticated.requestResult;
 
   if (!serverResult.ok) {
     const outcome = classifySubmissionRequestFailure(serverResult);
@@ -232,15 +267,37 @@ async function submitPendingFile(config, filename, options = {}) {
     }, outcome);
   }
 
-  if (outcome.outcome === "terminal-failure") {
-    const reason = `HTTP ${status}: envio rechazado por el servicio.`;
+  if (outcome.outcome === "rejected-domain") {
+    const reason = "Rechazo competitivo definitivo";
+    const finalPath = await movePendingToRejected(config, safeName, {
+      domainCode: outcome.domainCode,
+      httpStatus: status,
+      reason,
+      rejectedAt: options.nowIso,
+    });
+
+    return withOutcome({
+      action: "rejected",
+      filename: safeName,
+      status,
+      message: outcome.playerMessage,
+      movedTo: finalPath,
+      recentWarning,
+      submission,
+    }, outcome);
+  }
+
+  if (outcome.outcome === "attention-required") {
+    const reason = outcome.domainCode
+      ? `HTTP ${status}: ${outcome.domainCode}`
+      : `HTTP ${status}: respuesta incompatible del servicio.`;
     const finalPath = await movePendingToFailed(config, safeName, reason);
 
     return withOutcome({
       action: "failed",
       filename: safeName,
       status,
-      message: reason,
+      message: outcome.playerMessage,
       movedTo: finalPath,
       recentWarning,
       submission,
@@ -324,6 +381,9 @@ async function submitAll(config, options = {}) {
 
     if (result.ok) {
       sent += 1;
+    } else if (result.action === "rejected") {
+      // Terminal domain rejections live in the internal rejected box and do
+      // not contribute to Activity or operational error counts.
     } else if (result.action === "network_error" || result.action === "auth_required" || result.action === "pending") {
       pending += 1;
     } else {

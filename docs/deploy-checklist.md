@@ -50,11 +50,17 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 0023_profile_bio_max_length.sql
 0024_media_uploads.sql
 0025_play_time.sql
+0026_submission_detected_at_window.sql
 ```
 
 En el Supabase remoto actual, `0023` y `0024` ya están aplicadas. No deben
-repetirse. Esta auditoría no confirma la aplicación remota de `0025`; comprobar
-el historial real del entorno antes de ejecutar cualquier migración.
+repetirse. Esta auditoría no confirma la aplicación remota de `0025` ni `0026`;
+comprobar el historial real del entorno antes de ejecutar cualquier migración.
+
+Para la durabilidad competitiva, desplegar en este orden: aplicar `0026`,
+publicar después la web/API y finalmente distribuir el launcher actualizado.
+No publicar el launcher nuevo contra una API nueva sin haber alineado antes el
+índice y la política RLS.
 
 Comprobar despues:
 
@@ -178,7 +184,10 @@ Submissions:
 - probar `POST /api/submissions/ingest` con token real.
 - confirmar que un usuario no unido a la temporada recibe
   `NOT_SEASON_MEMBER`.
-- confirmar que una semana no abierta/cerrada/publicada rechaza submissions.
+- confirmar que una captura anterior a apertura o desde deadline se rechaza;
+- confirmar que una captura válida sincronizada tras cierre/publicación se
+  acepta y que final stretch fuerza ocultación;
+- repetir la misma `duplicateKey` tras cierre y confirmar `duplicate: true`.
 
 Diagnostico:
 

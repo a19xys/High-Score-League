@@ -11,7 +11,7 @@ async function executeCanonicalAuthenticatedRequest(options = {}) {
     throw new TypeError("resolveSession y execute son obligatorios.");
   }
 
-  let sessionResult = options.sessionResult;
+  let sessionResult = await options.sessionResult;
   if (sessionResult === undefined) {
     try {
       sessionResult = await resolveSession({ force: false });
@@ -38,7 +38,8 @@ async function executeCanonicalAuthenticatedRequest(options = {}) {
     }
 
     const requestResult = await execute({ accessToken, attempt, sessionResult });
-    if (requestResult?.response?.status !== 401) {
+    const responseStatus = requestResult?.response?.status ?? requestResult?.status;
+    if (responseStatus !== 401) {
       return { attempt, requestResult, sessionResult, status: "response" };
     }
     if (attempt === 1) {

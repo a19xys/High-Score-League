@@ -58,6 +58,10 @@ function responseLooksDuplicate(status, body) {
     return true;
   }
 
+  if (typeof body.code === "string" && body.code.trim()) {
+    return false;
+  }
+
   const text = JSON.stringify(body).toLowerCase();
 
   return status === 409 && text.includes("duplic");

@@ -17,7 +17,9 @@ Requiere sesión Supabase válida. El endpoint usa la anon key y RLS; no usa
 autenticado.
 
 `submittedAt` no se acepta desde cliente. `submitted_at` lo fuerza la base de
-datos.
+datos y solo registra la recepción. `detectedAt`/`detected_at` es el timestamp
+competitivo canónico: la aceptación se decide contra las fechas de la semana en
+ese instante, aunque la sincronización llegue después del cierre o publicación.
 
 El usuario autenticado debe pertenecer a la temporada de la semana. La
 membership se comprueba con `season_memberships.season_id = weeks.season_id`,
@@ -58,13 +60,18 @@ Campos:
 - `duplicateKey`: opcional, no vacío si se envía.
 - `isHidden`: opcional.
 
-## Estados de semana
+## Ventana histórica
 
-- `active`: permite submissions visibles u ocultas. Si `isHidden` no llega, se
-  usa `false`.
-- `frozen`: solo permite submissions ocultas. La API fuerza `true` tanto si
-  `isHidden` no llega como si el cliente envía `false`.
-- `draft`, `closed`, `published`: no permiten submissions.
+- antes de `public_start_at`: rechazo `WEEK_NOT_OPEN_AT_DETECTION`;
+- desde apertura hasta `public_freeze_at`: acepta visible u oculta;
+- desde freeze hasta `final_deadline_at`: acepta y fuerza `is_hidden = true`;
+- desde el deadline: rechazo `WEEK_CLOSED_AT_DETECTION`;
+- sin apertura o deadline válidos: rechazo `WEEK_WINDOW_UNAVAILABLE`.
+
+Si no existe freeze, toda la ventana abierta es visible. El estado actual
+`closed` o `published` no invalida una captura históricamente válida. Se toleran
+como máximo 10 minutos de adelanto de reloj; más produce
+`DETECTED_AT_IN_FUTURE`. No existe una antigüedad máxima artificial.
 
 ## Membresia de temporada
 
@@ -80,9 +87,8 @@ endpoint rechaza la submission:
 }
 ```
 
-El cliente integrador debe tratar `NOT_SEASON_MEMBER` como un error recuperable
-de producto: informar al jugador de que debe unirse a la temporada desde la web
-y no reintentar en bucle la misma submission hasta que exista la membership.
+El cliente integrador debe tratar `NOT_SEASON_MEMBER` como rechazo de dominio
+conclusivo para ese evento, informar al jugador y no reintentarlo en bucle.
 
 ## Comprobación previa opcional
 
@@ -121,7 +127,8 @@ sigue siendo la comprobacion definitiva antes de aceptar una submission.
 
 ## Respuesta de duplicado
 
-Si `duplicateKey` ya existe, el endpoint no crea una segunda submission:
+Si `duplicateKey` ya existe para el jugador y sus campos canónicos (`weekId`,
+`score`, `detectedAt`) coinciden, el endpoint no crea una segunda submission:
 
 ```json
 {
@@ -134,18 +141,23 @@ Si `duplicateKey` ya existe, el endpoint no crea una segunda submission:
 }
 ```
 
-Si RLS no permite leer la fila duplicada pero el índice único la detecta, la
-respuesta puede indicar duplicado con `submission: null`.
+Esta comprobación ocurre antes de volver a validar semana o membership, por lo
+que un evento ya aceptado continúa respondiendo como duplicado tras el cierre.
+La misma clave con campos distintos devuelve `DUPLICATE_KEY_CONFLICT`.
 
 ## Errores comunes
 
-- `403` con `code = "NOT_SEASON_MEMBER"`: el usuario no pertenece a la
-  temporada de la semana.
+- `403` con `code = "NOT_SEASON_MEMBER"`: el usuario no pertenece a la temporada.
+- `404` con `code = "WEEK_NOT_FOUND"`: la semana no existe o no es visible.
+- `409` con un código `WEEK_*_AT_DETECTION`: la captura quedó fuera de ventana.
+- `409` con `code = "DUPLICATE_KEY_CONFLICT"`: colisión canónica de idempotencia.
+- `409` con `code = "SUBMISSION_POLICY_REJECTED"`: API y RLS discrepan; requiere
+  diagnóstico técnico.
 
 - `401`: no hay sesión válida.
 - `400`: payload inválido.
-- `404`: la semana no existe o no es visible.
-- `409`: la semana no acepta submissions en su estado actual.
+- `404`, `403` o `409` sin `code`: respuesta legacy ambigua; el cliente debe
+  conservar el evento pendiente.
 - `500`: error controlado de Supabase o configuración.
 
 No se devuelven detalles internos sensibles del insert.

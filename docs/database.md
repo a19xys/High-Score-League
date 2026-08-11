@@ -129,8 +129,9 @@ control:
 - `is_valid`: permite invalidar una puntuación desde administración.
 - `source`: origen de la submission (`web`, `mame_memory`, `mame_plugin`,
   `local_app` o `admin_import`).
-- `detected_at`: momento de detección declarado por el cliente.
-- `submitted_at`: momento recibido por la web; lo fuerza el servidor.
+- `detected_at`: momento competitivo canónico declarado por el cliente.
+- `submitted_at`: momento recibido por la web; lo fuerza el servidor y no
+  decide la ventana competitiva.
 - `rom_name`, `mame_version`, `client_version`: contexto técnico del evento.
 - `raw_event`: payload original para depuración y auditoría.
 - `duplicate_key`: clave de idempotencia para reintentos.
@@ -311,11 +312,11 @@ publicar una semana.
 2. Una semana pasa a `active`.
 3. Un cliente autenticado envía eventos a `POST /api/submissions/ingest`, que
    deriva el jugador de la sesión y crea filas en `submissions`.
-4. En estado `active`, una submission puede insertarse visible u oculta.
-5. En estado `frozen`, una submission solo puede insertarse con
-   `is_hidden = true`.
-6. No se pueden insertar submissions en semanas `draft`, `closed` o
-   `published`.
+4. Si `detected_at` está entre apertura y freeze, la submission puede ser
+   visible u oculta.
+5. Si `detected_at` está entre freeze y deadline, debe entrar oculta.
+6. Una recepción posterior al cierre sigue siendo válida si la detección fue
+   anterior al deadline; antes de apertura o desde deadline se rechaza.
 7. Mientras `is_hidden = true`, una submission solo la ve su jugador y admins.
 8. Al cerrar la semana, el admin revisa submissions y puede marcar errores con
    `is_valid = false`.
@@ -369,10 +370,10 @@ Todas las tablas principales tienen Row Level Security activado.
 - `seasons`, `games`, `weeks`: usuarios autenticados pueden leer; solo admins
   pueden insertar, actualizar o borrar.
 - `submissions`: usuarios autenticados pueden leer submissions visibles y
-  válidas; cada jugador puede leer sus propias submissions aunque estén ocultas;
-  cada jugador puede insertar submissions propias solo si la semana esta
-  `active` o `frozen`; en `frozen`, la fila debe entrar como oculta; admins
-  pueden gestionar todo.
+  válidas; cada jugador puede leer las propias aunque estén ocultas; el insert
+  propio exige membership activa y `detected_at` dentro de apertura/deadline,
+  con ocultación obligatoria tras freeze. La política no usa `now()` ni el
+  estado actual de la semana; admins pueden gestionar todo.
 - `weekly_results`: usuarios autenticados pueden leer; solo admins pueden
   insertar, actualizar o borrar.
 - `season_memberships`: usuarios autenticados pueden leer memberships; cada

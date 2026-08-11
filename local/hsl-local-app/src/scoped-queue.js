@@ -2,6 +2,7 @@ const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { readEventFile } = require("./event-files");
+const { reconcileLegacyGeneric409Failures } = require("./file-queue");
 
 function hashPart(value, length = 16) {
   return crypto.createHash("sha256").update(String(value || "")).digest("hex").slice(0, length);
@@ -82,6 +83,7 @@ function resolveScopedQueue(config = {}, session = {}) {
     scopedFailedDir: path.join(eventsRoot, "failed"),
     scopedPendingDir: path.join(eventsRoot, "pending"),
     scopedQueueRoot,
+    scopedRejectedDir: path.join(eventsRoot, "rejected"),
     scopedSentDir: path.join(eventsRoot, "sent"),
   };
 }
@@ -130,8 +132,14 @@ async function ensureScopedQueue(config = {}, session = {}, options = {}) {
   await Promise.all([
     fsp.mkdir(scope.scopedPendingDir, { recursive: true }),
     fsp.mkdir(scope.scopedFailedDir, { recursive: true }),
+    fsp.mkdir(scope.scopedRejectedDir, { recursive: true }),
     fsp.mkdir(scope.scopedSentDir, { recursive: true }),
   ]);
+
+  await reconcileLegacyGeneric409Failures({
+    eventsFailedDirAbs: scope.scopedFailedDir,
+    eventsPendingDirAbs: scope.scopedPendingDir,
+  });
 
   const metaPath = path.join(scope.scopedQueueRoot, "meta.json");
   const existing = await readExistingMeta(metaPath);
@@ -166,15 +174,18 @@ function applyScopedQueue(config, scope) {
     eventsBaseDirAbs: scope.eventsRoot,
     eventsFailedDirAbs: scope.scopedFailedDir,
     eventsPendingDirAbs: scope.scopedPendingDir,
+    eventsRejectedDirAbs: scope.scopedRejectedDir,
     eventsSentDirAbs: scope.scopedSentDir,
     eventsSource: "scoped-user-pack",
     scopedQueue: scope,
     legacyEventsBaseDirAbs: config.legacyEventsBaseDirAbs || (isPluginStaging ? null : config.eventsBaseDirAbs),
     legacyEventsFailedDirAbs: config.legacyEventsFailedDirAbs || (isPluginStaging ? null : config.eventsFailedDirAbs),
     legacyEventsPendingDirAbs: config.legacyEventsPendingDirAbs || (isPluginStaging ? null : config.eventsPendingDirAbs),
+    legacyEventsRejectedDirAbs: config.legacyEventsRejectedDirAbs || (isPluginStaging ? null : config.eventsRejectedDirAbs),
     legacyEventsSentDirAbs: config.legacyEventsSentDirAbs || (isPluginStaging ? null : config.eventsSentDirAbs),
     stagingEventsFailedDirAbs: isPluginStaging ? config.eventsFailedDirAbs : null,
     stagingEventsPendingDirAbs: isPluginStaging ? config.eventsPendingDirAbs : null,
+    stagingEventsRejectedDirAbs: isPluginStaging ? config.eventsRejectedDirAbs : null,
     stagingEventsSentDirAbs: isPluginStaging ? config.eventsSentDirAbs : null,
   };
 }
@@ -206,6 +217,7 @@ function buildScopedSubmitConfig(baseConfig, scopeRecord, options = {}) {
     eventsBaseDirAbs: scope.eventsRoot,
     eventsFailedDirAbs: scope.scopedFailedDir,
     eventsPendingDirAbs: scope.scopedPendingDir,
+    eventsRejectedDirAbs: scope.scopedRejectedDir,
     eventsSentDirAbs: scope.scopedSentDir,
     eventsSource: "scoped-user-pack",
     pack: {
@@ -281,6 +293,7 @@ async function buildPlayerPendingIndex(config = {}, session = {}) {
       scopedFailedDir: path.join(eventsRoot, "failed"),
       scopedPendingDir: path.join(eventsRoot, "pending"),
       scopedQueueRoot,
+      scopedRejectedDir: path.join(eventsRoot, "rejected"),
       scopedSentDir: path.join(eventsRoot, "sent"),
     };
     let meta;
@@ -300,6 +313,10 @@ async function buildPlayerPendingIndex(config = {}, session = {}) {
       revisionParts.push([entry.name, validation.reason]);
       continue;
     }
+    await reconcileLegacyGeneric409Failures({
+      eventsFailedDirAbs: scope.scopedFailedDir,
+      eventsPendingDirAbs: scope.scopedPendingDir,
+    });
     const pending = await listPendingDescriptors(scope.scopedPendingDir);
     if (!pending.readable) {
       skipped.push({ packKey: entry.name, reason: pending.reason });
