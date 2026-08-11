@@ -252,13 +252,21 @@ en el entorno destino. La aplicación remota de `0023`, `0024`,
 `0026_submission_detected_at_window.sql` y `0027_profile_anonymization.sql` está
 confirmada. No se ha verificado qué SHA web está desplegado actualmente.
 
+Para `PROFILE-PRESENCE-1` el orden es estricto: (1) aplicar
+`0028_player_presence.sql`, (2) desplegar web/API y (3) distribuir el launcher.
+Antes de los pasos 2 y 3 verificar default `presence_public=false`, RLS sin
+lectura general, cleanup al privatizar/tombstone y RPCs reservadas a
+`service_role`. Si `0028` aún no está aplicada, Presence debe fallar de forma
+silenciosa sin bloquear web, launcher, Playtime ni Competition.
+
 ## Roadmap no bloqueante para releases actuales
 
 - `PROFILE-ANONYMIZATION-1`: operativa en código/schema con 0027 aplicada. El QA
   destructivo exhaustivo con cuenta desechable quedó diferido por decisión del
   usuario.
-- `PROFILE-PRESENCE-1`: siguiente objetivo funcional; presencia y última
-  actividad con heartbeat, expiración y privacidad propios.
+- `PROFILE-PRESENCE-1`: implementada en código/schema; pendiente de aplicar
+  `0028` y desplegar en el orden anterior. No incluye última actividad por
+  diseño.
 - `SUBMISSIONS-SERVER-PAGINATION-1`: evaluar consultas paginadas, conteos e
   índices cuando cargar el conjunto completo deje de ser viable.
 - `POSTDEPLOY-MIGRATIONS-1`: consolidar migraciones para instalacion limpia.

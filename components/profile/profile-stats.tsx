@@ -1,9 +1,14 @@
 import type { PlayerProfileStats } from "@/lib/data/player-profile";
 import { formatPlayTime, type PlayerPlayTime } from "@/lib/playtime";
+import type { PlayerPresence } from "@/lib/player-presence";
+import { ProfilePresenceStat } from "./profile-presence-stat";
 
 type ProfileStatsProps = {
   stats: PlayerProfileStats;
   playTime: PlayerPlayTime;
+  presence: PlayerPresence;
+  presenceOwner: boolean;
+  username: string;
 };
 
 const statDefinitions: Array<{
@@ -32,7 +37,7 @@ const statDefinitions: Array<{
   },
 ];
 
-export function ProfileStats({ stats, playTime }: ProfileStatsProps) {
+export function ProfileStats({ stats, playTime, presence, presenceOwner, username }: ProfileStatsProps) {
   return (
     <dl
       aria-label="Resumen del jugador"
@@ -74,15 +79,11 @@ export function ProfileStats({ stats, playTime }: ProfileStatsProps) {
             : "Esta información no se muestra al resto"}
         </p>
       </div>
-      <div className="relative col-span-2 min-w-0 overflow-hidden px-4 py-5 theme-surface sm:px-6 lg:col-span-1">
-        <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-sky-500" />
-        <dt className="text-[11px] font-extrabold uppercase tracking-[0.12em] theme-text-muted sm:text-xs">
-          Estado
-        </dt>
-        <dd className="mt-2 text-3xl font-black leading-none theme-text sm:text-4xl">
-          <span aria-label="Estado no disponible">—</span>
-        </dd>
-      </div>
+      <ProfilePresenceStat
+        initialPresence={presence}
+        owner={presenceOwner}
+        username={username}
+      />
     </dl>
   );
 }

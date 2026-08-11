@@ -46,3 +46,20 @@ npm.cmd run test:launcher-api
 
 El script valida health, fingerprint, contrato, batch vacio, semana real y UUID
 inexistente. El weekId y SHA reales solo se pasan por entorno y no se guardan.
+
+## Presence del launcher
+
+`POST /api/launcher/presence` recibe bearer canónico y un payload v1 con
+`clientId`, `activity`, `weekId` y `mode`. `connected` limpia todo contexto;
+`playing` solo nace en el evento real `spawn` de MAME y vuelve a `connected` en
+`close`. El servidor resuelve `weekId -> weeks.game_id -> games.title`; el
+launcher no envía `playerId` ni título. `DELETE` con `version` y `clientId`
+retira best-effort la sesión al cambiar/quitar cuenta o cerrar.
+
+El identificador de instalación se guarda atómicamente en
+`userData/presence/client-id.json` y no contiene datos personales. Solo la
+cuenta activa emite heartbeat cada 30 s. Practice y Competition se almacenan
+como modos distintos pero ambos se presentan como `JUGANDO`. Al quedarse
+offline no se crea cola: la reconexión envía únicamente el estado actual. Los
+fallos de Presence son silenciosos y nunca bloquean MAME, Playtime o
+submissions.

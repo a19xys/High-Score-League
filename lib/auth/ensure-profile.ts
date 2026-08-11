@@ -19,7 +19,7 @@ type SupabaseMutationError = {
 };
 
 const profileColumns =
-  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,anonymized_at,created_at,updated_at";
+  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,presence_public,track_play_time,is_admin,anonymized_at,created_at,updated_at";
 
 function metadataString(value: unknown) {
   return typeof value === "string" ? value : "";

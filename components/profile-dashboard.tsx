@@ -18,6 +18,7 @@ import type {
   ProfileAuthData,
 } from "@/components/profile/profile-types";
 import type { PlayerPlayTime } from "@/lib/playtime";
+import type { PlayerPresence } from "@/lib/player-presence";
 
 export type { ProfileAuthData } from "@/components/profile/profile-types";
 export type {
@@ -30,6 +31,7 @@ type ProfileDashboardProps = {
   adminCenter: AdminCenterData;
   competitive: PlayerCompetitiveProfile;
   playTime: PlayerPlayTime;
+  presence: PlayerPresence;
 };
 
 function ProfileAccessState({
@@ -117,6 +119,7 @@ export function ProfileDashboard({
   adminCenter,
   competitive,
   playTime,
+  presence,
 }: ProfileDashboardProps) {
   if (auth.status === "not-configured" || auth.status === "signed-out") {
     return <ProfileAccessState status={auth.status} />;
@@ -129,7 +132,13 @@ export function ProfileDashboard({
   const summaryPanel = (
     <div className="space-y-5">
       <ProfileHero mode="owner" profile={auth.profile} />
-      <ProfileStats playTime={playTime} stats={competitive.stats} />
+      <ProfileStats
+        playTime={playTime}
+        presence={presence}
+        presenceOwner
+        stats={competitive.stats}
+        username={auth.profile.username}
+      />
       {competitive.hasDataWarning ? (
         <div
           className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-surface)] px-4 py-3 text-sm text-[var(--warning-text)]"

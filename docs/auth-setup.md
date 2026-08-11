@@ -131,6 +131,20 @@ invalida cachés conocidas, cierra la sesión global y vuelve a `/`. No se afirm
 un borrado legal exhaustivo: comentarios y mensajes libres históricos se
 conservan y podrían contener datos que requieren moderación aparte.
 
+## Privacidad de Presence
+
+`presence_public` es una preferencia independiente, opt-in y privada por
+defecto. El guardado normal del perfil puede activarla o desactivarla; al pasar
+a `false`, la barrera de base de datos elimina inmediatamente todas las
+sesiones efímeras. La anonimización también fuerza `false` y limpia Presence.
+
+El heartbeat web usa la cookie de sesión canónica. El launcher usa el bearer de
+la única cuenta activa y la misma política de renovación canónica que el resto
+de peticiones autenticadas. Ambos endpoints derivan el UUID del jugador del
+token y rechazan campos extra, por lo que no se acepta `playerId`, actividad
+launcher desde el browser ni títulos arbitrarios. La lectura de perfil exige un
+viewer autenticado y activo y devuelve solo el agregado sanitizado.
+
 ## Primer admin
 
 El primer admin se crea manualmente en Supabase SQL Editor despues de registrar

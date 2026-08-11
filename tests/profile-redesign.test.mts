@@ -135,11 +135,12 @@ test("submissions use fixed columns, container queries and one row-height contra
 });
 
 test("the profile workspace is accessible, mounted and free of the old anchor navigation", async () => {
-  const [dashboard, switcher, hero, stats, historyExists] = await Promise.all([
+  const [dashboard, switcher, hero, stats, presenceStat, historyExists] = await Promise.all([
     read("components", "profile-dashboard.tsx"),
     read("components", "profile", "profile-section-switcher.tsx"),
     read("components", "profile", "profile-hero.tsx"),
     read("components", "profile", "profile-stats.tsx"),
+    read("components", "profile", "profile-presence-stat.tsx"),
     read("components", "profile", "profile-history.tsx").then(
       () => true,
       () => false,
@@ -156,7 +157,8 @@ test("the profile workspace is accessible, mounted and free of the old anchor na
   assert.match(dashboard, /id: "resumen"[\s\S]*id: "envios"[\s\S]*id: "editar"[\s\S]*id: "cuenta"/);
   assert.doesNotMatch(hero, /Editar identidad|Ver perfil público/);
   assert.doesNotMatch(stats, /label: "Resultados"/);
-  assert.match(stats, /Estado[\s\S]*Estado no disponible/);
+  assert.match(stats, /ProfilePresenceStat/);
+  assert.match(presenceStat, /visibility === "unavailable"[\s\S]*Estado/);
   assert.equal(historyExists, false);
 });
 

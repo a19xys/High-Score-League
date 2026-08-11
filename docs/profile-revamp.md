@@ -155,14 +155,30 @@ mensaje de sistema exacto documentado.
 
 El preflight de solo lectura se conserva en
 `supabase/preflight/0027_profile_anonymization.sql` para instalaciones o
-verificaciones futuras. No crear migraciones posteriores a 0027 salvo un
-conflicto real nuevo.
+verificaciones futuras. `0028_player_presence.sql` es la migración posterior
+deliberada para Presence y no modifica la historia de 0027.
+
+## PROFILE-PRESENCE-1
+
+La quinta celda `Estado` de `ProfileStats` recibe Presence inicial por SSR y se
+actualiza cada 15 segundos mientras el documento está visible. Los estados
+visuales son `JUGANDO`, `CONECTADO`, `DESCONECTADO` y `PRIVADO`; un fallo de
+lectura conserva el último valor válido o muestra `—`, nunca inventa una
+desconexión. `JUGANDO` tiene prioridad sobre conexiones web o launcher y el
+detalle del juego siempre procede del `game_id` canónico resuelto en servidor.
+
+Presence es efímera y opt-in mediante `presence_public`, que vale `false` por
+defecto. Web y launcher emiten heartbeats independientes cada 30 segundos y el
+servidor solo considera vivas las filas de los últimos 90 segundos. No se
+publica última conexión, historial, número de dispositivos ni timestamps.
+Playtime continúa siendo histórico/acumulativo y las submissions continúan
+siendo la autoridad competitiva: ninguno se usa para inferir Presence.
 
 ## Roadmap y limitaciones
 
-`PROFILE-PRESENCE-1` es el siguiente gran objetivo funcional: deberá diseñar
-online/offline, jugando, última actividad, expiración y privacidad propia. Nada
-de ello está implementado en este rediseño.
+`PROFILE-PRESENCE-1` queda implementado sin “última actividad” ni historial por
+diseño. Una presencia de baja latencia mediante Realtime, dots en avatares o
+actividad social requeriría una tarea posterior.
 
 - La paginación privada sigue siendo cliente sobre el conjunto ya cargado;
   `SUBMISSIONS-SERVER-PAGINATION-1` queda para un volumen futuro.

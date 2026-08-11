@@ -13,6 +13,7 @@ const removableMetadataKeys = new Set([
   "initials",
   "is_admin",
   "play_time_public",
+  "presence_public",
   "track_play_time",
   "username",
 ]);

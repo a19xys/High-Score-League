@@ -114,8 +114,9 @@ test("launcher integration uses existing lifecycle triggers without Playtime pol
   ]);
   assert.match(mame, /child\.on\("spawn"/);
   assert.match(mame, /child\.on\("close"/);
-  assert.match(service, /createMamePlayTimeLifecycle\(context, "practice"\)/);
-  assert.match(service, /createMamePlayTimeLifecycle\(context, "competition"\)/);
+  assert.match(service, /createMamePlayTimeLifecycle\(context, mode\)/);
+  assert.match(service, /createMameOperationLifecycle\(context, "practice"\)/);
+  assert.match(service, /createMameOperationLifecycle\(context, "competition"\)/);
   assert.match(service, /playTime: formatPlayTime\(totalSeconds\)/);
   assert.match(main, /service\.pausePlayTime\(\)/);
   assert.match(main, /service\.resumePlayTime\(\)/);

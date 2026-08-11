@@ -6,6 +6,7 @@ const { createConnectivityService, isCommittedConnected } = require("../src/conn
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
 const { createWeekCapabilitiesService } = require("../src/week-capabilities-service");
 const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
+const { createPresenceService } = require("../src/presence-service");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
 const { createMembershipStartupCoordinator, membershipResolutionContext } = require("../src/membership-startup-coordinator");
 const { runCompetitionPlayPreflight } = require("../src/competition-play-preflight");
@@ -43,6 +44,7 @@ let connectivity = null;
 let rankingCapabilities = null;
 let weekCapabilities = null;
 let topologyMonitor = null;
+let presence = null;
 let activeRankingWeekId = null;
 let removeConnectivityListener = null;
 let removeRankingListener = null;
@@ -214,6 +216,7 @@ function handlePowerSuspend() {
   productOperationsController.abort("suspend");
   service.pausePlayTime();
   service.cancelPlayTimeSync("suspend");
+  presence?.setSuspended(true);
   service.cancelAccountProfileSync("suspend");
   cancelManualMembershipRun("suspend");
   service.cancelAccountSessionOperations(null, "suspend");
@@ -231,6 +234,7 @@ function handlePowerResume() {
   suspendDrainPromise = null;
   productOperationsController = new AbortController();
   service.resumePlayTime();
+  presence?.setSuspended(false).catch(() => {});
   connectivity?.setActivity("active", "resume");
   if (!membershipCoordinationPaused()) membershipStartupCoordinator?.resume("resume");
   topologyMonitor?.start();
@@ -294,6 +298,7 @@ function syncRemoteContext(state, options = {}) {
   const accountChanged = nextUserId !== activeUserId;
   if (accountChanged) {
     activeUserId = nextUserId;
+    presence?.setActiveUserId(nextUserId).catch(() => {});
   }
   activeRankingWeekId = state.game?.weekId || null;
   lastLibraryRemoteContext = {
@@ -385,6 +390,20 @@ function initializeRemoteServices() {
     fetchImpl: (url, init) => net.fetch(url, init),
     getConnectivityState: () => connectivity.getState(),
   });
+  presence = createPresenceService({
+    configProvider: () => ({
+      hslOrigin: trustedHslOrigin,
+      userDataDir: app.getPath("userData"),
+      webBaseUrl: trustedHslOrigin,
+    }),
+    fetchImpl: (url, init) => net.fetch(url, init),
+    getConnectivityState: () => connectivity.getState(),
+  });
+  service.setPresenceLifecycleProvider((context) => presence?.createMameLifecycle(context));
+  service.setPresenceAccountLifecycleProvider({
+    beforeAccountChange: (reason) => presence?.clearCurrent(reason),
+  });
+  presence.start().catch(() => {});
   service.setRemoteOperationSignalProvider(() => productOperationsController.signal);
   rankingCapabilities = createRankingCapabilitiesService({
     fetchImpl: (url, init) => net.fetch(url, init),
@@ -489,6 +508,7 @@ function initializeRemoteServices() {
     sessions: service.getAccountSessionDiagnostics(),
     accountProfiles: service.getAccountProfileSyncDiagnostics(),
     playTime: service.getPlayTimeDiagnostics(),
+    presence: presence?.getDiagnostics() || { running: false },
     membershipResolution: membershipStartupCoordinator.getDiagnostics(),
     sessionStorage: getSessionStorageDiagnostics(),
     startup: { milestones: { ...startupTimings } },
@@ -525,6 +545,7 @@ function initializeRemoteServices() {
     rankingCapabilities.updateDeployment();
     weekCapabilities.updateDeployment();
     sendRendererEvent("launcher:connectivity-state", state);
+    presence?.setOnline(isCommittedConnected(state), state.source || "connectivity-change").catch(() => {});
     if (state.reachability === "offline") service.cancelAccountProfileSync("external-abort");
     if (state.reachability === "offline") service.cancelPlayTimeSync("external-abort");
     if (activeManualMembershipRun && activeManualMembershipRun.connectionGeneration !== null && (
@@ -589,6 +610,7 @@ function initializeSecureSessionStorage() {
 async function stopRemoteServices() {
   productOperationsController.abort("shutdown");
   const playTimeDrain = service.shutdownPlayTime();
+  const presenceDrain = presence?.shutdown() || Promise.resolve();
   service.shutdownAccountProfileSync();
   membershipStartupCoordinator?.shutdown("shutdown");
   cancelManualMembershipRun("shutdown");
@@ -611,7 +633,9 @@ async function stopRemoteServices() {
   service.setRemoteDiagnosticsProvider(null);
   service.setRemoteOperationSignalProvider(null);
   service.setCompetitionAuthorityProvider(null);
-  return Promise.allSettled([playTimeDrain, sessionDrain]);
+  service.setPresenceLifecycleProvider(null);
+  service.setPresenceAccountLifecycleProvider(null);
+  return Promise.allSettled([playTimeDrain, presenceDrain, sessionDrain]);
 }
 
 async function prepareRemoteAction(source) {

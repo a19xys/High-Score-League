@@ -47,6 +47,9 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
   const [playTimePublic, setPlayTimePublic] = useState(
     auth.profile?.play_time_public ?? false,
   );
+  const [presencePublic, setPresencePublic] = useState(
+    auth.profile?.presence_public ?? false,
+  );
   const [error, setError] = useState<string | null>(auth.profileError);
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -118,6 +121,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
             avatar_url: avatar.publicUrl,
             avatar_storage_path: avatar.storagePath,
             play_time_public: playTimePublic,
+            presence_public: presencePublic,
           };
           const response = auth.profile
             ? await supabase
@@ -125,14 +129,14 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                 .update(payload)
                 .eq("id", userData.user.id)
                 .select(
-                  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,anonymized_at,created_at,updated_at",
+                  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,presence_public,track_play_time,is_admin,anonymized_at,created_at,updated_at",
                 )
                 .single()
             : await supabase
                 .from("profiles")
                 .insert({ id: userData.user.id, ...payload })
                 .select(
-                  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,anonymized_at,created_at,updated_at",
+                  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,presence_public,track_play_time,is_admin,anonymized_at,created_at,updated_at",
                 )
                 .single();
 
@@ -183,6 +187,10 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
     setAvatarStoragePath(profile.avatar_storage_path ?? null);
     setAvatarSelection(UNCHANGED_MEDIA_SELECTION);
     setPlayTimePublic(profile.play_time_public ?? false);
+    setPresencePublic(profile.presence_public ?? false);
+    if (auth.profile?.presence_public !== true && profile.presence_public === true) {
+      window.dispatchEvent(new Event("hsl:presence-preference-changed"));
+    }
     setMessage((current) => current ?? "Perfil guardado correctamente.");
     setIsSubmitting(false);
     router.refresh();
@@ -296,6 +304,22 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                   </span>
                   <span className="mt-1 block text-xs leading-5 theme-text-muted">
                     Tú siempre puedes verlo; al ocultarlo deja de mostrarse al resto de jugadores.
+                  </span>
+                </span>
+              </label>
+              <label className="mt-4 flex items-start gap-3">
+                <input
+                  checked={presencePublic}
+                  className="mt-1 h-4 w-4 accent-circuit"
+                  onChange={(event) => setPresencePublic(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>
+                  <span className="block font-extrabold theme-text">
+                    Mostrar mi estado en línea y juego actual
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 theme-text-muted">
+                    Desactivado por defecto. No guardamos un historial de conexión.
                   </span>
                 </span>
               </label>

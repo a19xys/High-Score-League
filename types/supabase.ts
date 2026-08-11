@@ -8,6 +8,7 @@ export type RealProfile = {
   /** @deprecated Legacy collection preference. Playtime is recorded for identified sessions. */
   track_play_time?: boolean;
   play_time_public?: boolean;
+  presence_public?: boolean;
   is_admin: boolean;
   anonymized_at: string | null;
   created_at?: string;

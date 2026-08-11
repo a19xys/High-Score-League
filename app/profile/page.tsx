@@ -12,6 +12,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { RealProfile } from "@/types/supabase";
 import { getPlayerPlayTime } from "@/lib/data/player-playtime";
+import { getPlayerPresence } from "@/lib/data/player-presence";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
@@ -55,6 +56,7 @@ export default async function ProfilePage() {
         auth={{ status: "not-configured" }}
         competitive={emptyPlayerCompetitiveProfile()}
         playTime={{ visibility: "private" }}
+        presence={{ visibility: "unavailable" }}
       />
     );
   }
@@ -68,6 +70,7 @@ export default async function ProfilePage() {
         auth={{ status: "signed-out" }}
         competitive={emptyPlayerCompetitiveProfile()}
         playTime={{ visibility: "private" }}
+        presence={{ visibility: "unavailable" }}
       />
     );
   }
@@ -95,7 +98,7 @@ export default async function ProfilePage() {
   }
 
   const profile = profileResult.status === "ok" ? profileResult.profile : null;
-  const [adminCenter, competitive, playTime] = await Promise.all([
+  const [adminCenter, competitive, playTime, presence] = await Promise.all([
     getAdminCenterData(supabase, profile),
     profile
       ? getPlayerCompetitiveProfile(profile.id, "owner")
@@ -106,6 +109,9 @@ export default async function ProfilePage() {
           playTimePublic: profile.play_time_public === true,
         })
       : Promise.resolve({ visibility: "private" } as const),
+    profile
+      ? getPlayerPresence(profile.id)
+      : Promise.resolve({ visibility: "unavailable" } as const),
   ]);
   const auth: ProfileAuthData = {
     status: "signed-in",
@@ -123,6 +129,7 @@ export default async function ProfilePage() {
       auth={auth}
       competitive={competitive}
       playTime={playTime}
+      presence={presence}
     />
   );
 }

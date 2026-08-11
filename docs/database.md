@@ -448,20 +448,23 @@ guardar el tipo y tamano del archivo resultante.
 Aplicar todas las migraciones ausentes de `supabase/migrations/` en orden
 numérico, no sólo `0001_initial_schema.sql`, y verificar después tablas,
 constraints, RLS, Realtime y Storage. `0023` debe preceder a `0024`, `0024` a
-`0025`, `0025` a `0026` y `0026` a `0027`.
+`0025`, `0025` a `0026`, `0026` a `0027` y `0027` a `0028`.
 
 En el entorno remoto actual `0023_profile_bio_max_length.sql` y
 `0024_media_uploads.sql` ya están aplicadas. También está confirmado que
 `0026_submission_detected_at_window.sql` existe y ya fue aplicada remotamente:
-no debe modificarse, renombrarse, duplicarse ni reaplicarse. La migración nueva
-es `0027_profile_anonymization.sql` y también está aplicada remotamente.
+no debe modificarse, renombrarse, duplicarse ni reaplicarse.
+`0027_profile_anonymization.sql` también está aplicada remotamente;
+`0028_player_presence.sql` está en el repositorio pero no debe asumirse aplicada
+en remoto hasta completar el paso explícito de despliegue.
 
 Para verificar una instalación antes de aplicarla, ejecutar el preflight SELECT-only de
 `supabase/preflight/0027_profile_anonymization.sql`. La propia migración aborta
 si faltan tablas o columnas de Playtime introducidas por `0025`, el índice de
-`0026` u otras dependencias locales. No crear migraciones posteriores a `0027`
-salvo que aparezca un nuevo conflicto real. El procedimiento completo está en el
-[checklist de despliegue](deploy-checklist.md).
+`0026` u otras dependencias locales. No crear otras migraciones posteriores a
+`0027` salvo que aparezca un nuevo conflicto real. El procedimiento completo está en el
+[checklist de despliegue](deploy-checklist.md). `0028` es la única migración
+posterior prevista por esta tarea y no reescribe 0027.
 
 `retired_profile_usernames` conserva únicamente SHA-256 de
 `lower(trim(username))` y no concede lectura a usuarios normales. Esto evita
@@ -471,3 +474,20 @@ acceso total a la base de datos.
 
 El primer perfil admin se crea manualmente o se actualiza con privilegios de
 servidor; un usuario normal nunca puede asignarse `is_admin = true`.
+
+## Presence efímera
+
+`0028_player_presence.sql` añade `profiles.presence_public boolean not null
+default false` sin backfill desde Playtime y crea
+`player_presence_sessions`. Su clave es `(player_id, source, client_id)`; las
+fuentes son `web|launcher`, las actividades `connected|playing` y el contexto
+opcional de juego se limita a `game_id`, `week_id` y
+`practice|competition`. `created_at` y `last_seen_at` usan reloj de servidor.
+
+La tabla tiene RLS sin policies generales y permisos únicamente para
+`service_role`. Los endpoints autentican al usuario canónico y llaman RPCs
+service-role; el cliente nunca elige `player_id`. El agregador lee primero
+`presence_public` y solo después consulta sesiones vivas con TTL de 90 s. Al
+desactivar privacidad o crear un tombstone, un trigger borra las sesiones en la
+misma transacción. El heartbeat elimina además filas del mismo jugador con más
+de 24 horas. No existe outbox ni historial de Presence.

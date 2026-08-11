@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Manrope, Sora } from "next/font/google";
 import { PlayerHoverCardProvider } from "@/components/player-hover-card";
+import { WebPresenceHeartbeat } from "@/components/presence/web-presence-heartbeat";
 import { SiteNav } from "@/components/site-nav";
 import { getServerSession } from "@/lib/auth/session";
 import "./globals.css";
@@ -122,6 +123,7 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className={`${manrope.variable} ${sora.variable}`}>
+        <WebPresenceHeartbeat enabled={session.status === "signed-in"} />
         <SiteNav />
         <PlayerHoverCardProvider
           currentUserId={session.status === "signed-in" ? session.userId : null}

@@ -108,6 +108,8 @@ let remoteOperationSignalProvider = null;
 let competitionAuthorityProvider = null;
 let accountProfileSync = null;
 let playTimeSync = null;
+let presenceLifecycleProvider = null;
+let presenceAccountLifecycleProvider = null;
 const playTimeRecorder = createPlayTimeRecorder();
 const launcherClientVersion = require("../package.json").version;
 const libraryOrderModule = import("./shared/library-order.mjs");
@@ -187,6 +189,19 @@ function setRemoteOperationSignalProvider(provider) {
 
 function setCompetitionAuthorityProvider(provider) {
   competitionAuthorityProvider = provider && typeof provider === "object" ? provider : null;
+}
+
+function setPresenceLifecycleProvider(provider) {
+  presenceLifecycleProvider = typeof provider === "function" ? provider : null;
+}
+
+function setPresenceAccountLifecycleProvider(provider) {
+  presenceAccountLifecycleProvider = provider && typeof provider === "object" ? provider : null;
+}
+
+function preparePresenceAccountChange(reason) {
+  try { Promise.resolve(presenceAccountLifecycleProvider?.beforeAccountChange?.(reason)).catch(() => {}); }
+  catch {}
 }
 
 function getCompetitionAuthorityContext() {
@@ -278,6 +293,31 @@ function createMamePlayTimeLifecycle(context, mode) {
     userId: session.userId,
     weekId: baseConfig.pack?.weekId || baseConfig.defaultWeekId,
   });
+}
+
+function combineMameLifecycles(lifecycles) {
+  const active = lifecycles.filter(Boolean);
+  if (active.length === 0) return null;
+  return {
+    async onSpawn() {
+      await Promise.allSettled(active.map((lifecycle) => lifecycle.onSpawn?.()));
+    },
+    async onClose(code) {
+      await Promise.allSettled(active.map((lifecycle) => lifecycle.onClose?.(code)));
+    },
+  };
+}
+
+function createMameOperationLifecycle(context, mode) {
+  const presence = presenceLifecycleProvider?.({
+    mode,
+    userId: context.session?.userId || null,
+    weekId: context.baseConfig?.pack?.weekId || context.baseConfig?.defaultWeekId || null,
+  });
+  return combineMameLifecycles([
+    createMamePlayTimeLifecycle(context, mode),
+    presence,
+  ]);
 }
 
 function pausePlayTime() {
@@ -2369,11 +2409,11 @@ async function playCompetition(options = {}) {
   }
 
   const startedAtMs = Date.now();
-  const playTimeLifecycle = createMamePlayTimeLifecycle(context, "competition");
+  const mameLifecycle = createMameOperationLifecycle(context, "competition");
   const captured = await captureConsoleAsync(() => (
     isPackV2
-      ? launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition", undefined, playTimeLifecycle)
-      : launchMame(launchConfig, baseConfig.pack.rom, "competition", undefined, playTimeLifecycle)
+      ? launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
+      : launchMame(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
   ));
   requestPlayTimeSync("mame-close").catch(() => {});
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.result?.exitCode ?? captured.exitCode;
@@ -2444,13 +2484,13 @@ async function playPractice() {
     };
   }
 
-  const playTimeLifecycle = createMamePlayTimeLifecycle(context, "practice");
+  const mameLifecycle = createMameOperationLifecycle(context, "practice");
   const captured = await captureConsoleAsync(() => launchMame(
     context.config,
     context.config.pack.rom,
     "practice",
     undefined,
-    playTimeLifecycle,
+    mameLifecycle,
   ));
   requestPlayTimeSync("mame-close").catch(() => {});
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
@@ -2566,6 +2606,7 @@ async function logoutSession() {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
   const previous = await getAuthState(config, { deferRemote: true });
+  preparePresenceAccountChange("logout");
   const result = await logoutLocal(config, { forgetAccount: true, reason: "gui-logout" });
   if (previous.userId) await accountProfileSync?.forget(previous.userId);
 
@@ -2612,6 +2653,7 @@ async function switchKnownAccountFromGui(userId, options = {}) {
   }
 
   try {
+    preparePresenceAccountChange("switch-account");
     await sessionRepository(config).setActive(account.userId);
 
     return {
@@ -2659,6 +2701,7 @@ async function removeKnownAccountFromGui(userId) {
   const repository = sessionRepository(config);
   const accountsBefore = await readKnownAccounts(config);
   const wasActive = accountsBefore.lastActiveUserId === userId;
+  if (wasActive) preparePresenceAccountChange("remove-account");
   const result = await repository.remove(userId, {
     forgetAccount: true,
     reason: "remove-account",
@@ -3242,6 +3285,8 @@ module.exports = {
   setRemoteDiagnosticsProvider,
   setRemoteOperationSignalProvider,
   setCompetitionAuthorityProvider,
+  setPresenceLifecycleProvider,
+  setPresenceAccountLifecycleProvider,
   shutdownAccountProfileSync,
   shutdownPlayTime,
   pausePlayTime,
