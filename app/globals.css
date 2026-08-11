@@ -170,7 +170,7 @@ textarea {
   }
 
   .public-landing-logo {
-    animation: public-landing-logo-breathe 8.5s ease-in-out infinite;
+    animation: public-landing-logo-heartbeat 3.2s ease-in-out infinite;
     transform-origin: center;
     will-change: transform;
   }
@@ -221,6 +221,51 @@ textarea {
     color: var(--text-muted);
   }
 
+  .submissions-table-shell {
+    container-name: submissions-table;
+    container-type: inline-size;
+    max-width: 100%;
+  }
+
+  .submissions-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .submissions-table-has-week .submission-col-week {
+    width: auto;
+  }
+
+  .submissions-table-has-week .submission-col-attempt {
+    width: 6.5rem;
+  }
+
+  .submissions-table-has-week .submission-col-score {
+    width: 5.75rem;
+  }
+
+  .submissions-table-no-week .submission-col-attempt {
+    width: auto;
+  }
+
+  .submissions-table-no-week .submission-col-score {
+    width: 7rem;
+  }
+
+  .submission-col-date {
+    width: 0;
+  }
+
+  .submission-date-cell,
+  .submission-player-rich,
+  .submission-best-marker {
+    display: none;
+  }
+
+  .submission-player-compact {
+    display: inline;
+  }
+
   .profile-hero {
     background:
       radial-gradient(circle at 12% 18%, rgba(20, 184, 166, 0.36), transparent 23rem),
@@ -237,6 +282,104 @@ textarea {
       linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
     background-size: 30px 30px;
     mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.7), transparent 88%);
+  }
+
+  .profile-avatar-glow {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    flex: 0 0 auto;
+    padding: 4px;
+    border-radius: 9999px;
+  }
+
+  .profile-avatar-glow::before,
+  .profile-avatar-glow::after {
+    content: "";
+    position: absolute;
+    border-radius: inherit;
+    background: conic-gradient(
+      from 0deg,
+      #22d3ee,
+      #14b8a6 28%,
+      #a855f7 58%,
+      #ec4899 76%,
+      #22d3ee
+    );
+    animation: profile-avatar-ring-spin 5.5s linear infinite;
+    will-change: transform;
+  }
+
+  .profile-avatar-glow::before {
+    inset: 0;
+    z-index: -1;
+  }
+
+  .profile-avatar-glow::after {
+    inset: -7px;
+    z-index: -2;
+    opacity: 0.48;
+    filter: blur(10px);
+  }
+
+  .profile-avatar-glow > span {
+    z-index: 1;
+    box-shadow: 0 0 0 2px rgba(2, 6, 23, 0.78);
+  }
+
+  @container submissions-table (min-width: 26rem) {
+    .submissions-table-has-week .submission-col-attempt {
+      width: 9.5rem;
+    }
+
+    .submissions-table-has-week .submission-col-score {
+      width: 7.25rem;
+    }
+
+    .submissions-table-no-week .submission-col-score {
+      width: 8.5rem;
+    }
+
+    .submission-player-rich {
+      display: inline-flex;
+    }
+
+    .submission-player-compact {
+      display: none;
+    }
+  }
+
+  @container submissions-table (min-width: 34rem) {
+    .submission-best-marker {
+      display: inline-flex;
+    }
+
+    .submission-best-copy {
+      display: none;
+    }
+  }
+
+  @container submissions-table (min-width: 42rem) {
+    .submissions-table-has-week .submission-col-attempt {
+      width: 10.5rem;
+    }
+
+    .submissions-table-has-week .submission-col-score,
+    .submissions-table-no-week .submission-col-score {
+      width: 8.5rem;
+    }
+
+    .submission-col-date {
+      width: 9.5rem;
+    }
+
+    .submission-date-cell {
+      display: table-cell;
+    }
+
+    .submission-best-copy {
+      display: inline;
+    }
   }
 
   .top-three-rank-shine-bar {
@@ -323,14 +466,27 @@ textarea {
   }
 }
 
-@keyframes public-landing-logo-breathe {
+@keyframes public-landing-logo-heartbeat {
   0%,
+  12%,
+  24%,
+  36%,
   100% {
     transform: scale(1);
   }
 
-  50% {
-    transform: scale(1.022);
+  18% {
+    transform: scale(1.075);
+  }
+
+  30% {
+    transform: scale(1.035);
+  }
+}
+
+@keyframes profile-avatar-ring-spin {
+  to {
+    transform: rotate(1turn);
   }
 }
 
@@ -363,6 +519,13 @@ textarea {
   }
 
   .public-landing-logo {
+    animation: none;
+    transform: none;
+    will-change: auto;
+  }
+
+  .profile-avatar-glow::before,
+  .profile-avatar-glow::after {
     animation: none;
     transform: none;
     will-change: auto;

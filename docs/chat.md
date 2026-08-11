@@ -11,6 +11,11 @@ La migración `supabase/migrations/0006_league_chat.sql` crea:
 public.league_chat_messages
 ```
 
+La tabla anterior `public.chat_messages` es legacy y opcional. Está presente en
+la secuencia local original, pero puede no existir en entornos remotos que nunca
+la utilizaron. `0027_profile_anonymization.sql` no la crea: actualiza sus
+policies únicamente cuando ya existe.
+
 La migración `0014_league_chat_message_editing.sql` añade `edited_at` y la
 política de edición del último mensaje propio durante 15 minutos.
 

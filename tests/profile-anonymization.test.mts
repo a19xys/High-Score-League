@@ -10,7 +10,9 @@ const read = (...parts: string[]) => readFile(join(root, ...parts), "utf8");
 test("0027 declares the lifecycle column and validates its 0025/0026 dependencies", async () => {
   const sql = await read("supabase", "migrations", "0027_profile_anonymization.sql");
 
-  assert.match(sql, /add column anonymized_at timestamptz/i);
+  assert.match(sql, /add column if not exists anonymized_at timestamptz/i);
+  assert.match(sql, /drop constraint if exists profiles_username_lifecycle_format/i);
+  assert.match(sql, /create table if not exists public\.retired_profile_usernames/i);
   assert.match(sql, /0026 submissions_player_duplicate_key_unique_idx/i);
   assert.match(sql, /0025 play_time_events/i);
   assert.match(sql, /0025 player_game_play_time/i);
@@ -29,10 +31,23 @@ test("the 0027 preflight is read-only and inventories Playtime, identity and ava
   assert.match(sql, /lower\(username\) like 'deleted\\_%'/i);
   assert.match(sql, /administrator_profiles/i);
   assert.match(sql, /avatars\/<uid>|avatars\/\[0-9a-f-/i);
+  assert.match(sql, /legacy chat \(optional\)[\s\S]*false/i);
+  assert.doesNotMatch(sql, /from public\.chat_messages/i);
   assert.doesNotMatch(
     sql,
     /^\s*(alter|create|delete|drop|grant|insert|revoke|truncate|update)\s/im,
   );
+});
+
+test("the absent legacy chat table is optional and its policies are guarded", async () => {
+  const sql = await read("supabase", "migrations", "0027_profile_anonymization.sql");
+
+  assert.match(
+    sql,
+    /if to_regclass\('public\.chat_messages'\) is not null then[\s\S]*create policy chat_messages_select_visible[\s\S]*create policy chat_messages_insert_own/i,
+  );
+  assert.match(sql, /Optional legacy relation public\.chat_messages is absent; policies skipped/i);
+  assert.doesNotMatch(sql, /^drop policy[^\n]+public\.chat_messages/im);
 });
 
 test("anonymous aliases are random, stable on retry and independent of the profile UUID", async () => {
@@ -54,7 +69,7 @@ test("retired usernames use a private normalized fingerprint and active validati
     read("lib", "auth", "validation.ts"),
   ]);
 
-  assert.match(sql, /create table public\.retired_profile_usernames/i);
+  assert.match(sql, /create table if not exists public\.retired_profile_usernames/i);
   assert.match(sql, /username_fingerprint text not null unique/i);
   assert.match(sql, /lower\(trim\(value\)\)/i);
   assert.match(sql, /extensions\.digest/i);

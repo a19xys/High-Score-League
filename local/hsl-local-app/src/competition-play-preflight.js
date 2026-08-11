@@ -1,0 +1,122 @@
+function normalizeAttemptPart(value) {
+  return value === undefined || value === null ? null : String(value);
+}
+
+function createCompetitionAttemptFingerprint(input = {}) {
+  return {
+    activeInstanceKey: normalizeAttemptPart(input.activeInstanceKey),
+    deploymentKey: normalizeAttemptPart(input.deploymentKey),
+    origin: normalizeAttemptPart(input.origin),
+    reachabilityGeneration: Number(input.reachabilityGeneration) || 0,
+    userId: normalizeAttemptPart(input.userId),
+    weekId: normalizeAttemptPart(input.weekId),
+  };
+}
+
+function competitionAttemptFromState(state = {}, authority = {}) {
+  return createCompetitionAttemptFingerprint({
+    activeInstanceKey: state.selection?.activeInstanceKey,
+    deploymentKey: authority.deploymentKey,
+    origin: authority.origin,
+    reachabilityGeneration: authority.reachabilityGeneration,
+    userId: state.session?.userId,
+    weekId: state.game?.weekId || state.weekCapability?.weekId,
+  });
+}
+
+function competitionAttemptFromLauncherContext(context = {}, authority = {}) {
+  return createCompetitionAttemptFingerprint({
+    activeInstanceKey: context.selection?.activeInstanceKey,
+    deploymentKey: authority.deploymentKey,
+    origin: authority.origin,
+    reachabilityGeneration: authority.reachabilityGeneration,
+    userId: context.session?.userId,
+    weekId: context.baseConfig?.defaultWeekId || context.baseConfig?.pack?.weekId || context.weekCapability?.weekId,
+  });
+}
+
+function competitionAttemptsMatch(left, right) {
+  return Boolean(left && right)
+    && left.activeInstanceKey === right.activeInstanceKey
+    && left.deploymentKey === right.deploymentKey
+    && left.origin === right.origin
+    && left.reachabilityGeneration === right.reachabilityGeneration
+    && left.userId === right.userId
+    && left.weekId === right.weekId;
+}
+
+function blockedResult(state, summary, line = summary) {
+  return {
+    action: "play-competition",
+    lines: [line],
+    ok: false,
+    state,
+    summary,
+  };
+}
+
+function weekBlockMessage(publicState) {
+  if (publicState === "closed") return "La semana está cerrada. Puedes practicar.";
+  if (publicState === "inactive") return "La semana todavía no está activa. Puedes practicar.";
+  if (publicState === "unlinked") return "El pack no está vinculado a una semana pública. Puedes practicar.";
+  return "No se pudo confirmar que la semana siga activa. Puedes practicar.";
+}
+
+async function runCompetitionPlayPreflight(options = {}) {
+  const initialState = await options.getState();
+  const initialAuthority = options.getAuthorityContext();
+  const attempt = competitionAttemptFromState(initialState, initialAuthority);
+
+  if (initialAuthority.connected !== true) {
+    return options.launch({ expectedCompetitionAttempt: attempt });
+  }
+
+  if (!attempt.weekId) {
+    return blockedResult(initialState, "No se puede jugar competición con este pack.");
+  }
+
+  const remote = await options.ensureFreshCapability(attempt.weekId);
+  const currentState = await options.getState();
+  const currentAuthority = options.getAuthorityContext();
+  const currentAttempt = competitionAttemptFromState(currentState, currentAuthority);
+
+  if (!competitionAttemptsMatch(attempt, currentAttempt)) {
+    return blockedResult(
+      currentState,
+      "El contexto competitivo ha cambiado.",
+      "La cuenta, el pack o la conexión han cambiado. Vuelve a intentarlo.",
+    );
+  }
+
+  if (!remote?.ok) {
+    return blockedResult(
+      currentState,
+      "No se pudo confirmar la semana activa.",
+      "No se pudo confirmar que la semana siga activa. Puedes practicar.",
+    );
+  }
+
+  const publicState = currentState.weekCapability?.publicState;
+  if (publicState !== "active") {
+    return blockedResult(currentState, weekBlockMessage(publicState));
+  }
+
+  if (currentState.competitionAccess?.canPlayCompetition !== true) {
+    return blockedResult(
+      currentState,
+      "No se puede jugar competición con este pack.",
+      currentState.readiness?.message || "No se puede jugar competición con este pack.",
+    );
+  }
+
+  return options.launch({ expectedCompetitionAttempt: currentAttempt });
+}
+
+module.exports = {
+  competitionAttemptFromLauncherContext,
+  competitionAttemptFromState,
+  competitionAttemptsMatch,
+  createCompetitionAttemptFingerprint,
+  runCompetitionPlayPreflight,
+  weekBlockMessage,
+};

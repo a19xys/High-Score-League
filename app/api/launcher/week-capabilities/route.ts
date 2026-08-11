@@ -7,7 +7,6 @@ import {
   validLauncherWeekDatabaseId,
 } from "@/lib/launcher-week-capabilities";
 import { getLauncherDeploymentFingerprint, getLauncherDeploymentHeaders } from "@/lib/launcher-deployment";
-import { getDerivedWeekStatus } from "@/lib/week-status";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -76,13 +75,26 @@ async function handleLauncherWeekCapabilities(
     console.error(JSON.stringify({ event: "launcher-week-query-failed", requestId, stage: "seasons", timestamp: new Date().toISOString() }));
     return json({ ok: false, code: "WEEK_CONTEXT_QUERY_FAILED", error: "No se pudo comprobar la competicion." }, 503);
   }
-  const weeks = rawWeeks.map((week) => ({ ...week, derivedStatus: getDerivedWeekStatus(week, now) }));
+  const resultQuery = weekIds.length > 0
+    ? await supabase.from("weekly_results").select("week_id").in("week_id", weekIds)
+    : { data: [], error: null };
+  if (resultQuery.error) {
+    console.error(JSON.stringify({ event: "launcher-week-query-failed", requestId, stage: "weekly-results", timestamp: new Date().toISOString() }));
+    return json({ ok: false, code: "WEEK_RESULTS_QUERY_FAILED", error: "No se pudo comprobar la competicion." }, 503);
+  }
+  const officialResultWeekIds = new Set((resultQuery.data || []).map((result) => result.week_id));
   return json({
     version: LAUNCHER_WEEK_CONTRACT_VERSION,
     build: deployment.build,
     environment: deployment.environment,
     generatedAt: now.toISOString(),
-    results: buildLauncherWeekResults({ requests: validated.requests, weeks, seasons: seasonQuery.data || [] }),
+    results: buildLauncherWeekResults({
+      officialResultWeekIds,
+      now,
+      requests: validated.requests,
+      seasons: seasonQuery.data || [],
+      weeks: rawWeeks,
+    }),
   });
 }
 

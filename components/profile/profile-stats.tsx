@@ -7,7 +7,7 @@ type ProfileStatsProps = {
 };
 
 const statDefinitions: Array<{
-  key: keyof PlayerProfileStats;
+  key: "victories" | "podiums" | "participations";
   label: string;
   help: string;
   accent: string;
@@ -29,12 +29,6 @@ const statDefinitions: Array<{
     label: "Participaciones",
     help: "Semanas con actividad competitiva registrada",
     accent: "bg-circuit",
-  },
-  {
-    key: "officialResults",
-    label: "Resultados",
-    help: "Semanas con clasificación oficial publicada",
-    accent: "bg-sky-500",
   },
 ];
 
@@ -59,7 +53,7 @@ export function ProfileStats({ stats, playTime }: ProfileStatsProps) {
           <dd className="mt-2 text-3xl font-black leading-none theme-text sm:text-4xl">
             {stats[stat.key]}
           </dd>
-          <p className="mt-2 hidden text-xs leading-5 theme-text-muted sm:block">
+          <p className="mt-2 hidden text-xs leading-5 theme-text-muted md:block">
             {stat.help}
           </p>
         </div>
@@ -74,11 +68,20 @@ export function ProfileStats({ stats, playTime }: ProfileStatsProps) {
             ? formatPlayTime(playTime.totalSeconds)
             : "Privado"}
         </dd>
-        <p className="mt-2 text-xs leading-5 theme-text-muted">
+        <p className="mt-2 hidden text-xs leading-5 theme-text-muted md:block">
           {playTime.visibility === "visible"
             ? "Práctica y competición registradas por el launcher"
             : "Esta información no se muestra al resto"}
         </p>
+      </div>
+      <div className="relative col-span-2 min-w-0 overflow-hidden px-4 py-5 theme-surface sm:px-6 lg:col-span-1">
+        <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-sky-500" />
+        <dt className="text-[11px] font-extrabold uppercase tracking-[0.12em] theme-text-muted sm:text-xs">
+          Estado
+        </dt>
+        <dd className="mt-2 text-3xl font-black leading-none theme-text sm:text-4xl">
+          <span aria-label="Estado no disponible">—</span>
+        </dd>
       </div>
     </dl>
   );

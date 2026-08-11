@@ -79,7 +79,7 @@ begin
 end $$;
 
 alter table public.profiles
-  add column anonymized_at timestamptz;
+  add column if not exists anonymized_at timestamptz;
 
 comment on column public.profiles.anonymized_at is
   'Null for an active account; set once for an irreversible anonymous historical actor.';
@@ -103,6 +103,9 @@ alter table public.profiles
   drop constraint if exists profiles_username_format;
 
 alter table public.profiles
+  drop constraint if exists profiles_username_lifecycle_format;
+
+alter table public.profiles
   add constraint profiles_username_lifecycle_format check (
     (
       anonymized_at is null
@@ -121,7 +124,7 @@ create unique index profiles_initials_upper_unique_idx
 on public.profiles (upper(trim(initials)))
 where anonymized_at is null;
 
-create table public.retired_profile_usernames (
+create table if not exists public.retired_profile_usernames (
   profile_id uuid primary key references public.profiles(id) on delete restrict,
   username_fingerprint text not null unique,
   retired_at timestamptz not null default now(),
@@ -738,21 +741,36 @@ create policy weekly_results_select_authenticated
 on public.weekly_results for select to authenticated
 using (public.has_active_profile());
 
-drop policy if exists chat_messages_select_visible on public.chat_messages;
-create policy chat_messages_select_visible
-on public.chat_messages for select to authenticated
-using (public.has_active_profile() and is_deleted = false);
+-- Some deployed environments predate or deliberately omit the unused legacy
+-- chat table. Preserve and protect it when present, but do not make it a
+-- dependency of profile anonymization.
+do $legacy_chat_policies$
+begin
+  if to_regclass('public.chat_messages') is not null then
+    execute 'drop policy if exists chat_messages_select_visible on public.chat_messages';
+    execute $policy$
+      create policy chat_messages_select_visible
+      on public.chat_messages for select to authenticated
+      using (public.has_active_profile() and is_deleted = false)
+    $policy$;
 
-drop policy if exists chat_messages_insert_own on public.chat_messages;
-create policy chat_messages_insert_own
-on public.chat_messages for insert to authenticated
-with check (
-  public.has_active_profile()
-  and player_id = auth.uid()
-  and is_deleted = false
-  and length(trim(body)) > 0
-  and char_length(body) <= 500
-);
+    execute 'drop policy if exists chat_messages_insert_own on public.chat_messages';
+    execute $policy$
+      create policy chat_messages_insert_own
+      on public.chat_messages for insert to authenticated
+      with check (
+        public.has_active_profile()
+        and player_id = auth.uid()
+        and is_deleted = false
+        and length(trim(body)) > 0
+        and char_length(body) <= 500
+      )
+    $policy$;
+  else
+    raise notice 'Optional legacy relation public.chat_messages is absent; policies skipped.';
+  end if;
+end
+$legacy_chat_policies$;
 
 drop policy if exists season_memberships_select_authenticated on public.season_memberships;
 create policy season_memberships_select_authenticated

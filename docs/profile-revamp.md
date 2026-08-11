@@ -1,282 +1,171 @@
-# PROFILE-REVAMP-1: sistema de perfiles
+# Sistema de perfiles
 
-## Resultado y concepto visual
+## Resultado actual
 
-Los perfiles usan una misma tarjeta de jugador de acabado arcade moderno: hero
-oscuro con trama sutil, avatar protagonista, siglas y username, seguido de una
-única banda de métricas reales. La trayectoria se presenta como una combinación
-de lista de resultados oficiales y archivo de mejores marcas; no como una
-colección de tarjetas equivalentes.
+Los perfiles propio y público comparten una identidad visual de acabado arcade:
+hero oscuro, avatar protagonista con aro luminoso, bio y una banda compacta de
+métricas. La información competitiva se resume en métricas y una tabla de
+mejores marcas; ya no existen las cards de marcas ni el bloque de resultados
+oficiales recientes.
 
-`/profile` usa navegación por anclas (`Resumen`, `Trayectoria`, `Editar perfil`,
-`Cuenta` y, cuando corresponde, `Administración`). Las anclas conservan el
-destino al recargar, funcionan sin JavaScript de estado y evitan una sidebar
-permanente en móvil. `/players/[username]` comparte hero, métricas, trayectoria,
-avatar y estados vacíos, pero no recibe datos ni controles privados.
+`/profile` es un centro personal organizado por vistas:
+
+- `Resumen`: hero, métricas, aviso de datos cuando corresponda y mejores marcas;
+- `Envíos`: historial privado filtrable por juego;
+- `Editar perfil`: avatar, identidad, bio y privacidad en un único formulario;
+- `Cuenta`: apariencia, sesión y anonimización;
+- `Administración`: accesos de gestión, solo para administradores.
+
+El selector es un tablist accesible. En móvil usa dos columnas y
+`Administración`, si existe, ocupa una fila completa; con espacio suficiente usa
+cuatro o cinco columnas compactas. Solo se ve un panel a la vez, pero todos
+permanecen montados para no perder cambios sin guardar. Las flechas, Home y End
+mueven el foco y la selección. El hash (`#resumen`, `#envios`, `#editar`,
+`#cuenta`, `#administracion`) conserva el contexto mediante `replaceState` sin
+scroll ni nuevas rutas. Los hashes legacy `#trayectoria`, `#editar-perfil` y
+`#centro-admin` se resuelven a su vista nueva.
+
+`/players/[username]` sigue siendo una página autenticada de solo lectura. No
+recibe tabs privadas, email, envíos privados, edición, cuenta ni administración.
 
 ## Arquitectura
 
-- `lib/data/player-profile.ts`: agrega identidad pública y trayectoria
-  competitiva. `weekly_results` es la fuente canónica de victorias, podios y
-  resultados oficiales; `submissions` válidas aporta participaciones y mejores
-  marcas.
-- `components/profile/profile-hero.tsx`: cabecera compartida de identidad.
-- `components/profile/profile-avatar.tsx`: avatar con fallback de siglas también
-  cuando la imagen remota falla.
-- `components/profile/profile-stats.tsx`: banda compartida de métricas reales.
-- `components/profile/profile-history.tsx`: resultados y mejores marcas; añade
-  el historial paginado completo de envíos únicamente en el perfil propio.
-- `components/profile/profile-navigation.tsx`: navegación interna accesible del
-  perfil propio.
-- `components/profile/profile-editor.tsx` y
-  `profile-avatar-editor.tsx`: edición y encapsulación del mecanismo de avatar.
-- `components/profile/profile-account-settings.tsx`: apariencia, sesión y
-  explicación de conservación histórica.
-- `components/profile/admin-profile-center.tsx`: accesos administrativos
-  separados del rendimiento personal.
-- `components/profile/public-profile-view.tsx`: composición pública sin datos
-  internos.
-- `components/profile-dashboard.tsx`: composición del centro personal y
-  onboarding; ya no contiene edición, avatar, historial y administración en un
-  único componente monolítico.
+- `lib/data/player-profile.ts` agrega identidad y trayectoria competitiva en el
+  servidor. `weekly_results` es la fuente canónica de victorias, podios y puesto
+  oficial; las submissions válidas aportan participaciones y mejores marcas.
+- `lib/profile-best-scores.ts` construye las mejores marcas sobre los datasets ya
+  cargados. Usa mapas de semanas, juegos, temporadas y resultados, sin N+1.
+- `lib/profile-submission-games.ts` deriva opciones únicas por actividad,
+  selección inicial y filtrado cliente del historial privado.
+- `lib/profile-sections.ts` normaliza los hashes actuales y legacy.
+- `components/profile/profile-section-switcher.tsx` contiene únicamente el
+  estado y la accesibilidad de las vistas; las consultas siguen en servidor.
+- `components/profile/profile-hero.tsx`, `profile-stats.tsx` y
+  `profile-best-scores-table.tsx` forman el resumen compartido.
+- `components/profile/profile-submissions-history.tsx` contiene el selector y la
+  tabla privada de envíos.
+- `components/profile/profile-editor.tsx` conserva un único ciclo de guardado
+  para identidad, avatar y privacidad.
+- `components/profile/profile-account-settings.tsx` conserva apariencia, sesión
+  y la zona de peligro de cuenta.
+- `components/profile/admin-profile-center.tsx` presenta warnings y accesos como
+  una superficie normal, sin hero propio.
+- `components/profile/public-profile-view.tsx` compone exclusivamente datos
+  públicos.
 
-## Datos del perfil propio
+## Resumen y métricas
 
-Se muestran:
+La banda muestra cuatro métricas reales:
 
-- avatar o fallback de siglas;
-- siglas, username, bio y fecha de incorporación completa en la zona horaria de
-  la competición (`En la liga desde el …`);
-- victorias oficiales;
-- podios oficiales;
-- participaciones en semanas con actividad válida o resultado oficial;
-- cantidad de resultados oficiales;
-- resultados oficiales recientes;
-- mejor score válido por semana;
-- historial completo de envíos propios ya cargados, incluidos los que RLS
-  permite ver solo al dueño, paginado a 10, 25 o 50 filas;
-- email únicamente dentro del bloque privado de sesión;
-- preferencia `play_time_public` como control exclusivo de visibilidad;
-- tema Claro, Oscuro o Sistema;
-- centro admin solo si `is_admin` es real.
+1. victorias;
+2. podios;
+3. participaciones;
+4. tiempo jugado, visible o privado según `play_time_public`.
 
-Si el perfil no puede crearse desde metadata, la sesión se conserva y aparece un
-onboarding centrado en completar username y siglas. No se dibujan métricas
-vacías ni placeholders de sistemas futuros.
+Una quinta posición muestra `Estado —`. Es solo una reserva visual para
+`PROFILE-PRESENCE-1`: no existen heartbeat, online/offline, última actividad ni
+juego actual, y no se infieren desde Playtime. `officialResults` se conserva en
+el modelo competitivo para consumidores internos, aunque ya no se renderiza en
+la banda.
 
-## Datos del perfil público
+En móvil las métricas forman dos columnas y Estado ocupa ambas; en escritorio
+forman cinco columnas. Las ayudas extensas se ocultan en anchos reducidos.
 
-La consulta de identidad selecciona `id`, `username`, `initials`, `avatar_url`,
-`avatar_storage_path`, `bio`, `play_time_public` y `created_at`. El path se
-resuelve en servidor y tiene prioridad sobre la URL legacy. El `id` y la
-preferencia se usan únicamente para resolver trayectoria y visibilidad; no se
-renderizan como datos del perfil.
+## Avatar protagonista
 
-La vista muestra identidad, fecha de incorporación, métricas oficiales,
-resultados recientes y mejores scores públicos. No selecciona ni envía al árbol
-público email, `is_admin`, `track_play_time`, preferencias Auth o timestamps
-internos de actualización.
+El avatar grande de `/profile` y `/players/[username]` usa un aro específico con
+gradiente cónico cyan, teal, violeta y fuchsia. Dos capas independientes rotan
+con `transform`; la foto o las siglas permanecen inmóviles. El efecto no se
+aplica a `PlayerPill`, chat, tablas, hover cards, editor ni avatares pequeños.
+Con `prefers-reduced-motion: reduce` el aro sigue visible pero no gira.
 
-Playtime se consulta por separado de la trayectoria competitiva. El propietario
-ve siempre el total; otro jugador solo lo recibe cuando
-`play_time_public = true`. En privado, el servidor no consulta ni entrega el
-número al árbol cliente. La quinta tarjeta muestra el agregado de práctica y
-competición o la indicación de información privada.
+## Mejores marcas
 
-Las mejores marcas públicas excluyen submissions inválidas y submissions
-ocultas mientras la semana no esté `closed` o `published`. Este filtro se aplica
-además de RLS, incluso si un jugador abre su propio username mediante la ruta
-pública. Los errores de Supabase se convierten en estados genéricos sin mensajes
-técnicos.
+La tabla compartida contiene `Puesto`, `Juego` y `Mejor marca`. La celda de juego
+enlaza a `/weeks/[weekId]` y añade `Semana N · Temporada`. El agregado selecciona
+el mejor score válido de cada semana, añade el `rank` de `weekly_results` cuando
+existe y muestra `—` si la semana no tiene resultado oficial. La tabla usa layout
+fijo, puesto y score compactos y juego flexible con truncado, por lo que funciona
+desde 320 px.
 
-La ruta sigue dentro de la liga privada: sin sesión devuelve `AccessRequired` y
-un username inexistente o inválido devuelve 404.
+## Historial privado de envíos
 
-## Enlaces desde identidades
+La vista `Envíos` usa solo las submissions ya cargadas del propietario. Las
+opciones se deduplican y se ordenan por la actividad más reciente del usuario;
+la selección inicial es el juego de su submission más reciente. `Todos los
+juegos` queda disponible al final como opción secundaria. Cambiar el juego
+vuelve la paginación a la página 1. Sin submissions se muestra `EmptyState` y no
+un selector vacío.
 
-`PlayerPill` enlaza por defecto todo el bloque de identidad y admite
-`linkToProfile={false}` para contextos incompatibles. Solo crea el enlace si hay
-username, usa `encodeURIComponent`, conserva truncado/fallback y expone nombre
-accesible y foco visible.
+El filtrado es cliente. Después se conserva el pipeline compartido completo:
+decoración, intentos, mejor/visibilidad, orden, clamp, paginación y, al final,
+slots visuales. El perfil público nunca recibe este dataset.
 
-La misma navegación se aplica a leaderboards, clasificaciones, podios,
-resultados oficiales, historial visible, ganadores de archivos y autores del
-chat. Ningún enlace de jugador se anida dentro de otro anchor.
+## Editor y cuenta
 
-En filas de submissions, `PlayerPill` usa la variante semántica `submission`:
-avatar o siglas compactas sin repetir el username, manteniendo enlace, hover
-card, foco y nombre accesible.
+El editor es una única superficie. En móvil ordena foto, identidad, bio,
+privacidad y guardar; en escritorio coloca la foto en una columna lateral
+compacta y los campos en la principal. Sigue habiendo un solo guardado.
+`MediaUpload` mantiene preview local, conversión WebP, upload al guardar,
+persistencia, cleanup, rollback, invalidación de caché y metadata Auth.
 
-## Hover card compartida
+Cuenta agrupa apariencia, email/sesión y zona de peligro. El traslado visual no
+modifica el endpoint, RPC, confirmación, tombstone, Storage cleanup ni lifecycle
+de anonimización.
 
-`PlayerHoverCard` envuelve las identidades compartidas en escritorio. Espera
-600 ms de hover continuo antes de abrir y cancela el timer si el puntero sale;
-una vez abierta se cierra en el siguiente ciclo de eventos al abandonar trigger
-y tarjeta, sin una espera perceptible. Un puente transparente permite recorrer
-el pequeño espacio entre ambos sin cerrar. El contenido usa un portal a
-`document.body`, medición real, ajuste horizontal y cambio arriba/abajo para no
-quedar recortado por tablas o bordes del viewport. No se añadió una dependencia:
-la implementación propia cubre el alcance con portal, `ResizeObserver` y
-listeners de scroll/resize que se limpian al cerrar.
+## Hover cards e identidades enlazadas
 
-La preview contiene solo avatar, siglas, username, bio pública completa,
-victorias,
-podios y cantidad de resultados oficiales. Se solicita a
-`/api/players/[username]/preview` únicamente al abrir tras confirmar intención;
-el endpoint exige sesión, valida el username, usa el cliente Supabase del
-usuario y RLS, y selecciona solo campos públicos y tres conteos ligeros de
-`weekly_results`. El cliente mantiene una caché compartida por ID y username
-con TTL de 45 segundos, deduplica solicitudes simultáneas y limpia las
-solicitudes pendientes. Al guardar el perfil invalida ID, username anterior y
-username nuevo; una respuesta iniciada antes de esa invalidación no puede
-repoblar la caché. Un fallo conserva la identidad y el enlace sin mostrar
-detalles técnicos.
+`PlayerPill` enlaza el bloque de identidad cuando existe un username activo y
+admite `linkToProfile={false}`. Los tombstones no enlazan. `PlayerHoverCard`
+aparece tras intención sostenida en dispositivos con hover, usa portal,
+posicionamiento contra viewport, caché corta y endpoint autenticado. Teclado,
+Escape y reduced motion mantienen sus contratos. El bio compartido está limitado
+a 150 caracteres y su fallback es `Sin descripción.`.
 
-La tarjeta cargada usa altura natural, conserva su límite máximo respecto al
-viewport y activa scroll interno solo si hace falta. No reserva alturas vacías,
-no recorta la bio ni muestra líneas de “Trayectoria competitiva”. El fallback
-de bio compartido en perfiles y tarjetas es exactamente `Sin descripción.`.
+## Avatar administrado
 
-La edición comparte un límite de 150 caracteres entre UI y validación. El
-textarea muestra ayuda, contador y `maxLength`; un pegado que exceda el límite
-se rechaza con error explícito antes de Supabase. La migración
-`0023_profile_bio_max_length.sql` replica el contrato en base de datos sin
-truncar bios existentes y ya está aplicada en el Supabase remoto.
+`ProfileAvatarEditor` reutiliza `MediaUpload`: valida JPEG/PNG/WebP, procesa a
+WebP en el navegador, previsualiza y sube al guardar bajo
+`avatars/<USER_ID>/<UUID>.webp`. Solo limpia el objeto anterior después de
+confirmar la persistencia y revierte objetos nuevos ante fallo.
+`avatar_storage_path` es la referencia canónica y `avatar_url` conserva
+compatibilidad legacy. Consulta [media uploads](media-uploads.md).
 
-El ID autenticado se distribuye una vez desde el layout para reconocer la
-identidad propia sin prop drilling. Sus triggers y botón llevan a `/profile`,
-muestran `Este eres tú` e `Ir a mi perfil`; los demás llevan a
-`/players/[username]` y muestran `Ver perfil`. La tarjeta aparece en
-`PlayerPill`, top 3, podios y autores del chat, cubriendo leaderboards,
-clasificaciones, submissions, resultados e historiales que reutilizan esas
-identidades.
+## Privacidad y Playtime
 
-No se aplica al hero grande de `/profile` o `/players/[username]`, a la preview
-del editor de avatar ni al control de cuenta del header. En dispositivos sin
-hover no se programa la apertura y el tap sigue el enlace en un solo paso. Con
-teclado, el foco abre inmediatamente, Tab entra en la acción de la tarjeta,
-Mayús+Tab vuelve al trigger y Escape cierra sin perder el foco. Las transiciones
-respetan `prefers-reduced-motion`.
-
-## Avatar actual
-
-`ProfileAvatarEditor` usa el componente compartido `MediaUpload`; la edición
-actual ya no presenta un textbox de URL. El flujo real es:
-
-1. seleccionar JPEG, PNG o WebP;
-2. validar, redimensionar y convertir localmente a WebP;
-3. mostrar la preview del archivo procesado;
-4. al guardar, subirlo a `avatars/<USER_ID>/<UUID>.webp`;
-5. persistir `avatar_storage_path` y la URL pública compatible;
-6. limpiar el objeto administrado anterior después de confirmar la base de
-   datos.
-
-Si falla la subida o la persistencia, se eliminan los objetos nuevos ya creados
-y se conserva el avatar anterior. Quitar la imagen persiste ambos campos como
-`null` y recupera el fallback de siglas. `avatar_storage_path` es la referencia
-canónica del lifecycle; `avatar_url` se conserva para imágenes legacy y para
-consumidores que todavía sólo conocen URLs. Consulta
-[media uploads](media-uploads.md) para límites, procesamiento, RLS y rollback.
-
-El aro multicolor introducido por el revamp se retiró tras auditar el estado
-inmediatamente anterior (`a56976f`). `ProfileAvatar` vuelve a centralizar el
-tratamiento previo: círculo sin borde, gradiente ni sombra; foto con
-`object-cover`; y fallback de siglas con `theme-surface-strong`. Los mismos
-tokens responden a Claro, Oscuro y Sistema. El cambio se limita a la superficie
-del avatar y conserva tamaños, composición del hero y el resto del revamp.
-
-## Privacidad actual
-
-La web recibe Playtime identificado mediante el contrato autenticado de ingest
-independientemente de `track_play_time`, que queda legacy.
-`play_time_public` controla únicamente la visibilidad del agregado. Se mantienen
-separados:
-
-1. registro identificado de tiempo;
-2. visibilidad pública del tiempo;
-3. presencia online/jugando;
-4. última actividad.
-
-No se muestran controles sin persistencia. La vista pública no consulta
-`track_play_time`; tampoco hay presencia, última conexión ni tiempo ficticio.
-
-## Estado de MEDIA-UPLOADS-1
-
-Implementada, con `0024_media_uploads.sql` aplicada remotamente y funcional.
-Avatar, imágenes de juego y opciones de cuestionario usan
-el componente común `MediaUpload`, procesamiento WebP en navegador y el bucket
-`hsl-public-media`. Se conservan las URLs legacy y el resolver prefiere el path
-Storage cuando existe. El ciclo sube, persiste y solo entonces limpia el objeto
-anterior, con rollback de subidas nuevas si falla la persistencia.
-
-En una instalación nueva, `0024` sí debe aplicarse antes del código que consulta
-sus columnas. Los detalles de rutas, presets, RLS, límites y despliegue están en
-[media uploads](media-uploads.md).
+El registro identificado de Playtime está separado de su visibilidad pública.
+El propietario ve su agregado; otro jugador solo lo recibe cuando
+`play_time_public = true`. `track_play_time` es legacy. Playtime no representa
+presencia, última actividad ni ranking.
 
 ## PROFILE-ANONYMIZATION-1
 
-La implementación está preparada en `0027_profile_anonymization.sql`, el
-endpoint `POST /api/profile/anonymize` y la zona de peligro de `/profile`.
-`0027` todavía no se ha aplicado remotamente: la funcionalidad no debe
-desplegarse hasta verificar el schema, aplicar la migración y comprobarla.
+`0027_profile_anonymization.sql` está aplicada correctamente en Supabase remoto.
+El schema, endpoint `POST /api/profile/anonymize` y zona de peligro están
+operativos. El QA destructivo exhaustivo con una cuenta desechable fue diferido
+deliberadamente por decisión del usuario; no es un bloqueo documental ni exige
+reaplicar la migración.
 
-La baja es irreversible y no destruye la historia competitiva. Conserva el UUID,
-submissions, resultados, memberships, puntos, posiciones, votos y mensajes; el
-perfil se convierte en un tombstone no interactivo con alias aleatorio
-`deleted_<24 hex>`, iniciales `DEL`, sin avatar, bio, privilegios admin ni
-Playtime público. El username retirado solo se guarda como huella SHA-256 para
-impedir su reutilización, nunca en texto claro.
+La baja irreversible conserva UUID e historia competitiva, crea un tombstone no
+interactivo, reserva el username mediante huella, retira datos personales,
+Playtime, avatar y privilegios, y hace soft-delete de Auth. Un tombstone no puede
+recrear el perfil ni usar las operaciones protegidas. El último administrador
+activo no puede anonimizarse. El texto libre histórico no se reescribe salvo el
+mensaje de sistema exacto documentado.
 
-La operación elimina los objetos bajo `avatars/<uid>/`, borra los tres datasets
-de Playtime, limpia metadatos técnicos de submissions y retira metadata personal
-de Auth antes de hacer soft-delete del usuario Auth. No borra comentarios ni
-texto libre histórico: pueden contener información introducida por la persona y
-requieren un proceso de moderación separado. Solo reescribe el mensaje de sistema
-exacto de unión al chat; no busca ni reemplaza texto libre.
+El preflight de solo lectura se conserva en
+`supabase/preflight/0027_profile_anonymization.sql` para instalaciones o
+verificaciones futuras. No crear migraciones posteriores a 0027 salvo un
+conflicto real nuevo.
 
-El tombstone no puede iniciar sesión, crear perfil de nuevo, votar, enviar
-puntuaciones, escribir/editar chat, unirse a temporadas ni usar Playtime. RLS y
-los endpoints exigen un perfil activo incluso si un JWT anterior siguiera vivo.
-El último administrador activo no puede anonimizarse. Un fallo tras el cambio de
-base de datos se muestra como recuperable y reintentar continúa la limpieza
-externa de forma idempotente.
+## Roadmap y limitaciones
 
-La interfaz exige el username exacto y una confirmación explícita, mantiene el
-diálogo abierto ante fallos parciales y cierra la sesión global al completar.
-La caché pública puede conservar temporalmente una imagen antigua aunque el
-objeto se haya eliminado; no se promete una purga inmediata del CDN. Otro
-navegador que ya tuviera una preview en memoria puede conservarla hasta que
-expire el TTL existente de 45 segundos; no se añade Realtime ni se amplía ese
-TTL para esta tarea.
+`PROFILE-PRESENCE-1` es el siguiente gran objetivo funcional: deberá diseñar
+online/offline, jugando, última actividad, expiración y privacidad propia. Nada
+de ello está implementado en este rediseño.
 
-Preflight de solo lectura:
-`supabase/preflight/0027_profile_anonymization.sql`.
-
-Orden operativo: verificar estado de schema → aplicar `0027` → verificar →
-desplegar web compatible → QA con cuenta desechable. No crear migraciones
-posteriores a `0027` salvo que aparezca un nuevo conflicto real.
-
-## Tareas futuras
-
-### PROFILE-PRESENCE-1
-
-Es el objetivo posterior a aplicar, desplegar y validar
-`PROFILE-ANONYMIZATION-1`. Deberá diseñar
-online/offline, jugando ahora, última actividad, expiración del heartbeat y
-controles de visibilidad con reglas propias. Todavía no existen presencia,
-última conexión, heartbeat web ni heartbeat público. Nunca deben inferirse del
-agregado de Playtime.
-
-## Limitaciones conscientes
-
-- Storage público de media está operativo; no hay Storage privado de capturas,
-  presencia ni última conexión.
-- `play_time_public` es el único control de visibilidad de Playtime. No hay
-  controles de presencia ni schema de Presence aprobado.
-- El archivo de mejores marcas depende de submissions que RLS y el estado de
-  semana permiten leer.
-- El historial privado pagina en cliente el conjunto completo ya cargado. La
-  paginación en servidor queda reservada para `SUBMISSIONS-SERVER-PAGINATION-1`.
-- El centro admin no incorpora gestión de usuarios.
-
-El perfil no usa Playtime para inferir presencia ni última actividad.
+- La paginación privada sigue siendo cliente sobre el conjunto ya cargado;
+  `SUBMISSIONS-SERVER-PAGINATION-1` queda para un volumen futuro.
+- No hay Storage privado de evidencias ni panel admin completo de usuarios.
+- El archivo de mejores marcas depende de lo visible según RLS y estado de la
+  semana.

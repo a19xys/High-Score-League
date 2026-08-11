@@ -10,20 +10,24 @@ where version in ('0025', '0026', '0027')
 order by version;
 
 -- 2. Required tables introduced by the normal local sequence through 0026.
-select dependency, relation_name, to_regclass(relation_name) is not null as present
+select
+  dependency,
+  relation_name,
+  required,
+  to_regclass(relation_name) is not null as present
 from (
   values
-    ('profile identity', 'public.profiles'),
-    ('submission history', 'public.submissions'),
-    ('official results', 'public.weekly_results'),
-    ('season memberships', 'public.season_memberships'),
-    ('league chat', 'public.league_chat_messages'),
-    ('legacy chat', 'public.chat_messages'),
-    ('home poll votes', 'public.home_poll_votes'),
-    ('Playtime event ledger (0025)', 'public.play_time_events'),
-    ('Playtime per-game aggregate (0025)', 'public.player_game_play_time'),
-    ('Playtime total aggregate (0025)', 'public.player_play_time_totals')
-) as required(dependency, relation_name)
+    ('profile identity', 'public.profiles', true),
+    ('submission history', 'public.submissions', true),
+    ('official results', 'public.weekly_results', true),
+    ('season memberships', 'public.season_memberships', true),
+    ('league chat', 'public.league_chat_messages', true),
+    ('legacy chat (optional)', 'public.chat_messages', false),
+    ('home poll votes', 'public.home_poll_votes', true),
+    ('Playtime event ledger (0025)', 'public.play_time_events', true),
+    ('Playtime per-game aggregate (0025)', 'public.player_game_play_time', true),
+    ('Playtime total aggregate (0025)', 'public.player_play_time_totals', true)
+) as dependencies(dependency, relation_name, required)
 order by relation_name;
 
 -- 3. Required columns. Every row must return present = true.
@@ -119,7 +123,13 @@ select
   (select count(*) from public.weekly_results) as weekly_results,
   (select count(*) from public.season_memberships) as season_memberships,
   (select count(*) from public.league_chat_messages where author_id is not null) as authored_league_chat_messages,
-  (select count(*) from public.chat_messages where player_id is not null) as authored_legacy_chat_messages,
+  to_regclass('public.chat_messages') is not null as legacy_chat_present,
+  (
+    select stats.n_live_tup::bigint
+    from pg_stat_user_tables stats
+    where stats.schemaname = 'public'
+      and stats.relname = 'chat_messages'
+  ) as estimated_legacy_chat_messages,
   (select count(*) from public.home_poll_votes) as home_poll_votes,
   (select count(*) from public.play_time_events) as play_time_events,
   (select count(*) from public.player_game_play_time) as player_game_play_time_rows,

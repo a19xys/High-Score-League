@@ -189,10 +189,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
   }
 
   return (
-    <section
-      className="scroll-mt-32 rounded-2xl border p-4 shadow-panel theme-border theme-surface sm:p-6"
-      id="editar-perfil"
-    >
+    <section className="rounded-2xl border p-4 shadow-panel theme-border theme-surface sm:p-6">
       <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-circuit">
         {onboarding ? "Paso esencial" : "Identidad"}
       </p>
@@ -205,89 +202,106 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
           : "Estos datos forman tu identidad visible dentro de la liga."}
       </p>
 
-      <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-sm font-bold theme-text">Username</span>
-            <input
-              autoComplete="username"
-              className="mt-2 w-full rounded-xl border px-3 py-2.5 theme-input"
-              onChange={(event) => setUsername(event.target.value)}
-              placeholder="lauravc"
-              required
-              value={username}
-            />
-            <span className="mt-2 block text-xs leading-5 theme-text-muted">
-              3–20 caracteres; empieza por letra y usa minúsculas, números o guion bajo.
-            </span>
-          </label>
+      <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
+        <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
+          <section>
+            <p className="text-xs font-extrabold uppercase tracking-[0.12em] theme-text-muted">
+              Foto de perfil
+            </p>
+            <div className="mt-3">
+              <ProfileAvatarEditor
+                currentUrl={avatarUrl}
+                disabled={isSubmitting}
+                initials={normalizeInitials(initials)}
+                onChange={setAvatarSelection}
+                selection={avatarSelection}
+                username={username.trim()}
+              />
+            </div>
+          </section>
 
-          <label className="block">
-            <span className="text-sm font-bold theme-text">Siglas</span>
-            <input
-              className="mt-2 w-full rounded-xl border px-3 py-2.5 uppercase theme-input"
-              maxLength={3}
-              onChange={(event) =>
-                setInitials(normalizeInitials(event.target.value))
-              }
-              placeholder="LVC"
-              required
-              spellCheck={false}
-              value={initials}
-            />
-            <span className="mt-2 block text-xs leading-5 theme-text-muted">
-              Exactamente 3 letras o números. Se guardan en mayúsculas.
-            </span>
-          </label>
+          <div className="min-w-0 space-y-6">
+            <section>
+              <h3 className="text-lg font-black theme-text">Identidad</h3>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <label className="block min-w-0">
+                  <span className="text-sm font-bold theme-text">Username</span>
+                  <input
+                    autoComplete="username"
+                    className="mt-2 w-full rounded-xl border px-3 py-2.5 theme-input"
+                    onChange={(event) => setUsername(event.target.value)}
+                    placeholder="lauravc"
+                    required
+                    value={username}
+                  />
+                  <span className="mt-2 block text-xs leading-5 theme-text-muted">
+                    3–20 caracteres; minúsculas, números o guion bajo.
+                  </span>
+                </label>
+
+                <label className="block min-w-0">
+                  <span className="text-sm font-bold theme-text">Siglas</span>
+                  <input
+                    className="mt-2 w-full rounded-xl border px-3 py-2.5 uppercase theme-input"
+                    maxLength={3}
+                    onChange={(event) =>
+                      setInitials(normalizeInitials(event.target.value))
+                    }
+                    placeholder="LVC"
+                    required
+                    spellCheck={false}
+                    value={initials}
+                  />
+                  <span className="mt-2 block text-xs leading-5 theme-text-muted">
+                    3 letras o números, guardados en mayúsculas.
+                  </span>
+                </label>
+              </div>
+
+              <label className="mt-4 block" htmlFor="profile-bio">
+                <span className="text-sm font-bold theme-text">Bio pública</span>
+                <textarea
+                  aria-describedby="profile-bio-help profile-bio-count"
+                  className="mt-2 min-h-32 w-full resize-y rounded-xl border px-3 py-2.5 theme-input"
+                  id="profile-bio"
+                  maxLength={PROFILE_BIO_MAX_LENGTH}
+                  onChange={(event) => setBio(event.target.value)}
+                  onPaste={handleBioPaste}
+                  placeholder="Cuéntale a los demás sobre ti…"
+                  value={bio}
+                />
+                <span className="mt-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-1 text-xs leading-5 theme-text-muted">
+                  <span id="profile-bio-help">
+                    Máximo {PROFILE_BIO_MAX_LENGTH} caracteres. Es opcional.
+                  </span>
+                  <span className="shrink-0 tabular-nums" id="profile-bio-count">
+                    {bio.length} / {PROFILE_BIO_MAX_LENGTH}
+                  </span>
+                </span>
+              </label>
+            </section>
+
+            <section className="border-t pt-5 theme-border">
+              <h3 className="text-lg font-black theme-text">Privacidad</h3>
+              <label className="mt-3 flex items-start gap-3">
+                <input
+                  checked={playTimePublic}
+                  className="mt-1 h-4 w-4 accent-circuit"
+                  onChange={(event) => setPlayTimePublic(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>
+                  <span className="block font-extrabold theme-text">
+                    Mostrar mi tiempo de juego
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 theme-text-muted">
+                    Tú siempre puedes verlo; al ocultarlo deja de mostrarse al resto de jugadores.
+                  </span>
+                </span>
+              </label>
+            </section>
+          </div>
         </div>
-
-        <label className="block" htmlFor="profile-bio">
-          <span className="text-sm font-bold theme-text">Bio pública</span>
-          <textarea
-            aria-describedby="profile-bio-help profile-bio-count"
-            className="mt-2 min-h-32 w-full resize-y rounded-xl border px-3 py-2.5 theme-input"
-            id="profile-bio"
-            maxLength={PROFILE_BIO_MAX_LENGTH}
-            onChange={(event) => setBio(event.target.value)}
-            onPaste={handleBioPaste}
-            placeholder="Cuéntale a los demás sobre ti…"
-            value={bio}
-          />
-          <span className="mt-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-1 text-xs leading-5 theme-text-muted">
-            <span id="profile-bio-help">
-              Máximo {PROFILE_BIO_MAX_LENGTH} caracteres. Es opcional y aparecerá en tu perfil público.
-            </span>
-            <span className="shrink-0 tabular-nums" id="profile-bio-count">
-              {bio.length} / {PROFILE_BIO_MAX_LENGTH}
-            </span>
-          </span>
-        </label>
-
-        <ProfileAvatarEditor
-          currentUrl={avatarUrl}
-          disabled={isSubmitting}
-          initials={normalizeInitials(initials)}
-          onChange={setAvatarSelection}
-          selection={avatarSelection}
-          username={username.trim()}
-        />
-
-        <label className="flex items-start gap-3 rounded-2xl border p-4 theme-border theme-surface-muted">
-          <input
-            checked={playTimePublic}
-            className="mt-1 h-4 w-4 accent-circuit"
-            onChange={(event) => setPlayTimePublic(event.target.checked)}
-            type="checkbox"
-          />
-          <span>
-            <span className="block font-extrabold theme-text">
-              Mostrar mi tiempo de juego
-            </span>
-            <span className="mt-1 block text-xs leading-5 theme-text-muted">
-              High Score League registra tu tiempo de juego para tus estadísticas. Si lo ocultas, tú seguirás pudiendo verlo, pero no se mostrará al resto de jugadores.
-            </span>
-          </span>
-        </label>
 
         <div aria-live="polite" className="min-h-5">
           {error ? (

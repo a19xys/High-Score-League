@@ -216,8 +216,11 @@ Los usuarios autenticados pueden editar únicamente su último mensaje propio de
 tipo `user` durante 15 minutos; la base de datos marca `edited_at` al actualizar
 el contenido.
 
-La tabla inicial `chat_messages` queda como preparación histórica anterior; el
-chat conectado de la home usa `league_chat_messages`.
+La secuencia local inicial contiene `chat_messages` como preparación histórica,
+pero algunos entornos remotos la omiten porque nunca tuvo un consumidor real.
+Es una relación legacy opcional: `0027` protege sus policies si existe y la
+ignora de forma explícita si está ausente. El chat conectado de la home usa
+`league_chat_messages`.
 
 ### home_polls, home_poll_options y home_poll_votes
 
@@ -294,7 +297,8 @@ publicar una semana.
 - `submissions.player_id` referencia `profiles.id`.
 - `weekly_results.week_id` referencia `weeks.id`.
 - `weekly_results.player_id` referencia `profiles.id`.
-- `chat_messages.player_id` referencia `profiles.id`.
+- Si existe la tabla legacy opcional, `chat_messages.player_id` referencia
+  `profiles.id`.
 - `league_chat_messages.author_id` referencia `profiles.id` con
   `on delete set null`.
 - `season_memberships.season_id` referencia `seasons.id`.
@@ -381,9 +385,9 @@ Todas las tablas principales tienen Row Level Security activado.
   pueden gestionar todas las memberships.
 - `week_benchmarks`: usuarios autenticados pueden leer benchmarks activos;
   admins pueden gestionar todos.
-- `chat_messages`: usuarios autenticados pueden leer mensajes no borrados e
-  insertar mensajes propios; admins pueden gestionar todos. El borrado propio se
-  deja como decisión futura para no abrir permisos antes de definir moderación.
+- `chat_messages`, solo si existe en el entorno: usuarios autenticados activos
+  pueden leer mensajes no borrados e insertar mensajes propios; admins pueden
+  gestionar todos. El borrado propio se deja como decisión futura.
 - `league_chat_messages`: usuarios autenticados pueden leer mensajes; pueden
   insertar mensajes `user` solo como ellos mismos; pueden editar solo su último
   mensaje propio durante 15 minutos; no pueden insertar mensajes `system`;
@@ -406,8 +410,8 @@ si esas lecturas se resuelven desde servidor.
 
 ## Queda para más adelante
 
-- Aplicación remota, despliegue compatible y QA de `PROFILE-ANONYMIZATION-1`;
-  su schema y código ya están preparados en esta revisión.
+- QA destructivo exhaustivo de `PROFILE-ANONYMIZATION-1`, diferido
+  deliberadamente; 0027 ya está aplicada y el código/schema están operativos.
 - `PROFILE-PRESENCE-1` con heartbeat, expiración y privacidad propios.
 - Panel completo de usuarios y gestión avanzada de memberships.
 - Storage privado y subida de capturas/evidencias.
@@ -450,9 +454,9 @@ En el entorno remoto actual `0023_profile_bio_max_length.sql` y
 `0024_media_uploads.sql` ya están aplicadas. También está confirmado que
 `0026_submission_detected_at_window.sql` existe y ya fue aplicada remotamente:
 no debe modificarse, renombrarse, duplicarse ni reaplicarse. La migración nueva
-es `0027_profile_anonymization.sql` y está pendiente de aplicación remota.
+es `0027_profile_anonymization.sql` y también está aplicada remotamente.
 
-Antes de aplicarla, ejecutar el preflight SELECT-only de
+Para verificar una instalación antes de aplicarla, ejecutar el preflight SELECT-only de
 `supabase/preflight/0027_profile_anonymization.sql`. La propia migración aborta
 si faltan tablas o columnas de Playtime introducidas por `0025`, el índice de
 `0026` u otras dependencias locales. No crear migraciones posteriores a `0027`

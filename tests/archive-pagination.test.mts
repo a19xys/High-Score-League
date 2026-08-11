@@ -155,7 +155,7 @@ test("empty submission rows are inaccessible presentation-only table rows", asyn
     source.indexOf("export function SubmissionsTable"),
   );
 
-  assert.match(rowSource, /<tr aria-hidden="true">/);
+  assert.match(rowSource, /<tr aria-hidden="true" className=\{rowClassName\}>/);
   assert.match(rowSource, /showWeek \? <td/);
   assert.match(rowSource, /<td/g);
   assert.doesNotMatch(

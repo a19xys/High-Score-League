@@ -37,6 +37,10 @@ const { createPlayTimeSyncService } = require("../src/playtime-sync-service");
 const { evaluatePackReadiness } = require("../src/pack-readiness");
 const { deriveCompetitionAccess } = require("../src/competition-access");
 const {
+  competitionAttemptFromLauncherContext,
+  competitionAttemptsMatch,
+} = require("../src/competition-play-preflight");
+const {
   importPackFromFolder: importPackFolder,
   importPackFromZip: importPackZip,
   PackImportError,
@@ -2273,9 +2277,22 @@ async function runDiagnose(options = {}) {
   };
 }
 
-async function playCompetition() {
+async function playCompetition(options = {}) {
   const context = await getLauncherContext();
   const { baseConfig, membership, session } = context;
+
+  if (options.expectedCompetitionAttempt && !competitionAttemptsMatch(
+    options.expectedCompetitionAttempt,
+    competitionAttemptFromLauncherContext(context, getCompetitionAuthorityContext()),
+  )) {
+    return {
+      action: "play-competition",
+      lines: ["La cuenta, el pack o la conexión han cambiado. Vuelve a intentarlo."],
+      ok: false,
+      summary: "El contexto competitivo ha cambiado.",
+      state: await getLauncherState({ deferRemoteMembership: true }),
+    };
+  }
 
   if (!session.hasSession) {
     return {

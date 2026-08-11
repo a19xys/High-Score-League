@@ -114,3 +114,13 @@ test("rejected stays outside the launcher Activity projection", async () => {
   assert.doesNotMatch(getQueueState, /rejected/i);
   assert.doesNotMatch(panel, /rejected|rechazad/i);
 });
+
+test("post-MAME no afirma que un terminal rejected se haya enviado", async () => {
+  const launcher = await readFile(join(process.cwd(), "local/hsl-local-app/gui/launcher-service.js"), "utf8");
+  const playCompetition = launcher.slice(
+    launcher.indexOf("async function playCompetition"),
+    launcher.indexOf("async function playPractice"),
+  );
+  assert.doesNotMatch(playCompetition, /puntuaci[oó]n enviada|enviada correctamente/i);
+  assert.match(playCompetition, /captura\(s\) nueva\(s\) movida\(s\) a la cola/);
+});

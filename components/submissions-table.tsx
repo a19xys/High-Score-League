@@ -38,6 +38,7 @@ type SubmissionsTableProps = {
   title?: string;
   emptyTitle?: string;
   emptyDescription?: string;
+  resetKey?: string | number;
 };
 
 type SortKey = "attempt" | "score" | "submittedAt";
@@ -366,15 +367,35 @@ function SubmissionsTableTopbar({
   );
 }
 
+function getSubmissionRowContract(showWeek: boolean) {
+  const rowHeightClass = showWeek ? "h-14" : "h-12";
+
+  return {
+    rowClassName: `${rowHeightClass} overflow-hidden`,
+    cellClassName: `${rowHeightClass} overflow-hidden px-3 py-0 align-middle`,
+  };
+}
+
+function SubmissionColumns({ showWeek }: { showWeek: boolean }) {
+  return (
+    <colgroup>
+      {showWeek ? <col className="submission-col-week" /> : null}
+      <col className="submission-col-attempt" />
+      <col className="submission-col-score" />
+      <col className="submission-col-date" />
+    </colgroup>
+  );
+}
+
 function EmptySubmissionRow({ showWeek }: { showWeek: boolean }) {
-  const heightClass = showWeek ? "h-[3.25rem] sm:h-11" : "h-11";
+  const { cellClassName, rowClassName } = getSubmissionRowContract(showWeek);
 
   return (
-    <tr aria-hidden="true">
-      {showWeek ? <td className={`px-3 py-2 ${heightClass}`} /> : null}
-      <td className={`px-3 py-2 ${heightClass}`} />
-      <td className={`px-3 py-2 ${heightClass}`} />
-      <td className={`hidden px-3 py-2 sm:table-cell ${heightClass}`} />
+    <tr aria-hidden="true" className={rowClassName}>
+      {showWeek ? <td className={cellClassName} /> : null}
+      <td className={cellClassName} />
+      <td className={cellClassName} />
+      <td className={`${cellClassName} submission-date-cell`} />
     </tr>
   );
 }
@@ -391,6 +412,7 @@ export function SubmissionsTable({
   title,
   emptyTitle = "Todavía no hay puntuaciones.",
   emptyDescription = "Los envíos aparecerán aquí cuando haya datos reales para esta sección.",
+  resetKey,
 }: SubmissionsTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("submittedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -434,6 +456,10 @@ export function SubmissionsTable({
     }
   }, [page, safePage]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [resetKey]);
+
   function toggleSort(nextSortKey: SortKey) {
     setPage(1);
 
@@ -449,6 +475,7 @@ export function SubmissionsTable({
   const hasOwnHiddenScores = decoratedSubmissions.some(
     (submission) => submission.showHiddenUi && submission.isOwn,
   );
+  const { cellClassName, rowClassName } = getSubmissionRowContract(showWeek);
 
   if (submissions.length === 0) {
     const emptyState = (
@@ -506,7 +533,13 @@ export function SubmissionsTable({
         eyebrow={eyebrow}
         title={title}
       />
-      <DataTable>
+      <DataTable
+        className="submissions-table-shell"
+        tableClassName={`submissions-table w-full table-fixed ${
+          showWeek ? "submissions-table-has-week" : "submissions-table-no-week"
+        }`}
+      >
+        <SubmissionColumns showWeek={showWeek} />
         <thead className="text-xs font-semibold uppercase theme-table-head">
           <tr>
             {showWeek ? (
@@ -535,7 +568,7 @@ export function SubmissionsTable({
                 Score
               </SortableHeader>
             </th>
-            <th className="hidden whitespace-nowrap px-3 py-2.5 text-right sm:table-cell" scope="col">
+            <th className="submission-date-cell whitespace-nowrap px-3 py-2.5 text-right" scope="col">
               <SortableHeader
                 align="right"
                 currentDirection={sortDirection}
@@ -559,7 +592,7 @@ export function SubmissionsTable({
 
             return (
               <tr
-                className={`theme-hover ${
+                className={`${rowClassName} theme-hover ${
                   isOwnBest
                     ? "bg-circuit/5 shadow-[inset_3px_0_0_rgba(0,201,167,0.65)]"
                     : isRivalBest
@@ -569,42 +602,49 @@ export function SubmissionsTable({
                 key={submission.id}
               >
                 {showWeek ? (
-                  <td className="min-w-0 max-w-[10rem] px-3 py-2 theme-text-muted">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold theme-text">
+                  <td className={`${cellClassName} min-w-0 theme-text-muted`}>
+                    <div className="max-h-10 min-w-0 overflow-hidden">
+                      <p className="truncate text-sm font-semibold leading-5 theme-text">
                         {submission.week
                           ? `Semana ${submission.week.number}`
                           : "Semana desconocida"}
                       </p>
                       {submission.game ? (
-                        <p className="truncate text-xs theme-text-muted">
+                        <p className="truncate text-xs leading-4 theme-text-muted">
                           {submission.game.title}
                         </p>
                       ) : null}
                     </div>
                   </td>
                 ) : null}
-                <td className="whitespace-nowrap px-3 py-2 font-semibold theme-text">
-                  <div className="inline-flex min-w-0 items-center gap-1.5">
+                <td className={`${cellClassName} min-w-0 whitespace-nowrap font-semibold theme-text`}>
+                  <div className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden">
                     {showPlayer && submission.player ? (
-                      <PlayerPill
-                        player={submission.player}
-                        variant="submission"
-                      />
+                      <>
+                        <span className="submission-player-rich min-w-0 overflow-hidden">
+                          <PlayerPill
+                            player={submission.player}
+                            variant="submission"
+                          />
+                        </span>
+                        <span className="submission-player-compact shrink-0">
+                          {submission.playerInitials}
+                        </span>
+                      </>
                     ) : (
-                      <span>{submission.playerInitials}</span>
+                      <span className="shrink-0">{submission.playerInitials}</span>
                     )}
-                    <span className="theme-text-muted">
+                    <span className="shrink-0 theme-text-muted">
                       #{submission.attemptNumber ?? "-"}
                     </span>
                     {isOwnBest ? (
-                      <span className="inline-flex h-6 items-center gap-1 rounded-full border border-circuit/25 bg-circuit/10 px-2 text-[11px] font-bold text-circuit">
+                      <span className="submission-best-marker h-6 min-w-0 items-center gap-1 overflow-hidden rounded-full border border-circuit/25 bg-circuit/10 px-2 text-[11px] font-bold text-circuit">
                         <MaskIcon className="h-3 w-3 bg-current" src="/icons/star.png" />
-                        <span className="hidden sm:inline">Tu mejor intento</span>
+                        <span className="submission-best-copy truncate">Tu mejor intento</span>
                       </span>
                     ) : isRivalBest ? (
                       <span
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-sky-400/25 bg-sky-400/10 text-sky-500"
+                        className="submission-best-marker h-6 w-6 shrink-0 items-center justify-center rounded-full border border-sky-400/25 bg-sky-400/10 text-sky-500"
                         title={`Mejor intento de ${submission.playerInitials}`}
                       >
                         <span className="sr-only">
@@ -615,9 +655,9 @@ export function SubmissionsTable({
                     ) : null}
                   </div>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold theme-text">
+                <td className={`${cellClassName} min-w-0 whitespace-nowrap text-right font-semibold tabular-nums theme-text`}>
                   {scoreIsHiddenFromViewer ? (
-                    <span className="inline-flex min-w-20 justify-end">
+                    <span className="flex w-full min-w-0 justify-end overflow-hidden">
                       {submission.showHiddenUi ? (
                         <span className="inline-flex rounded-full border border-circuit/25 bg-circuit/10 px-2 py-0.5 text-xs font-bold text-circuit">
                           Oculto
@@ -627,22 +667,27 @@ export function SubmissionsTable({
                       )}
                     </span>
                 ) : ownHiddenScoreIsRevealed ? (
-                  <span className="inline-flex min-w-20 justify-end">
-                    <span className="inline-flex rounded-full border border-circuit/30 bg-circuit/10 px-2 py-0.5 text-xs font-bold text-circuit">
+                  <span className="flex w-full min-w-0 justify-end overflow-hidden">
+                    <span className="max-w-full truncate rounded-full border border-circuit/30 bg-circuit/10 px-2 py-0.5 text-xs font-bold text-circuit">
                       {formatScore(submission.score)}
                     </span>
                   </span>
                   ) : (
-                    <span className="inline-flex min-w-20 justify-end">
+                    <span
+                      className="block w-full truncate text-right"
+                      title={formatScore(submission.score)}
+                    >
                       {formatScore(submission.score)}
                     </span>
                   )}
                 </td>
                 <td
-                  className="hidden whitespace-nowrap px-3 py-2 text-right theme-text-muted sm:table-cell"
+                  className={`${cellClassName} submission-date-cell whitespace-nowrap text-right theme-text-muted`}
                   title={formatExactDateTime(submission.createdAt)}
                 >
-                  {formatRelativeTime(submission.createdAt)}
+                  <span className="block truncate">
+                    {formatRelativeTime(submission.createdAt)}
+                  </span>
                 </td>
               </tr>
             );

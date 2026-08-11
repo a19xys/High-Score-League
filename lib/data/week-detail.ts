@@ -28,6 +28,7 @@ import {
   getDerivedWeekStatusFromRow,
   getWeekStatusHelp,
 } from "@/lib/week-status";
+import { deriveCurrentCompetitionWeekState } from "@/lib/current-competition-week";
 import { resolvePublicRankingCapability } from "@/lib/launcher-ranking-capabilities";
 import type { SubmissionRow } from "@/types/supabase";
 
@@ -204,11 +205,12 @@ async function buildRealWeekDetail(
   const realSubmissionRows = submissionsResult?.rows ?? [];
   const realBenchmarkRows = benchmarksResult?.rows ?? [];
   const realWeeklyResultRows = weeklyResultsResult?.rows ?? [];
-  const derivedStatus = getDerivedWeekStatusFromRow(
-    weekRow,
-    new Date(),
-    realWeeklyResultRows.length > 0,
-  );
+  const derivedStatus = deriveCurrentCompetitionWeekState({
+    hasOfficialResults: realWeeklyResultRows.length > 0,
+    now: new Date(),
+    season: seasonRow,
+    week: weekRow,
+  }).derivedStatus;
   const visibleWeekStatus =
     derivedStatus === "final_stretch"
       ? "frozen"

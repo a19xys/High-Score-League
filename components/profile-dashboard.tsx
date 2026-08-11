@@ -5,9 +5,13 @@ import { ProfileAccountSettings } from "@/components/profile/profile-account-set
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { ProfileEditor } from "@/components/profile/profile-editor";
 import { ProfileHero } from "@/components/profile/profile-hero";
-import { ProfileHistory } from "@/components/profile/profile-history";
-import { ProfileNavigation } from "@/components/profile/profile-navigation";
 import { ProfileStats } from "@/components/profile/profile-stats";
+import { ProfileBestScoresTable } from "@/components/profile/profile-best-scores-table";
+import { ProfileSubmissionsHistory } from "@/components/profile/profile-submissions-history";
+import {
+  ProfileSectionSwitcher,
+  type ProfileSection,
+} from "@/components/profile/profile-section-switcher";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import type {
   AdminCenterData,
@@ -122,27 +126,64 @@ export function ProfileDashboard({
     return <ProfileOnboarding auth={auth} />;
   }
 
-  return (
-    <div className="space-y-6">
-      <Breadcrumbs items={[{ label: "Mi perfil" }]} />
-      <ProfileNavigation showAdmin={adminCenter.isAdmin} />
+  const summaryPanel = (
+    <div className="space-y-5">
       <ProfileHero mode="owner" profile={auth.profile} />
       <ProfileStats playTime={playTime} stats={competitive.stats} />
-      <ProfileHistory
-        data={competitive}
-        mode="owner"
-        playerId={auth.profile.id}
-        playerInitials={auth.profile.initials}
-      />
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(19rem,0.85fr)]">
-        <ProfileEditor auth={auth} />
+      {competitive.hasDataWarning ? (
+        <div
+          className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-surface)] px-4 py-3 text-sm text-[var(--warning-text)]"
+          role="status"
+        >
+          Parte del resumen competitivo no está disponible. Los datos verificados siguen visibles.
+        </div>
+      ) : null}
+      <ProfileBestScoresTable scores={competitive.bestScores} />
+    </div>
+  );
+  const sections: ProfileSection[] = [
+    { id: "resumen", label: "Resumen", panel: summaryPanel },
+    {
+      id: "envios",
+      label: "Envíos",
+      panel: (
+        <ProfileSubmissionsHistory
+          playerId={auth.profile.id}
+          playerInitials={auth.profile.initials}
+          submissions={competitive.ownerSubmissions}
+        />
+      ),
+    },
+    {
+      id: "editar",
+      label: "Editar perfil",
+      panel: <ProfileEditor auth={auth} />,
+    },
+    {
+      id: "cuenta",
+      label: "Cuenta",
+      panel: (
         <ProfileAccountSettings
           email={auth.email}
           playerId={auth.profile.id}
           username={auth.profile.username}
         />
-      </div>
-      <AdminProfileCenter data={adminCenter} />
+      ),
+    },
+  ];
+
+  if (adminCenter.isAdmin) {
+    sections.push({
+      id: "administracion",
+      label: "Administración",
+      panel: <AdminProfileCenter data={adminCenter} />,
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      <Breadcrumbs items={[{ label: "Mi perfil" }]} />
+      <ProfileSectionSwitcher sections={sections} />
     </div>
   );
 }

@@ -23,29 +23,18 @@ export function AdminProfileCenter({ data }: AdminProfileCenterProps) {
       : "/admin/weeks";
 
   return (
-    <section
-      className="scroll-mt-32 overflow-hidden rounded-[1.75rem] border shadow-panel theme-border theme-surface"
-      id="centro-admin"
-    >
-      <div className="grid gap-5 bg-[var(--surface-strong)] px-5 py-6 text-white sm:px-7 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-cyan-200">
-            Área separada
-          </p>
-          <h2 className="mt-1 text-2xl font-black text-white">Centro admin</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/70">
-            Operaciones de liga independientes de tu rendimiento personal.
-          </p>
-        </div>
-        <Link
-          className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-extrabold text-slate-950 transition hover:bg-cyan-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-          href={currentWeekHref}
-        >
-          {data.currentWeekLabel ?? "Revisar semanas"}
-        </Link>
+    <section className="rounded-2xl border p-4 shadow-panel theme-border theme-surface sm:p-6">
+      <div>
+        <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-circuit">
+          Gestión de la liga
+        </p>
+        <h2 className="mt-1 text-2xl font-black theme-text">Administración</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 theme-text-muted">
+          Operaciones de liga independientes de tu rendimiento personal.
+        </p>
       </div>
 
-      <div className="p-5 sm:p-7">
+      <div className="mt-6">
         {data.error ? (
           <p className="mb-4 rounded-xl border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm text-[var(--warning-text)]">
             No se pudo verificar el estado de la semana activa.
@@ -56,6 +45,18 @@ export function AdminProfileCenter({ data }: AdminProfileCenterProps) {
             Hay {data.activeWeekCount} semanas activas. Revisa la configuración.
           </p>
         ) : null}
+        <div className="mb-5 rounded-xl border p-4 theme-border theme-surface-muted">
+          <p className="text-xs font-extrabold uppercase tracking-wide theme-text-muted">
+            Semana actual
+          </p>
+          <Link
+            className="mt-2 inline-flex min-h-11 items-center rounded-lg font-extrabold text-circuit transition hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
+            href={currentWeekHref}
+          >
+            {data.currentWeekLabel ?? "Revisar semanas"}
+          </Link>
+        </div>
+        <h3 className="mb-3 text-lg font-black theme-text">Accesos</h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {adminLinks.map((link) => (
             <Link

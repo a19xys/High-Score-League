@@ -8,6 +8,7 @@ const { createWeekCapabilitiesService } = require("../src/week-capabilities-serv
 const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
 const { createMembershipStartupCoordinator, membershipResolutionContext } = require("../src/membership-startup-coordinator");
+const { runCompetitionPlayPreflight } = require("../src/competition-play-preflight");
 const { runAccountMutationWithProfileRefresh } = require("../src/account-profile-orchestration");
 const { createLauncherStateAuthority, isLauncherSnapshot } = require("../src/launcher-state-authority");
 const { safeMembershipJoinUrl } = require("../src/season-membership");
@@ -49,6 +50,7 @@ let removeWeekCapabilitiesListener = null;
 let weekAuthorityStartupPromise = Promise.resolve();
 let previousReachability = "unknown";
 let lastCommittedAt = null;
+let forceWeekRefreshOnNextContext = false;
 
 const NATIVE_TITLE_BAR_HEIGHT = 32;
 const NATIVE_TITLE_BAR_OVERLAY_COLOR = "#00000000";
@@ -253,6 +255,7 @@ async function publishAccountProfileState() {
   const state = await service.getLauncherState({ deferRemoteMembership: true });
   const syncedState = syncRemoteContext(state, {
     coordinateMembership: false,
+    refreshWeekCapabilities: false,
     scheduleAutoSubmit: false,
   });
   sendRendererEvent("launcher:state", {
@@ -267,6 +270,7 @@ async function publishWeekCapabilityState() {
   const state = await service.getLauncherState({ deferRemoteMembership: true });
   const syncedState = syncRemoteContext(state, {
     coordinateMembership: false,
+    refreshWeekCapabilities: false,
     scheduleAutoSubmit: false,
   });
   sendRendererEvent("launcher:state", {
@@ -310,7 +314,11 @@ function syncRemoteContext(state, options = {}) {
 
   if (isCommittedConnected(connectivity.getState())) {
     rankingCapabilities.refresh("launcher-state").catch(() => {});
-    weekCapabilities.refresh("launcher-state").catch(() => {});
+    if (options.refreshWeekCapabilities !== false) {
+      const forceWeekRefresh = forceWeekRefreshOnNextContext && (state.library?.packs || []).some((pack) => pack?.weekId);
+      if (forceWeekRefresh) forceWeekRefreshOnNextContext = false;
+      weekCapabilities.refresh("launcher-state", { force: forceWeekRefresh }).catch(() => {});
+    }
     if (accountChanged) service.requestPlayTimeSync("account-change").catch(() => {});
   }
 
@@ -393,9 +401,11 @@ function initializeRemoteServices() {
   service.setCompetitionAuthorityProvider({
     getContext: () => ({
       connected: isCommittedConnected(connectivity.getState()),
+      reachabilityGeneration: Number(connectivity.getState().reachabilityGeneration) || 0,
       ...weekCapabilities.getAuthorityContext(),
     }),
     getWeekCapability: (weekId) => weekCapabilities.getCapability(weekId),
+    ensureFreshCapability: (weekId) => weekCapabilities.ensureFreshCapability(weekId, "play-preflight"),
   });
   topologyMonitor = createNetworkTopologyMonitor({
     onChange(change) {
@@ -531,6 +541,8 @@ function initializeRemoteServices() {
     }
     if (isCommittedConnected(state)) {
       const manual = state.probe?.phase === "manual" || state.source === "manual";
+      const weekCount = Object.keys(weekCapabilities.getState().entries || {}).length;
+      if (becameConnected && weekCount === 0) forceWeekRefreshOnNextContext = true;
       service.requestAccountProfileSync(
         becameConnected ? (state.source === "startup" ? "startup" : "connectivity-restored") : manual ? "manual-connectivity" : "connectivity-confirmed",
         { force: manual },
@@ -541,7 +553,7 @@ function initializeRemoteServices() {
       rankingCapabilities.refresh(becameConnected ? "connectivity-restored" : "connectivity-confirmed").catch(() => {});
       weekCapabilities.refresh(
         becameConnected ? "connectivity-restored" : "connectivity-confirmed",
-        { force: becameConnected },
+        { force: becameConnected || manual },
       ).catch(() => {});
       if (becameConnected) schedulePendingAutoSubmit(state.source === "startup" ? "startup" : "connectivity-restored");
     }
@@ -657,6 +669,9 @@ function createMainWindow() {
       maxAgeMs: connectivity.config.focusStaleMs,
       phase: "background",
     }).catch(() => {});
+    if (isCommittedConnected(connectivity?.getState?.() || {})) {
+      weekCapabilities?.refresh("focus").catch(() => {});
+    }
   });
 
   mainWindow.on("blur", () => {
@@ -1040,7 +1055,20 @@ function registerIpc() {
         summary: "Comprobando participación.",
       };
     }
-    return withRemoteContext(service.playCompetition());
+    const readPreflightState = async () => syncRemoteContext(
+      await service.getLauncherState({ deferRemoteMembership: true }),
+      { coordinateMembership: false, refreshWeekCapabilities: false, scheduleAutoSubmit: false },
+    );
+    return runCompetitionPlayPreflight({
+      ensureFreshCapability: (weekId) => weekCapabilities.ensureFreshCapability(weekId, "play-preflight"),
+      getAuthorityContext: () => ({
+        connected: isCommittedConnected(connectivity.getState()),
+        reachabilityGeneration: Number(connectivity.getState().reachabilityGeneration) || 0,
+        ...weekCapabilities.getAuthorityContext(),
+      }),
+      getState: readPreflightState,
+      launch: (playOptions) => withRemoteContext(service.playCompetition(playOptions)),
+    });
   });
   registerLauncherStateHandler("launcher:practice", () => service.playPractice());
   registerLauncherStateHandler("launcher:force-account-sync", async () => {

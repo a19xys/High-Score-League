@@ -106,7 +106,7 @@ function summarizeAutoSyncAttempt({ beforeQueue, afterQueue, now, ok }) {
     });
   }
 
-  if (ok && pendingAfter === 0) {
+  if (ok && pendingAfter === 0 && sentCount > 0) {
     return emptyAutoSyncState({
       failedCount,
       lastAttemptAt: now,
@@ -116,6 +116,19 @@ function summarizeAutoSyncAttempt({ beforeQueue, afterQueue, now, ok }) {
       pendingBefore,
       sentCount,
       status: "synced",
+    });
+  }
+
+  if (ok && pendingAfter === 0) {
+    return emptyAutoSyncState({
+      failedCount,
+      lastAttemptAt: now,
+      message: "La cola local se ha actualizado.",
+      pendingAfter,
+      pendingBefore,
+      reason: "terminal_items",
+      sentCount: 0,
+      status: "idle",
     });
   }
 

@@ -57,8 +57,9 @@ http://localhost:3000
 - `/players/[username]`: perfil competitivo público para miembros autenticados.
 - `/submit`: herramienta legacy/interna para admins, con envío manual todavía
   deshabilitado. La integración autenticada usa `POST /api/submissions/ingest`.
-- `/profile`: centro personal con trayectoria real, edición, apariencia, cuenta
-  y área admin separada para administradores.
+- `/profile`: centro personal por vistas (`Resumen`, `Envíos`, `Editar perfil`,
+  `Cuenta` y, para admins, `Administración`), con métricas, mejores marcas e
+  historial privado filtrable por juego.
 - `/admin/weeks`, `/admin/games`, `/admin/seasons`, `/admin/polls`: panel admin
   minimo.
   Juegos permite metadatos múltiples y borrado seguro si no hay semanas
@@ -114,11 +115,11 @@ está desplegada actualmente.
 
 ## Pendiente
 
-- Aplicar y verificar `0027_profile_anonymization.sql`, desplegar después la
-  web compatible y completar el QA de `PROFILE-ANONYMIZATION-1` con una cuenta
-  desechable. El código y la migración están preparados, no desplegados.
-- `PROFILE-PRESENCE-1`, después de cerrar ese QA: presencia y última actividad
-  con privacidad propia, sin inferirlas desde Playtime.
+- `0027_profile_anonymization.sql` ya está aplicada remotamente y
+  `PROFILE-ANONYMIZATION-1` está operativa en código/schema. El QA destructivo
+  exhaustivo con cuenta desechable fue diferido deliberadamente.
+- `PROFILE-PRESENCE-1`: presencia y última actividad con privacidad propia, sin
+  inferirlas desde Playtime. Todavía no está implementada.
 - Storage privado de capturas y evidencias.
 - Panel completo de usuarios.
 - Medallas y bonus.

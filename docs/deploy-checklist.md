@@ -57,11 +57,11 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 En el Supabase remoto actual, `0023` y `0024` ya están aplicadas. No deben
 repetirse. `0026_submission_detected_at_window.sql` también existe y está
 confirmada como aplicada remotamente: no modificarla, renombrarla, duplicarla,
-reaplicarla ni volver a pedir su aplicación. `0027_profile_anonymization.sql` es
-la migración nueva de esta tarea y continúa pendiente de aplicación remota.
+reaplicarla ni volver a pedir su aplicación. `0027_profile_anonymization.sql`
+también está confirmada como aplicada remotamente y no debe reaplicarse.
 
-Para Anonymization, el orden obligatorio es: verificar estado de schema →
-aplicar `0027` → verificar → desplegar web compatible → QA con cuenta
+Para una instalación nueva de Anonymization, el orden es: verificar estado de
+schema → aplicar `0027` → verificar → desplegar web compatible → QA con cuenta
 desechable. Antes de escribir o ejecutar SQL adicional, usar
 `supabase/preflight/0027_profile_anonymization.sql`, que es de solo lectura y
 comprueba especialmente las dependencias Playtime de `0025` y el índice de
@@ -88,10 +88,12 @@ Comprobar despues:
 - Si el entorno aún no tiene `0025`, verificar el ledger, los dos agregados, la
   RPC `ingest_play_time_event`, sus grants/RLS y que el propietario pueda leer
   su total mientras otro miembro sólo lo vea con `play_time_public = true`.
-- Antes de `0027`, confirmar que todas las filas del preflight marcadas como
-  dependencias tienen `present = true`, que `0026` figura en el historial, que
+- Antes de `0027`, confirmar que todas las filas del preflight con
+  `required = true` tienen `present = true`, que `0026` figura en el historial, que
   no hay usernames en el namespace `deleted_` y que se conoce el recuento de
-  administradores activos. Detenerse ante cualquier discrepancia.
+  administradores activos. `public.chat_messages` puede devolver
+  `required = false, present = false`: es legacy y no bloquea la migración.
+  Detenerse ante cualquier otra discrepancia.
 - Después de `0027`, verificar `profiles.anonymized_at`, la tabla privada de
   usernames retirados, la RPC `anonymize_profile_account`, las funciones
   sustituidas y todas las policies activas. No desplegar la web compatible si la
@@ -246,16 +248,17 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
 ## Estado de este checklist
 
 Debe ejecutarse antes de cada despliegue y adaptarse a las migraciones que falten
-en el entorno destino. La aplicación remota de `0023` y `0024` está confirmada,
-igual que la de `0026_submission_detected_at_window.sql`. `0027` sigue pendiente
-y no se ha verificado qué SHA web está desplegado actualmente.
+en el entorno destino. La aplicación remota de `0023`, `0024`,
+`0026_submission_detected_at_window.sql` y `0027_profile_anonymization.sql` está
+confirmada. No se ha verificado qué SHA web está desplegado actualmente.
 
 ## Roadmap no bloqueante para releases actuales
 
-- `PROFILE-ANONYMIZATION-1`: código y migración preparados; quedan aplicación
-  remota, verificación, despliegue compatible y QA desechable.
-- `PROFILE-PRESENCE-1`: objetivo posterior a cerrar ese QA; presencia y última actividad con
-  heartbeat, expiración y privacidad propios.
+- `PROFILE-ANONYMIZATION-1`: operativa en código/schema con 0027 aplicada. El QA
+  destructivo exhaustivo con cuenta desechable quedó diferido por decisión del
+  usuario.
+- `PROFILE-PRESENCE-1`: siguiente objetivo funcional; presencia y última
+  actividad con heartbeat, expiración y privacidad propios.
 - `SUBMISSIONS-SERVER-PAGINATION-1`: evaluar consultas paginadas, conteos e
   índices cuando cargar el conjunto completo deje de ser viable.
 - `POSTDEPLOY-MIGRATIONS-1`: consolidar migraciones para instalacion limpia.

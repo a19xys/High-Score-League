@@ -1,3 +1,5 @@
+import { deriveCurrentCompetitionWeekState } from "./current-competition-week.ts";
+
 export const LAUNCHER_WEEK_CONTRACT_VERSION = 1;
 export const LAUNCHER_WEEK_BATCH_LIMIT = 100;
 export const LAUNCHER_WEEK_ID_MAX_LENGTH = 128;
@@ -16,7 +18,6 @@ type WeekInput = {
   public_start_at: string | null;
   public_freeze_at: string | null;
   final_deadline_at: string | null;
-  derivedStatus: string;
 };
 
 type SeasonInput = { id: string; status: string };
@@ -64,35 +65,42 @@ export function validateLauncherWeekRequest(payload: unknown):
 export function resolvePublicWeekCapability(
   week: WeekInput | null,
   season: SeasonInput | null,
+  options: { hasOfficialResults?: boolean; now?: Date } = {},
 ) {
   if (!week) return { publicState: "unlinked" as const, reason: "not-found" as const };
   if (!week.game_id || !season) return { publicState: "unlinked" as const, reason: "not-linked" as const };
-  if (season.status === "completed") return { publicState: "closed" as const, reason: "week-closed" as const };
-  if (season.status !== "active") return { publicState: "inactive" as const, reason: "week-inactive" as const };
-  if (["active", "final_stretch"].includes(week.derivedStatus)) {
-    return { publicState: "active" as const, reason: "week-active" as const };
-  }
-  if (["closed", "published"].includes(week.derivedStatus)) {
-    return { publicState: "closed" as const, reason: "week-closed" as const };
-  }
-  return { publicState: "inactive" as const, reason: "week-inactive" as const };
+  return deriveCurrentCompetitionWeekState({
+    hasOfficialResults: options.hasOfficialResults,
+    now: options.now,
+    season,
+    week,
+  });
 }
 
 export function buildLauncherWeekResults(options: {
   requests: LauncherWeekRequest[];
   weeks: WeekInput[];
   seasons: SeasonInput[];
+  officialResultWeekIds?: ReadonlySet<string>;
+  now?: Date;
 }) {
   const weeks = new Map(options.weeks.map((week) => [week.id, week]));
   const seasons = new Map(options.seasons.map((season) => [season.id, season]));
   return options.requests.map((request) => {
     const week = weeks.get(request.weekId) || null;
-    const resolved = resolvePublicWeekCapability(week, week ? seasons.get(week.season_id) || null : null);
+    const resolved = resolvePublicWeekCapability(
+      week,
+      week ? seasons.get(week.season_id) || null : null,
+      {
+        hasOfficialResults: Boolean(week && options.officialResultWeekIds?.has(week.id)),
+        now: options.now,
+      },
+    );
     return {
       requestKey: request.requestKey,
       weekId: request.weekId,
       seasonId: week?.season_id || null,
-      derivedStatus: week?.derivedStatus || null,
+      derivedStatus: "derivedStatus" in resolved ? resolved.derivedStatus : null,
       publicState: resolved.publicState,
       canPlayCompetition: resolved.publicState === "active",
       publicStartAt: week?.public_start_at || null,

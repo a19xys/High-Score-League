@@ -1585,7 +1585,46 @@ async function competitionAuthoritySmoke(window) {
     }
     await capture(window, `competition-authority-${theme}.png`);
   }
-  return { badges, scenarios };
+
+  const clickAction = async (action) => {
+    await window.webContents.executeJavaScript(`document.querySelector('[data-action="${action}"]')?.click()`);
+    await waitFor(window, "!document.querySelector('.busy-overlay')", 12_000);
+    await settle();
+  };
+  await window.webContents.executeJavaScript(`(() => {
+    document.documentElement.dataset.theme = 'dark';
+    window.hslFixture.emitConnectivityStatus('connected');
+    window.hslFixture.emitMembershipStatus('member');
+    window.hslFixture.emitSessionStatus('valid');
+    window.hslFixture.emitWeekStatus('active');
+    window.hslFixture.setCompetitionPreflightMode('closed');
+  })()`);
+  await settle();
+  const beforeClosedPreflight = await read("before-closed-preflight");
+  await clickAction("play");
+  const afterClosedPreflight = await read("after-closed-preflight");
+
+  await window.webContents.executeJavaScript(`(() => {
+    window.hslFixture.emitWeekStatus('active');
+    window.hslFixture.setCompetitionPreflightMode('failure');
+  })()`);
+  await settle();
+  await clickAction("play");
+  const afterTemporaryFailure = await read("after-temporary-failure");
+  await clickAction("practice");
+  const actionCounts = await window.webContents.executeJavaScript("window.hslFixture.competitionCounts()");
+  await capture(window, "competition-authority-preflight.png");
+
+  return {
+    actions: {
+      actionCounts,
+      afterClosedPreflight,
+      afterTemporaryFailure,
+      beforeClosedPreflight,
+    },
+    badges,
+    scenarios,
+  };
 }
 
 async function alphaAwareLibrarySmoke(window) {

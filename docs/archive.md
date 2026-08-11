@@ -96,10 +96,27 @@ se mantiene el `EmptyState` y no se crean filas. Estos slots son filas con
 `aria-hidden="true"`, sin contenido ni interacción, y no entran en ningún array
 de dominio, conteo, orden, intento, score o regla de visibilidad.
 
+Las filas reales y los slots usan un único contrato de altura por variante. La
+variante con identidad de semana y juego reserva dos líneas y es ligeramente más
+alta; la variante compacta usa una sola línea. El contenido real está truncado,
+contenido en altura y no puede ensanchar ni estirar una fila individual. Por
+tanto, una página llena y una página completada con slots conservan exactamente
+la misma altura de body.
+
+La tabla usa `table-layout: fixed` y un `colgroup` compartido por header y body.
+La identidad/semana ocupa el espacio flexible y las columnas de intentos, score
+y fecha tienen anchos explícitos. El shell define un contenedor inline y las
+container queries deciden, solo por el ancho disponible, cuándo mostrar la
+identidad rica, el marcador de mejor intento y la fecha. Los textos y números
+largos se truncan —los scores usan cifras tabulares— sin mover el origen de otra
+columna. No hay mediciones ni estado responsive en JavaScript.
+
 La columna se llama siempre `Intentos` y su control accesible es `Ordenar por
 intentos`. El perfil propio entrega todos los envíos válidos ya cargados, sin el
-antiguo corte de ocho filas. El perfil público no recibe ni renderiza ese
-historial privado.
+antiguo corte de ocho filas. La vista `Envíos` permite filtrar por juego, elige
+por defecto el de la submission más reciente, ordena las opciones por actividad
+y ofrece `Todos los juegos`; cada cambio vuelve a la página 1. El perfil público
+no recibe ni renderiza ese historial privado.
 
 ## Marca estática
 

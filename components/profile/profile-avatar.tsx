@@ -9,6 +9,7 @@ type ProfileAvatarProps = {
   size?: "chat" | "submission" | "pill" | "small" | "medium" | "large" | "hero";
   decorative?: boolean;
   className?: string;
+  glow?: boolean;
 };
 
 const sizeClasses = {
@@ -28,6 +29,7 @@ export function ProfileAvatar({
   size = "large",
   decorative = false,
   className = "",
+  glow = false,
 }: ProfileAvatarProps) {
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -37,7 +39,7 @@ export function ProfileAvatar({
 
   const sharedClassName = `${sizeClasses[size]} relative shrink-0 overflow-hidden rounded-full theme-surface-strong ${className}`;
 
-  return (
+  const avatar = (
     <span
       aria-label={decorative ? undefined : `Avatar de @${username ?? initials}`}
       aria-hidden={decorative ? "true" : undefined}
@@ -56,4 +58,10 @@ export function ProfileAvatar({
       ) : null}
     </span>
   );
+
+  if (!glow) {
+    return avatar;
+  }
+
+  return <span className="profile-avatar-glow">{avatar}</span>;
 }

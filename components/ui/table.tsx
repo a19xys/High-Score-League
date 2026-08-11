@@ -2,13 +2,21 @@ import type { ReactNode } from "react";
 
 type DataTableProps = {
   children: ReactNode;
+  className?: string;
+  tableClassName?: string;
 };
 
-export function DataTable({ children }: DataTableProps) {
+export function DataTable({
+  children,
+  className = "",
+  tableClassName = "",
+}: DataTableProps) {
   return (
-    <div className="rounded-lg border theme-border theme-surface">
+    <div className={`rounded-lg border theme-border theme-surface ${className}`}>
       <div className="overflow-x-auto overflow-y-visible">
-        <table className="min-w-full divide-y text-left text-sm theme-border">
+        <table
+          className={`min-w-full divide-y text-left text-sm theme-border ${tableClassName}`}
+        >
           {children}
         </table>
       </div>

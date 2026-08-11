@@ -9,6 +9,13 @@ import {
 } from "./submissions";
 import { getRealWeeklyResults } from "./weekly-results";
 import { getRealWeeks, mapWeekRowToWeek } from "./weeks";
+import { getRealSeasons } from "./seasons";
+import {
+  buildPlayerBestScores,
+  type PlayerBestScore,
+} from "@/lib/profile-best-scores";
+
+export type { PlayerBestScore } from "@/lib/profile-best-scores";
 
 export type PlayerProfileStats = {
   victories: number;
@@ -22,29 +29,10 @@ export type PlayerProfileSubmission = Submission & {
   game?: Game;
 };
 
-export type PlayerBestScore = {
-  week: Week;
-  game?: Game;
-  bestScore: number;
-  uploads: number;
-  latestAt: string;
-};
-
-export type PlayerOfficialResult = {
-  id: string;
-  week: Week;
-  game?: Game;
-  finalScore: number;
-  rank: number;
-  leaguePoints: number;
-  createdAt: string;
-};
-
 export type PlayerCompetitiveProfile = {
   stats: PlayerProfileStats;
   ownerSubmissions: PlayerProfileSubmission[];
   bestScores: PlayerBestScore[];
-  recentResults: PlayerOfficialResult[];
   hasDataWarning: boolean;
 };
 
@@ -84,7 +72,6 @@ export function emptyPlayerCompetitiveProfile(
     stats: emptyPlayerProfileStats(),
     ownerSubmissions: [],
     bestScores: [],
-    recentResults: [],
     hasDataWarning,
   };
 }
@@ -129,58 +116,22 @@ function isSubmissionPublic(row: SubmissionRow, week?: Week) {
   return week?.status === "closed" || week?.status === "published";
 }
 
-function buildBestScores(
-  rows: SubmissionRow[],
-  weeksById: Map<string, Week>,
-  gamesById: Map<string, Game>,
-): PlayerBestScore[] {
-  const byWeek = new Map<
-    string,
-    {
-      week: Week;
-      game?: Game;
-      bestScore: number;
-      uploads: number;
-      latestAt: string;
-    }
-  >();
-
-  for (const row of rows) {
-    const week = weeksById.get(row.week_id);
-
-    if (!week) {
-      continue;
-    }
-
-    const existing = byWeek.get(row.week_id);
-    const latestAt =
-      existing && existing.latestAt > row.submitted_at
-        ? existing.latestAt
-        : row.submitted_at;
-
-    byWeek.set(row.week_id, {
-      week,
-      game: week.gameId ? gamesById.get(week.gameId) : undefined,
-      bestScore: Math.max(existing?.bestScore ?? 0, row.score),
-      uploads: (existing?.uploads ?? 0) + 1,
-      latestAt,
-    });
-  }
-
-  return Array.from(byWeek.values()).sort((a, b) =>
-    b.latestAt.localeCompare(a.latestAt),
-  );
-}
-
 export async function getPlayerCompetitiveProfile(
   playerId: string,
   visibility: PlayerProfileVisibility,
 ): Promise<PlayerCompetitiveProfile> {
-  const [submissionsResult, weeksResult, gamesResult, weeklyResultsResult] =
+  const [
+    submissionsResult,
+    weeksResult,
+    gamesResult,
+    seasonsResult,
+    weeklyResultsResult,
+  ] =
     await Promise.all([
       getRealSubmissions(undefined, playerId),
       getRealWeeks(),
       getRealGames(),
+      getRealSeasons(),
       getRealWeeklyResults(),
     ]);
 
@@ -188,6 +139,7 @@ export async function getPlayerCompetitiveProfile(
     submissionsResult.error ||
       weeksResult.error ||
       gamesResult.error ||
+      seasonsResult.error ||
       weeklyResultsResult.error,
   );
   const weeksById = new Map(
@@ -201,6 +153,9 @@ export async function getPlayerCompetitiveProfile(
       const game = mapGameRowToGame(gameRow);
       return [game.id, game] as const;
     }),
+  );
+  const seasonNamesById = new Map(
+    seasonsResult.rows.map((season) => [season.id, season.name] as const),
   );
   const visibleSubmissionRows = submissionsResult.rows.filter((row) => {
     if (!row.is_valid) {
@@ -227,31 +182,9 @@ export async function getPlayerCompetitiveProfile(
   const playerResults = weeklyResultsResult.rows.filter(
     (result) => result.player_id === playerId,
   );
-  const recentResults = playerResults
-    .map((result): PlayerOfficialResult | null => {
-      const week = weeksById.get(result.week_id);
-
-      if (!week) {
-        return null;
-      }
-
-      return {
-        id: result.id,
-        week,
-        game: week.gameId ? gamesById.get(week.gameId) : undefined,
-        finalScore: result.final_score,
-        rank: result.rank,
-        leaguePoints: Number(result.league_points ?? 0),
-        createdAt: result.created_at,
-      };
-    })
-    .filter((result): result is PlayerOfficialResult => Boolean(result))
-    .sort((a, b) => {
-      const aDate = a.week.endsAt || a.createdAt;
-      const bDate = b.week.endsAt || b.createdAt;
-      return bDate.localeCompare(aDate) || b.createdAt.localeCompare(a.createdAt);
-    })
-    .slice(0, 8);
+  const rankByWeekId = new Map(
+    playerResults.map((result) => [result.week_id, result.rank] as const),
+  );
   const participationWeekIds = new Set(
     visibleSubmissionRows.map((submission) => submission.week_id),
   );
@@ -273,12 +206,13 @@ export async function getPlayerCompetitiveProfile(
       officialResults: playerResults.length,
     },
     ownerSubmissions,
-    bestScores: buildBestScores(
-      visibleSubmissionRows,
+    bestScores: buildPlayerBestScores({
+      rows: visibleSubmissionRows,
       weeksById,
       gamesById,
-    ),
-    recentResults,
+      rankByWeekId,
+      seasonNamesById,
+    }),
     hasDataWarning,
   };
 }

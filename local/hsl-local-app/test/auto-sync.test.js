@@ -105,6 +105,18 @@ test("summarizeAutoSyncAttempt marca partial_failed si aparecen failed", () => {
   assert.match(result.message, /requieren atencion/i);
 });
 
+test("un terminal rejected no se presenta como puntuacion enviada", () => {
+  const result = summarizeAutoSyncAttempt({
+    afterQueue: queue({ pending: 0, sent: 0 }),
+    beforeQueue: queue({ pending: 1, sent: 0 }),
+    now: "2026-08-11T23:10:00.000Z",
+    ok: true,
+  });
+  assert.equal(result.status, "idle");
+  assert.equal(result.sentCount, 0);
+  assert.doesNotMatch(result.message, /enviad|sincronizad/i);
+});
+
 test("display state bloquea unknown/error aunque competicion pueda jugarse", () => {
   const result = getAutoSyncDisplayState(context({
     membership: {

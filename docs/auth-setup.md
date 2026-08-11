@@ -93,8 +93,8 @@ siglas. `0024_media_uploads.sql` ya está aplicada en el entorno remoto actual.
 En una instalación nueva, `0024_media_uploads.sql` y `0025_play_time.sql` deben
 aplicarse, en ese orden, antes del código que consulta sus funciones
 respectivas. `0026_submission_detected_at_window.sql` ya está aplicada en el
-Supabase remoto actual. `0027_profile_anonymization.sql` está preparada y
-pendiente de aplicación remota.
+Supabase remoto actual. `0027_profile_anonymization.sql` también está aplicada
+remotamente; no debe reaplicarse.
 
 El contrato de Playtime registra eventos identificados de práctica y
 competición. `play_time_public` solo decide si otros jugadores pueden ver el

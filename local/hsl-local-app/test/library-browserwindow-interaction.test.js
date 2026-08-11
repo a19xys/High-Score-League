@@ -258,3 +258,28 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
     });
   }
 });
+
+test("BrowserWindow autocorrige autoridad competitiva antes de JUGAR", { skip: !enabled, timeout: 120_000 }, async () => {
+  const electron = require("electron");
+  const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
+  const { stdout } = await execFileAsync(electron, [fixture], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      HSL_LIBRARY_CHECK_ONLY: "authority",
+      HSL_LIBRARY_QUIET: "1",
+    },
+    maxBuffer: 2 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const result = JSON.parse(stdout.trim());
+  assert.equal(result.actions.beforeClosedPreflight.badge, "ACTIVA");
+  assert.equal(result.actions.beforeClosedPreflight.competitionDisabled, false);
+  assert.equal(result.actions.afterClosedPreflight.badge, "CERRADA");
+  assert.equal(result.actions.afterClosedPreflight.competitionDisabled, true);
+  assert.equal(result.actions.afterClosedPreflight.practiceDisabled, false);
+  assert.equal(result.actions.afterTemporaryFailure.badge, "ACTIVA");
+  assert.equal(result.actions.afterTemporaryFailure.asksForLogin, false);
+  assert.deepEqual(result.actions.actionCounts, { competitionLaunches: 0, practiceLaunches: 1 });
+});

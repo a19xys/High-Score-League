@@ -13,6 +13,9 @@ let accountFixtureMode = "existing";
 let sessionFixtureMode = "valid";
 let membershipFixtureStatus = "member";
 let weekFixtureState = null;
+let competitionPreflightMode = "active";
+let competitionLaunches = 0;
+let practiceLaunches = 0;
 const forgottenAccountIds = new Set();
 const fixtureAvatarUrl = process.env.HSL_ACCOUNT_AVATAR_FILE_URL || null;
 
@@ -267,7 +270,25 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   onConnectivityState: subscription((callback) => { connectivityStateListener = callback; }),
   onLauncherState: subscription((callback) => { launcherStateListener = callback; }),
   onRankingCapabilitiesState: () => () => {},
+  playCompetition: async () => {
+    if (competitionPreflightMode === "closed") {
+      weekFixtureState = "closed";
+      launcherStateRevision += 1;
+      const state = snapshot();
+      queueMicrotask(() => launcherStateListener?.({ state }));
+      return { action: "play-competition", lines: ["La semana está cerrada. Puedes practicar."], ok: false, state, summary: "La semana está cerrada. Puedes practicar." };
+    }
+    if (competitionPreflightMode === "failure") {
+      return { action: "play-competition", lines: ["No se pudo confirmar que la semana siga activa. Puedes practicar."], ok: false, state: snapshot(), summary: "No se pudo confirmar la semana activa." };
+    }
+    competitionLaunches += 1;
+    return { action: "play-competition", lines: ["MAME fixture iniciado."], ok: true, state: snapshot(), summary: "Competición iniciada." };
+  },
   platform: "win32",
+  practice: async () => {
+    practiceLaunches += 1;
+    return { action: "practice", lines: ["Práctica fixture iniciada."], ok: true, state: snapshot(), summary: "Práctica iniciada." };
+  },
   reportConnectivityApplied() {},
   reportRankingApplied() {},
   reportStartupMilestone() {},
@@ -335,6 +356,9 @@ contextBridge.exposeInMainWorld("hslLauncher", {
 });
 
 contextBridge.exposeInMainWorld("hslFixture", {
+  competitionCounts() {
+    return { competitionLaunches, practiceLaunches };
+  },
   emitConnectivityStatus(status) {
     connectivityStatus = status === "disconnected" ? "offline" : "connected";
     connectivityStateListener?.({
@@ -374,5 +398,8 @@ contextBridge.exposeInMainWorld("hslFixture", {
   },
   getSelectionPhase() {
     return selectionPhase;
+  },
+  setCompetitionPreflightMode(mode) {
+    competitionPreflightMode = ["active", "closed", "failure"].includes(mode) ? mode : "active";
   },
 });

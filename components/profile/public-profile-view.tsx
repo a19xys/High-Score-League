@@ -4,8 +4,8 @@ import type {
   PublicPlayerProfile,
 } from "@/lib/data/player-profile";
 import { ProfileHero } from "./profile-hero";
-import { ProfileHistory } from "./profile-history";
 import { ProfileStats } from "./profile-stats";
+import { ProfileBestScoresTable } from "./profile-best-scores-table";
 import type { PlayerPlayTime } from "@/lib/playtime";
 
 type PublicProfileViewProps = {
@@ -26,12 +26,15 @@ export function PublicProfileView({
       />
       <ProfileHero mode="public" profile={profile} />
       <ProfileStats playTime={playTime} stats={competitive.stats} />
-      <ProfileHistory
-        data={competitive}
-        mode="public"
-        playerId={profile.id}
-        playerInitials={profile.initials}
-      />
+      {competitive.hasDataWarning ? (
+        <div
+          className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-surface)] px-4 py-3 text-sm text-[var(--warning-text)]"
+          role="status"
+        >
+          Parte del resumen competitivo no está disponible. Los datos verificados siguen visibles.
+        </div>
+      ) : null}
+      <ProfileBestScoresTable scores={competitive.bestScores} />
     </div>
   );
 }

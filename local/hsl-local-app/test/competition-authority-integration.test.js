@@ -40,7 +40,7 @@ test("launcher proyecta la misma week capability en cards, detalle y gate de JUG
   }
 });
 
-test("main integra cache durable, batch, frontera temporal y republicacion sin polling", async () => {
+test("main integra cache durable, freshness, triggers y preflight sin polling", async () => {
   const [main, launcher] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "main.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "launcher-service.js"), "utf8"),
@@ -48,6 +48,11 @@ test("main integra cache durable, batch, frontera temporal y republicacion sin p
   assert.match(main, /createWeekCapabilitiesService/);
   assert.match(main, /weekCapabilities\.updateContext/);
   assert.match(main, /weekCapabilities\.refresh/);
+  assert.match(main, /force: becameConnected \|\| manual/);
+  assert.match(main, /weekCapabilities\?\.refresh\("focus"\)/);
+  assert.match(main, /runCompetitionPlayPreflight/);
+  assert.match(main, /ensureFreshCapability/);
+  assert.match(main, /refreshWeekCapabilities: false/);
   assert.match(main, /setCompetitionAuthorityProvider/);
   assert.match(main, /publishWeekCapabilityState/);
   assert.match(main, /applyCompetitionAuthorityState/);
@@ -60,10 +65,11 @@ test("main integra cache durable, batch, frontera temporal y republicacion sin p
 test("una semana cerrada bloquea antes de iniciar MAME competitivo", async () => {
   const launcher = await fsp.readFile(path.join(__dirname, "..", "gui", "launcher-service.js"), "utf8");
   const competition = launcher.slice(
-    launcher.indexOf("async function playCompetition()"),
+    launcher.indexOf("async function playCompetition"),
     launcher.indexOf("async function playPractice()"),
   );
   assert.match(competition, /weekCapability: context\.weekCapability/);
+  assert.match(competition, /expectedCompetitionAttempt/);
   assert.ok(competition.indexOf("readinessBlockedResponse") < competition.indexOf("launchMameDetailed"));
   assert.ok(competition.indexOf("readinessBlockedResponse") < competition.indexOf("launchMame("));
 });
