@@ -868,7 +868,7 @@ async function profileAccountSmoke(window) {
     const value = getComputedStyle(element);
     return { background: value.backgroundColor, border: value.borderColor, color: value.color, outline: value.outline };
   })()`);
-  const results = {};
+  const results = { empty: {}, existing: {} };
   for (const theme of ["dark", "light"]) {
     await window.webContents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
     await window.webContents.executeJavaScript("if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
@@ -902,11 +902,117 @@ async function profileAccountSmoke(window) {
         source: document.querySelector('.account-row--active .account-mini-avatar__image')?.src || null,
       },
       fallback: document.querySelector('[data-action="switch-account"][data-user-id="valid"] .account-mini-avatar')?.textContent.trim(),
+      fallbackCenters: [...document.querySelectorAll('.account-mini-avatar__fallback')].map((fallback) => {
+        const avatar = fallback.closest('.account-mini-avatar').getBoundingClientRect();
+        const content = fallback.getBoundingClientRect();
+        return {
+          text: fallback.textContent.trim(),
+          x: (content.left + content.width / 2) - (avatar.left + avatar.width / 2),
+          y: (content.top + content.height / 2) - (avatar.top + avatar.height / 2),
+        };
+      }),
+      emailMetrics: [...document.querySelectorAll('.account-row__email')].map((email) => ({
+        clientHeight: email.clientHeight,
+        lineHeight: getComputedStyle(email).lineHeight,
+        overflow: getComputedStyle(email).overflow,
+        scrollHeight: email.scrollHeight,
+        text: email.textContent.trim(),
+        whiteSpace: getComputedStyle(email).whiteSpace,
+      })),
       activeEmail: getComputedStyle(document.querySelector('.account-row--active .account-row__email')).color,
       idleEmail: getComputedStyle(document.querySelector('[data-action="switch-account"][data-user-id="valid"] .account-row__email')).color,
       menuOpen: Boolean(document.querySelector('[data-account-menu]')),
     }))()`);
-    results[theme] = { activeHover, activeIdle, avatars, forgetFocus, forgetHover, innerHover, mainFocus, rowForgetHover, rowHover };
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"add-account\"]')?.click()");
+    await waitFor(window, "document.querySelector('[data-auth-form]')");
+    await movePointerAway();
+    const form = await window.webContents.executeJavaScript(`(() => {
+      const element = document.querySelector('[data-auth-form]');
+      const value = getComputedStyle(element);
+      return {
+        background: value.backgroundColor,
+        borderBottom: value.borderBottomWidth,
+        borderLeft: value.borderLeftWidth,
+        borderRight: value.borderRightWidth,
+        boxShadow: value.boxShadow,
+        mode: element.className,
+      };
+    })()`);
+    const submitIdle = await style('.account-login-submit');
+    await movePointerTo('.account-login-submit');
+    const submitHover = await style('.account-login-submit');
+    await capture(window, `accounts-existing-${theme}.png`);
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"cancel-login\"]')?.click()");
+    await waitFor(window, "!document.querySelector('[data-account-menu]')");
+    results.existing[theme] = {
+      activeHover, activeIdle, avatars, forgetFocus, forgetHover, form, innerHover,
+      mainFocus, rowForgetHover, rowHover, submitHover, submitIdle,
+    };
+  }
+
+  results.activeFallbacks = {};
+  for (const [userId, initials] of [["valid", "RAF"], ["typography", "FUK"]]) {
+    await window.webContents.executeJavaScript(`window.hslLauncher.setActiveFixtureAccount(${JSON.stringify(userId)})`);
+    await waitFor(window, `document.querySelector('[data-action="toggle-account-menu"] .account-mini-avatar__fallback')?.textContent.trim() === ${JSON.stringify(initials)}`);
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
+    await waitFor(window, "document.querySelector('.account-menu__active .account-mini-avatar__fallback')");
+    results.activeFallbacks[initials] = await window.webContents.executeJavaScript(`(() => Object.fromEntries([
+      ['header', document.querySelector('[data-action="toggle-account-menu"] .account-mini-avatar__fallback')],
+      ['menu', document.querySelector('.account-menu__active .account-mini-avatar__fallback')],
+      ['row', document.querySelector('.account-row--active .account-mini-avatar__fallback')],
+    ].map(([name, fallback]) => {
+      const avatar = fallback.closest('.account-mini-avatar').getBoundingClientRect();
+      const content = fallback.getBoundingClientRect();
+      return [name, {
+        text: fallback.textContent.trim(),
+        x: (content.left + content.width / 2) - (avatar.left + avatar.width / 2),
+        y: (content.top + content.height / 2) - (avatar.top + avatar.height / 2),
+      }];
+    })))()`);
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
+  }
+
+  await window.webContents.executeJavaScript("window.hslLauncher.setAccountFixtureMode('empty')");
+  await waitFor(window, "document.querySelector('.account-mini-avatar--session-empty')");
+  for (const theme of ["dark", "light"]) {
+    await window.webContents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
+    await window.webContents.executeJavaScript("if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
+    await waitFor(window, "document.querySelector('.account-menu--empty [data-auth-form]')");
+    await waitForFrames(window, 2);
+    const empty = await window.webContents.executeJavaScript(`(() => {
+      const menu = document.querySelector('.account-menu--empty');
+      const avatar = document.querySelector('.account-mini-avatar--session-empty');
+      const icon = avatar.querySelector('.account-icon');
+      const avatarRect = avatar.getBoundingClientRect();
+      const iconRect = icon.getBoundingClientRect();
+      return {
+        formClass: menu.querySelector('[data-auth-form]').className,
+        headerAria: document.querySelector('[data-action="toggle-account-menu"]').ariaLabel,
+        headerText: document.querySelector('[data-action="toggle-account-menu"]').textContent.trim(),
+        iconHeight: iconRect.height,
+        iconWidth: iconRect.width,
+        avatarHeight: avatarRect.height,
+        avatarWidth: avatarRect.width,
+        menuText: menu.innerText.trim(),
+        forbiddenNodes: menu.querySelectorAll('.account-menu__active, .known-accounts, .account-menu__actions, .account-session-state').length,
+      };
+    })()`);
+    await window.webContents.executeJavaScript(`(() => {
+      document.querySelector('#hsl-login-email').value = 'stale@example.test';
+      document.querySelector('#hsl-login-password').value = 'old-secret';
+      document.querySelector('[data-action="cancel-login"]').click();
+    })()`);
+    await waitFor(window, "!document.querySelector('[data-account-menu]')");
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
+    await waitFor(window, "document.querySelector('.account-menu--empty [data-auth-form]')");
+    const reopened = await window.webContents.executeJavaScript(`({
+      email: document.querySelector('#hsl-login-email').value,
+      password: document.querySelector('#hsl-login-password').value,
+    })`);
+    await waitForFrames(window, 2);
+    await capture(window, `accounts-empty-${theme}.png`);
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"cancel-login\"]')?.click()");
+    results.empty[theme] = { ...empty, reopened };
   }
   return results;
 }

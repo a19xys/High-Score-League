@@ -73,9 +73,7 @@ test("main rejects Jugar while automatic or manual membership resolution is acti
 test("identity and lifecycle changes pause and invalidate the one active pipeline", async () => {
   const main = await fsp.readFile(path.join(appRoot, "gui", "main.js"), "utf8");
   for (const reason of [
-    "login",
     "remove-account",
-    "switch-account",
     "open-pack",
     "pack-directory-change",
     "import-pack",
@@ -85,6 +83,9 @@ test("identity and lifecycle changes pause and invalidate the one active pipelin
   ]) {
     assert.match(main, new RegExp(`withMembershipContextMutation\\(\\s*\"${reason}\"`));
   }
+  assert.match(main, /withAccountProfileRefreshAfterMutation\("login"/);
+  assert.match(main, /withAccountProfileRefreshAfterMutation\("switch-account"/);
+  assert.match(main, /withAccountProfileRefreshAfterMutation[\s\S]*operation: \(\) => withMembershipContextMutation\(reason, operation\)/);
   assert.match(main, /async function withMembershipContextMutation[\s\S]*invalidateMembershipContext\(reason\)[\s\S]*activeMembershipContextMutations\.add\(runId\)[\s\S]*finally[\s\S]*activeMembershipContextMutations\.delete\(runId\)/);
   assert.match(main, /function membershipCoordinationPaused\(\)[\s\S]*activeManualMembershipRun !== null \|\| activeMembershipContextMutations\.size > 0/);
   assert.match(main, /membershipStartupCoordinator\?\.resume\("resume"\)/);

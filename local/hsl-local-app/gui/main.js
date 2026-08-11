@@ -7,6 +7,7 @@ const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ran
 const { createNetworkTopologyMonitor } = require("../src/network-topology-monitor");
 const { createPendingAutoSubmitCoordinator } = require("../src/pending-auto-submit-coordinator");
 const { createMembershipStartupCoordinator, membershipResolutionContext } = require("../src/membership-startup-coordinator");
+const { runAccountMutationWithProfileRefresh } = require("../src/account-profile-orchestration");
 const { createLauncherStateAuthority, isLauncherSnapshot } = require("../src/launcher-state-authority");
 const { safeMembershipJoinUrl } = require("../src/season-membership");
 const { configureSessionProtection, getSessionStorageDiagnostics } = require("../src/secure-session-storage");
@@ -95,6 +96,14 @@ async function withMembershipContextMutation(reason, operation) {
   } finally {
     activeMembershipContextMutations.delete(runId);
   }
+}
+
+async function withAccountProfileRefreshAfterMutation(reason, operation) {
+  return runAccountMutationWithProfileRefresh({
+    operation: () => withMembershipContextMutation(reason, operation),
+    requestProfileSync: service.requestAccountProfileSync,
+    trigger: reason,
+  });
 }
 let productOperationsController = new AbortController();
 const developerToolsEnabled = deriveDeveloperToolsEnabled({
@@ -740,7 +749,7 @@ function registerIpc() {
     };
   });
   ipcMain.handle("launcher:get-auth-state", () => service.getAuthStateForGui());
-  registerLauncherStateHandler("launcher:login", (_event, credentials) => withMembershipContextMutation("login", async () => {
+  registerLauncherStateHandler("launcher:login", (_event, credentials) => withAccountProfileRefreshAfterMutation("login", async () => {
     service.cancelPendingAutoSubmit("login");
     pendingAutoSubmitCoordinator?.cancelCurrentRun("login");
     await prepareRemoteAction("login");
@@ -824,7 +833,7 @@ function registerIpc() {
     pendingAutoSubmitCoordinator?.cancelCurrentRun("remove-account");
     return withRemoteContext(service.removeKnownAccountFromGui(userId));
   }));
-  registerLauncherStateHandler("launcher:switch-account", (_event, userId) => withMembershipContextMutation("switch-account", () => (
+  registerLauncherStateHandler("launcher:switch-account", (_event, userId) => withAccountProfileRefreshAfterMutation("switch-account", () => (
     withRemoteContext(service.switchKnownAccountFromGui(userId, {
       connected: isCommittedConnected(connectivity?.getState()),
     }))

@@ -660,10 +660,12 @@ function closeAccountMenuState() {
   };
 }
 
-function openCleanAccountMenuState() {
+function openCleanAccountMenuState(state) {
+  const empty = (state?.data?.accounts?.knownAccounts || []).length === 0;
   return {
     accountMenuOpen: true,
     ...cleanAccountFormState(),
+    authFormOpen: empty,
   };
 }
 
@@ -1964,7 +1966,9 @@ function bindActions() {
     }
 
     if (action === "toggle-account-menu") {
-      store.setState(store.getState().accountMenuOpen ? closeAccountMenuState() : openCleanAccountMenuState());
+      const accountState = store.getState();
+      resetLoginDraft();
+      store.setState(accountState.accountMenuOpen ? closeAccountMenuState() : openCleanAccountMenuState(accountState));
     }
 
     if (action === "show-activity-details") {
@@ -2043,6 +2047,7 @@ function bindActions() {
     }
 
     if (action === "cancel-login") {
+      resetLoginDraft();
       store.setState(closeAccountMenuState());
     }
 

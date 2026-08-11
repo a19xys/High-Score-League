@@ -62,15 +62,16 @@ export function renderAccountAvatar(account, className = "") {
   const localUrl = typeof account?.avatarLocalUrl === "string" && account.avatarLocalUrl.startsWith("file:///")
     ? account.avatarLocalUrl
     : null;
-  const initials = account?.initials || "";
+  const initials = account?.initials || initialsFromValue(account?.email || account?.userId);
   const emptyClass = localUrl || initials ? "" : " account-mini-avatar--empty";
-  const content = localUrl
+  const fallback = initials
+    ? escapeHtml(initials)
+    : renderIcon("user", { className: "account-icon", size: "sm" });
+  const image = localUrl
     ? `<img class="account-mini-avatar__image" src="${escapeHtml(localUrl)}" alt="">`
-    : initials
-      ? escapeHtml(initials)
-      : renderIcon("user", { className: "account-icon", size: "sm" });
+    : "";
 
-  return `<span class="account-mini-avatar ${className}${emptyClass}" aria-hidden="true">${content}</span>`;
+  return `<span class="account-mini-avatar ${className}${emptyClass}" aria-hidden="true"><span class="account-mini-avatar__fallback">${fallback}</span>${image}</span>`;
 }
 
 function renderAccountText(account) {
@@ -128,8 +129,9 @@ function renderKnownAccount(account, disabled, switchAction) {
   `;
 }
 
-function renderAuthForm(state) {
-  if (!state.authFormOpen) {
+function renderAuthForm(state, options = {}) {
+  const mode = options.mode === "empty" ? "empty" : "embedded";
+  if (!state.authFormOpen && mode !== "empty") {
     return "";
   }
 
@@ -143,7 +145,7 @@ function renderAuthForm(state) {
     : "";
 
   return `
-    <form class="auth-form auth-form--menu account-login-form" data-auth-form>
+    <form class="auth-form auth-form--menu account-login-form account-login-form--${mode}" data-auth-form>
       <label>
         <span>${renderIcon("email", { className: "form-label-icon", size: "sm" })}Email</span>
         <input id="hsl-login-email" name="email" type="email" autocomplete="username" required ${emailValue} ${errorReference} ${disabled}>
@@ -155,7 +157,7 @@ function renderAuthForm(state) {
       ${state.authError ? `<p class="auth-error" id="hsl-login-error" role="alert">${escapeHtml(state.authError)}</p>` : ""}
       ${!loginAction.available && loginAction.reason ? `<p class="auth-availability-reason" id="${loginAction.reasonId}">${escapeHtml(loginAction.reason)}</p>` : ""}
       <div class="form-actions form-actions--inline">
-        <button class="tool-button account-primary" type="submit" ${loginBlockReference} ${remoteDisabled}>
+        <button class="tool-button account-login-submit" type="submit" ${loginBlockReference} ${remoteDisabled}>
           ${state.busy && state.busyLabel === "Conectando" ? "Conectando..." : "Entrar"}
         </button>
         <button class="tool-button" type="button" data-action="cancel-login" ${disabled}>
@@ -170,6 +172,13 @@ function renderAccountMenu(state) {
   const data = state.data;
   const disabled = state.busy ? "disabled" : "";
   const accounts = data?.accounts?.knownAccounts || [];
+  if (accounts.length === 0) {
+    return `
+      <div class="account-menu account-menu--empty" data-account-menu>
+        ${renderAuthForm(state, { mode: "empty" })}
+      </div>
+    `;
+  }
   const activeAccount = getActiveAccount(data?.accounts, data?.session);
   const activeEmail = activeAccount?.email || "";
   const session = deriveSessionPresentation(data?.session, data?.accounts, state);
@@ -222,8 +231,8 @@ export function renderAccountControl(state) {
   const sessionChipLabel = `${accountLabel}. ${sessionPresentation.title}`;
   const sessionChipContent = session?.hasSession
     ? renderAccountAvatar(activeAccount, "account-chip-avatar")
-    : `<span class="session-chip__empty">${SESSION_CHIP_EMPTY_LABEL}</span>`;
-  const sessionChipClass = session?.hasSession ? "session-chip--avatar-only" : "session-chip--empty";
+    : renderAccountAvatar(null, "account-chip-avatar account-mini-avatar--session-empty");
+  const sessionChipClass = session?.hasSession ? "session-chip--avatar-only" : "session-chip--avatar-only session-chip--empty";
 
   return `
     <button class="session-chip session-chip--button ${sessionChipClass}" type="button" data-action="toggle-account-menu" aria-expanded="${state.accountMenuOpen ? "true" : "false"}" title="${escapeHtml(sessionChipLabel)}" aria-label="${escapeHtml(sessionChipLabel)}">

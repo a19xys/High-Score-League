@@ -1,7 +1,7 @@
 const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
-const { readKnownAccounts, updateKnownAccountProfile } = require("./account-store");
+const { readKnownAccounts, safeInitials, updateKnownAccountProfile } = require("./account-store");
 const { resolveCanonicalSessionResult } = require("./auth");
 const { executeRemoteRequest } = require("./remote-request");
 const { derivePlayerKey } = require("./scoped-queue");
@@ -215,7 +215,10 @@ function createAccountProfileSync(options = {}) {
       if (controller.signal.aborted || runId !== epoch) break;
       const profile = byId.get(account.userId);
       if (!profile) continue;
-      const presentation = { initials: profile.initials, username: profile.username };
+      const presentation = {
+        initials: profile.initials || account.initials || safeInitials(account.email || account.userId),
+        username: profile.username,
+      };
       const presentationChanged = account.initials !== presentation.initials || account.username !== presentation.username;
       if (profile.avatarStoragePath && !validateStoragePath(profile.avatarStoragePath, account.userId)) {
         diagnostics.failed += 1;

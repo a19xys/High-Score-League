@@ -2377,7 +2377,6 @@ async function loginWithPassword(credentials = {}) {
     password: credentials.password,
   });
 
-  if (result.ok) requestAccountProfileSync("login", { force: true });
   return {
     action: "login",
     lines: [result.message],
@@ -2438,7 +2437,6 @@ async function switchKnownAccountFromGui(userId, options = {}) {
 
   try {
     await sessionRepository(config).setActive(account.userId);
-    requestAccountProfileSync("switch-account", { force: true });
 
     return {
       action: "switch-account",

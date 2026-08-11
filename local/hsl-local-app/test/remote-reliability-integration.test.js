@@ -32,10 +32,11 @@ test("suspend and shutdown abort product operations and no legacy GUI submit pat
   assert.doesNotMatch(renderer, /"submit-all"/);
   assert.match(service, /invalidateInteractiveRemoteOperations/);
   const switchBlock = main.slice(main.indexOf('registerLauncherStateHandler("launcher:switch-account"'), main.indexOf('registerLauncherStateHandler("launcher:use-library-pack"'));
-  assert.match(switchBlock, /withMembershipContextMutation\("switch-account"/);
+  assert.match(switchBlock, /withAccountProfileRefreshAfterMutation\("switch-account"/);
   assert.doesNotMatch(switchBlock, /cancelPendingAutoSubmit/);
   const mutationHelper = main.slice(main.indexOf("async function withMembershipContextMutation"), main.indexOf("function updateConnectivityState"));
   assert.match(mutationHelper, /invalidateMembershipContext\(reason\)/);
+  assert.match(mutationHelper, /operation: \(\) => withMembershipContextMutation\(reason, operation\)/);
   const membershipInvalidation = main.slice(main.indexOf("function cancelManualMembershipRun"), main.indexOf("function membershipCoordinationPaused"));
   assert.match(membershipInvalidation, /service\.invalidateInteractiveRemoteOperations\(reason\)/);
 });

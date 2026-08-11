@@ -4,7 +4,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { createSessionResult } = require("../src/session-result");
-const { readKnownAccounts, rememberAccount } = require("../src/account-store");
+const { readKnownAccounts, rememberAccount, toSafeAccountsState } = require("../src/account-store");
 const {
   createAccountProfileSync,
   detectImage,
@@ -14,6 +14,8 @@ const {
 
 const USER_A = "11111111-1111-4111-8111-111111111111";
 const USER_B = "22222222-2222-4222-8222-222222222222";
+const USER_C = "33333333-3333-4333-8333-333333333333";
+const USER_D = "44444444-4444-4444-8444-444444444444";
 const AVATAR_A = `avatars/${USER_A}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.webp`;
 
 async function withTempDir(fn) {
@@ -107,6 +109,50 @@ test("avatar storage sin cambios y fichero existente no vuelve a descargarse", a
   assert.equal(ctx.sync.getDiagnostics().unchanged, 1);
 }));
 
+test("login forzado incorpora D dentro de freshness sin redescargar A/B/C", async () => withTempDir(async (root) => {
+  const config = { supabaseAnonKey: "anon", supabaseUrl: "https://project.example", userDataDir: path.join(root, "post-login") };
+  const users = [USER_A, USER_B, USER_C];
+  for (const [index, userId] of users.entries()) {
+    await rememberAccount(config, { email: `cached-${index}@example.test`, userId }, { setActive: index === 0 });
+  }
+  let rows = users.map((id, index) => ({
+    avatar_storage_path: `avatars/${id}/${String(index + 1).repeat(8)}-${String(index + 1).repeat(4)}-4${String(index + 1).repeat(3)}-8${String(index + 1).repeat(3)}-${String(index + 1).repeat(12)}.webp`,
+    id,
+    initials: `C${index}`,
+  }));
+  const calls = [];
+  const sync = createAccountProfileSync({
+    config,
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return String(url).includes("/rest/v1/profiles")
+        ? response(JSON.stringify(rows), { headers: { "content-type": "application/json" } })
+        : response(webp(), { headers: { "content-type": "image/webp" } });
+    },
+    getConnectivityState: () => ({ reachability: "connected" }),
+    resolveSessionResultImpl: async () => validSession(USER_D),
+  });
+  await sync.request("startup", { force: true });
+  const downloads = () => calls.filter((url) => url.includes("/storage/v1/object/public/")).length;
+  assert.equal(downloads(), 3);
+  assert.equal((await sync.request("startup-again")).reason, "fresh");
+
+  await rememberAccount(config, { email: "new-d@example.test", userId: USER_D });
+  const avatarD = `avatars/${USER_D}/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp`;
+  rows = [...rows, { avatar_storage_path: avatarD, id: USER_D, initials: "ND" }];
+  const result = await sync.request("login", { force: true });
+  const store = await readKnownAccounts(config);
+  const safe = toSafeAccountsState(store, { hasSession: true }, { userDataDir: config.userDataDir });
+  const accountD = store.accounts.find((account) => account.userId === USER_D);
+  const projectedD = safe.knownAccounts.find((account) => account.userId === USER_D);
+  assert.equal(result.attempted, true);
+  assert.equal(calls.filter((url) => url.includes("/rest/v1/profiles")).length, 2);
+  assert.equal(downloads(), 4);
+  assert.equal(accountD.avatarStoragePath, avatarD);
+  assert.equal((await fsp.stat(path.dirname(path.resolve(config.userDataDir, accountD.avatarCachePath)))).isDirectory(), true);
+  assert.match(projectedD.avatarLocalUrl, /^file:\/\/\//);
+}));
+
 test("cambio de avatar promueve el nuevo antes de eliminar el anterior", async () => withTempDir(async (root) => {
   const first = await fixture(root, [{ id: USER_A, initials: "AA", avatar_storage_path: AVATAR_A }]);
   await first.sync.request("first", { force: true });
@@ -150,7 +196,7 @@ test("borrado remoto limpia metadata y cache; perfil invalido preserva avatar", 
   await deleted.sync.request("delete", { force: true });
   const cleared = (await readKnownAccounts(initial.config)).accounts[0];
   assert.equal(cleared.avatarCachePath, null);
-  assert.equal(cleared.initials, null);
+  assert.equal(cleared.initials, "AA");
   await assert.rejects(fsp.stat(path.resolve(initial.config.userDataDir, cached)), /ENOENT/);
 
   const restored = await fixture(root, [{ id: USER_A, initials: "AA", avatar_storage_path: AVATAR_A }]);
@@ -161,6 +207,14 @@ test("borrado remoto limpia metadata y cache; perfil invalido preserva avatar", 
   const preserved = (await readKnownAccounts(initial.config)).accounts[0];
   assert.equal(preserved.avatarCachePath, valid.avatarCachePath);
   assert.equal(preserved.initials, "ZZ");
+}));
+
+test("perfil sin initials remotas conserva o deriva un fallback local seguro", async () => withTempDir(async (root) => {
+  const ctx = await fixture(root, [{ id: USER_A, initials: null, avatar_storage_path: null, avatar_url: null }]);
+  await ctx.sync.request("login", { force: true });
+  const account = (await readKnownAccounts(ctx.config)).accounts[0];
+  assert.equal(account.initials, "OE");
+  assert.notEqual(account.initials, "null");
 }));
 
 test("offline y ausencia de sesion no hacen red; runs concurrentes se deduplican", async () => withTempDir(async (root) => {
@@ -190,6 +244,30 @@ test("offline y ausencia de sesion no hacen red; runs concurrentes se deduplican
   assert.equal(queries, 1);
 }));
 
+test("login offline sigue siendo seguro y el evento connected sincroniza después", async () => withTempDir(async (root) => {
+  let reachability = "offline";
+  const config = { supabaseAnonKey: "anon", supabaseUrl: "https://project.example", userDataDir: path.join(root, "offline-login") };
+  await rememberAccount(config, { email: "offline@example.test", userId: USER_A });
+  const calls = [];
+  const sync = createAccountProfileSync({
+    config,
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return response(JSON.stringify([{ id: USER_A, initials: "ON", avatar_storage_path: null, avatar_url: null }]), {
+        headers: { "content-type": "application/json" },
+      });
+    },
+    getConnectivityState: () => ({ reachability }),
+    resolveSessionResultImpl: async () => validSession(),
+  });
+  assert.equal((await sync.request("login", { force: true })).reason, "offline");
+  assert.equal(calls.length, 0);
+  reachability = "connected";
+  assert.equal((await sync.request("connectivity-restored")).attempted, true);
+  assert.equal(calls.filter((url) => url.includes("/rest/v1/profiles")).length, 1);
+  assert.equal((await readKnownAccounts(config)).accounts[0].initials, "ON");
+}));
+
 test("legacy HTTP(S) se descarga solo a cache local y olvidar limpia solo su directorio", async () => withTempDir(async (root) => {
   const ctx = await fixture(root, [{ id: USER_A, initials: "AA", avatar_url: "https://cdn.example/a.png" }], {
     avatar: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]),
@@ -208,10 +286,14 @@ test("cancelar un run activo no publica metadata ni deja la promesa huerfana", a
   const config = { supabaseAnonKey: "anon", supabaseUrl: "https://project.example", userDataDir: path.join(root, "cancel") };
   await rememberAccount(config, { initials: "AA", userId: USER_A });
   let requested = false;
+  let ready = false;
+  let queries = 0;
   const sync = createAccountProfileSync({
     config,
     fetchImpl: async (_url, init) => {
+      queries += 1;
       requested = true;
+      if (ready) return response("[]", { headers: { "content-type": "application/json" } });
       return new Promise((_, reject) => init.signal.addEventListener("abort", () => {
         const error = new Error("aborted");
         error.name = "AbortError";
@@ -228,4 +310,9 @@ test("cancelar un run activo no publica metadata ni deja la promesa huerfana", a
   assert.equal(result.cancelled, true);
   assert.equal((await readKnownAccounts(config)).accounts[0].initials, "AA");
   assert.equal(sync.getDiagnostics().inFlight, false);
+  ready = true;
+  const switched = await sync.request("switch-account", { force: true });
+  assert.equal(switched.attempted, true);
+  assert.equal(switched.cancelled, undefined);
+  assert.equal(queries, 2);
 }));

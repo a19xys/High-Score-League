@@ -9,6 +9,7 @@ let launcherStateRevision = 1;
 let launcherStateListener = null;
 let selectionPhase = "initial";
 let switchAccountCalls = 0;
+let accountFixtureMode = "existing";
 const fixtureAvatarUrl = process.env.HSL_ACCOUNT_AVATAR_FILE_URL || null;
 
 const titles = [
@@ -56,10 +57,11 @@ if (process.env.HSL_LIBRARY_ALPHA_ASSETS) {
 
 function snapshot({ samePack = false } = {}) {
   const pack = packs[activeIndex];
-  const accounts = [
+  const accounts = accountFixtureMode === "empty" ? [] : [
     { avatarLocalUrl: fixtureAvatarUrl, displayName: "Fixture", email: "fixture@example.test", hasLocalSession: true, initials: "FI", isActive: activeUserId === "fixture", userId: "fixture" },
-    { displayName: "Cuenta disponible", email: "valid@example.test", hasLocalSession: true, initials: "VA", isActive: activeUserId === "valid", userId: "valid" },
-    { displayName: "Cuenta caducada inesperadamente", email: "expired@example.test", hasLocalSession: true, isActive: false, userId: "expired" },
+    { displayName: "Cuenta disponible", email: "valid@example.test", hasLocalSession: true, initials: "RAF", isActive: activeUserId === "valid", userId: "valid" },
+    { displayName: "Cuenta caducada inesperadamente", email: "expired@example.test", hasLocalSession: true, isActive: activeUserId === "expired", userId: "expired" },
+    { displayName: "Cuenta con iniciales", email: "player.ygjpq@example.test", hasLocalSession: true, initials: "FUK", isActive: activeUserId === "typography", userId: "typography" },
     { displayName: "Cuenta bloqueada", email: "relogin@example.test", hasLocalSession: false, isActive: false, requiresLogin: true, userId: "relogin" },
   ];
   const heroChecking = heroStatus === "checking";
@@ -127,11 +129,13 @@ function snapshot({ samePack = false } = {}) {
     },
     remoteConfiguration: { status: "configured" },
     selection: { activeInstanceKey: pack.instanceKey },
-    session: {
-      email: activeUserId === "valid" ? "valid@example.test" : "fixture@example.test",
-      hasSession: true,
-      userId: activeUserId,
-    },
+    session: accountFixtureMode === "empty"
+      ? { hasSession: false, userId: null }
+      : {
+          email: accounts.find((account) => account.userId === activeUserId)?.email || "fixture@example.test",
+          hasSession: true,
+          userId: activeUserId,
+        },
   };
 }
 
@@ -168,6 +172,20 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   requestConnectivityRefresh: async () => ({ reachability: "connected", reachabilityGeneration: 1 }),
   resolveThemeBootstrap: () => ({ effectiveTheme: "dark", mode: "manual" }),
   setLibraryPreferences: async () => ({ ok: true }),
+  setAccountFixtureMode: async (mode) => {
+    accountFixtureMode = mode === "empty" ? "empty" : "existing";
+    launcherStateRevision += 1;
+    const state = snapshot();
+    queueMicrotask(() => launcherStateListener?.({ state }));
+    return state;
+  },
+  setActiveFixtureAccount: async (userId) => {
+    activeUserId = userId;
+    launcherStateRevision += 1;
+    const state = snapshot();
+    queueMicrotask(() => launcherStateListener?.({ state }));
+    return state;
+  },
   setTheme: async (theme) => ({ effectiveTheme: theme === "light" ? "light" : "dark", ok: true }),
   switchAccount: async (userId) => {
     switchAccountCalls += 1;
