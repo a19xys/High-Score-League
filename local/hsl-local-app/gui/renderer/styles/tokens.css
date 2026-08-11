@@ -80,6 +80,8 @@
   --dialog-secondary-border: #b6c8dc;
   --dialog-secondary-text: #17314e;
   --dialog-secondary-hover: #d9e6f3;
+  --account-avatar-fallback-bg: color-mix(in srgb, var(--icon-stage) 76%, var(--surface-muted));
+  --account-avatar-fallback-text: var(--text);
 }
 
 [data-theme="dark"] {
@@ -147,4 +149,6 @@
   --dialog-secondary-border: #49617c;
   --dialog-secondary-text: #e6edf6;
   --dialog-secondary-hover: #30445f;
+  --account-avatar-fallback-bg: color-mix(in srgb, var(--surface-strong) 84%, var(--circuit-soft));
+  --account-avatar-fallback-text: var(--text-inverse);
 }

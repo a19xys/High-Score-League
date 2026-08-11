@@ -41,3 +41,24 @@ export function paginateItems<T>(
 
   return items.slice(startIndex, startIndex + safePageSize);
 }
+
+export function getEmptyPageSlotCount(
+  totalItems: number,
+  visibleItemCount: number,
+  pageSize: unknown,
+) {
+  const safeTotalItems = Number.isFinite(totalItems)
+    ? Math.max(0, Math.floor(totalItems))
+    : 0;
+
+  if (safeTotalItems === 0) {
+    return 0;
+  }
+
+  const safePageSize = normalizePageSize(pageSize);
+  const safeVisibleItemCount = Number.isFinite(visibleItemCount)
+    ? Math.min(safePageSize, Math.max(0, Math.floor(visibleItemCount)))
+    : 0;
+
+  return safePageSize - safeVisibleItemCount;
+}

@@ -14,11 +14,11 @@ test("avatar central usa imagen local, luego iniciales y finalmente icono", asyn
   const rejectedRemote = renderAccountAvatar({ avatarLocalUrl: "https://remote.example/avatar.webp", initials: "CC" });
   assert.match(local, /account-mini-avatar__image/);
   assert.match(local, /src="file:\/\/\/C:\/cache\/avatar.webp"/);
-  assert.match(local, /account-mini-avatar__fallback">AA</);
-  assert.match(initials, /account-mini-avatar__fallback">BB</);
+  assert.match(local, /account-mini-avatar__initials">AA</);
+  assert.match(initials, /account-mini-avatar__initials">BB</);
   assert.doesNotMatch(initials, /<img/);
   assert.match(fallback, /data-icon="user"/);
-  assert.match(rejectedRemote, /account-mini-avatar__fallback">CC</);
+  assert.match(rejectedRemote, /account-mini-avatar__initials">CC</);
   assert.doesNotMatch(rejectedRemote, /remote\.example/);
 });
 
@@ -67,11 +67,13 @@ test("header sin sesión conserva semántica pero muestra avatar user grande sin
     data: { accounts: { knownAccounts: [] }, session: { hasSession: false } },
   });
   const button = html.match(/<button class="session-chip[\s\S]*?<\/button>/)?.[0] || "";
-  assert.match(button, /account-mini-avatar--session-empty/);
+  assert.match(button, /account-mini-avatar--empty-user/);
   assert.match(button, /data-icon="user"/);
+  assert.match(button, /data-icon="chevron-right"/);
   assert.match(button, /aria-label="Sin sesi/);
   assert.doesNotMatch(button, /session-chip__empty/);
   assert.doesNotMatch(button, />Sin sesi[^<]*</);
+  assert.equal((button.match(/data-action="toggle-account-menu"/g) || []).length, 1);
 });
 
 test("cuenta usa una sola superficie visual y conserva dos botones semanticos", async () => {
@@ -108,7 +110,7 @@ test("la imagen ocupa el avatar circular con cover", async () => {
   assert.match(styles, /\.account-mini-avatar\s*\{[\s\S]*?overflow: hidden/);
   assert.match(styles, /\.account-mini-avatar\s*\{[\s\S]*?display: inline-flex[\s\S]*?align-items: center[\s\S]*?justify-content: center/);
   assert.match(styles, /\.account-mini-avatar__fallback\s*\{[\s\S]*?align-items: center[\s\S]*?justify-content: center/);
-  assert.match(styles, /\.account-mini-avatar--session-empty \.account-icon\.ui-icon\s*\{[\s\S]*?width: 100%[\s\S]*?height: 100%/);
+  assert.match(styles, /\.account-mini-avatar--empty-user \.account-icon\.ui-icon\s*\{[\s\S]*?width: 24px[\s\S]*?height: 24px/);
 });
 
 test("formulario integrado, submit neutro-reactivo y email sin clipping", async () => {
@@ -121,8 +123,11 @@ test("formulario integrado, submit neutro-reactivo y email sin clipping", async 
   assert.match(header, /class="tool-button account-primary icon-slot-button"[^>]*data-action="add-account"/);
   assert.match(styles, /\.account-login-form\s*\{[\s\S]*?background: transparent[\s\S]*?box-shadow: none/);
   assert.match(styles, /\.account-login-form--empty\s*\{[\s\S]*?border: 0[\s\S]*?padding: 0/);
-  assert.match(styles, /\.account-login-submit,[\s\S]*?border-color: var\(--border\)[\s\S]*?background: var\(--surface-muted\)[\s\S]*?color: var\(--text\)/);
-  assert.match(styles, /\.account-login-submit:hover:not\(:disabled\)[\s\S]*?border-color: var\(--circuit\)[\s\S]*?background: color-mix[\s\S]*?color: var\(--circuit\)/);
+  assert.doesNotMatch(styles, /\.account-login-submit\s*\{/);
+  assert.doesNotMatch(styles, /\.account-login-submit:hover/);
+  assert.match(styles, /\[data-theme="dark"\] \.account-primary:hover:not\(:disabled\)[\s\S]*?border-color: var\(--circuit\)[\s\S]*?background: color-mix/);
+  assert.match(styles, /\.account-mini-avatar__fallback\s*\{[\s\S]*?line-height: 1\.25/);
+  assert.match(styles, /\.known-accounts \.account-mini-avatar__fallback\s*\{[\s\S]*?display: flex[\s\S]*?font-weight: inherit/);
   assert.match(styles, /button:focus-visible,[\s\S]*?outline: 2px solid var\(--circuit\)/);
   assert.match(styles, /\.account-row__email\s*\{[\s\S]*?overflow: hidden[\s\S]*?line-height: 1\.3[\s\S]*?text-overflow: ellipsis[\s\S]*?white-space: nowrap/);
   assert.match(app, /function openCleanAccountMenuState\(state\)[\s\S]*knownAccounts \|\| \[\]\)\.length === 0[\s\S]*authFormOpen: empty/);

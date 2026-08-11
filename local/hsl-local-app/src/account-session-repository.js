@@ -29,6 +29,7 @@ const {
 
 const CANONICAL_SCHEMA_VERSION = 3;
 const MIGRATION_SCHEMA_VERSION = 1;
+const MAX_REQUIRES_LOGIN_TRANSITIONS = 20;
 
 function canonicalSessionPath(config, userId) {
   const playerKey = derivePlayerKey({ hasSession: true, userId });
@@ -51,6 +52,11 @@ function migrationJournalPath(config) {
 
 function safeUserHash(userId) {
   return userId ? `user_${hashPart(userId, 12)}` : null;
+}
+
+function safeProviderCode(value) {
+  const code = typeof value === "string" ? value.trim() : "";
+  return /^[a-z0-9_.:-]{1,96}$/i.test(code) ? code : null;
 }
 
 async function safeSourceHash(filePath) {
@@ -143,6 +149,8 @@ function createAccountSessionRepository(options = {}) {
   const operationGenerations = new Map();
   const controllers = new Map();
   const accountStates = new Map();
+  const requiresLoginObserved = new Set();
+  const requiresLoginTransitions = [];
   const unresolvedUsers = new Set();
   const policyIdentities = new WeakMap();
   let nextPolicyIdentity = 1;
@@ -176,6 +184,39 @@ function createAccountSessionRepository(options = {}) {
   const nowIso = () => new Date(now()).toISOString();
   const generation = (userId) => operationGenerations.get(userId) || 0;
   const result = (status, details = {}) => createSessionResult({ status, ...details });
+
+  function noteRequiresLoginTransition(userId, nextResult, details = {}) {
+    if (nextResult?.requiresLogin !== true) {
+      requiresLoginObserved.delete(userId);
+      return;
+    }
+    if (requiresLoginObserved.has(userId)) return;
+    requiresLoginObserved.add(userId);
+    const previous = details.previousResult || accountStates.get(userId) || null;
+    const sourceError = details.error || null;
+    const providerCode = safeProviderCode(
+      sourceError?.cause?.providerCode
+      || sourceError?.cause?.code
+      || sourceError?.providerCode
+      || sourceError?.code,
+    );
+    const numericStatus = Number(sourceError?.status ?? sourceError?.cause?.status);
+    const providerRejected = nextResult.reason === "refresh-token-rejected"
+      || ["invalid_grant", "invalid_refresh_token", "refresh_token_already_used", "refresh_token_not_found", "refresh_token_revoked"].includes(String(providerCode || "").toLowerCase());
+    requiresLoginTransitions.push(Object.freeze({
+      at: nowIso(),
+      httpStatus: Number.isInteger(numericStatus) && numericStatus >= 100 && numericStatus <= 599 ? numericStatus : null,
+      nextStatus: nextResult.status,
+      previousStatus: previous?.status || details.previousStatus || null,
+      providerCode,
+      providerRejected,
+      reason: nextResult.reason,
+      sessionRevision: nextResult.sessionRevision,
+      storedSession: Boolean(details.storedSession || nextResult.storedSession || previous?.storedSession),
+      userHash: safeUserHash(userId),
+    }));
+    if (requiresLoginTransitions.length > MAX_REQUIRES_LOGIN_TRANSITIONS) requiresLoginTransitions.shift();
+  }
 
   function policyIdentity(value) {
     if ((typeof value !== "object" || value === null) && typeof value !== "function") return null;
@@ -292,23 +333,29 @@ function createAccountSessionRepository(options = {}) {
     const ledger = await readSessionRevision(config, userId);
     if (ledger.status === "corrupt") {
       counters.corruptCount += 1;
-      return result("recovery-required", { error: ledger.error, migrationRequired: true, reason: "revision-ledger-corrupt" });
+      const terminal = result("recovery-required", { error: ledger.error, migrationRequired: true, reason: "revision-ledger-corrupt" });
+      noteRequiresLoginTransition(userId, terminal);
+      return terminal;
     }
     if (unresolvedUsers.has(userId)) {
-      return result("recovery-required", {
+      const terminal = result("recovery-required", {
         hasLocalSession: true,
         migrationRequired: true,
         reason: "ambiguous-session-sources",
         sessionRevision: ledger.lastRevision,
       });
+      noteRequiresLoginTransition(userId, terminal);
+      return terminal;
     }
     const inspected = await inspectCanonical(userId);
     if (inspected.kind === "missing") {
       const revoked = ledger.disposition === "tombstone" && String(ledger.lastReason || "").includes("revok");
-      return result(revoked ? "revoked" : "missing", {
+      const terminal = result(revoked ? "revoked" : "missing", {
         reason: ledger.lastReason || "canonical-session-missing",
         sessionRevision: ledger.lastRevision,
       });
+      noteRequiresLoginTransition(userId, terminal);
+      return terminal;
     }
     if (inspected.kind === "storage-unavailable") {
       return result("storage-unavailable", {
@@ -320,23 +367,28 @@ function createAccountSessionRepository(options = {}) {
     }
     if (inspected.kind === "corrupt") {
       counters.corruptCount += 1;
-      accountStates.set(userId, { sessionRevision: ledger.lastRevision, status: "corrupt" });
-      return result("corrupt", {
+      const terminal = result("corrupt", {
         error: inspected.error,
         hasLocalSession: true,
         reason: inspected.error?.code || "canonical-session-corrupt",
         sessionRevision: ledger.lastRevision,
       });
+      noteRequiresLoginTransition(userId, terminal);
+      accountStates.set(userId, { requiresLogin: true, sessionRevision: ledger.lastRevision, status: "corrupt" });
+      return terminal;
     }
     const canonicalRevision = inspected.validated.sessionRevision;
     if (ledger.disposition === "tombstone" && ledger.lastRevision > canonicalRevision) {
       const revoked = String(ledger.lastReason || "").includes("revok");
-      return result(revoked ? "revoked" : "missing", {
+      const terminal = result(revoked ? "revoked" : "missing", {
         reason: ledger.lastReason || "pending-secret-removal",
         sessionRevision: ledger.lastRevision,
       });
+      noteRequiresLoginTransition(userId, terminal);
+      return terminal;
     }
     const canonical = resultFromStored(inspected.validated.storedSession, canonicalRevision);
+    noteRequiresLoginTransition(userId, canonical, { storedSession: inspected.validated.storedSession });
     accountStates.set(userId, {
       expiresAt: inspected.validated.storedSession.session?.expires_at || null,
       lastRefreshAt: accountStates.get(userId)?.lastRefreshAt || (inspected.validated.storedSession.lastWriteSource === "refresh" ? inspected.validated.storedSession.updatedAt : null),
@@ -420,6 +472,7 @@ function createAccountSessionRepository(options = {}) {
     });
     accountsCount = store.accounts.length;
     activeUserHash = safeUserHash(store.lastActiveUserId);
+    requiresLoginObserved.delete(userId);
     accountStates.set(userId, {
       expiresAt: payload.session.expires_at,
       lastRefreshAt: source === "refresh" ? writtenAt : accountStates.get(userId)?.lastRefreshAt || null,
@@ -505,12 +558,18 @@ function createAccountSessionRepository(options = {}) {
     const preflight = supplied.preflight || await accountStorePreflight(userId);
     const inspected = supplied.inspected || await inspectCanonical(userId);
     const nextRevision = await reserveTombstoneUnlocked(userId, `revoked:${reason}`, inspected, preflight, revision);
+    const revoked = result("revoked", { reason, sessionRevision: nextRevision });
+    noteRequiresLoginTransition(userId, revoked, {
+      error: supplied.error,
+      previousResult: supplied.previousResult,
+      storedSession: supplied.previousResult?.storedSession || inspected.validated?.storedSession,
+    });
     const store = await markAccountRequiresLogin(config, userId, { sessionRevision: nextRevision });
     accountsCount = store.accounts.length;
     activeUserHash = safeUserHash(store.lastActiveUserId);
     counters.revokedCount += 1;
     accountStates.set(userId, { requiresLogin: true, sessionRevision: nextRevision, status: "revoked", reason });
-    return result("revoked", { reason, sessionRevision: nextRevision });
+    return revoked;
   }
 
   function markRevoked(userId, reason = "refresh-token-rejected", revision = 0) {
@@ -625,7 +684,12 @@ function createAccountSessionRepository(options = {}) {
             });
           }
           if (error?.sessionStatus === "revoked" || error?.code === "SESSION_IDENTITY_MISMATCH") {
-            return markRevokedUnlocked(userId, error.code || "identity-mismatch", current.sessionRevision, { inspected, preflight });
+            return markRevokedUnlocked(userId, error.code || "identity-mismatch", current.sessionRevision, {
+              error,
+              inspected,
+              preflight,
+              previousResult: current,
+            });
           }
           const backoff = refreshBackoff.recordFailure(userId, {
             error,
@@ -658,7 +722,11 @@ function createAccountSessionRepository(options = {}) {
           });
         }
         if (refreshed?.user?.id !== userId) {
-          return markRevokedUnlocked(userId, "identity-mismatch", current.sessionRevision, { inspected, preflight });
+          return markRevokedUnlocked(userId, "identity-mismatch", current.sessionRevision, {
+            inspected,
+            preflight,
+            previousResult: current,
+          });
         }
         const saved = await persistUnlocked(userId, refreshed, "refresh", inspected, preflight, { setActive: false });
         refreshBackoff.recordSuccess(userId);
@@ -772,6 +840,7 @@ function createAccountSessionRepository(options = {}) {
         });
       }
       accountStates.delete(userId);
+      requiresLoginObserved.delete(userId);
       return {
         ...result("missing", { reason: removeOptions.reason || "removed", sessionRevision: nextRevision }),
         removed: inspected.kind !== "missing" || metadataRemoved,
@@ -945,6 +1014,7 @@ function createAccountSessionRepository(options = {}) {
       activeUserHash: safeUserHash(accounts.lastActiveUserId),
       canonicalSessionCount: (await Promise.all(accounts.accounts.map((account) => read(account.userId)))).filter((item) => item.ok).length,
       refreshBackoff: refreshBackoff.getDiagnostics(),
+      requiresLoginTransitions: [...requiresLoginTransitions],
       inFlightUserHashes: [...inFlight.keys()].map(safeUserHash),
       lastMigrationAt,
       legacySessionPresent,
@@ -962,6 +1032,7 @@ function createAccountSessionRepository(options = {}) {
       activeUserHash,
       canonicalSessionCount: [...accountStates.values()].filter((state) => state.status === "valid").length,
       refreshBackoff: refreshBackoff.getDiagnostics(),
+      requiresLoginTransitions: [...requiresLoginTransitions],
       inFlightUserHashes: [...inFlight.keys()].map(safeUserHash),
       lastMigrationAt,
       legacySessionPresent,

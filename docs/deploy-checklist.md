@@ -135,8 +135,8 @@ Usuario registrado:
 
 - login y logout.
 - `/profile`
-- `/archive/weeks` y `/archive/seasons`
-- redirecciones permanentes desde `/archive`, `/weeks`, `/seasons` y `/season`
+- `/archive` neutral, `/archive/weeks` y `/archive/seasons`
+- redirecciones permanentes desde `/weeks`, `/seasons` y `/season`
 - `/weeks/[weekId]`
 - `/seasons/[seasonId]`
 - `/game`

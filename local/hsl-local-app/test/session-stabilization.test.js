@@ -106,6 +106,33 @@ test("a temporary refresh failure preserves an expired session without making it
   });
 });
 
+test("a temporary refresh failure never persists requiresLogin and recovers without password", async () => {
+  await withTempDir(async (root) => {
+    const cfg = config(root);
+    let providerAvailable = false;
+    const repo = repository(cfg, {
+      refreshProvider: async ({ storedSession }) => {
+        if (!providerAvailable) throw Object.assign(new Error("timeout"), { failureType: "timeout", transient: true });
+        return stored(storedSession.user.id, "recovered");
+      },
+    });
+    await repo.saveLogin(stored("user-1", "expired", 1));
+
+    const deferred = await repo.resolve("user-1", { connected: true });
+    assert.equal(deferred.status, "deferred");
+    assert.equal(deferred.requiresLogin, false);
+    assert.equal(deferred.storedSession.session.refresh_token, "refresh-expired");
+    assert.equal((await readKnownAccounts(cfg)).accounts[0].requiresLogin, false);
+
+    providerAvailable = true;
+    const recovered = await repo.resolve("user-1", { bypassBackoff: true, connected: true, force: true });
+    assert.equal(recovered.status, "refreshed");
+    assert.equal(recovered.requiresLogin, false);
+    assert.equal(recovered.storedSession.session.refresh_token, "refresh-recovered");
+    assert.equal((await readKnownAccounts(cfg)).accounts[0].requiresLogin, false);
+  });
+});
+
 test("session revisions remain monotonic across revoke, logout/remove, restart and relogin", async () => {
   await withTempDir(async (root) => {
     const cfg = config(root);

@@ -39,15 +39,19 @@ normal.
   `Sin juego asignado`; ya no se usa un juego placeholder real.
 - `/game` redirige a la semana activa real.
 - `/week` y `/leaderboard` redirigen a `/game`.
-- `/archive` es la landing privada del historial; `/archive/weeks` y
-  `/archive/seasons` son sus índices canónicos. Los alias antiguos y el parámetro
-  `section` mantienen compatibilidad mediante redirecciones permanentes.
+- `/archive` es el shell neutral del historial, sin sección activa ni carga de
+  tablas; `/archive/weeks` es el destino de `ARCHIVO` en la navegación principal
+  y `/archive/seasons` conserva el índice de temporadas. Los breadcrumbs de
+  Archivo abren el estado neutral. Los alias antiguos y el parámetro `section`
+  mantienen compatibilidad mediante redirecciones permanentes.
 - Los archivos de semanas y temporadas filtran por todos los años naturales que
   cruza cada intervalo visible en `Europe/Madrid`; los activos no anuncian años
   futuros. Las columnas y ordenación por estado se conservan.
 - Todos los historiales basados en `SubmissionsTable` se paginan después de los
   cálculos y el orden global, con tamaños 10, 25 y 50. En móvil sólo muestran
-  flechas y rango; en escritorio añaden tamaño y página. El perfil propio ya no
+  flechas y rango; en escritorio centran ese bloque y alinean el tamaño a la
+  derecha, sin indicador de página. Las páginas no vacías se completan con slots
+  presentacionales inaccesibles hasta el tamaño elegido. El perfil propio ya no
   limita el historial a ocho envíos y el público no recibe filas privadas.
 - Los logos estáticos se solicitan directamente desde `/brand` y usan fallback
   sólo ante un error real del navegador, sin detección server-side del filesystem.

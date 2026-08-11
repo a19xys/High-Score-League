@@ -207,7 +207,18 @@ test("conclusive revocation removes secrets but preserves account metadata", asy
   await withTempDir(async (root) => {
     const cfg = config(root);
     const repo = repository(cfg, {
-      refreshProvider: async () => { throw Object.assign(new Error("revoked"), { code: "refresh-token-rejected", sessionStatus: "revoked" }); },
+      refreshProvider: async () => {
+        const providerError = Object.assign(new Error("provider rejected token"), {
+          providerCode: "refresh_token_revoked",
+          status: 401,
+        });
+        throw Object.assign(new Error("revoked"), {
+          cause: providerError,
+          code: "refresh-token-rejected",
+          sessionStatus: "revoked",
+          status: 401,
+        });
+      },
     });
     await repo.saveLogin(stored("user-1", "old", 1));
     const result = await repo.resolve("user-1", { connected: true });
@@ -215,6 +226,29 @@ test("conclusive revocation removes secrets but preserves account metadata", asy
     assert.equal((await repo.read("user-1")).ok, false);
     const accounts = await readKnownAccounts(cfg);
     assert.equal(accounts.accounts[0].requiresLogin, true);
+    const transitions = repo.getDiagnosticsSnapshot().requiresLoginTransitions;
+    assert.equal(transitions.length, 1);
+    assert.deepEqual({
+      httpStatus: transitions[0].httpStatus,
+      nextStatus: transitions[0].nextStatus,
+      providerCode: transitions[0].providerCode,
+      providerRejected: transitions[0].providerRejected,
+      reason: transitions[0].reason,
+      storedSession: transitions[0].storedSession,
+    }, {
+      httpStatus: 401,
+      nextStatus: "revoked",
+      providerCode: "refresh_token_revoked",
+      providerRejected: true,
+      reason: "refresh-token-rejected",
+      storedSession: true,
+    });
+    assert.match(transitions[0].userHash, /^user_/);
+    assert.doesNotMatch(JSON.stringify(transitions), /access-old|refresh-old|old@example\.com/);
+
+    await repo.saveLogin(stored("user-1", "after-revoke"));
+    assert.equal((await readKnownAccounts(cfg)).accounts[0].requiresLogin, false);
+    assert.equal((await repo.read("user-1")).status, "valid");
   });
 });
 

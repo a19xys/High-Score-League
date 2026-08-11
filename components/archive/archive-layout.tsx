@@ -11,39 +11,53 @@ export function ArchiveLayout({
   title,
   warning,
 }: {
-  activeSection: ArchiveSection;
-  children: ReactNode;
-  description: string;
-  title: string;
+  activeSection: ArchiveSection | null;
+  children?: ReactNode;
+  description?: string;
+  title?: string;
   warning?: string | null;
 }) {
+  const hasSectionContent = Boolean(title || description || warning || children);
+
   return (
     <div className="space-y-4">
       <Breadcrumbs
-        items={[
-          { href: "/archive", label: "Archivo" },
-          { label: title },
-        ]}
+        items={
+          title
+            ? [
+                { href: "/archive", label: "Archivo" },
+                { label: title },
+              ]
+            : [{ label: "Archivo" }]
+        }
       />
       <Card>
         <CardHeader eyebrow="Historial de la liga" title="Archivo">
           Consulta semanas y temporadas anteriores desde un único lugar.
         </CardHeader>
         <ArchiveNavigation activeSection={activeSection} />
-        <div className="mt-6 space-y-4 border-t pt-6 theme-border">
-          <div>
-            <h2 className="text-xl font-bold theme-text">{title}</h2>
-            <p className="mt-1 text-sm leading-6 theme-text-muted">
-              {description}
-            </p>
+        {hasSectionContent ? (
+          <div className="mt-6 space-y-4 border-t pt-6 theme-border">
+            {title || description ? (
+              <div>
+                {title ? (
+                  <h2 className="text-xl font-bold theme-text">{title}</h2>
+                ) : null}
+                {description ? (
+                  <p className="mt-1 text-sm leading-6 theme-text-muted">
+                    {description}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {warning ? (
+              <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">
+                {warning}
+              </div>
+            ) : null}
+            {children}
           </div>
-          {warning ? (
-            <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">
-              {warning}
-            </div>
-          ) : null}
-          {children}
-        </div>
+        ) : null}
       </Card>
     </div>
   );

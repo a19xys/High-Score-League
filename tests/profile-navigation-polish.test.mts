@@ -80,7 +80,7 @@ test("navigation loads the canonical brand asset in the browser", async () => {
 
   assert.doesNotMatch(serverNav, /hasBrandLogo|existsSync|node:fs|node:path/);
   assert.doesNotMatch(clientNav, /hasBrandLogo/);
-  assert.match(clientNav, /href: "\/archive"/);
+  assert.match(clientNav, /href: "\/archive\/weeks", label: "ARCHIVO"/);
   assert.match(brandImage, /onError=\{\(\) => setImageFailed\(true\)\}/);
   assert.match(brandImage, /\[src\]/);
   assert.doesNotMatch(homePage, /existsSync|node:fs|node:path/);

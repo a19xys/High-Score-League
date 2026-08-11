@@ -63,9 +63,9 @@ export function renderAccountAvatar(account, className = "") {
     ? account.avatarLocalUrl
     : null;
   const initials = account?.initials || initialsFromValue(account?.email || account?.userId);
-  const emptyClass = localUrl || initials ? "" : " account-mini-avatar--empty";
+  const emptyClass = localUrl || initials ? "" : " account-mini-avatar--empty account-mini-avatar--empty-user";
   const fallback = initials
-    ? escapeHtml(initials)
+    ? `<span class="account-mini-avatar__initials">${escapeHtml(initials)}</span>`
     : renderIcon("user", { className: "account-icon", size: "sm" });
   const image = localUrl
     ? `<img class="account-mini-avatar__image" src="${escapeHtml(localUrl)}" alt="">`
@@ -231,12 +231,13 @@ export function renderAccountControl(state) {
   const sessionChipLabel = `${accountLabel}. ${sessionPresentation.title}`;
   const sessionChipContent = session?.hasSession
     ? renderAccountAvatar(activeAccount, "account-chip-avatar")
-    : renderAccountAvatar(null, "account-chip-avatar account-mini-avatar--session-empty");
+    : renderAccountAvatar(null, "account-chip-avatar");
   const sessionChipClass = session?.hasSession ? "session-chip--avatar-only" : "session-chip--avatar-only session-chip--empty";
 
   return `
     <button class="session-chip session-chip--button ${sessionChipClass}" type="button" data-action="toggle-account-menu" aria-expanded="${state.accountMenuOpen ? "true" : "false"}" title="${escapeHtml(sessionChipLabel)}" aria-label="${escapeHtml(sessionChipLabel)}">
       ${sessionChipContent}
+      ${renderIcon("chevron-right", { className: "session-chip__chevron", size: "sm" })}
     </button>
     ${state.accountMenuOpen ? renderAccountMenu(state) : ""}
   `;

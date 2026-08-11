@@ -2464,21 +2464,43 @@ async function switchKnownAccountFromGui(userId, options = {}) {
   }
 }
 
+async function selectReplacementAccount(config, repository = sessionRepository(config)) {
+  const accounts = await readKnownAccounts(config);
+
+  for (const account of accounts.accounts) {
+    const candidate = await repository.read(account.userId);
+    if (!isSessionLocallyAvailable(candidate) || requiresSessionLogin(candidate) || !candidate.storedSession) continue;
+    await repository.setActive(account.userId);
+    return { account, sessionResult: candidate };
+  }
+
+  return null;
+}
+
 async function removeKnownAccountFromGui(userId) {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
-  const session = await getAuthState(config, { deferRemote: true });
-  const result = await sessionRepository(config).remove(userId, {
+  const repository = sessionRepository(config);
+  const accountsBefore = await readKnownAccounts(config);
+  const wasActive = accountsBefore.lastActiveUserId === userId;
+  const result = await repository.remove(userId, {
     forgetAccount: true,
     reason: "remove-account",
   });
   if (result.removed) await accountProfileSync?.forget(userId);
+  const replacement = result.removed && wasActive
+    ? await selectReplacementAccount(config, repository)
+    : null;
 
-  if (session.hasSession && session.userId === userId) {
-
+  if (wasActive) {
+    const replacementLabel = replacement?.account?.displayName || replacement?.account?.email || null;
     return {
       action: "remove-known-account",
-      lines: ["Cuenta olvidada en este dispositivo.", "La sesión activa se ha cerrado.", "Las puntuaciones locales no se han borrado."],
+      lines: [
+        "Cuenta olvidada en este dispositivo.",
+        replacementLabel ? `Cuenta activa: ${replacementLabel}.` : "No queda otra sesión local utilizable.",
+        "Las puntuaciones locales no se han borrado.",
+      ],
       ok: result.removed,
       summary: result.removed ? "Cuenta olvidada." : "No se encontró esa cuenta recordada.",
       state: await getLauncherState(),
@@ -3035,6 +3057,7 @@ module.exports = {
   restoreFailedSubmission,
   resolveRememberedPack,
   resetAutoSyncStateForTests,
+  selectReplacementAccount,
   setRemoteDiagnosticsProvider,
   setRemoteOperationSignalProvider,
   shutdownAccountProfileSync,

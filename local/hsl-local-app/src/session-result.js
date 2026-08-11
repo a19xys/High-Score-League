@@ -40,7 +40,7 @@ const STATUS_PROFILES = Object.freeze({
   deferred: Object.freeze({ allowRemoteUsable: true, ok: false, remoteUsable: false, shouldRetry: true, requiresLogin: false, terminal: false }),
   revoked: Object.freeze({ discardStoredSession: true, hasLocalSession: false, ok: false, remoteUsable: false, shouldRetry: false, requiresLogin: true, terminal: true }),
   corrupt: Object.freeze({ hasLocalSession: true, ok: false, remoteUsable: false, shouldRetry: false, requiresLogin: true, terminal: true }),
-  missing: Object.freeze({ discardStoredSession: true, hasLocalSession: false, ok: false, remoteUsable: false, shouldRetry: false, requiresLogin: true, terminal: true }),
+  missing: Object.freeze({ allowNoActiveAccount: true, discardStoredSession: true, hasLocalSession: false, ok: false, remoteUsable: false, shouldRetry: false, requiresLogin: true, terminal: true }),
   "recovery-required": Object.freeze({ hasLocalSession: true, migrationRequired: true, ok: false, remoteUsable: false, shouldRetry: false, requiresLogin: true, terminal: true }),
   cancelled: Object.freeze({ ok: false, remoteUsable: false, shouldRetry: true, requiresLogin: false, terminal: false }),
   stale: Object.freeze({ ok: false, remoteUsable: false, shouldRetry: true, requiresLogin: false, stale: true, terminal: false }),
@@ -140,7 +140,9 @@ function createSessionResult(input = {}) {
   const hasLocalSession = typeof profile.hasLocalSession === "boolean"
     ? profile.hasLocalSession
     : input.hasLocalSession === true || Boolean(storedSession);
-  const requiresLogin = profile.requiresLogin;
+  const requiresLogin = profile.allowNoActiveAccount === true && input.reason === "no-active-account"
+    ? false
+    : profile.requiresLogin;
   const remoteUsable = hasLocalSession && !requiresLogin && (
     profile.remoteUsable === true || (profile.allowRemoteUsable === true && input.remoteUsable === true)
   );

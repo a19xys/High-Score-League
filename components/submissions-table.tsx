@@ -10,6 +10,7 @@ import {
 import type { Game, Player, Submission, Week } from "@/types";
 import {
   clampPage,
+  getEmptyPageSlotCount,
   getTotalPages,
   paginateItems,
   type TablePageSize,
@@ -365,6 +366,19 @@ function SubmissionsTableTopbar({
   );
 }
 
+function EmptySubmissionRow({ showWeek }: { showWeek: boolean }) {
+  const heightClass = showWeek ? "h-[3.25rem] sm:h-11" : "h-11";
+
+  return (
+    <tr aria-hidden="true">
+      {showWeek ? <td className={`px-3 py-2 ${heightClass}`} /> : null}
+      <td className={`px-3 py-2 ${heightClass}`} />
+      <td className={`px-3 py-2 ${heightClass}`} />
+      <td className={`hidden px-3 py-2 sm:table-cell ${heightClass}`} />
+    </tr>
+  );
+}
+
 export function SubmissionsTable({
   submissions,
   currentUserId = null,
@@ -403,6 +417,11 @@ export function SubmissionsTable({
   const visibleSubmissions = useMemo(
     () => paginateItems(sortedSubmissions, safePage, pageSize),
     [pageSize, safePage, sortedSubmissions],
+  );
+  const emptyRowCount = getEmptyPageSlotCount(
+    sortedSubmissions.length,
+    visibleSubmissions.length,
+    pageSize,
   );
   const hiddenScoreNote = useMemo(
     () => getHiddenScoreNote(decoratedSubmissions, showWeek),
@@ -628,6 +647,12 @@ export function SubmissionsTable({
               </tr>
             );
           })}
+          {Array.from({ length: emptyRowCount }, (_, index) => (
+            <EmptySubmissionRow
+              key={`empty-submission-${safePage}-${index}`}
+              showWeek={showWeek}
+            />
+          ))}
         </tbody>
       </DataTable>
       <TablePagination

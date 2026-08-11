@@ -372,8 +372,7 @@ function toSafeAccountsState(store = emptyStore(), session = {}, options = {}) {
   const accounts = store.accounts.map((account) => {
     const sessionState = sessionStatuses.get(account.userId) || null;
     const hasPending = Number(sessionState?.pendingCount) > 0;
-    const requiresLogin = account.requiresLogin === true || sessionState?.requiresLogin === true || (hasPending
-      && ["corrupt", "revoked", "unavailable"].includes(sessionState?.status));
+    const requiresLogin = account.requiresLogin === true || sessionState?.requiresLogin === true;
 
     return {
       avatarLocalUrl: resolveLocalAvatarUrl({ userDataDir: options.userDataDir }, account.avatarCachePath),

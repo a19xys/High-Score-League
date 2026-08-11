@@ -885,6 +885,12 @@ button:disabled {
   color: var(--circuit);
 }
 
+[data-theme="dark"] .account-primary:hover:not(:disabled) {
+  border-color: var(--circuit);
+  background: color-mix(in srgb, var(--circuit) 28%, var(--surface-muted));
+  color: color-mix(in srgb, var(--circuit) 84%, var(--text));
+}
+
 .auth-form {
   border-top: 1px solid var(--border);
   padding-top: 14px;
@@ -979,11 +985,11 @@ button:disabled {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: var(--surface-strong);
-  color: var(--text-inverse);
+  background: var(--account-avatar-fallback-bg);
+  color: var(--account-avatar-fallback-text);
   font-size: 12px;
   font-weight: 900;
-  line-height: 1;
+  line-height: 1.25;
   overflow: hidden;
 }
 
@@ -994,8 +1000,13 @@ button:disabled {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  line-height: 1;
+  line-height: 1.25;
   text-align: center;
+}
+
+.account-mini-avatar__initials {
+  display: inline-block;
+  line-height: inherit;
 }
 
 .account-mini-avatar__image {
@@ -1085,6 +1096,11 @@ button:disabled {
 .known-accounts span {
   display: block;
   font-weight: 800;
+}
+
+.known-accounts .account-mini-avatar__fallback {
+  display: flex;
+  font-weight: inherit;
 }
 
 .known-accounts small {
@@ -2339,7 +2355,7 @@ main,
 }
 
 .session-chip--button {
-  gap: 0;
+  gap: 3px;
   min-height: 34px;
   min-width: 34px;
   padding-inline: 6px;
@@ -2347,11 +2363,27 @@ main,
 }
 
 .session-chip--avatar-only {
-  min-width: 40px;
+  min-width: 57px;
   min-height: 40px;
   border-color: transparent;
   background: transparent;
-  padding: 0;
+  padding: 0 4px 0 0;
+}
+
+.session-chip__chevron.ui-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  color: var(--text-muted);
+  transition: transform 150ms ease;
+}
+
+.session-chip[aria-expanded="false"] .session-chip__chevron {
+  transform: rotate(90deg);
+}
+
+.session-chip[aria-expanded="true"] .session-chip__chevron {
+  transform: rotate(-90deg);
 }
 
 .session-chip--button .account-mini-avatar {
@@ -2651,10 +2683,6 @@ main,
   font-size: 36px;
   line-height: 1.08;
   text-transform: none;
-}
-
-.game-detail-card .badge-row {
-  gap: 8px;
 }
 
 .game-detail-card .badge-muted {
@@ -3501,8 +3529,8 @@ body {
 
 .account-mini-avatar--empty {
   border: 1px solid var(--border);
-  background: var(--surface-strong);
-  color: var(--text-inverse);
+  background: var(--account-avatar-fallback-bg);
+  color: var(--account-avatar-fallback-text);
 }
 
 .known-accounts--menu {
@@ -4011,7 +4039,7 @@ button:disabled .ui-icon,
 }
 
 .account-mini-avatar {
-  line-height: 1;
+  line-height: 1.25;
   overflow: hidden;
 }
 
@@ -4020,9 +4048,9 @@ button:disabled .ui-icon,
   height: 18px;
 }
 
-.account-mini-avatar--session-empty .account-icon.ui-icon {
-  width: 100%;
-  height: 100%;
+.account-mini-avatar--empty-user .account-icon.ui-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .session-chip--button {
@@ -5099,7 +5127,7 @@ button:disabled .ui-icon,
 }
 
 .session-chip--avatar-only {
-  min-width: 38px;
+  min-width: 57px;
   min-height: 38px;
 }
 
@@ -5850,20 +5878,6 @@ html:not([data-theme="dark"]) .tool-button:hover:not(:disabled),
 html:not([data-theme="dark"]) .theme-button:hover:not(:disabled),
 html:not([data-theme="dark"]) .icon-button:hover {
   border-color: var(--circuit);
-  color: var(--circuit);
-}
-
-.account-login-submit,
-html:not([data-theme="dark"]) .account-login-submit {
-  border-color: var(--border);
-  background: var(--surface-muted);
-  color: var(--text);
-}
-
-.account-login-submit:hover:not(:disabled),
-html:not([data-theme="dark"]) .account-login-submit:hover:not(:disabled) {
-  border-color: var(--circuit);
-  background: color-mix(in srgb, var(--circuit) 11%, var(--surface-muted));
   color: var(--circuit);
 }
 

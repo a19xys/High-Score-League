@@ -14,6 +14,7 @@ import {
 } from "../lib/archive-years.ts";
 import {
   clampPage,
+  getEmptyPageSlotCount,
   getTotalPages,
   normalizePageSize,
   paginateItems,
@@ -100,26 +101,68 @@ test("archive ranges match both sides of a cross-year interval", () => {
   assert.equal(rangeMatchesArchiveYear("2025-12-28", "2026-01-03", 2024), false);
 });
 
-test("archive root is a protected landing without archive data loaders", async () => {
-  const source = await readFile(join(process.cwd(), "app", "archive", "page.tsx"), "utf8");
+test("archive root is a protected neutral shell without archive data loaders", async () => {
+  const root = process.cwd();
+  const [pageSource, layoutSource, navigationSource] = await Promise.all([
+    readFile(join(root, "app", "archive", "page.tsx"), "utf8"),
+    readFile(join(root, "components", "archive", "archive-layout.tsx"), "utf8"),
+    readFile(join(root, "components", "archive", "archive-navigation.tsx"), "utf8"),
+  ]);
 
-  assert.match(source, /hasServerSession/);
-  assert.match(source, /href: "\/archive\/weeks"/);
-  assert.match(source, /href: "\/archive\/seasons"/);
-  assert.match(source, /section !== undefined/);
-  assert.doesNotMatch(source, /getWeekPageData|getSeasonPageData/);
+  assert.match(pageSource, /hasServerSession/);
+  assert.match(pageSource, /section !== undefined/);
+  assert.match(pageSource, /<ArchiveLayout activeSection=\{null\} \/>/);
+  assert.doesNotMatch(
+    pageSource,
+    /getWeekPageData|getSeasonPageData|archiveSections|Abrir semanas|Abrir temporadas/,
+  );
+  assert.match(layoutSource, /activeSection: ArchiveSection \| null/);
+  assert.match(navigationSource, /activeSection: ArchiveSection \| null/);
+  assert.match(navigationSource, /aria-current=\{isActive \? "page" : undefined\}/);
 });
 
-test("table pagination keeps one compact mobile row and full desktop controls", async () => {
+test("table pagination keeps a compact mobile row and a truly centered desktop row", async () => {
   const source = await readFile(
     join(process.cwd(), "components", "ui", "table-pagination.tsx"),
     "utf8",
   );
 
   assert.match(source, /grid-cols-\[2\.75rem_minmax\(0,1fr\)_2\.75rem\]/);
+  assert.match(
+    source,
+    /sm:grid-cols-\[minmax\(0,1fr\)_auto_minmax\(0,1fr\)\]/,
+  );
   assert.match(source, /aria-label="Envíos por página"/);
-  assert.match(source, /className="hidden items-center gap-3[^\n]+sm:flex"/);
-  assert.match(source, /\{safePage\} \/ \{totalPages\}/);
+  assert.match(source, /className="hidden items-center justify-self-end[^\n]+sm:flex"/);
+  assert.doesNotMatch(source, /\{safePage\} \/ \{totalPages\}/);
+});
+
+test("empty page slots preserve the selected page size without inventing data", () => {
+  assert.equal(getEmptyPageSlotCount(24, 10, 10), 0);
+  assert.equal(getEmptyPageSlotCount(24, 4, 10), 6);
+  assert.equal(getEmptyPageSlotCount(39, 14, 25), 11);
+  assert.equal(getEmptyPageSlotCount(4, 4, 10), 6);
+  assert.equal(getEmptyPageSlotCount(0, 0, 10), 0);
+});
+
+test("empty submission rows are inaccessible presentation-only table rows", async () => {
+  const source = await readFile(
+    join(process.cwd(), "components", "submissions-table.tsx"),
+    "utf8",
+  );
+  const rowSource = source.slice(
+    source.indexOf("function EmptySubmissionRow"),
+    source.indexOf("export function SubmissionsTable"),
+  );
+
+  assert.match(rowSource, /<tr aria-hidden="true">/);
+  assert.match(rowSource, /showWeek \? <td/);
+  assert.match(rowSource, /<td/g);
+  assert.doesNotMatch(
+    rowSource,
+    /theme-hover|<Link|<button|tabIndex|aria-label|role=/,
+  );
+  assert.match(source, /Array\.from\(\{ length: emptyRowCount \}/);
 });
 
 test("pagination normalizes the three supported page sizes", () => {
@@ -166,6 +209,14 @@ test("pagination returns first, intermediate and incomplete final pages", () => 
   assert.deepEqual(paginateItems(items, 2, 50), [51]);
   assert.deepEqual(paginateItems(items, -1, 10), items.slice(0, 10));
   assert.deepEqual(paginateItems(items, 99, 10), [51]);
+});
+
+test("twenty-four items paginate as ten, ten and four real submissions", () => {
+  const items = Array.from({ length: 24 }, (_, index) => index + 1);
+
+  assert.equal(paginateItems(items, 1, 10).length, 10);
+  assert.equal(paginateItems(items, 2, 10).length, 10);
+  assert.deepEqual(paginateItems(items, 3, 10), [21, 22, 23, 24]);
 });
 
 test("changing page size recalculates the valid page", () => {

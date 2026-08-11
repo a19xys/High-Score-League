@@ -9,7 +9,6 @@ import {
   renderGameHeroIndicatorsRegion,
   renderGameIdentityRegion,
   renderGamePanel,
-  renderGameStatusRegion,
   renderGameVisualRegion,
   shouldRenderLibraryBrandFallback,
 } from "./components/game-panel.js";
@@ -52,8 +51,6 @@ import { assetIdentityMatches, createAssetPreloader } from "./asset-preloader.js
 import { classifyStartupSnapshot, createStartupReadiness } from "./startup-readiness.js";
 import {
   deriveLiveAnnouncement,
-  selectMembershipForPresentation,
-  shouldPreserveMembershipPresentation,
   shouldSurfaceAccountSwitchResult,
 } from "./product-presentation.js";
 import { createEphemeralLoginDraft } from "./login-draft.js";
@@ -691,19 +688,14 @@ function libraryRegionHtml(state) {
   };
 }
 
-function gameRegionHtml(state, previousState = null) {
-  const membership = selectMembershipForPresentation(state, previousState);
-  const regions = {
+function gameRegionHtml(state) {
+  return {
     "game-actions": renderGameActionsRegion(state),
     "game-activity": renderGameActivityRegion(state),
     "game-hero-indicators": renderGameHeroIndicatorsRegion(state),
     "game-identity": renderGameIdentityRegion(state),
     "game-visual": renderGameVisualRegion(state),
   };
-  if (!shouldPreserveMembershipPresentation(state, previousState)) {
-    regions["game-status"] = renderGameStatusRegion(state, membership);
-  }
-  return regions;
 }
 
 function primeRegions(regions) {
@@ -788,7 +780,7 @@ function mountRenderer(state) {
       <div class="library-resizer" data-sidebar-resizer role="separator" aria-orientation="vertical" aria-label="Ajustar anchura de biblioteca" aria-valuemin="${LIBRARY_SIDEBAR_MIN}" aria-valuemax="${LIBRARY_SIDEBAR_MAX}" aria-valuenow="${sidebarWidth}" tabindex="0"></div>
       <section class="game-panel-region">
         <div class="game-scroll" data-render-region="game-panel">
-          ${renderGamePanel(state, selectMembershipForPresentation(state))}
+          ${renderGamePanel(state)}
         </div>
       </section>
     </main>
@@ -802,7 +794,7 @@ function mountRenderer(state) {
   primeRegions({
     "busy-overlay": renderBusyOverlay(state),
     dialog: renderAppDialog(state),
-    "game-panel": renderGamePanel(state, selectMembershipForPresentation(state)),
+    "game-panel": renderGamePanel(state),
     "header-account": renderAccountControl(state),
     "header-connection": renderConnectionControl(state),
     "header-theme": renderThemeControl(state),
@@ -897,10 +889,9 @@ function render(nextState, changedKeys = []) {
 
   const nextDetailScrollKey = detailScrollKeyFromState(state);
   const nextGameStructureKey = gameStructureKey(state);
-  const membership = selectMembershipForPresentation(state, lastRenderedState);
   let gameLayoutChanged = false;
   if (nextGameStructureKey !== currentGameStructureKey) {
-    regionRenderer.render("game-panel", renderGamePanel(state, membership));
+    regionRenderer.render("game-panel", renderGamePanel(state));
     currentGameStructureKey = nextGameStructureKey;
     if (state.data?.game && nextDetailScrollKey) primeRegions(gameRegionHtml(state, lastRenderedState));
     if (currentDetailScrollKey && nextDetailScrollKey !== currentDetailScrollKey) {
@@ -912,7 +903,7 @@ function render(nextState, changedKeys = []) {
     const changed = renderRegions(gameRegionHtml(state, lastRenderedState));
     gameLayoutChanged = changed.has("game-identity") || changed.has("game-visual");
   } else {
-    gameLayoutChanged = regionRenderer.render("game-panel", renderGamePanel(state, membership));
+    gameLayoutChanged = regionRenderer.render("game-panel", renderGamePanel(state));
   }
   currentDetailScrollKey = nextDetailScrollKey;
 

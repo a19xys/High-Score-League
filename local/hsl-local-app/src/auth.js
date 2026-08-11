@@ -316,7 +316,7 @@ async function resolveCanonicalSessionResult(config, options = {}) {
       storedSession: current?.storedSession || null,
     });
   }
-  if (!userId) return createSessionResult({ status: "missing", reason: "no-active-account" });
+  if (!userId) return createSessionResult({ status: "missing", reason: "no-active-account", requiresLogin: false });
   return repository.resolve(userId, {
     connected: options.connected !== false,
     deferRemote: options.deferRemote === true,

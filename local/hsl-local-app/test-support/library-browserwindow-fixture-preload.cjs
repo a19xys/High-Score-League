@@ -10,6 +10,9 @@ let launcherStateListener = null;
 let selectionPhase = "initial";
 let switchAccountCalls = 0;
 let accountFixtureMode = "existing";
+let sessionFixtureMode = "valid";
+let membershipFixtureStatus = "member";
+const forgottenAccountIds = new Set();
 const fixtureAvatarUrl = process.env.HSL_ACCOUNT_AVATAR_FILE_URL || null;
 
 const titles = [
@@ -62,13 +65,19 @@ function snapshot({ samePack = false } = {}) {
     { displayName: "Cuenta disponible", email: "valid@example.test", hasLocalSession: true, initials: "RAF", isActive: activeUserId === "valid", userId: "valid" },
     { displayName: "Cuenta caducada inesperadamente", email: "expired@example.test", hasLocalSession: true, isActive: activeUserId === "expired", userId: "expired" },
     { displayName: "Cuenta con iniciales", email: "player.ygjpq@example.test", hasLocalSession: true, initials: "FUK", isActive: activeUserId === "typography", userId: "typography" },
+    { displayName: "Cuenta AA", email: "aa@example.test", hasLocalSession: true, initials: "AA", isActive: activeUserId === "aa", userId: "aa" },
+    { displayName: "Cuenta HSL", email: "hsl@example.test", hasLocalSession: true, initials: "HSL", isActive: activeUserId === "hsl", userId: "hsl" },
     { displayName: "Cuenta bloqueada", email: "relogin@example.test", hasLocalSession: false, isActive: false, requiresLogin: true, userId: "relogin" },
-  ];
-  const heroChecking = heroStatus === "checking";
+  ].filter((account) => !forgottenAccountIds.has(account.userId));
+  const noActiveSession = accountFixtureMode === "remembered";
+  const heroChecking = heroStatus === "checking" || membershipFixtureStatus === "checking";
   const heroError = heroStatus === "error";
   return {
     launcherStateRevision,
-    accounts: { activeUserId, knownAccounts: accounts },
+    accounts: {
+      activeUserId: noActiveSession ? null : activeUserId,
+      knownAccounts: noActiveSession ? accounts.map((account) => ({ ...account, isActive: false })) : accounts,
+    },
     autoSync: { status: "idle" },
     bridge: {},
     game: {
@@ -117,23 +126,40 @@ function snapshot({ samePack = false } = {}) {
           status: "checking",
           weekId: pack.weekId,
         }
-      : { canPlayCompetition: true, status: "member" },
+      : membershipFixtureStatus === "not_member"
+        ? { canPlayCompetition: false, canSubmit: false, status: "not_member", weekId: pack.weekId }
+        : membershipFixtureStatus === "unauthenticated"
+          ? { canPlayCompetition: false, canSubmit: false, status: "unauthenticated", weekId: pack.weekId }
+          : membershipFixtureStatus === "unknown"
+            ? { canPlayCompetition: true, canSubmit: false, remoteFailure: "fixture", status: "unknown", weekId: pack.weekId }
+            : { canPlayCompetition: true, status: "member" },
     notices: [],
     queue: { totals: { failed: 0, pending: 0, sent: 0 } },
     readiness: {
-      canPlayCompetition: !heroError && !heroChecking,
+      canPlayCompetition: !heroError && !heroChecking && !["not_member", "unauthenticated"].includes(membershipFixtureStatus),
       canPractice: !heroError,
       blockers: heroChecking ? ["Comprobando participaciÃ³n."] : [],
-      checks: heroError ? [{ id: "rom", level: "error" }] : [],
-      status: heroError ? "error" : heroChecking ? "blocked" : "ready",
+      checks: heroError
+        ? [{ id: "rom", level: "error" }]
+        : membershipFixtureStatus === "not_member"
+          ? [{ id: "membership", level: "error" }]
+          : membershipFixtureStatus === "unauthenticated"
+            ? [{ id: "session", level: "error" }]
+            : [],
+      status: heroError ? "error" : heroChecking || ["not_member", "unauthenticated"].includes(membershipFixtureStatus) ? "blocked" : "ready",
     },
     remoteConfiguration: { status: "configured" },
     selection: { activeInstanceKey: pack.instanceKey },
-    session: accountFixtureMode === "empty"
+    session: accountFixtureMode === "empty" || noActiveSession
       ? { hasSession: false, userId: null }
       : {
           email: accounts.find((account) => account.userId === activeUserId)?.email || "fixture@example.test",
           hasSession: true,
+          remoteUsable: sessionFixtureMode === "valid",
+          requiresLogin: false,
+          shouldRetry: sessionFixtureMode === "deferred",
+          status: sessionFixtureMode === "deferred" ? "deferred" : "ok",
+          terminal: false,
           userId: activeUserId,
         },
   };
@@ -173,7 +199,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   resolveThemeBootstrap: () => ({ effectiveTheme: "dark", mode: "manual" }),
   setLibraryPreferences: async () => ({ ok: true }),
   setAccountFixtureMode: async (mode) => {
-    accountFixtureMode = mode === "empty" ? "empty" : "existing";
+    accountFixtureMode = ["empty", "remembered"].includes(mode) ? mode : "existing";
     launcherStateRevision += 1;
     const state = snapshot();
     queueMicrotask(() => launcherStateListener?.({ state }));
@@ -185,6 +211,15 @@ contextBridge.exposeInMainWorld("hslLauncher", {
     const state = snapshot();
     queueMicrotask(() => launcherStateListener?.({ state }));
     return state;
+  },
+  removeKnownAccount: async (userId) => {
+    forgottenAccountIds.add(userId);
+    if (activeUserId === userId) {
+      const replacement = snapshot().accounts.knownAccounts.find((account) => account.hasLocalSession && !account.requiresLogin);
+      activeUserId = replacement?.userId || null;
+    }
+    launcherStateRevision += 1;
+    return { action: "remove-known-account", ok: true, state: snapshot(), summary: "Cuenta olvidada." };
   },
   setTheme: async (theme) => ({ effectiveTheme: theme === "light" ? "light" : "dark", ok: true }),
   switchAccount: async (userId) => {
@@ -235,6 +270,17 @@ contextBridge.exposeInMainWorld("hslFixture", {
   },
   emitHeroStatus(status) {
     heroStatus = ["checking", "error"].includes(status) ? status : "ready";
+    launcherStateRevision += 1;
+    launcherStateListener?.({ state: snapshot() });
+  },
+  emitMembershipStatus(status) {
+    membershipFixtureStatus = ["checking", "not_member", "unauthenticated", "unknown"].includes(status) ? status : "member";
+    heroStatus = "ready";
+    launcherStateRevision += 1;
+    launcherStateListener?.({ state: snapshot() });
+  },
+  emitSessionStatus(status) {
+    sessionFixtureMode = status === "deferred" ? "deferred" : "valid";
     launcherStateRevision += 1;
     launcherStateListener?.({ state: snapshot() });
   },

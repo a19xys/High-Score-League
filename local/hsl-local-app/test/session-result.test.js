@@ -64,6 +64,14 @@ test("terminal auth states cannot retain or expose a remote-usable secret", () =
   }
 });
 
+test("no-active-account is missing without impersonating a revoked remembered session", () => {
+  const noActive = createSessionResult({ reason: "no-active-account", requiresLogin: false, status: "missing" });
+  const missingCanonical = createSessionResult({ reason: "canonical-session-missing", status: "missing" });
+  assert.equal(noActive.requiresLogin, false);
+  assert.equal(noActive.hasLocalSession, false);
+  assert.equal(missingCanonical.requiresLogin, true);
+});
+
 test("recovery, provider and storage states remain locally explicit but never remotely usable", () => {
   const recovery = createSessionResult({ status: "recovery-required" });
   assert.equal(recovery.hasLocalSession, true);

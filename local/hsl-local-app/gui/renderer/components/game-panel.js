@@ -10,7 +10,6 @@ import {
   renderAvailabilityButton,
   renderBlockingReasons,
   renderContextNotice,
-  renderStatusBadge,
 } from "./status-primitives.js";
 
 function renderHeroLogo(game, selection) {
@@ -268,23 +267,6 @@ export function renderGameHeroIndicatorsRegion(state) {
   `;
 }
 
-function stateWithMembershipPresentation(state, membership) {
-  if (!state.data || membership === state.data.membership) return state;
-  return { ...state, data: { ...state.data, membership } };
-}
-
-export function renderGameStatusRegion(state, membership = state.data?.membership) {
-  const status = deriveGameSummaryPresentation(stateWithMembershipPresentation(state, membership));
-
-  if (["checking", "competition-ready", "duplicate", "invalid", "mame-unavailable"].includes(status.status)) return "";
-
-  return `
-    <div class="badge-row">
-      ${renderStatusBadge(status)}
-    </div>
-  `;
-}
-
 export function renderGameIdentityRegion(state) {
   const data = state.data || {};
   const game = data.game || {};
@@ -325,7 +307,7 @@ export function renderGameActivityRegion(state) {
   return renderActivitySummaryCard(state);
 }
 
-export function renderGamePanel(state, membership = state.data?.membership) {
+export function renderGamePanel(state) {
   const data = state.data;
 
   if (!data) {
@@ -393,7 +375,6 @@ export function renderGamePanel(state, membership = state.data?.membership) {
         <div class="game-hero-indicators-region" data-render-region="game-hero-indicators">${renderGameHeroIndicatorsRegion(state)}</div>
       </div>
       <div class="game-detail-body">
-        <div class="render-region-contents" data-render-region="game-status">${renderGameStatusRegion(state, membership)}</div>
         <div class="render-region-contents" data-render-region="game-identity">${renderGameIdentityRegion(state)}</div>
         <div class="render-region-contents" data-render-region="game-actions">${renderGameActionsRegion(state)}</div>
         <div class="render-region-contents" data-render-region="game-activity">${renderGameActivityRegion(state)}</div>

@@ -140,7 +140,6 @@ test("favorite and competition-ready render together in the hero with star and c
     deriveGameHeroStatusPresentation,
     renderGameHeroIndicatorsRegion,
     renderGameIdentityRegion,
-    renderGameStatusRegion,
   } = await gamePanelApi();
   const ready = state();
   const indicators = renderGameHeroIndicatorsRegion(ready);
@@ -157,7 +156,6 @@ test("favorite and competition-ready render together in the hero with star and c
   assert.match(indicators, /aria-label="Pack listo"/);
   assert.match(indicators, /title="Pack listo"/);
   assert.deepEqual(status, { accessibleLabel: "Pack listo", icon: "check", label: "Listo", severity: "success", status: "ready" });
-  assert.equal(renderGameStatusRegion(ready), "");
   assert.doesNotMatch(renderGameIdentityRegion(ready), /star-filled|Favorito|game-favorite-mark/);
 });
 
@@ -165,7 +163,7 @@ test("checking moves to the hero while account states remain explanatory below",
   const {
     deriveGameHeroStatusPresentation,
     renderGameHeroIndicatorsRegion,
-    renderGameStatusRegion,
+    renderGamePanel,
   } = await gamePanelApi();
   const readyNotFavorite = state({ data: { game: { ...state().data.game, favorite: false } } });
   const checkingFavorite = checkingState();
@@ -226,16 +224,17 @@ test("checking moves to the hero while account states remain explanatory below",
   assert.doesNotMatch(renderGameHeroIndicatorsRegion(notMember), /game-hero-indicator--status|>Error|>Listo|>\.\.\.</);
   assert.equal(deriveGameHeroStatusPresentation(notMember), null);
   assert.equal(deriveGameHeroStatusPresentation(requiresLogin), null);
-  assert.equal(renderGameStatusRegion(checkingFavorite), "");
-  assert.match(renderGameStatusRegion(notMember), /No participas en la temporada/);
-  assert.match(renderGameStatusRegion(requiresLogin), /Vuelve a iniciar sesión/);
+  for (const fixture of [checkingFavorite, notMember, requiresLogin]) {
+    const detail = renderGamePanel(fixture);
+    assert.doesNotMatch(detail, /data-render-region="game-status"/);
+    assert.match(detail, /game-detail-body">\s*<div class="render-region-contents" data-render-region="game-identity"/);
+  }
 });
 
 test("pack errors have precedence and collapse to one generic hero status", async () => {
   const {
     deriveGameHeroStatusPresentation,
     renderGameHeroIndicatorsRegion,
-    renderGameStatusRegion,
   } = await gamePanelApi();
   const errors = errorState();
   const checkingWithErrors = state({
@@ -262,7 +261,6 @@ test("pack errors have precedence and collapse to one generic hero status", asyn
   assert.doesNotMatch(html, /MAME no disponible|Falta la ROM|runtime-shared|rom-file/);
   assert.match(checkingHtml, /game-hero-indicator--error/);
   assert.doesNotMatch(checkingHtml, />\.\.\.|>Listo/);
-  assert.equal(renderGameStatusRegion(errors), "");
 });
 
 test("hero indicators are a sibling region and never alter visual asset HTML", async () => {
@@ -305,9 +303,9 @@ test("hero indicators are a sibling region and never alter visual asset HTML", a
   assert.equal(regions.get("game-visual").writes, 0);
   assert.equal(regions.get("game-hero-indicators").writes, 3);
   assert.match(renderGamePanel(ready), /game-hero-shell[\s\S]*data-render-region="game-visual"[\s\S]*data-render-region="game-hero-indicators"/);
-  assert.doesNotMatch(renderGamePanel(ready), /data-render-region="game-status">\s*<div class="badge-row"/);
-  assert.doesNotMatch(renderGamePanel(checking), /data-render-region="game-status">\s*<div class="badge-row"/);
-  assert.doesNotMatch(renderGamePanel(errors), /data-render-region="game-status">\s*<div class="badge-row"/);
+  assert.doesNotMatch(renderGamePanel(ready), /data-render-region="game-status"/);
+  assert.doesNotMatch(renderGamePanel(checking), /data-render-region="game-status"/);
+  assert.doesNotMatch(renderGamePanel(errors), /data-render-region="game-status"/);
 });
 
 test("the hero gives every logo ratio a bounded safe area beside the indicator lane", () => {
@@ -356,8 +354,7 @@ test("responsive indicators remain CSS pills and icon-only circles without inter
   assert.match(styles, /@container hero-indicator-lane \(max-width: 120px\)[\s\S]*game-hero-indicator--favorite/);
   assert.doesNotMatch(styles, /game-hero-indicator[^}]*width: 40px|game-hero-indicator[^}]*height: 40px/);
   assert.match(styles, /\.game-hero-indicator__icon\.ui-icon\s*\{[^}]*width: 17px[^}]*height: 17px[^}]*flex: 0 0 17px/);
-  assert.match(styles, /\.game-hero-indicator--favorite \.game-hero-indicator__icon\.ui-icon\s*\{[^}]*width: 19px[^}]*height: 19px[^}]*flex: 0 0 19px/);
-  assert.doesNotMatch(styles, /\.game-hero-indicator--favorite \.game-hero-indicator__icon\.ui-icon\s*\{[^}]*--icon-optical-[xy]/);
+  assert.match(styles, /\.game-hero-indicator--favorite \.game-hero-indicator__icon\.ui-icon\s*\{[^}]*--hero-indicator-icon-size: 20px/);
   assert.doesNotMatch(styles, /@container game-hero \(max-width: (?:360|520)px\)/);
   assert.match(styles, /\.game-hero-indicators-region[\s\S]*pointer-events: none/);
   assert.match(styles, /\.game-hero-indicator[\s\S]*cursor: default[\s\S]*pointer-events: none/);

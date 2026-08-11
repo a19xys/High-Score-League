@@ -4,6 +4,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  classifySessionRefreshError,
   getAuthState,
   logoutLocal,
   saveSession,
@@ -139,8 +140,28 @@ test("getAuthState returns disconnected state when no session exists", async () 
 
     assert.equal(state.hasSession, false);
     assert.equal(state.status, "missing");
+    assert.equal(state.requiresLogin, false);
     assert.equal(JSON.stringify(state).includes("access_token"), false);
   });
+});
+
+test("refresh errors only require login when provider evidence is conclusive", () => {
+  const recoverable = [
+    Object.assign(new Error("timeout"), { failureType: "timeout" }),
+    Object.assign(new Error("rate limit"), { providerCode: "rate_limit", status: 429 }),
+    Object.assign(new Error("provider down"), { providerCode: "provider_unavailable", status: 503 }),
+    Object.assign(new Error("transport"), { code: "ENOTFOUND" }),
+    Object.assign(new Error("cancelled"), { name: "AbortError" }),
+  ];
+  for (const error of recoverable) assert.equal(classifySessionRefreshError(error).transient, true);
+
+  for (const code of ["invalid_refresh_token", "refresh_token_not_found", "refresh_token_revoked"]) {
+    assert.deepEqual(classifySessionRefreshError({ providerCode: code, status: 401 }), {
+      reason: "refresh-token-rejected",
+      status: "revoked",
+      transient: false,
+    });
+  }
 });
 
 test("getAuthState returns connected state without exposing tokens", async () => {

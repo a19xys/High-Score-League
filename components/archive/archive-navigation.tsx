@@ -17,7 +17,7 @@ const sections: Array<{
 export function ArchiveNavigation({
   activeSection,
 }: {
-  activeSection: ArchiveSection;
+  activeSection: ArchiveSection | null;
 }) {
   return (
     <nav

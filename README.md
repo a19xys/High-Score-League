@@ -45,8 +45,9 @@ http://localhost:3000
 
 - `/`: landing publica sin sesion; home real con sesion.
 - `/game`: redirige a la semana activa real.
-- `/archive`: landing privada del archivo con accesos a semanas y temporadas.
-- `/archive/weeks`: archivo canónico de semanas, con filtro por año.
+- `/archive`: shell neutral del archivo, sin sección seleccionada.
+- `/archive/weeks`: archivo canónico de semanas, destino de `ARCHIVO` en la
+  navegación principal y con filtro por año.
 - `/archive/seasons`: archivo canónico de temporadas, con filtro por año.
 - `/weeks`, `/seasons`, `/season` y los antiguos parámetros `section` mantienen
   redirecciones permanentes de compatibilidad.

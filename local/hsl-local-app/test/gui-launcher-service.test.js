@@ -1229,7 +1229,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.equal(/renderIcon\("heart|game-favorite-chip/.test(gamePanel), false);
   assert.equal(/badge badge-muted week-chip/.test(gamePanel), false);
   assert.match(presentation, /"open-manual", "Manual", "manual"/);
-  assert.match(gamePanel, /renderStatusBadge\(status\)/);
+  assert.doesNotMatch(gamePanel, /renderGameStatusRegion|data-render-region="game-status"|renderStatusBadge\(status\)/);
+  assert.match(queuePanel, /renderStatusBadge/);
   assert.match(gamePanel, /function renderPackErrors\(game, readiness, bridge\)/);
   assert.match(presentation, /Pack duplicado/);
   assert.doesNotMatch(gamePanel, /duplicatePaths|pack-error-paths/);

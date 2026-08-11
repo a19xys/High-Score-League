@@ -60,6 +60,16 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
 
     const result = await writeDiagnosticReport(config, report, {
       remoteDiagnostics: {
+        sessions: {
+          repository: {
+            requiresLoginTransitions: [{
+              nextStatus: "revoked",
+              providerCode: "refresh_token_revoked",
+              refresh_token: "must-not-persist",
+              userHash: "user_safehash",
+            }],
+          },
+        },
         connectivity: {
           checkedAt: "2026-07-03T21:14:20.000Z",
           displayStatus: "connected",
@@ -138,6 +148,9 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.library.packCount, 2);
     assert.equal(saved.library.selection.activeInstanceKey, "instance-pack-b");
     assert.equal(saved.library.selection.rememberedInstanceKey, "instance-pack-b");
+    assert.equal(saved.accountSessions.repository.requiresLoginTransitions[0].providerCode, "refresh_token_revoked");
+    assert.equal(saved.accountSessions.repository.requiresLoginTransitions[0].userHash, "user_safehash");
+    assert.equal(saved.accountSessions.repository.requiresLoginTransitions[0].refresh_token, undefined);
     assert.equal(saved.library.selection.source, "remembered");
     assert.equal(saved.mame.sharedRuntime.available, true);
     assert.equal(saved.pack.packRoot, config.packRoot);
@@ -151,7 +164,7 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.securityPolicy.rendererConnectAllowed, false);
     assert.equal(saved.session.hasSession, true);
     assert.match(saved.session.userId, /^user-1\.\.\./);
-    assert.equal(/access_token|refresh_token|Authorization|secret-token|secret-access-token|secret-refresh-token/.test(raw), false);
+    assert.equal(/"(?:access_token|refresh_token|Authorization)"\s*:|secret-token|secret-access-token|secret-refresh-token|must-not-persist/.test(raw), false);
     assert.deepEqual(await listDiagnosticReports(config), [result.filePath]);
   });
 });

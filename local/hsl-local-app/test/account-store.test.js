@@ -238,12 +238,16 @@ test("estado renderer solo pide login para fallos concluyentes con pendientes", 
     sessionStatuses: new Map([["user-1", { pendingCount: 0, status: "revoked" }]]),
   });
   const revoked = toSafeAccountsState(store, {}, {
-    sessionStatuses: new Map([["user-1", { pendingCount: 1, status: "revoked" }]]),
+    sessionStatuses: new Map([["user-1", { pendingCount: 1, requiresLogin: true, status: "revoked" }]]),
+  });
+  const unavailableWithPending = toSafeAccountsState(store, {}, {
+    sessionStatuses: new Map([["user-1", { pendingCount: 2, requiresLogin: false, status: "unavailable" }]]),
   });
 
   assert.equal(temporary.knownAccounts[0].requiresLogin, false);
   assert.equal(revokedWithoutPending.knownAccounts[0].requiresLogin, false);
   assert.equal(revoked.knownAccounts[0].requiresLogin, true);
+  assert.equal(unavailableWithPending.knownAccounts[0].requiresLogin, false);
   assert.match(revoked.knownAccounts[0].requiresLoginMessage, /puntuaciones pendientes/);
   assert.equal(JSON.stringify(revoked).includes("token"), false);
 });

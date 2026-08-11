@@ -866,15 +866,20 @@ async function profileAccountSmoke(window) {
   const style = (selector) => window.webContents.executeJavaScript(`(() => {
     const element = document.querySelector(${JSON.stringify(selector)});
     const value = getComputedStyle(element);
-    return { background: value.backgroundColor, border: value.borderColor, color: value.color, outline: value.outline };
+    return { background: value.backgroundColor, border: value.borderColor, color: value.color, outline: value.outline, transform: value.transform };
   })()`);
-  const results = { empty: {}, existing: {} };
+  const results = { empty: {}, existing: {}, remembered: {} };
   for (const theme of ["dark", "light"]) {
     await window.webContents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
     await window.webContents.executeJavaScript("if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
     await waitFor(window, "document.querySelector('[data-account-menu] .account-mini-avatar__image')?.complete");
     await delay(190);
     await waitForFrames(window, 2);
+    const chevronOpen = await style('.session-chip__chevron');
+    await movePointerAway();
+    const addAccountIdle = await style('[data-action="add-account"]');
+    await movePointerTo('[data-action="add-account"]');
+    const addAccountHover = await style('[data-action="add-account"]');
     await movePointerAway();
     const activeIdle = await style('.account-row--active .account-row__surface');
     await movePointerTo('.account-row--active .account-row__button');
@@ -902,11 +907,16 @@ async function profileAccountSmoke(window) {
         source: document.querySelector('.account-row--active .account-mini-avatar__image')?.src || null,
       },
       fallback: document.querySelector('[data-action="switch-account"][data-user-id="valid"] .account-mini-avatar')?.textContent.trim(),
-      fallbackCenters: [...document.querySelectorAll('.account-mini-avatar__fallback')].map((fallback) => {
-        const avatar = fallback.closest('.account-mini-avatar').getBoundingClientRect();
-        const content = fallback.getBoundingClientRect();
+      fallbackCenters: [...document.querySelectorAll('.account-mini-avatar__initials')].map((initials) => {
+        const avatarElement = initials.closest('.account-mini-avatar');
+        const avatar = avatarElement.getBoundingClientRect();
+        const content = initials.getBoundingClientRect();
         return {
-          text: fallback.textContent.trim(),
+          background: getComputedStyle(avatarElement).backgroundColor,
+          bottomInset: avatar.bottom - content.bottom,
+          lineHeight: getComputedStyle(initials).lineHeight,
+          text: initials.textContent.trim(),
+          topInset: content.top - avatar.top,
           x: (content.left + content.width / 2) - (avatar.left + avatar.width / 2),
           y: (content.top + content.height / 2) - (avatar.top + avatar.height / 2),
         };
@@ -939,19 +949,27 @@ async function profileAccountSmoke(window) {
       };
     })()`);
     const submitIdle = await style('.account-login-submit');
+    const cancelIdle = await style('[data-action="cancel-login"]');
     await movePointerTo('.account-login-submit');
     const submitHover = await style('.account-login-submit');
+    await movePointerTo('[data-action="cancel-login"]');
+    const cancelHover = await style('[data-action="cancel-login"]');
     await capture(window, `accounts-existing-${theme}.png`);
     await window.webContents.executeJavaScript("document.querySelector('[data-action=\"cancel-login\"]')?.click()");
     await waitFor(window, "!document.querySelector('[data-account-menu]')");
+    await delay(190);
+    await waitForFrames(window, 2);
+    const chevronClosed = await style('.session-chip__chevron');
+    await capture(window, `accounts-closed-${theme}.png`);
     results.existing[theme] = {
-      activeHover, activeIdle, avatars, forgetFocus, forgetHover, form, innerHover,
+      activeHover, activeIdle, addAccountHover, addAccountIdle, avatars, cancelHover, cancelIdle,
+      chevronClosed, chevronOpen, forgetFocus, forgetHover, form, innerHover,
       mainFocus, rowForgetHover, rowHover, submitHover, submitIdle,
     };
   }
 
   results.activeFallbacks = {};
-  for (const [userId, initials] of [["valid", "RAF"], ["typography", "FUK"]]) {
+  for (const [userId, initials] of [["valid", "RAF"], ["typography", "FUK"], ["aa", "AA"], ["hsl", "HSL"]]) {
     await window.webContents.executeJavaScript(`window.hslLauncher.setActiveFixtureAccount(${JSON.stringify(userId)})`);
     await waitFor(window, `document.querySelector('[data-action="toggle-account-menu"] .account-mini-avatar__fallback')?.textContent.trim() === ${JSON.stringify(initials)}`);
     await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
@@ -962,9 +980,12 @@ async function profileAccountSmoke(window) {
       ['row', document.querySelector('.account-row--active .account-mini-avatar__fallback')],
     ].map(([name, fallback]) => {
       const avatar = fallback.closest('.account-mini-avatar').getBoundingClientRect();
-      const content = fallback.getBoundingClientRect();
+      const content = fallback.querySelector('.account-mini-avatar__initials').getBoundingClientRect();
       return [name, {
+        bottomInset: avatar.bottom - content.bottom,
+        lineHeight: getComputedStyle(fallback).lineHeight,
         text: fallback.textContent.trim(),
+        topInset: content.top - avatar.top,
         x: (content.left + content.width / 2) - (avatar.left + avatar.width / 2),
         y: (content.top + content.height / 2) - (avatar.top + avatar.height / 2),
       }];
@@ -972,8 +993,82 @@ async function profileAccountSmoke(window) {
     await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
   }
 
+  await window.webContents.executeJavaScript(`(async () => {
+    await window.hslLauncher.setAccountFixtureMode('existing');
+    await window.hslLauncher.setActiveFixtureAccount('fixture');
+    if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action="toggle-account-menu"]')?.click();
+  })()`);
+  await waitFor(window, "document.querySelector('[data-action=\"remove-known-account\"][data-user-id=\"fixture\"]')");
+  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"remove-known-account\"][data-user-id=\"fixture\"]')?.click()");
+  await waitFor(window, "document.querySelector('[data-action=\"confirm-forget-account\"]')");
+  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"confirm-forget-account\"]')?.click()");
+  await waitFor(window, "document.querySelector('[data-action=\"toggle-account-menu\"]')?.title.includes('valid@example.test')", 8_000);
+  await window.webContents.executeJavaScript("if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
+  await waitFor(window, "document.querySelector('.account-row--active [data-action=\"remove-known-account\"][data-user-id=\"valid\"]')");
+  results.replacement = await window.webContents.executeJavaScript(`(() => ({
+    activeTitle: document.querySelector('[data-action="toggle-account-menu"]')?.title || '',
+    emptyUserVisible: Boolean(document.querySelector('[data-action="toggle-account-menu"] .account-mini-avatar--empty-user')),
+    forgotA: !document.querySelector('[data-user-id="fixture"]'),
+    noSessionCopy: document.body.innerText.includes('Sin sesiÃƒÂ³n'),
+    replacementActive: Boolean(document.querySelector('[data-user-id="valid"]')?.closest('.account-row--active')),
+    sessionActionRequired: Boolean(document.querySelector('.account-session-state')),
+  }))()`);
+
+  await window.webContents.executeJavaScript("window.hslFixture.emitSessionStatus('deferred')");
+  await waitForFrames(window, 3);
+  const deferredSession = await window.webContents.executeJavaScript(`(() => ({
+    accountRequiresLogin: Boolean(document.querySelector('.account-row--active .account-row__session-warning')),
+    actionRequired: Boolean(document.querySelector('.account-session-state')),
+    bodyRequiresLogin: document.body.innerText.includes('Requiere iniciar sesiÃƒÂ³n'),
+    title: document.querySelector('[data-action="toggle-account-menu"]')?.title || '',
+  }))()`);
+  await window.webContents.executeJavaScript("window.hslFixture.emitSessionStatus('valid')");
+  await waitForFrames(window, 3);
+  results.transientSession = {
+    deferred: deferredSession,
+    recoveredTitle: await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.title || ''"),
+  };
+
+  await window.webContents.executeJavaScript("window.hslLauncher.setAccountFixtureMode('remembered')");
+  await waitFor(window, "document.querySelector('[data-action=\"toggle-account-menu\"] .account-mini-avatar--empty-user')");
+  for (const theme of ["dark", "light"]) {
+    await window.webContents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
+    if (await window.webContents.executeJavaScript("Boolean(document.querySelector('[data-account-menu]'))")) {
+      await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
+    }
+    await waitForFrames(window, 2);
+    const closedTransform = await window.webContents.executeJavaScript("getComputedStyle(document.querySelector('.session-chip__chevron')).transform");
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
+    await waitFor(window, "document.querySelector('.account-menu__active .account-mini-avatar--empty-user')");
+    await delay(190);
+    await waitForFrames(window, 2);
+    results.remembered[theme] = await window.webContents.executeJavaScript(`(() => {
+      const headerAvatar = document.querySelector('[data-action="toggle-account-menu"] .account-mini-avatar--empty-user');
+      const menuAvatar = document.querySelector('.account-menu__active .account-mini-avatar--empty-user');
+      const measure = (avatar) => {
+        const avatarRect = avatar.getBoundingClientRect();
+        const iconRect = avatar.querySelector('.account-icon').getBoundingClientRect();
+        return {
+          avatarHeight: avatarRect.height,
+          avatarWidth: avatarRect.width,
+          background: getComputedStyle(avatar).backgroundColor,
+          iconHeight: iconRect.height,
+          iconWidth: iconRect.width,
+        };
+      };
+      return {
+        closedTransform: ${JSON.stringify("__CLOSED_TRANSFORM__")},
+        header: measure(headerAvatar),
+        menu: measure(menuAvatar),
+        openTransform: getComputedStyle(document.querySelector('.session-chip__chevron')).transform,
+        toggleActions: document.querySelectorAll('[data-action="toggle-account-menu"]').length,
+      };
+    })()`.replace(JSON.stringify("__CLOSED_TRANSFORM__"), JSON.stringify(closedTransform)));
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
+  }
+
   await window.webContents.executeJavaScript("window.hslLauncher.setAccountFixtureMode('empty')");
-  await waitFor(window, "document.querySelector('.account-mini-avatar--session-empty')");
+  await waitFor(window, "document.querySelector('.session-chip .account-mini-avatar--empty-user')");
   for (const theme of ["dark", "light"]) {
     await window.webContents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
     await window.webContents.executeJavaScript("if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action=\"toggle-account-menu\"]')?.click()");
@@ -981,7 +1076,7 @@ async function profileAccountSmoke(window) {
     await waitForFrames(window, 2);
     const empty = await window.webContents.executeJavaScript(`(() => {
       const menu = document.querySelector('.account-menu--empty');
-      const avatar = document.querySelector('.account-mini-avatar--session-empty');
+      const avatar = document.querySelector('.session-chip .account-mini-avatar--empty-user');
       const icon = avatar.querySelector('.account-icon');
       const avatarRect = avatar.getBoundingClientRect();
       const iconRect = icon.getBoundingClientRect();
@@ -1014,6 +1109,27 @@ async function profileAccountSmoke(window) {
     await window.webContents.executeJavaScript("document.querySelector('[data-action=\"cancel-login\"]')?.click()");
     results.empty[theme] = { ...empty, reopened };
   }
+
+  await window.webContents.executeJavaScript(`(async () => {
+    await window.hslLauncher.setAccountFixtureMode('existing');
+    await window.hslLauncher.setActiveFixtureAccount('valid');
+  })()`);
+  results.detail = {};
+  for (const status of ["not_member", "unauthenticated", "unknown", "checking"]) {
+    await window.webContents.executeJavaScript(`window.hslFixture.emitMembershipStatus(${JSON.stringify(status)})`);
+    await waitForFrames(window, 3);
+    results.detail[status] = await window.webContents.executeJavaScript(`(() => {
+      const body = document.querySelector('.game-detail-body');
+      const first = body?.firstElementChild;
+      return {
+        firstRegion: first?.dataset.renderRegion || null,
+        heroChecking: Boolean(document.querySelector('.game-hero-indicator--checking')),
+        legacyRegions: document.querySelectorAll('[data-render-region="game-status"]').length,
+        title: document.querySelector('.game-title-main h2')?.textContent || '',
+      };
+    })()`);
+  }
+  await capture(window, "detail-no-legacy-status.png");
   return results;
 }
 

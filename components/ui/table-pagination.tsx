@@ -46,65 +46,57 @@ export function TablePagination({
         </span>
       </div>
 
-      <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3 sm:flex sm:justify-end sm:gap-2">
-        <button
-          aria-label="Página anterior"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-md border text-lg font-bold transition theme-border theme-surface theme-text theme-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit disabled:cursor-not-allowed disabled:opacity-40 sm:order-3 sm:min-h-10 sm:w-auto sm:min-w-10 sm:px-3"
-          disabled={safePage === 1}
-          onClick={() => onPageChange(safePage - 1)}
-          type="button"
-        >
-          <span aria-hidden="true">‹</span>
-        </button>
+      <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        <span aria-hidden="true" className="hidden sm:block" />
 
-        <span
-          aria-hidden="true"
-          className="min-w-0 whitespace-nowrap text-center text-sm font-semibold tabular-nums theme-text sm:hidden"
-        >
-          {firstVisibleItem}–{lastVisibleItem} de {totalItems}
-        </span>
+        <div className="contents sm:flex sm:items-center sm:gap-2">
+          <button
+            aria-label="Página anterior"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md border text-lg font-bold transition theme-border theme-surface theme-text theme-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10"
+            disabled={safePage === 1}
+            onClick={() => onPageChange(safePage - 1)}
+            type="button"
+          >
+            <span aria-hidden="true">‹</span>
+          </button>
 
-        <div className="hidden items-center gap-3 text-sm font-medium theme-text-muted sm:order-1 sm:flex">
-          <span aria-hidden="true" className="whitespace-nowrap tabular-nums">
+          <span
+            aria-hidden="true"
+            className="min-w-0 whitespace-nowrap text-center text-sm font-semibold tabular-nums theme-text"
+          >
             {firstVisibleItem}–{lastVisibleItem} de {totalItems}
           </span>
-          <label className="flex items-center gap-2">
-            <select
-              aria-label="Envíos por página"
-              className="min-h-10 rounded-md border px-2 py-1.5 theme-input focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
-              onChange={(event) =>
-                onPageSizeChange(normalizePageSize(event.target.value))
-              }
-              value={pageSize}
-            >
-              {TABLE_PAGE_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-            <span aria-hidden="true" className="whitespace-nowrap">
-              por página
-            </span>
-          </label>
+
+          <button
+            aria-label="Página siguiente"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md border text-lg font-bold transition theme-border theme-surface theme-text theme-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:w-10"
+            disabled={safePage === totalPages}
+            onClick={() => onPageChange(safePage + 1)}
+            type="button"
+          >
+            <span aria-hidden="true">›</span>
+          </button>
         </div>
 
-        <span
-          aria-hidden="true"
-          className="hidden whitespace-nowrap text-center text-sm font-semibold tabular-nums theme-text sm:order-4 sm:inline"
-        >
-          {safePage} / {totalPages}
-        </span>
-
-        <button
-          aria-label="Página siguiente"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-md border text-lg font-bold transition theme-border theme-surface theme-text theme-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit disabled:cursor-not-allowed disabled:opacity-40 sm:order-5 sm:min-h-10 sm:w-auto sm:min-w-10 sm:px-3"
-          disabled={safePage === totalPages}
-          onClick={() => onPageChange(safePage + 1)}
-          type="button"
-        >
-          <span aria-hidden="true">›</span>
-        </button>
+        <label className="hidden items-center justify-self-end gap-2 text-sm font-medium theme-text-muted sm:flex">
+          <select
+            aria-label="Envíos por página"
+            className="min-h-10 rounded-md border px-2 py-1.5 theme-input focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
+            onChange={(event) =>
+              onPageSizeChange(normalizePageSize(event.target.value))
+            }
+            value={pageSize}
+          >
+            {TABLE_PAGE_SIZES.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+          <span aria-hidden="true" className="whitespace-nowrap">
+            por página
+          </span>
+        </label>
       </div>
     </nav>
   );

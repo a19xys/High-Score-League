@@ -2,16 +2,17 @@
 
 ## Archivo de la liga
 
-La navegación autenticada reúne el historial bajo un único acceso `ARCHIVO`.
-`/archive` es una landing privada y ligera: no consulta semanas ni temporadas y
-ofrece dos tarjetas grandes para elegir sección:
+La navegación autenticada reúne el historial bajo `ARCHIVO`. Las tres rutas son
+reales y comparten el mismo shell visual:
 
-- `/archive/weeks`: Semanas;
-- `/archive/seasons`: Temporadas.
+- `/archive`: shell neutral, sin sección seleccionada ni consulta de datos;
+- `/archive/weeks`: Semanas seleccionada y contenido semanal;
+- `/archive/seasons`: Temporadas seleccionada y contenido de temporadas.
 
-Cada subpágina consulta únicamente sus propios datos y conserva tabs secundarios
-con enlaces reales. Las URLs copiadas, la recarga y Atrás/Adelante funcionan sin
-estado React ni parámetros de consulta.
+La navegación superior lleva directamente a `/archive/weeks`. El breadcrumb
+`Archivo` enlaza a `/archive`, que es la entrada deliberada al estado neutral.
+El selector secundario sólo contiene Semanas y Temporadas; en la raíz ninguna
+tiene `aria-current` ni estilo activo.
 
 Compatibilidad mediante redirecciones permanentes:
 
@@ -62,7 +63,7 @@ Jerarquías públicas:
 
 `SubmissionsTable` pagina todas sus instancias de forma compartida. Muestra 10
 filas inicialmente y permite seleccionar 25 o 50; 50 es el máximo expuesto. El
-control se oculta cuando hay 10 envíos o menos.
+footer se oculta cuando hay 10 envíos o menos.
 
 El orden de procesamiento es deliberado:
 
@@ -72,17 +73,28 @@ El orden de procesamiento es deliberado:
 4. cálculo global de mejores intentos y visibilidad;
 5. orden global seleccionado;
 6. ajuste de página y paginación;
-7. render del segmento visible.
+7. render del segmento real;
+8. render de slots vacíos puramente presentacionales.
 
 Cambiar el orden o el tamaño vuelve a página 1. Si cambian los datos, la página
 se limita a la última existente. En móvil sólo se muestran los botones anterior
-y siguiente y el rango centrado (`1–10 de 39`) en una cuadrícula
-`44px / 1fr / 44px`. En escritorio se muestra `1–10 de 39`, el selector
-`[10] por página` y `[‹] 1 / 4 [›]`.
+y siguiente y el rango centrado (`1–10 de 24`) en una cuadrícula
+`44px / 1fr / 44px`.
 
-El texto completo para lectores de pantalla anuncia “Mostrando elementos X a Y
-de Z” y “Página X de Y” en una única región viva. El selector conserva la
-etiqueta accesible “Envíos por página” y los botones tienen nombres explícitos.
+En escritorio se usa una cuadrícula `1fr / auto / 1fr`: navegación
+`[‹] 1–10 de 24 [›]` en el centro geométrico y selector `[10] por página`
+alineado al extremo derecho. No se muestra ningún indicador `1 / 3`.
+
+El resumen para lectores de pantalla anuncia el rango real y la página. El
+selector conserva la etiqueta accesible “Envíos por página” y los botones tienen
+nombres explícitos.
+
+Cuando existe al menos un submission, la tabla completa la página elegida con
+filas vacías después del corte real. Así, 24/10 termina en 4 filas reales y 6
+vacías; 39/25, en 14 y 11; y 4/10 muestra 4 y 6 sin footer. Con cero submissions
+se mantiene el `EmptyState` y no se crean filas. Estos slots son filas con
+`aria-hidden="true"`, sin contenido ni interacción, y no entran en ningún array
+de dominio, conteo, orden, intento, score o regla de visibilidad.
 
 La columna se llama siempre `Intentos` y su control accesible es `Ordenar por
 intentos`. El perfil propio entrega todos los envíos válidos ya cargados, sin el

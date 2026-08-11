@@ -28,8 +28,9 @@ resultados oficiales.
 `/archive/weeks` lee `public.weeks`, `public.seasons` y `public.games`. Las semanas de
 temporadas `draft` no aparecen. Las semanas secretas, futuras o sin `game_id`
 no revelan juego y se muestran como `Por anunciar`. Cada ruta carga solo su
-fuente. `/archive`, `/weeks`, `/seasons` y `/season` redirigen permanentemente
-a la sección canónica correspondiente.
+  fuente. `/archive` es un shell neutral sin consulta de datos; `/weeks`,
+  `/seasons` y `/season` redirigen permanentemente a la sección canónica
+  correspondiente.
 
 `/weeks/[weekId]` lee semana, temporada, juego, submissions, benchmarks y
 `weekly_results` reales. Si la semana no existe o esta oculta, muestra estado
