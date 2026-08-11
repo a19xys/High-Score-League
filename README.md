@@ -45,10 +45,10 @@ http://localhost:3000
 
 - `/`: landing publica sin sesion; home real con sesion.
 - `/game`: redirige a la semana activa real.
-- `/archive`: shell neutral del archivo, sin sección seleccionada.
-- `/archive/weeks`: archivo canónico de semanas, destino de `ARCHIVO` en la
-  navegación principal y con filtro por año.
-- `/archive/seasons`: archivo canónico de temporadas, con filtro por año.
+- `/archive#weeks`: estado inicial del workspace Archivo, destino de `ARCHIVO`
+  y archivo semanal con filtro por año.
+- `/archive#seasons`: panel instantáneo de temporadas con filtro por año.
+- `/archive` se normaliza en cliente a `#weeks`; no existe una vista neutral.
 - `/weeks`, `/seasons`, `/season` y los antiguos parámetros `section` mantienen
   redirecciones permanentes de compatibilidad.
 - `/weeks/[weekId]`: detalle real de semana con leaderboard, submissions,
@@ -81,7 +81,8 @@ falla realmente.
 
 Los avatares y las imágenes administrables de juegos y cuestionarios usan el
 bucket público `hsl-public-media`. Los originales se procesan en el navegador y
-se guardan como WebP; las URLs externas históricas siguen funcionando.
+se guardan como WebP mediante Canvas nativo o un fallback WASM cargado sólo si
+hace falta; las URLs externas históricas siguen funcionando.
 
 `MEDIA-UPLOADS-1` está implementada y funcional. Las migraciones
 `0023_profile_bio_max_length.sql` y `0024_media_uploads.sql` ya están aplicadas

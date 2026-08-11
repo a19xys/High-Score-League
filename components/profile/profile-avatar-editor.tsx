@@ -8,7 +8,6 @@ type ProfileAvatarEditorProps = {
   selection: MediaSelection;
   onChange: (value: MediaSelection) => void;
   initials: string;
-  username: string;
   disabled?: boolean;
 };
 
@@ -17,13 +16,12 @@ export function ProfileAvatarEditor({
   selection,
   onChange,
   initials,
-  username,
   disabled,
 }: ProfileAvatarEditorProps) {
   return (
     <MediaUpload
       currentUrl={currentUrl}
-      description={`Avatar público de ${username || "jugador"}. Se procesa en el navegador y las siglas siguen siendo el fallback.`}
+      description="JPEG, PNG o WebP · máximo 12 MB"
       disabled={disabled}
       fallbackText={initials || "HSL"}
       label="Avatar público"

@@ -68,7 +68,7 @@ export function TopThreeSummary({ entries }: TopThreeSummaryProps) {
             <div className="relative z-[1] flex min-w-0 items-start justify-between gap-3">
               <PlayerHoverCard
                 aria-label={`Ver perfil de @${entry.player.username}`}
-                className="-m-1 flex min-w-0 items-center gap-3 rounded-xl p-1 transition hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
+                className="-m-1 flex min-w-0 items-center gap-3 rounded-xl p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
                 player={entry.player}
               >
                 <ProfileAvatar

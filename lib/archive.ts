@@ -1,8 +1,8 @@
 export type ArchiveSection = "weeks" | "seasons";
 
 export const ARCHIVE_PATHS: Record<ArchiveSection, string> = {
-  weeks: "/archive/weeks",
-  seasons: "/archive/seasons",
+  weeks: "/archive#weeks",
+  seasons: "/archive#seasons",
 };
 
 export function parseArchiveSection(value: unknown): ArchiveSection | null {
@@ -12,5 +12,9 @@ export function parseArchiveSection(value: unknown): ArchiveSection | null {
 export function getArchivePath(value: unknown) {
   const section = parseArchiveSection(value);
 
-  return section ? ARCHIVE_PATHS[section] : "/archive";
+  return ARCHIVE_PATHS[section ?? "weeks"];
+}
+
+export function resolveArchiveSection(hash: string): ArchiveSection {
+  return parseArchiveSection(hash.replace(/^#/, "")) ?? "weeks";
 }

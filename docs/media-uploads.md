@@ -49,11 +49,17 @@ vacíos, mayores de 12 MiB o imágenes decodificadas de más de 25 megapíxeles.
 La decodificación real evita confiar en extensión o MIME declarado.
 
 La imagen se dibuja en canvas sin escalar hacia arriba, conservando proporción
-y canal alfa, y se re-encodea como WebP. Ese proceso elimina los metadatos del
-original. Se prueban de forma acotada cinco calidades y hasta cinco reducciones
-de dimensiones; el objetivo se intenta primero mediante calidad y después
-mediante tamaño. Si el navegador no produce WebP o la salida no baja de 2 MiB,
-la selección se rechaza.
+y canal alfa, y se re-encodea siempre como WebP. El encoder nativo de Canvas es
+la ruta rápida. Si devuelve PNG, `null` o falla, se marca como no disponible en
+una caché de sesión y se carga de forma diferida `@jsquash/webp` 1.5.0. El
+fallback recibe el `ImageData` RGBA del canvas ya reducido, usa libwebp con la
+misma calidad conceptual (convertida de 0–1 a 0–100) y no vuelve a decodificar
+el original. La salida se valida por MIME y tamaño antes de continuar.
+
+Ambas rutas usan las mismas cinco calidades y hasta cinco reducciones de
+dimensiones; el objetivo se intenta primero mediante calidad y después mediante
+tamaño. El re-encode elimina los metadatos del original. Sólo se rechaza si
+ambos encoders fallan o la salida WebP real no baja del máximo de 2 MiB.
 
 | Preset | Caja máxima | Calidad inicial | Peso objetivo |
 | --- | ---: | ---: | ---: |

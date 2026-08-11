@@ -55,7 +55,7 @@ export function PlayerPill({
   return (
     <PlayerHoverCard
       aria-label={`Ver perfil de @${player.username}`}
-      className={`flex min-w-0 items-center rounded-xl transition hover:bg-[var(--hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit ${
+      className={`flex min-w-0 items-center rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit ${
         isSubmission ? "-my-1 -ml-1 min-h-10 p-1" : "-m-1 p-1"
       } ${gapClass}`}
       player={player}

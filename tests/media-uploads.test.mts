@@ -8,6 +8,9 @@ import {
   calculateResizeDimensions,
 } from "../lib/media/presets.ts";
 import {
+  encodeWebpWithFallback,
+  runWebpCompressionLoop,
+  tryNativeWebpEncode,
   validateDecodedDimensions,
   validateMediaInput,
 } from "../lib/media/process-image.ts";
@@ -75,6 +78,152 @@ test("input validation enforces MIME, bytes and decoded pixels", () => {
   );
   assert.equal(validateDecodedDimensions(5000, 5000), null);
   assert.equal(validateDecodedDimensions(5001, 5000), "La imagen no puede superar 25 megapíxeles.");
+});
+
+function imageBlob(size: number, type = "image/webp") {
+  return new Blob([new Uint8Array(size)], { type });
+}
+
+function fakeImageData(alpha = 255) {
+  return {
+    data: new Uint8ClampedArray([10, 20, 30, alpha]),
+    height: 1,
+    width: 1,
+    colorSpace: "srgb",
+  } as ImageData;
+}
+
+test("native WebP result skips the fallback", async () => {
+  const capability = { nativeSupported: null };
+  let fallbackCalls = 0;
+  const blob = await encodeWebpWithFallback({
+    capability,
+    quality: 0.78,
+    nativeEncode: async (quality) => {
+      assert.equal(quality, 0.78);
+      return imageBlob(8);
+    },
+    fallbackEncode: async () => {
+      fallbackCalls += 1;
+      return imageBlob(4);
+    },
+    readImageData: () => fakeImageData(),
+  });
+
+  assert.equal(blob.type, "image/webp");
+  assert.equal(fallbackCalls, 0);
+  assert.equal(capability.nativeSupported, true);
+});
+
+test("PNG, null and native encoder errors select the WebP fallback", async () => {
+  for (const nativeOutput of ["png", "null", "error"] as const) {
+    const capability = { nativeSupported: null };
+    let nativeCalls = 0;
+    let fallbackCalls = 0;
+    const encode = () =>
+      encodeWebpWithFallback({
+        capability,
+        quality: 0.7,
+        nativeEncode: async () => {
+          nativeCalls += 1;
+          if (nativeOutput === "error") throw new Error("encoder");
+          return nativeOutput === "png" ? imageBlob(8, "image/png") : null;
+        },
+        fallbackEncode: async () => {
+          fallbackCalls += 1;
+          return imageBlob(5);
+        },
+        readImageData: () => fakeImageData(),
+      });
+
+    assert.equal((await encode()).type, "image/webp");
+    assert.equal((await encode()).type, "image/webp");
+    assert.equal(nativeCalls, 1, `${nativeOutput} should be cached as unsupported`);
+    assert.equal(fallbackCalls, 2);
+    assert.equal(capability.nativeSupported, false);
+  }
+});
+
+test("fallback failures become a friendly media error", async () => {
+  await assert.rejects(
+    encodeWebpWithFallback({
+      capability: { nativeSupported: false },
+      quality: 0.7,
+      nativeEncode: async () => null,
+      fallbackEncode: async () => {
+        throw new Error("wasm failed");
+      },
+      readImageData: () => fakeImageData(),
+    }),
+    /No se ha podido convertir la imagen a WebP en este navegador/,
+  );
+  await assert.rejects(
+    encodeWebpWithFallback({
+      capability: { nativeSupported: false },
+      quality: 0.7,
+      nativeEncode: async () => null,
+      fallbackEncode: async () => imageBlob(5, "image/png"),
+      readImageData: () => fakeImageData(),
+    }),
+    /No se ha podido convertir la imagen a WebP en este navegador/,
+  );
+});
+
+test("oversized fallback output continues through quality and resize attempts", async () => {
+  const attempts: Array<{ width: number; height: number; quality: number }> = [];
+  const result = await runWebpCompressionLoop({
+    initialDimensions: { width: 100, height: 80 },
+    initialQuality: 0.8,
+    minQuality: 0.48,
+    targetBytes: 100,
+    createEncoder: ({ width, height }) => async (quality) => {
+      attempts.push({ width, height, quality });
+      return imageBlob(width === 100 ? 1_000 : 80);
+    },
+  });
+
+  assert.equal(attempts.length, 6);
+  assert.deepEqual(attempts.slice(0, 5).map(({ quality }) => Number(quality.toFixed(2))), [
+    0.8,
+    0.72,
+    0.64,
+    0.56,
+    0.48,
+  ]);
+  assert.deepEqual(attempts[5], { width: 82, height: 66, quality: 0.8 });
+  assert.equal(result.blob.size, 80);
+  assert.deepEqual({ width: result.width, height: result.height }, { width: 82, height: 66 });
+});
+
+test("fallback receives the resized RGBA ImageData without losing alpha", async () => {
+  const imageData = fakeImageData(0);
+  await encodeWebpWithFallback({
+    capability: { nativeSupported: false },
+    quality: 0.66,
+    nativeEncode: async () => null,
+    fallbackEncode: async (received, quality) => {
+      assert.equal(received, imageData);
+      assert.equal(received.data[3], 0);
+      assert.equal(quality, 0.66);
+      return imageBlob(4);
+    },
+    readImageData: () => imageData,
+  });
+});
+
+test("native probe reports valid, unsupported and encoder error states", async () => {
+  assert.equal((await tryNativeWebpEncode(async () => imageBlob(3))).status, "supported");
+  assert.equal((await tryNativeWebpEncode(async () => null)).status, "unsupported");
+  assert.equal(
+    (await tryNativeWebpEncode(async () => imageBlob(3, "image/png"))).status,
+    "unsupported",
+  );
+  assert.equal(
+    (await tryNativeWebpEncode(async () => {
+      throw new Error("encode");
+    })).status,
+    "error",
+  );
 });
 
 test("public resolver prefers managed Storage and keeps legacy fallback", () => {

@@ -2,25 +2,25 @@
 
 ## Archivo de la liga
 
-La navegación autenticada reúne el historial bajo `ARCHIVO`. Las tres rutas son
-reales y comparten el mismo shell visual:
+La navegación autenticada reúne el historial bajo un único workspace. El
+servidor de `/archive` carga Semanas y Temporadas en paralelo y entrega ambos
+paneles montados a un selector cliente. Los estados canónicos son:
 
-- `/archive`: shell neutral, sin sección seleccionada ni consulta de datos;
-- `/archive/weeks`: Semanas seleccionada y contenido semanal;
-- `/archive/seasons`: Temporadas seleccionada y contenido de temporadas.
+- `/archive#weeks`: Semanas, estado inicial y destino de `ARCHIVO`;
+- `/archive#seasons`: Temporadas.
 
-La navegación superior lleva directamente a `/archive/weeks`. El breadcrumb
-`Archivo` enlaza a `/archive`, que es la entrada deliberada al estado neutral.
-El selector secundario sólo contiene Semanas y Temporadas; en la raíz ninguna
-tiene `aria-current` ni estilo activo.
+Cambiar de pestaña usa `history.replaceState`: no navega con Next, no hace una
+consulta nueva y conserva el estado local de ambos paneles. `/archive` no es una
+tercera vista neutral: muestra Semanas desde el primer render y el cliente
+normaliza el hash ausente o desconocido a `#weeks` sin añadir historial.
 
 Compatibilidad mediante redirecciones permanentes:
 
-- `/weeks` → `/archive/weeks`;
-- `/seasons` y `/season` → `/archive/seasons`;
-- `/archive?section=weeks` → `/archive/weeks`;
-- `/archive?section=seasons` → `/archive/seasons`;
-- un `section` desconocido → `/archive` sin el parámetro.
+- `/archive/weeks` y `/weeks` → `/archive#weeks`;
+- `/archive/seasons`, `/seasons` y `/season` → `/archive#seasons`;
+- `/archive?section=weeks` → `/archive#weeks`;
+- `/archive?section=seasons` → `/archive#seasons`;
+- un `section` desconocido → `/archive#weeks`.
 
 Los detalles conservan `/weeks/[weekId]` y `/seasons/[seasonId]`. En ellos,
 `ARCHIVO` aparece activo, salvo que la semana activa deba dar prioridad a
@@ -50,14 +50,20 @@ horizontal. Home no muestra breadcrumbs.
 
 Jerarquías públicas:
 
-- raíz del archivo: `Liga / Archivo`;
-- índices: `Liga / Archivo / Semanas|Temporadas`;
-- temporada: `Liga / Archivo / Temporadas / [temporada]`;
-- semana: `Liga / Archivo / Temporadas / [temporada] / [juego o semana]`;
+- archivo semanal: `Liga / Semanas`;
+- archivo de temporadas: `Liga / Temporadas`;
+- temporada: `Liga / Temporadas / [temporada]`;
+- semana: `Liga / Semanas / [juego o semana]`;
 - perfil público: `Liga / Jugadores / @[username]`;
 - perfil propio: `Liga / Mi perfil`.
 
-`Archivo` enlaza siempre a `/archive`.
+`Semanas` enlaza a `/archive#weeks` y `Temporadas` a `/archive#seasons`.
+
+La tabla “Calendario · Semanas incluidas” de una temporada conserva sus cinco
+columnas en escritorio. En móvil usa el mismo dataset y componente con tres
+columnas: Semana incorpora la fecha, Juego incorpora un badge compacto de
+estado y Acción muestra `Ver` o una indisponibilidad compacta. El layout fijo y
+el truncado evitan overflow horizontal desde 320 px.
 
 ## Paginación compacta de submissions
 
@@ -103,13 +109,18 @@ contenido en altura y no puede ensanchar ni estirar una fila individual. Por
 tanto, una página llena y una página completada con slots conservan exactamente
 la misma altura de body.
 
-La tabla usa `table-layout: fixed` y un `colgroup` compartido por header y body.
-La identidad/semana ocupa el espacio flexible y las columnas de intentos, score
-y fecha tienen anchos explícitos. El shell define un contenedor inline y las
-container queries deciden, solo por el ancho disponible, cuándo mostrar la
-identidad rica, el marcador de mejor intento y la fecha. Los textos y números
-largos se truncan —los scores usan cifras tabulares— sin mover el origen de otra
-columna. No hay mediciones ni estado responsive en JavaScript.
+La tabla usa `table-layout: fixed`. Su `colgroup` sólo contiene los tracks que
+siempre participan en móvil: Semana cuando corresponde, Intentos y Score. No
+existe un `<col>` de fecha a anchura cero; la celda de fecha queda fuera del
+formato de tabla hasta la container query de 42 rem y entonces adopta un ancho
+explícito de 9,5 rem. Así WebKit móvil no puede reservar una columna fantasma.
+Los textos y números largos se truncan —los scores usan cifras tabulares— sin
+mover otra columna y no hay mediciones responsive en JavaScript.
+
+El área concreta de tabla y paginación usa `overflow-anchor: none`. Junto con el
+contrato idéntico de diez filas reales o completadas evita que el scroll
+anchoring móvil reajuste el viewport al cambiar de página, sin usar
+`window.scrollTo` ni desactivar el anclaje global.
 
 La columna se llama siempre `Intentos` y su control accesible es `Ordenar por
 intentos`. El perfil propio entrega todos los envíos válidos ya cargados, sin el

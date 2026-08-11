@@ -177,3 +177,41 @@ test("avatar ring and public logo heartbeat animate only transforms with reduced
   assert.match(styles, /30%[\s\S]*scale\(1\.035\)/);
   assert.match(styles, /prefers-reduced-motion:\s*reduce[\s\S]*profile-avatar-glow::before/);
 });
+
+test("profile editor keeps avatar first, responsive controls and non-reserved save feedback", async () => {
+  const [editor, avatar, uploader, account] = await Promise.all([
+    read("components", "profile", "profile-editor.tsx"),
+    read("components", "profile", "profile-avatar-editor.tsx"),
+    read("components", "media-upload.tsx"),
+    read("components", "profile", "profile-account-settings.tsx"),
+  ]);
+
+  assert.ok(editor.indexOf("Foto de perfil") < editor.indexOf(">Identidad<"));
+  assert.ok(editor.indexOf(">Identidad<") < editor.indexOf(">Privacidad<"));
+  assert.doesNotMatch(editor, /lg:grid-cols-\[15rem/);
+  assert.doesNotMatch(editor, /className="min-h-5"/);
+  assert.match(editor, /kind: "success"/);
+  assert.match(editor, /markFormModified\(\)/);
+  assert.match(editor, /aria-hidden="true"[^>]*>✓<\/span>/);
+  assert.match(avatar, /JPEG, PNG o WebP · máximo 12 MB/);
+  assert.match(uploader, />\s*Deshacer\s*</);
+  assert.match(uploader, /flex-wrap gap-2/);
+  assert.match(uploader, /min-h-11/);
+  assert.match(account, />Sesión y cuenta</);
+  assert.ok(account.indexOf("<LogoutButton") < account.indexOf("<ProfileAccountAnonymization"));
+});
+
+test("season week calendar has one fixed responsive table with three mobile columns", async () => {
+  const source = await read("app", "seasons", "[seasonId]", "page.tsx");
+  const table = source.slice(
+    source.indexOf("function RealSeasonWeeksTable"),
+    source.indexOf("export default async function SeasonDetailPage"),
+  );
+
+  assert.match(table, /tableClassName="w-full table-fixed"/);
+  assert.match(table, /hidden w-36[^\n]+sm:table-cell">Fechas/);
+  assert.match(table, /hidden w-28[^\n]+sm:table-cell">Estado/);
+  assert.match(table, /<StatusBadge compact/);
+  assert.match(table, /className="sm:hidden">Ver</);
+  assert.equal((table.match(/weeks\.map/g) ?? []).length, 1);
+});

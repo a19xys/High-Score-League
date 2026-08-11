@@ -6,6 +6,7 @@ import {
   ARCHIVE_PATHS,
   getArchivePath,
   parseArchiveSection,
+  resolveArchiveSection,
 } from "../lib/archive.ts";
 import {
   getArchiveYears,
@@ -29,13 +30,17 @@ test("archive section accepts only the canonical values", () => {
   assert.equal(parseArchiveSection(["weeks", "seasons"]), null);
   assert.equal(parseArchiveSection({ section: "seasons" }), null);
   assert.equal(parseArchiveSection(null), null);
-  assert.equal(getArchivePath(undefined), "/archive");
-  assert.equal(getArchivePath("weeks"), "/archive/weeks");
-  assert.equal(getArchivePath("seasons"), "/archive/seasons");
-  assert.equal(getArchivePath("invalid"), "/archive");
+  assert.equal(getArchivePath(undefined), "/archive#weeks");
+  assert.equal(getArchivePath("weeks"), "/archive#weeks");
+  assert.equal(getArchivePath("seasons"), "/archive#seasons");
+  assert.equal(getArchivePath("invalid"), "/archive#weeks");
+  assert.equal(resolveArchiveSection(""), "weeks");
+  assert.equal(resolveArchiveSection("#weeks"), "weeks");
+  assert.equal(resolveArchiveSection("#seasons"), "seasons");
+  assert.equal(resolveArchiveSection("#tomate"), "weeks");
   assert.deepEqual(ARCHIVE_PATHS, {
-    weeks: "/archive/weeks",
-    seasons: "/archive/seasons",
+    weeks: "/archive#weeks",
+    seasons: "/archive#seasons",
   });
 });
 
@@ -101,24 +106,46 @@ test("archive ranges match both sides of a cross-year interval", () => {
   assert.equal(rangeMatchesArchiveYear("2025-12-28", "2026-01-03", 2024), false);
 });
 
-test("archive root is a protected neutral shell without archive data loaders", async () => {
+test("archive root is a protected, fully mounted hash workspace", async () => {
   const root = process.cwd();
-  const [pageSource, layoutSource, navigationSource] = await Promise.all([
+  const [pageSource, switcherSource, weeksLegacy, seasonsLegacy, navSource] = await Promise.all([
     readFile(join(root, "app", "archive", "page.tsx"), "utf8"),
-    readFile(join(root, "components", "archive", "archive-layout.tsx"), "utf8"),
-    readFile(join(root, "components", "archive", "archive-navigation.tsx"), "utf8"),
+    readFile(join(root, "components", "archive", "archive-section-switcher.tsx"), "utf8"),
+    readFile(join(root, "app", "archive", "weeks", "page.tsx"), "utf8"),
+    readFile(join(root, "app", "archive", "seasons", "page.tsx"), "utf8"),
+    readFile(join(root, "components", "site-nav-client.tsx"), "utf8"),
   ]);
 
   assert.match(pageSource, /hasServerSession/);
   assert.match(pageSource, /section !== undefined/);
-  assert.match(pageSource, /<ArchiveLayout activeSection=\{null\} \/>/);
-  assert.doesNotMatch(
-    pageSource,
-    /getWeekPageData|getSeasonPageData|archiveSections|Abrir semanas|Abrir temporadas/,
-  );
-  assert.match(layoutSource, /activeSection: ArchiveSection \| null/);
-  assert.match(navigationSource, /activeSection: ArchiveSection \| null/);
-  assert.match(navigationSource, /aria-current=\{isActive \? "page" : undefined\}/);
+  assert.match(pageSource, /Promise\.all\(\[/);
+  assert.match(pageSource, /getWeekPageData\(\)/);
+  assert.match(pageSource, /getSeasonPageData\(\)/);
+  assert.match(pageSource, /id: "weeks"[\s\S]*id: "seasons"/);
+  assert.match(switcherSource, /useState<ArchiveSection>\("weeks"\)/);
+  assert.match(switcherSource, /resolveArchiveSection\(window\.location\.hash\)/);
+  assert.match(switcherSource, /window\.history\.replaceState/);
+  assert.match(switcherSource, /hidden=\{panel\.id !== activeSection\}/);
+  assert.doesNotMatch(switcherSource, /router\.|next\/navigation|fetch\(/);
+  assert.match(weeksLegacy, /permanentRedirect\("\/archive#weeks"\)/);
+  assert.match(seasonsLegacy, /permanentRedirect\("\/archive#seasons"\)/);
+  assert.match(navSource, /href: "\/archive#weeks", label: "ARCHIVO"/);
+  await assert.rejects(readFile(join(root, "components", "archive", "archive-layout.tsx")));
+  await assert.rejects(readFile(join(root, "components", "archive", "archive-navigation.tsx")));
+});
+
+test("archive and detail breadcrumbs omit the old Archivo level", async () => {
+  const [switcher, weekDetail, seasonDetail] = await Promise.all([
+    readFile(join(process.cwd(), "components", "archive", "archive-section-switcher.tsx"), "utf8"),
+    readFile(join(process.cwd(), "app", "weeks", "[weekId]", "page.tsx"), "utf8"),
+    readFile(join(process.cwd(), "app", "seasons", "[seasonId]", "page.tsx"), "utf8"),
+  ]);
+
+  for (const source of [switcher, weekDetail, seasonDetail]) {
+    assert.doesNotMatch(source, /label: "Archivo"/);
+  }
+  assert.match(weekDetail, /href: "\/archive#weeks", label: "Semanas"/);
+  assert.match(seasonDetail, /href: "\/archive#seasons", label: "Temporadas"/);
 });
 
 test("table pagination keeps a compact mobile row and a truly centered desktop row", async () => {
@@ -163,6 +190,25 @@ test("empty submission rows are inaccessible presentation-only table rows", asyn
     /theme-hover|<Link|<button|tabIndex|aria-label|role=/,
   );
   assert.match(source, /Array\.from\(\{ length: emptyRowCount \}/);
+});
+
+test("submissions mobile layout has no date col track and localizes scroll anchoring", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(join(process.cwd(), "components", "submissions-table.tsx"), "utf8"),
+    readFile(join(process.cwd(), "app", "globals.css"), "utf8"),
+  ]);
+  const columns = source.slice(
+    source.indexOf("function SubmissionColumns"),
+    source.indexOf("function EmptySubmissionRow"),
+  );
+
+  assert.match(columns, /<colgroup>/);
+  assert.match(columns, /submission-col-week/);
+  assert.match(columns, /submission-col-attempt/);
+  assert.match(columns, /submission-col-score/);
+  assert.doesNotMatch(columns, /submission-col-date/);
+  assert.doesNotMatch(styles, /\.submission-col-date/);
+  assert.match(styles, /\.submissions-table-region\s*\{\s*overflow-anchor:\s*none/);
 });
 
 test("pagination normalizes the three supported page sizes", () => {

@@ -33,7 +33,7 @@ type SiteNavClientProps = {
 
 const baseLinks: NavLink[] = [
   { href: "/", label: "INICIO", id: "home" },
-  { href: "/archive/weeks", label: "ARCHIVO", id: "archive" },
+  { href: "/archive#weeks", label: "ARCHIVO", id: "archive" },
 ];
 
 function navLinkClass(active: boolean) {

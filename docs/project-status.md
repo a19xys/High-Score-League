@@ -42,8 +42,9 @@ FUNCIONAL
 ```
 
 `MediaUpload` gestiona avatar, header y logo de juego e imágenes de opciones de
-cuestionario. Procesa JPEG, PNG o WebP en el navegador, genera WebP, muestra una
-preview y sólo sube al guardar. Los objetos viven en el bucket público
+cuestionario. Procesa JPEG, PNG o WebP en el navegador, genera WebP mediante
+Canvas nativo o el fallback WASM lazy `@jsquash/webp`, muestra una preview y
+sólo sube al guardar. Los objetos viven en el bucket público
 `hsl-public-media` bajo paths nuevos y no sobrescribibles:
 
 - `avatars/<USER_ID>/<UUID>.webp`;
@@ -63,11 +64,11 @@ evidencias sigue pendiente y necesitará un diseño separado.
 
 ## Archivo, filtros, paginación y marca
 
-- `/archive` es un shell neutral, sin sección seleccionada ni consulta de
-  tablas; `/archive/weeks` y `/archive/seasons` son las secciones canónicas.
-- `ARCHIVO` en la navegación principal lleva a `/archive/weeks`; el breadcrumb
-  `Archivo` lleva a `/archive`. Los alias `/weeks`, `/seasons`, `/season` y
-  `/archive?section=...` mantienen redirecciones permanentes.
+- `/archive` es un workspace que carga ambos datasets en paralelo. Sus estados
+  canónicos son `/archive#weeks` y `/archive#seasons`; no existe vista neutral.
+- `ARCHIVO` lleva a `/archive#weeks`. Las pestañas cambian con `replaceState`,
+  sin request, y los alias de rutas y `section` redirigen al hash equivalente.
+  Los breadcrumbs son `Liga / Semanas|Temporadas`, sin nivel Archivo.
 - Semanas y temporadas filtran por `AÑO`. Un intervalo pertenece a todos los
   años que cruza en `Europe/Madrid`; los activos se recortan a `now` para no
   revelar años futuros. La columna, los badges y la ordenación por Estado se
@@ -79,10 +80,11 @@ evidencias sigue pendiente y necesitará un diseño separado.
 - Las páginas no vacías se completan con slots presentacionales
   `aria-hidden=true`; no son submissions ni afectan conteos, orden, intentos,
   score, visibilidad o rango. Con cero filas se usa `EmptyState`.
-- Filas reales y slots comparten una altura por variante. Un `colgroup` y
-  `table-layout: fixed` fijan el layout; container queries basadas en el ancho
-  del shell muestran u ocultan identidad rica, marcador y fecha sin medir
-  contenido con JavaScript.
+- Filas reales y slots comparten una altura por variante. `table-layout: fixed`
+  y un `colgroup` sin track de fecha móvil fijan el layout; la fecha sólo entra
+  en el formato desde 42 rem. Container queries muestran identidad rica y
+  marcador sin medir contenido con JavaScript. El anclaje se desactiva sólo en
+  la región de tabla/paginación para evitar saltos móviles.
 - La navegación solicita `/brand/logo.png` y la landing
   `/brand/logo-horizontal.png` directamente. El fallback textual sólo aparece
   tras un `onError` real del navegador; no existe detección server-side con

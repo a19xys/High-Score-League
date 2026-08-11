@@ -382,7 +382,6 @@ function SubmissionColumns({ showWeek }: { showWeek: boolean }) {
       {showWeek ? <col className="submission-col-week" /> : null}
       <col className="submission-col-attempt" />
       <col className="submission-col-score" />
-      <col className="submission-col-date" />
     </colgroup>
   );
 }
@@ -498,7 +497,7 @@ export function SubmissionsTable({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="submissions-table-region space-y-3">
       <SubmissionsTableTopbar
         action={
           hasOwnHiddenScores ? (

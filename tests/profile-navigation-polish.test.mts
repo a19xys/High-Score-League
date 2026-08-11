@@ -54,16 +54,12 @@ test("full profile date uses the Madrid competition date", () => {
 test("breadcrumbs always start at Liga and mark the final item as current", () => {
   assert.deepEqual(
     createBreadcrumbTrail([
-      { href: "/archive", label: "Archivo" },
-      { href: "/archive/seasons", label: "Temporadas" },
-      { href: "/seasons/test", label: "Temporada Test" },
+      { href: "/archive#weeks", label: "Semanas" },
       { href: "/weeks/week-1", label: "Pac-Man" },
     ]),
     [
       { href: "/", label: "Liga" },
-      { href: "/archive", label: "Archivo" },
-      { href: "/archive/seasons", label: "Temporadas" },
-      { href: "/seasons/test", label: "Temporada Test" },
+      { href: "/archive#weeks", label: "Semanas" },
       { label: "Pac-Man" },
     ],
   );
@@ -80,7 +76,7 @@ test("navigation loads the canonical brand asset in the browser", async () => {
 
   assert.doesNotMatch(serverNav, /hasBrandLogo|existsSync|node:fs|node:path/);
   assert.doesNotMatch(clientNav, /hasBrandLogo/);
-  assert.match(clientNav, /href: "\/archive\/weeks", label: "ARCHIVO"/);
+  assert.match(clientNav, /href: "\/archive#weeks", label: "ARCHIVO"/);
   assert.match(brandImage, /onError=\{\(\) => setImageFailed\(true\)\}/);
   assert.match(brandImage, /\[src\]/);
   assert.doesNotMatch(homePage, /existsSync|node:fs|node:path/);

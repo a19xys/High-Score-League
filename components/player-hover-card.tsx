@@ -21,11 +21,16 @@ import {
   requestCachedPlayerProfilePreview,
 } from "@/lib/player-profile-preview-cache";
 import { getProfileBioDisplay } from "@/lib/profile";
+import {
+  calculatePlayerHoverCardPosition,
+  type HoverCardPosition,
+} from "@/lib/player-hover-card-position";
 import type { Player } from "@/types";
 
-const hoverOpenDelayMs = 600;
+export const PLAYER_HOVER_OPEN_DELAY_MS = 600;
+export const PLAYER_HOVER_CLOSE_DELAY_MS = 220;
 const viewportPadding = 12;
-const cardGap = 8;
+const cardGap = 6;
 
 const CurrentPlayerContext = createContext<string | null>(null);
 
@@ -40,12 +45,6 @@ type PlayerHoverCardProps = {
   className: string;
   player: Player;
   title?: string;
-};
-
-type CardPosition = {
-  left: number;
-  side: "top" | "bottom";
-  top: number;
 };
 
 type PreviewPayload = {
@@ -160,7 +159,7 @@ export function PlayerHoverCard({
       });
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<CardPosition | null>(null);
+  const [position, setPosition] = useState<HoverCardPosition | null>(null);
   const [preview, setPreview] = useState<PlayerProfilePreview | null>(
     cachedPreview,
   );
@@ -220,16 +219,16 @@ export function PlayerHoverCard({
       openTimerRef.current = null;
       setPosition(null);
       setOpen(true);
-    }, hoverOpenDelayMs);
+    }, PLAYER_HOVER_OPEN_DELAY_MS);
   }
 
-  function scheduleImmediateClose() {
+  function scheduleClose() {
     clearOpenTimer();
     clearCloseTimer();
     closeTimerRef.current = window.setTimeout(() => {
       closeTimerRef.current = null;
       setOpen(false);
-    }, 0);
+    }, PLAYER_HOVER_CLOSE_DELAY_MS);
   }
 
   useEffect(() => {
@@ -314,31 +313,16 @@ export function PlayerHoverCard({
 
       const triggerRect = trigger.getBoundingClientRect();
       const panelRect = panel.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
-      const spaceAbove = triggerRect.top - viewportPadding;
-      const side =
-        spaceBelow >= panelRect.height + cardGap || spaceBelow >= spaceAbove
-          ? "bottom"
-          : "top";
-      const idealLeft =
-        triggerRect.left + triggerRect.width / 2 - panelRect.width / 2;
-      const maxLeft = Math.max(
-        viewportPadding,
-        window.innerWidth - panelRect.width - viewportPadding,
+      setPosition(
+        calculatePlayerHoverCardPosition({
+          cardGap,
+          panel: panelRect,
+          trigger: triggerRect,
+          viewportHeight: window.innerHeight,
+          viewportPadding,
+          viewportWidth: window.innerWidth,
+        }),
       );
-      const left = Math.min(Math.max(viewportPadding, idealLeft), maxLeft);
-      const top =
-        side === "bottom"
-          ? Math.min(
-              triggerRect.bottom,
-              window.innerHeight - panelRect.height - cardGap - viewportPadding,
-            )
-          : Math.max(
-              viewportPadding,
-              triggerRect.top - panelRect.height - cardGap,
-            );
-
-      setPosition({ left, side, top });
     }
 
     updatePosition();
@@ -403,7 +387,7 @@ export function PlayerHoverCard({
   const card = (
     <div
       className={`fixed z-[100] w-[min(20rem,calc(100vw-1.5rem))] ${
-        position?.side === "top" ? "pb-2" : "pt-2"
+        position?.side === "top" ? "pb-[6px]" : "pt-[6px]"
       }`}
       onBlur={(event) => {
         const nextTarget = event.relatedTarget as Node | null;
@@ -412,7 +396,7 @@ export function PlayerHoverCard({
           return;
         }
 
-        scheduleImmediateClose();
+        scheduleClose();
       }}
       onFocus={clearCloseTimer}
       onKeyDown={(event) => {
@@ -432,7 +416,7 @@ export function PlayerHoverCard({
         focusNextAfterTrigger(trigger);
       }}
       onPointerEnter={clearCloseTimer}
-      onPointerLeave={scheduleImmediateClose}
+      onPointerLeave={scheduleClose}
       style={{
         left: position?.left ?? 0,
         top: position?.top ?? 0,
@@ -441,13 +425,14 @@ export function PlayerHoverCard({
     >
       <div
         aria-label={`Vista previa del perfil de @${player.username}`}
-        className="max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-2xl border p-4 shadow-[0_20px_55px_rgba(2,6,23,0.24)] theme-border theme-surface"
+        className="overflow-y-auto rounded-2xl border p-4 shadow-[0_20px_55px_rgba(2,6,23,0.24)] theme-border theme-surface"
         data-player-hover-card-panel
         id={cardId}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
         ref={panelRef}
         role="dialog"
+        style={{ maxHeight: position?.maxHeight }}
       >
         <div className="flex min-w-0 items-center gap-3">
           <ProfileAvatar
@@ -558,7 +543,7 @@ export function PlayerHoverCard({
             return;
           }
 
-          scheduleImmediateClose();
+          scheduleClose();
         }}
         onClick={(event) => event.stopPropagation()}
         onFocus={() => {
@@ -572,7 +557,7 @@ export function PlayerHoverCard({
           event.stopPropagation();
         }}
         onPointerEnter={handleTriggerPointerEnter}
-        onPointerLeave={scheduleImmediateClose}
+        onPointerLeave={scheduleClose}
         title={title}
       >
         {children}

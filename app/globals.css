@@ -232,6 +232,10 @@ textarea {
     width: 100%;
   }
 
+  .submissions-table-region {
+    overflow-anchor: none;
+  }
+
   .submissions-table-has-week .submission-col-week {
     width: auto;
   }
@@ -250,10 +254,6 @@ textarea {
 
   .submissions-table-no-week .submission-col-score {
     width: 7rem;
-  }
-
-  .submission-col-date {
-    width: 0;
   }
 
   .submission-date-cell,
@@ -369,11 +369,8 @@ textarea {
       width: 8.5rem;
     }
 
-    .submission-col-date {
-      width: 9.5rem;
-    }
-
     .submission-date-cell {
+      width: 9.5rem;
       display: table-cell;
     }
 

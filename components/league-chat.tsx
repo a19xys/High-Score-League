@@ -839,7 +839,7 @@ export function LeagueChat({
                     {message.author?.username ? (
                       <PlayerHoverCard
                         aria-label={`Ver perfil de @${message.author.username}`}
-                        className="rounded transition hover:text-circuit focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
+                        className="rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
                         player={message.author}
                       >
                         {isOwn ? "YOU" : message.author.initials}

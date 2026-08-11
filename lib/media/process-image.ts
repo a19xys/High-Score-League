@@ -69,16 +69,182 @@ async function decodeImage(file: File): Promise<DecodedImage> {
   }
 }
 
-function canvasToWebp(canvas: HTMLCanvasElement, quality: number) {
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob || blob.type !== "image/webp") {
-        reject(new Error("Este navegador no puede convertir imágenes a WebP."));
-        return;
-      }
-      resolve(blob);
-    }, "image/webp", quality);
+const WEBP_MIME_TYPE = "image/webp";
+
+export type NativeWebpResult =
+  | { status: "supported"; blob: Blob }
+  | { status: "unsupported" }
+  | { status: "error" };
+
+export type WebpCapabilityCache = {
+  nativeSupported: boolean | null;
+};
+
+type WebpEncoderDependencies = {
+  capability: WebpCapabilityCache;
+  fallbackEncode: (imageData: ImageData, quality: number) => Promise<Blob>;
+  nativeEncode: (quality: number) => Promise<Blob | null>;
+  quality: number;
+  readImageData: () => ImageData;
+};
+
+type CompressionDimensions = { width: number; height: number };
+
+type CompressionLoopOptions = {
+  createEncoder: (
+    dimensions: CompressionDimensions,
+  ) => Promise<(quality: number) => Promise<Blob>> | ((quality: number) => Promise<Blob>);
+  initialDimensions: CompressionDimensions;
+  initialQuality: number;
+  minQuality: number;
+  targetBytes: number;
+};
+
+const sessionWebpCapability: WebpCapabilityCache = {
+  nativeSupported: null,
+};
+
+let jsquashEncoderPromise:
+  | Promise<typeof import("@jsquash/webp")["encode"]>
+  | null = null;
+
+function isValidWebpBlob(blob: Blob | null): blob is Blob {
+  return Boolean(blob && blob.size > 0 && blob.type === WEBP_MIME_TYPE);
+}
+
+export async function tryNativeWebpEncode(
+  encode: () => Promise<Blob | null>,
+): Promise<NativeWebpResult> {
+  try {
+    const blob = await encode();
+
+    return isValidWebpBlob(blob)
+      ? { status: "supported", blob }
+      : { status: "unsupported" };
+  } catch {
+    return { status: "error" };
+  }
+}
+
+function nativeCanvasEncode(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<Blob | null>((resolve, reject) => {
+    try {
+      canvas.toBlob(resolve, WEBP_MIME_TYPE, quality);
+    } catch (error) {
+      reject(error);
+    }
   });
+}
+
+async function jsquashWebpEncode(imageData: ImageData, quality: number) {
+  jsquashEncoderPromise ??= import("@jsquash/webp").then(
+    (module) => module.encode,
+  );
+  const encode = await jsquashEncoderPromise;
+  const buffer = await encode(imageData, {
+    alpha_quality: 100,
+    exact: 1,
+    quality: Math.round(quality * 100),
+  });
+
+  return new Blob([buffer], { type: WEBP_MIME_TYPE });
+}
+
+export async function encodeWebpWithFallback({
+  capability,
+  fallbackEncode,
+  nativeEncode,
+  quality,
+  readImageData,
+}: WebpEncoderDependencies): Promise<Blob> {
+  if (capability.nativeSupported !== false) {
+    const nativeResult = await tryNativeWebpEncode(() => nativeEncode(quality));
+
+    if (nativeResult.status === "supported") {
+      capability.nativeSupported = true;
+      return nativeResult.blob;
+    }
+
+    capability.nativeSupported = false;
+  }
+
+  try {
+    const blob = await fallbackEncode(readImageData(), quality);
+
+    if (!isValidWebpBlob(blob)) {
+      throw new Error("invalid-webp-output");
+    }
+
+    return blob;
+  } catch {
+    throw new Error(
+      "No se ha podido convertir la imagen a WebP en este navegador.",
+    );
+  }
+}
+
+function createCanvasWebpEncoder(
+  canvas: HTMLCanvasElement,
+  context: CanvasRenderingContext2D,
+) {
+  let imageData: ImageData | null = null;
+
+  return async (quality: number) =>
+    encodeWebpWithFallback({
+      capability: sessionWebpCapability,
+      nativeEncode: () => nativeCanvasEncode(canvas, quality),
+      fallbackEncode: (data) => jsquashWebpEncode(data, quality),
+      quality,
+      readImageData: () => {
+        imageData ??= context.getImageData(0, 0, canvas.width, canvas.height);
+        return imageData;
+      },
+    });
+}
+
+export async function runWebpCompressionLoop({
+  createEncoder,
+  initialDimensions,
+  initialQuality,
+  minQuality,
+  targetBytes,
+}: CompressionLoopOptions) {
+  let dimensions = initialDimensions;
+  let smallest: Blob | null = null;
+  let outputWidth = dimensions.width;
+  let outputHeight = dimensions.height;
+
+  for (let resizeAttempt = 0; resizeAttempt < 5; resizeAttempt += 1) {
+    const encode = await createEncoder(dimensions);
+
+    for (let qualityAttempt = 0; qualityAttempt < 5; qualityAttempt += 1) {
+      const quality = Math.max(
+        minQuality,
+        initialQuality - qualityAttempt * 0.08,
+      );
+      const blob = await encode(quality);
+
+      if (!smallest || blob.size < smallest.size) {
+        smallest = blob;
+        outputWidth = dimensions.width;
+        outputHeight = dimensions.height;
+      }
+      if (blob.size <= targetBytes) {
+        return { blob, width: dimensions.width, height: dimensions.height };
+      }
+    }
+
+    dimensions = {
+      width: Math.max(1, Math.round(dimensions.width * 0.82)),
+      height: Math.max(1, Math.round(dimensions.height * 0.82)),
+    };
+  }
+
+  if (!smallest || smallest.size > STORAGE_OBJECT_MAX_BYTES) {
+    throw new Error("No se ha podido reducir la imagen por debajo de 2 MB.");
+  }
+
+  return { blob: smallest, width: outputWidth, height: outputHeight };
 }
 
 export async function processImageFile(
@@ -94,66 +260,37 @@ export async function processImageFile(
     if (dimensionsError) throw new Error(dimensionsError);
 
     const preset = MEDIA_PRESETS[presetKey];
-    let dimensions = calculateResizeDimensions(
+    const dimensions = calculateResizeDimensions(
       decoded.width,
       decoded.height,
       preset.maxWidth,
       preset.maxHeight,
     );
-    let smallest: Blob | null = null;
-    let outputWidth = dimensions.width;
-    let outputHeight = dimensions.height;
-
-    for (let resizeAttempt = 0; resizeAttempt < 5; resizeAttempt += 1) {
-      const canvas = document.createElement("canvas");
-      canvas.width = dimensions.width;
-      canvas.height = dimensions.height;
-      const context = canvas.getContext("2d", { alpha: true });
-      if (!context) throw new Error("No se ha podido preparar la imagen.");
-      context.imageSmoothingEnabled = true;
-      context.imageSmoothingQuality = "high";
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(decoded.source, 0, 0, canvas.width, canvas.height);
-
-      for (let qualityAttempt = 0; qualityAttempt < 5; qualityAttempt += 1) {
-        const quality = Math.max(
-          preset.minQuality,
-          preset.initialQuality - qualityAttempt * 0.08,
-        );
-        const blob = await canvasToWebp(canvas, quality);
-        if (!smallest || blob.size < smallest.size) {
-          smallest = blob;
-          outputWidth = canvas.width;
-          outputHeight = canvas.height;
-        }
-        if (blob.size <= preset.targetBytes) {
-          return {
-            blob,
-            width: canvas.width,
-            height: canvas.height,
-            originalBytes: file.size,
-            outputBytes: blob.size,
-            preset: presetKey,
-          };
-        }
-      }
-
-      dimensions = {
-        width: Math.max(1, Math.round(dimensions.width * 0.82)),
-        height: Math.max(1, Math.round(dimensions.height * 0.82)),
-      };
-    }
-
-    if (!smallest || smallest.size > STORAGE_OBJECT_MAX_BYTES) {
-      throw new Error("No se ha podido reducir la imagen por debajo de 2 MB.");
-    }
+    const processed = await runWebpCompressionLoop({
+      initialDimensions: dimensions,
+      initialQuality: preset.initialQuality,
+      minQuality: preset.minQuality,
+      targetBytes: preset.targetBytes,
+      createEncoder: ({ width, height }) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d", { alpha: true });
+        if (!context) throw new Error("No se ha podido preparar la imagen.");
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.clearRect(0, 0, width, height);
+        context.drawImage(decoded.source, 0, 0, width, height);
+        return createCanvasWebpEncoder(canvas, context);
+      },
+    });
 
     return {
-      blob: smallest,
-      width: outputWidth,
-      height: outputHeight,
+      blob: processed.blob,
+      width: processed.width,
+      height: processed.height,
       originalBytes: file.size,
-      outputBytes: smallest.size,
+      outputBytes: processed.blob.size,
       preset: presetKey,
     };
   } finally {

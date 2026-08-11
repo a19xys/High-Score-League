@@ -28,6 +28,10 @@ type ProfileEditorProps = {
   onboarding?: boolean;
 };
 
+type SaveFeedback =
+  | { kind: "success"; text: string }
+  | { kind: "warning"; text: string };
+
 export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) {
   const router = useRouter();
   const [username, setUsername] = useState(
@@ -51,8 +55,12 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
     auth.profile?.presence_public === false,
   );
   const [error, setError] = useState<string | null>(auth.profileError);
-  const [message, setMessage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<SaveFeedback | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function markFormModified() {
+    setFeedback(null);
+  }
 
   function handleBioPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
     const pastedText = event.clipboardData.getData("text");
@@ -71,7 +79,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setMessage(null);
+    setFeedback(null);
 
     const cleanUsername = username.trim();
     const cleanInitials = normalizeInitials(initials);
@@ -146,9 +154,10 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
       });
       profile = saved.result;
       if (saved.cleanupWarning) {
-        setMessage(
-          `Perfil guardado. No se pudo retirar la imagen anterior: ${saved.cleanupWarning}`,
-        );
+        setFeedback({
+          kind: "warning",
+          text: `Perfil guardado. No se pudo retirar la imagen anterior: ${saved.cleanupWarning}`,
+        });
       }
     } catch (caught) {
       setError(
@@ -175,6 +184,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
     });
 
     if (metadataUpdate.error) {
+      setFeedback(null);
       setError(humanizeSupabaseError(metadataUpdate.error.message));
       setIsSubmitting(false);
       return;
@@ -191,7 +201,11 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
     if (auth.profile?.presence_public !== true && profile.presence_public === true) {
       window.dispatchEvent(new Event("hsl:presence-preference-changed"));
     }
-    setMessage((current) => current ?? "Perfil guardado correctamente.");
+    setFeedback((current) =>
+      current?.kind === "warning"
+        ? current
+        : { kind: "success", text: "Perfil guardado correctamente." },
+    );
     setIsSubmitting(false);
     router.refresh();
   }
@@ -211,7 +225,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
       </p>
 
       <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
-        <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
+        <div className="space-y-6">
           <section>
             <p className="text-xs font-extrabold uppercase tracking-[0.12em] theme-text-muted">
               Foto de perfil
@@ -221,9 +235,11 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                 currentUrl={avatarUrl}
                 disabled={isSubmitting}
                 initials={normalizeInitials(initials)}
-                onChange={setAvatarSelection}
+                onChange={(selection) => {
+                  markFormModified();
+                  setAvatarSelection(selection);
+                }}
                 selection={avatarSelection}
-                username={username.trim()}
               />
             </div>
           </section>
@@ -237,7 +253,10 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                   <input
                     autoComplete="username"
                     className="mt-2 w-full rounded-xl border px-3 py-2.5 theme-input"
-                    onChange={(event) => setUsername(event.target.value)}
+                    onChange={(event) => {
+                      markFormModified();
+                      setUsername(event.target.value);
+                    }}
                     placeholder="lauravc"
                     required
                     value={username}
@@ -252,9 +271,10 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                   <input
                     className="mt-2 w-full rounded-xl border px-3 py-2.5 uppercase theme-input"
                     maxLength={3}
-                    onChange={(event) =>
-                      setInitials(normalizeInitials(event.target.value))
-                    }
+                    onChange={(event) => {
+                      markFormModified();
+                      setInitials(normalizeInitials(event.target.value));
+                    }}
                     placeholder="LVC"
                     required
                     spellCheck={false}
@@ -273,7 +293,10 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                   className="mt-2 min-h-32 w-full resize-y rounded-xl border px-3 py-2.5 theme-input"
                   id="profile-bio"
                   maxLength={PROFILE_BIO_MAX_LENGTH}
-                  onChange={(event) => setBio(event.target.value)}
+                  onChange={(event) => {
+                    markFormModified();
+                    setBio(event.target.value);
+                  }}
                   onPaste={handleBioPaste}
                   placeholder="Cuéntale a los demás sobre ti…"
                   value={bio}
@@ -295,7 +318,10 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                 <input
                   checked={hidePlayTime}
                   className="mt-1 h-4 w-4 accent-circuit"
-                  onChange={(event) => setHidePlayTime(event.target.checked)}
+                  onChange={(event) => {
+                    markFormModified();
+                    setHidePlayTime(event.target.checked);
+                  }}
                   type="checkbox"
                 />
                 <span>
@@ -311,7 +337,10 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                 <input
                   checked={hidePresence}
                   className="mt-1 h-4 w-4 accent-circuit"
-                  onChange={(event) => setHidePresence(event.target.checked)}
+                  onChange={(event) => {
+                    markFormModified();
+                    setHidePresence(event.target.checked);
+                  }}
                   type="checkbox"
                 />
                 <span>
@@ -327,33 +356,48 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
           </div>
         </div>
 
-        <div aria-live="polite" className="min-h-5">
-          {error ? (
-            <p
-              className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm text-[var(--warning-text)]"
-              role="alert"
+        {error ? (
+          <p
+            aria-live="assertive"
+            className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm text-[var(--warning-text)]"
+            role="alert"
+          >
+            {error}
+          </p>
+        ) : null}
+        {feedback?.kind === "warning" ? (
+          <p
+            aria-live="polite"
+            className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm text-[var(--warning-text)]"
+            role="status"
+          >
+            {feedback.text}
+          </p>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-circuit px-5 py-3 text-sm font-extrabold text-slate-950 transition hover:bg-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            disabled={isSubmitting}
+            type="submit"
+          >
+            {isSubmitting
+              ? "Guardando…"
+              : onboarding
+                ? "Crear mi perfil"
+                : "Guardar cambios"}
+          </button>
+          {feedback?.kind === "success" ? (
+            <span
+              aria-live="polite"
+              className="inline-flex items-center text-emerald-600"
+              role="status"
             >
-              {error}
-            </p>
-          ) : null}
-          {message ? (
-            <p className="text-sm font-semibold text-emerald-600" role="status">
-              {message}
-            </p>
+              <span aria-hidden="true" className="text-xl font-black leading-none">✓</span>
+              <span className="sr-only">{feedback.text}</span>
+            </span>
           ) : null}
         </div>
-
-        <button
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-circuit px-5 py-3 text-sm font-extrabold text-slate-950 transition hover:bg-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-          disabled={isSubmitting}
-          type="submit"
-        >
-          {isSubmitting
-            ? "Guardando…"
-            : onboarding
-              ? "Crear mi perfil"
-              : "Guardar cambios"}
-        </button>
       </form>
     </section>
   );

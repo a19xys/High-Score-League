@@ -67,14 +67,14 @@ function RealSeasonWeeksTable({
   }
 
   return (
-    <DataTable>
+    <DataTable tableClassName="w-full table-fixed">
       <thead className="text-xs font-semibold uppercase theme-table-head">
         <tr>
-          <th className="px-4 py-3">Semana</th>
-          <th className="px-4 py-3">Fechas</th>
-          <th className="px-4 py-3">Estado</th>
-          <th className="px-4 py-3">Juego</th>
-          <th className="px-4 py-3" />
+          <th className="w-[30%] px-2 py-3 text-left sm:w-28 sm:px-4">Semana</th>
+          <th className="hidden w-36 px-4 py-3 text-left sm:table-cell">Fechas</th>
+          <th className="hidden w-28 px-4 py-3 text-left sm:table-cell">Estado</th>
+          <th className="px-2 py-3 text-left sm:px-4">Juego</th>
+          <th className="w-16 px-2 py-3 text-left sm:w-28 sm:px-4">Acción</th>
         </tr>
       </thead>
       <tbody className="divide-y theme-border theme-surface">
@@ -84,34 +84,52 @@ function RealSeasonWeeksTable({
 
           return (
             <tr className="theme-hover" key={summary.week.id}>
-              <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
-                Semana {summary.week.number}
+              <td className="min-w-0 px-2 py-3 align-middle sm:px-4 sm:py-4">
+                <p className="truncate whitespace-nowrap font-semibold theme-text">
+                  Semana {summary.week.number}
+                </p>
+                <p className="mt-0.5 truncate whitespace-nowrap text-[11px] font-normal leading-4 theme-text-muted sm:hidden">
+                  {hasDates
+                    ? formatCompactDateRange(summary.week.startsAt, summary.week.endsAt)
+                    : "-"}
+                </p>
               </td>
-              <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
+              <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted sm:table-cell">
                 {hasDates
                   ? formatCompactDateRange(summary.week.startsAt, summary.week.endsAt)
                   : "-"}
               </td>
-              <td className="whitespace-nowrap px-4 py-4">
+              <td className="hidden whitespace-nowrap px-4 py-4 sm:table-cell">
                 <StatusBadge status={summary.week.status} />
               </td>
-              <td className="whitespace-nowrap px-4 py-4 theme-text">
-                {secret ? "Por anunciar" : summary.game.title}
+              <td className="min-w-0 px-2 py-3 align-middle sm:px-4 sm:py-4">
+                <p
+                  className="truncate whitespace-nowrap theme-text"
+                  title={secret ? "Por anunciar" : summary.game.title}
+                >
+                  {secret ? "Por anunciar" : summary.game.title}
+                </p>
+                <div className="mt-1 sm:hidden">
+                  <StatusBadge compact status={summary.week.status} />
+                </div>
               </td>
-              <td className="whitespace-nowrap px-4 py-4">
+              <td className="whitespace-nowrap px-2 py-3 align-middle sm:px-4 sm:py-4">
                 {secret ? (
                   <span
                     className="cursor-not-allowed font-semibold theme-text-muted"
                     title="Semana no disponible todavía."
                   >
-                    No disponible
+                    <span aria-hidden="true" className="sm:hidden">—</span>
+                    <span className="sr-only sm:hidden">No disponible</span>
+                    <span className="hidden sm:inline">No disponible</span>
                   </span>
                 ) : (
                   <Link
                     className="font-semibold text-circuit hover:underline"
                     href={`/weeks/${summary.week.id}`}
                   >
-                    Ver semana
+                    <span className="sm:hidden">Ver</span>
+                    <span className="hidden sm:inline">Ver semana</span>
                   </Link>
                 )}
               </td>
@@ -152,8 +170,7 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
     <div className="space-y-6">
       <Breadcrumbs
         items={[
-          { href: "/archive", label: "Archivo" },
-          { href: "/archive/seasons", label: "Temporadas" },
+          { href: "/archive#seasons", label: "Temporadas" },
           { label: season.name },
         ]}
       />

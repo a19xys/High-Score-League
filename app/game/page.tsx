@@ -56,7 +56,7 @@ export default async function GamePage() {
       </CardHeader>
       <EmptyState
         action={
-          <Link className="font-semibold text-circuit hover:underline" href="/archive/weeks">
+          <Link className="font-semibold text-circuit hover:underline" href="/archive#weeks">
             Ver archivo
           </Link>
         }

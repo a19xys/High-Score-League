@@ -21,13 +21,16 @@ const statusLabels: Record<StatusValue, string> = {
 };
 
 type StatusBadgeProps = {
+  compact?: boolean;
   status: StatusValue;
 };
 
-export function StatusBadge({ status }: StatusBadgeProps) {
+export function StatusBadge({ compact = false, status }: StatusBadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase ${statusStyles[status]}`}
+      className={`inline-flex items-center rounded-full border text-xs font-semibold uppercase ${
+        compact ? "px-2 py-0.5 text-[10px] leading-4" : "px-3 py-1"
+      } ${statusStyles[status]}`}
     >
       {statusLabels[status]}
     </span>

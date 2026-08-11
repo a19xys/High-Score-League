@@ -103,24 +103,34 @@ slots visuales. El perfil público nunca recibe este dataset.
 
 ## Editor y cuenta
 
-El editor es una única superficie. En móvil ordena foto, identidad, bio,
-privacidad y guardar; en escritorio coloca la foto en una columna lateral
-compacta y los campos en la principal. Sigue habiendo un solo guardado.
+El editor es una única superficie y usa el mismo orden en todos los tamaños:
+foto, identidad, bio, privacidad y guardar. La foto ya no ocupa una columna
+lateral; su preview y controles sólo se disponen en fila dentro del propio
+subapartado cuando hay espacio. El copy se limita a formatos y máximo de 12 MB,
+y Cambiar, Quitar y Deshacer pueden envolver con targets táctiles de 44 px.
+Sigue habiendo un solo guardado. El éxito se representa junto al botón con un
+check accesible que permanece hasta la siguiente modificación, sin reservar
+altura en idle; errores y avisos de cleanup siguen siendo texto visible.
 `MediaUpload` mantiene preview local, conversión WebP, upload al guardar,
 persistencia, cleanup, rollback, invalidación de caché y metadata Auth.
 
-Cuenta agrupa apariencia, email/sesión y zona de peligro. El traslado visual no
-modifica el endpoint, RPC, confirmación, tombstone, Storage cleanup ni lifecycle
-de anonimización.
+Cuenta agrupa apariencia y un único subapartado “Sesión y cuenta”. Email,
+Cerrar sesión y el bloque advertido de Eliminar cuenta viven en ese mismo
+subapartado. El traslado visual no modifica el endpoint, RPC, confirmación,
+tombstone, Storage cleanup ni lifecycle de anonimización.
 
 ## Hover cards e identidades enlazadas
 
 `PlayerPill` enlaza el bloque de identidad cuando existe un username activo y
 admite `linkToProfile={false}`. Los tombstones no enlazan. `PlayerHoverCard`
-aparece tras intención sostenida en dispositivos con hover, usa portal,
-posicionamiento contra viewport, caché corta y endpoint autenticado. Teclado,
-Escape y reduced motion mantienen sus contratos. El bio compartido está limitado
-a 150 caracteres y su fallback es `Sin descripción.`.
+aparece tras 600 ms de intención sostenida en dispositivos con hover. Las
+identidades no cambian fondo, sombra, posición ni superficie al apuntarlas, pero
+conservan foco visible. El portal deja un gap transparente de 6 px y aplica 220
+ms de gracia al salir del trigger o popup; entrar en el popup cancela el cierre.
+El posicionamiento prefiere debajo, usa arriba si no cabe, limita altura y
+colisiona lateralmente con 12 px de margen. Teclado, touch, Escape, caché,
+tombstones y reduced motion mantienen sus contratos. El bio compartido está
+limitado a 150 caracteres y su fallback es `Sin descripción.`.
 
 ## Avatar administrado
 

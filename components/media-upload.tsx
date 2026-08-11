@@ -73,7 +73,13 @@ export function MediaUpload({
 
   return (
     <div className="rounded-xl border p-3 theme-border theme-surface-muted">
-      <div className={preset === "game-header" ? "space-y-3" : "flex items-center gap-4"}>
+      <div
+        className={
+          preset === "game-header"
+            ? "space-y-3"
+            : "flex flex-col gap-4 sm:flex-row sm:items-center"
+        }
+      >
         <div className={preset === "game-header" ? "overflow-hidden rounded-lg theme-surface-strong" : "shrink-0"}>
           {shownUrl ? (
             <img alt={`Vista previa: ${label}`} className={previewClass} src={shownUrl} />
@@ -105,17 +111,17 @@ export function MediaUpload({
               ref={inputRef}
               type="file"
             />
-            <label className="cursor-pointer rounded-md bg-circuit px-3 py-2 text-xs font-semibold text-slate-950 aria-disabled:cursor-not-allowed aria-disabled:opacity-60" htmlFor={inputId} aria-disabled={disabled || processing}>
+            <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md bg-circuit px-3 py-2 text-xs font-semibold text-slate-950 aria-disabled:cursor-not-allowed aria-disabled:opacity-60" htmlFor={inputId} aria-disabled={disabled || processing}>
               {processing ? "Procesando…" : shownUrl ? "Cambiar imagen" : "Subir imagen"}
             </label>
             {shownUrl || selection.kind === "replace" ? (
-              <button className="rounded-md border px-3 py-2 text-xs font-semibold theme-border theme-hover theme-text" disabled={disabled || processing} onClick={() => onChange({ kind: "remove" })} type="button">
+              <button className="min-h-11 rounded-md border px-3 py-2 text-xs font-semibold theme-border theme-hover theme-text" disabled={disabled || processing} onClick={() => onChange({ kind: "remove" })} type="button">
                 Quitar
               </button>
             ) : null}
             {selection.kind !== "unchanged" ? (
-              <button className="rounded-md border px-3 py-2 text-xs font-semibold theme-border theme-hover theme-text" disabled={disabled || processing} onClick={() => onChange({ kind: "unchanged" })} type="button">
-                Cancelar cambio
+              <button className="min-h-11 rounded-md border px-3 py-2 text-xs font-semibold theme-border theme-hover theme-text" disabled={disabled || processing} onClick={() => onChange({ kind: "unchanged" })} type="button">
+                Deshacer
               </button>
             ) : null}
           </div>
