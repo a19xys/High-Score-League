@@ -136,7 +136,11 @@ export function ProfileDashboard({
       />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(19rem,0.85fr)]">
         <ProfileEditor auth={auth} />
-        <ProfileAccountSettings email={auth.email} />
+        <ProfileAccountSettings
+          email={auth.email}
+          playerId={auth.profile.id}
+          username={auth.profile.username}
+        />
       </div>
       <AdminProfileCenter data={adminCenter} />
     </div>

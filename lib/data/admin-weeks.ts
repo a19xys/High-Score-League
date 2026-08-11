@@ -96,6 +96,7 @@ const submissionColumns = `
     avatar_url,
     avatar_storage_path,
     is_admin,
+    anonymized_at,
     created_at,
     updated_at
   )
@@ -118,6 +119,7 @@ const weeklyResultColumns = `
     avatar_url,
     avatar_storage_path,
     is_admin,
+    anonymized_at,
     created_at,
     updated_at
   )

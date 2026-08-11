@@ -165,3 +165,10 @@ cuestionario deshabilitado.
 - comentarios;
 - historial de cuestionarios;
 - múltiples cuestionarios simultáneos.
+
+## Cuentas anonimizadas
+
+Los votos históricos se conservan vinculados al UUID para no alterar agregados
+ni resultados anteriores. Un tombstone no puede emitir ni cambiar votos: la API
+y las policies de `home_poll_votes` exigen un perfil activo, incluso ante un JWT
+emitido antes de la baja. La anonimización no revela votos individuales.

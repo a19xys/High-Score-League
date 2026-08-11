@@ -114,9 +114,10 @@ está desplegada actualmente.
 
 ## Pendiente
 
-- `PROFILE-ANONYMIZATION-1`: baja de cuenta sin destruir la historia
-  competitiva.
-- `PROFILE-PRESENCE-1`, después de Anonymization: presencia y última actividad
+- Aplicar y verificar `0027_profile_anonymization.sql`, desplegar después la
+  web compatible y completar el QA de `PROFILE-ANONYMIZATION-1` con una cuenta
+  desechable. El código y la migración están preparados, no desplegados.
+- `PROFILE-PRESENCE-1`, después de cerrar ese QA: presencia y última actividad
   con privacidad propia, sin inferirlas desde Playtime.
 - Storage privado de capturas y evidencias.
 - Panel completo de usuarios.

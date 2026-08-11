@@ -60,15 +60,15 @@ export async function POST(
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("is_admin")
+    .select("is_admin,anonymized_at")
     .eq("id", userData.user.id)
-    .maybeSingle<{ is_admin: boolean }>();
+    .maybeSingle<{ anonymized_at: string | null; is_admin: boolean }>();
 
   if (profileError) {
     return jsonError("No se pudo validar el perfil admin.", 500);
   }
 
-  if (!profile?.is_admin) {
+  if (!profile?.is_admin || profile.anonymized_at !== null) {
     return jsonError("Necesitas permisos de admin.", 403);
   }
 

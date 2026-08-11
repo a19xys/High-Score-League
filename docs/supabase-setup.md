@@ -45,8 +45,10 @@ En un entorno nuevo, aplicar todas las migraciones ausentes de
 `supabase/migrations/` en orden numérico antes de arrancar una revisión que
 consulte sus columnas. En el entorno remoto actual,
 `0023_profile_bio_max_length.sql` y `0024_media_uploads.sql` ya están aplicadas;
-no deben volver a ejecutarse. Esta auditoría no confirma la aplicación remota de
-`0025_play_time.sql` ni qué revisión web está desplegada.
+no deben volver a ejecutarse. `0026_submission_detected_at_window.sql` también
+existe y está aplicada remotamente. `0027_profile_anonymization.sql` está
+preparada pero pendiente de aplicación remota; antes debe ejecutarse el
+preflight SELECT-only `supabase/preflight/0027_profile_anonymization.sql`.
 
 Consulta el [checklist de despliegue](deploy-checklist.md) para el orden completo
 y las comprobaciones de RLS, Realtime y Storage.

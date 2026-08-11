@@ -4,6 +4,7 @@ import { getSupabaseEnv } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { deriveSubmissionWindowAt } from "@/lib/submission-window";
 import type { SubmissionSource, WeekRow } from "@/types/supabase";
+import { hasActiveProfile } from "@/lib/auth/active-profile";
 
 const allowedSources = [
   "web",
@@ -312,6 +313,24 @@ export async function POST(request: NextRequest) {
 
   if (userError || !userData.user) {
     return jsonError("Necesitas una sesión válida para enviar puntuaciones.", 401);
+  }
+
+  const profileState = await hasActiveProfile(supabase, userData.user.id);
+
+  if (profileState.error) {
+    return jsonCodeError(
+      "PROFILE_CHECK_FAILED",
+      "No se pudo validar el perfil activo.",
+      500,
+    );
+  }
+
+  if (!profileState.active) {
+    return jsonCodeError(
+      "ACTIVE_PROFILE_REQUIRED",
+      "La cuenta no puede enviar puntuaciones.",
+      403,
+    );
   }
 
   const input = validation.value;

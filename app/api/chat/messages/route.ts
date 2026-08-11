@@ -5,6 +5,7 @@ import {
   mapLeagueChatRowToMessage,
 } from "@/lib/data/league-chat";
 import type { LeagueChatMessageRow } from "@/types/supabase";
+import { hasActiveProfile } from "@/lib/auth/active-profile";
 
 const chatMessageMaxLength = 65_536;
 
@@ -44,6 +45,16 @@ export async function GET() {
 
   if (userError || !userData.user) {
     return jsonError("Necesitas iniciar sesión para leer el chat.", 401);
+  }
+
+  const profileState = await hasActiveProfile(supabase, userData.user.id);
+
+  if (profileState.error) {
+    return jsonError("No se pudo validar el perfil del chat.", 500);
+  }
+
+  if (!profileState.active) {
+    return jsonError("La cuenta no tiene acceso al chat.", 403);
   }
 
   const result = await getRealLeagueChatMessages();
@@ -97,6 +108,16 @@ export async function POST(request: NextRequest) {
     return jsonError("Necesitas iniciar sesión para escribir en el chat.", 401);
   }
 
+  const profileState = await hasActiveProfile(supabase, userData.user.id);
+
+  if (profileState.error) {
+    return jsonError("No se pudo validar el perfil del chat.", 500);
+  }
+
+  if (!profileState.active) {
+    return jsonError("La cuenta no puede escribir en el chat.", 403);
+  }
+
   const { data: message, error } = await supabase
     .from("league_chat_messages")
     .insert({
@@ -119,6 +140,7 @@ export async function POST(request: NextRequest) {
           avatar_url,
           avatar_storage_path,
           is_admin,
+          anonymized_at,
           created_at,
           updated_at
         )

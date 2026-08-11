@@ -40,9 +40,15 @@ export function PlayerPill({
     </>
   );
 
-  if (!linkToProfile || !player.username.trim()) {
+  if (player.isAnonymized || !linkToProfile || !player.username.trim()) {
     return (
-      <span className={`flex min-w-0 items-center ${gapClass}`}>{content}</span>
+      <span
+        aria-label={player.isAnonymized ? "Usuario eliminado" : undefined}
+        className={`flex min-w-0 items-center ${gapClass}`}
+        title={player.isAnonymized ? "Usuario eliminado" : undefined}
+      >
+        {content}
+      </span>
     );
   }
 

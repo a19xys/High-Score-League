@@ -167,3 +167,15 @@ Todavía no hay:
 - borrado desde UI;
 - historial de ediciones.
 
+## Cuentas anonimizadas
+
+Los mensajes históricos se conservan y muestran un autor tombstone no
+interactivo (`DEL`, sin avatar, perfil ni hover card). La baja no recorre ni
+reescribe mensajes libres: podrían incluir datos introducidos por la persona y
+su revisión pertenece a moderación. Solo se actualiza el mensaje de sistema de
+unión cuando su contenido coincide exactamente con el username retirado seguido
+de ` se unió al chat.`.
+
+Un perfil anonimizando no puede leer, publicar ni editar mediante los endpoints
+de chat aunque conserve un JWT anterior; el endpoint y RLS exigen un perfil
+activo.

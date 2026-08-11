@@ -236,7 +236,7 @@ test("primary actions consumen la proyeccion competitiva para semanas y no convi
     { hasSession: true, requiresLogin: false },
   );
   assert.notEqual(rejectedConsumer.status, "requires-login");
-  assert.doesNotMatch(rejectedConsumer.title, /iniciar sesiÃ³n/i);
+  assert.doesNotMatch(rejectedConsumer.title, /iniciar sesión/i);
 });
 
 test("confirmed member plus ready pack uses the exact Pack listo success summary", async () => {

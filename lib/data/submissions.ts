@@ -29,6 +29,7 @@ const submissionColumns = `
     avatar_url,
     avatar_storage_path,
     is_admin,
+    anonymized_at,
     created_at,
     updated_at
   )
@@ -51,19 +52,26 @@ type HiddenSubmissionActivityRow = {
   profile_username: string;
   profile_initials: string;
   profile_avatar_url: string | null;
+  profile_anonymized_at: string | null;
 };
 
 export function mapRealProfileToPlayer(profile: RealProfile): Player {
+  const isAnonymized = profile.anonymized_at !== null;
+
   return {
     id: profile.id,
     username: profile.username,
-    initials: profile.initials,
-    avatarUrl: resolveMediaUrl({
-      storagePath: profile.avatar_storage_path,
-      legacyUrl: profile.avatar_url,
-    }) ?? undefined,
-    avatarStoragePath: profile.avatar_storage_path ?? null,
-    isAdmin: profile.is_admin,
+    initials: isAnonymized ? "DEL" : profile.initials,
+    avatarUrl: isAnonymized
+      ? undefined
+      : resolveMediaUrl({
+          storagePath: profile.avatar_storage_path,
+          legacyUrl: profile.avatar_url,
+        }) ?? undefined,
+    avatarStoragePath: isAnonymized ? null : profile.avatar_storage_path ?? null,
+    bio: isAnonymized ? undefined : profile.bio ?? undefined,
+    isAdmin: isAnonymized ? false : profile.is_admin,
+    isAnonymized,
   };
 }
 
@@ -166,6 +174,7 @@ export async function getHiddenSubmissionActivity(
       initials: row.profile_initials,
       avatar_url: row.profile_avatar_url,
       is_admin: false,
+      anonymized_at: row.profile_anonymized_at,
     },
   }));
 

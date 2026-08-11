@@ -10,6 +10,7 @@ import {
 type EnsureProfileResult =
   | { status: "signed-out"; profile: null; error: string | null }
   | { status: "ok"; profile: RealProfile; error: null }
+  | { status: "inaccessible"; profile: null; error: string }
   | { status: "needs-input"; profile: null; error: string };
 
 type SupabaseMutationError = {
@@ -18,7 +19,7 @@ type SupabaseMutationError = {
 };
 
 const profileColumns =
-  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,created_at,updated_at";
+  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,anonymized_at,created_at,updated_at";
 
 function metadataString(value: unknown) {
   return typeof value === "string" ? value : "";
@@ -37,6 +38,10 @@ function humanizeProfileInsertError(error: SupabaseMutationError) {
 
   if (message.includes("profiles_username_lower_unique_idx")) {
     return "Ese username ya esta usado por otro jugador.";
+  }
+
+  if (message.includes("username_retired") || message.includes("username_reserved")) {
+    return "Ese username no está disponible.";
   }
 
   if (message.includes("profiles_initials_upper_unique_idx")) {
@@ -130,11 +135,11 @@ export async function ensureProfileForCurrentUser(
       }
 
       return {
-        status: "needs-input",
+        status: "inaccessible",
         profile: null,
         error: profileAfterRaceError
           ? humanizeSupabaseError(profileAfterRaceError.message)
-          : "El perfil parece existir, pero no se pudo leer de nuevo.",
+          : "La cuenta ya no tiene acceso a un perfil activo.",
       };
     }
 

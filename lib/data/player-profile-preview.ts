@@ -29,8 +29,9 @@ export async function getPlayerProfilePreview(
 ): Promise<PlayerProfilePreviewResult> {
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id,username,initials,avatar_url,avatar_storage_path,bio")
+    .select("id,username,initials,avatar_url,avatar_storage_path,bio,anonymized_at")
     .eq("username", username)
+    .is("anonymized_at", null)
     .maybeSingle<{
       id: string;
       username: string;
@@ -38,6 +39,7 @@ export async function getPlayerProfilePreview(
       avatar_url: string | null;
       avatar_storage_path: string | null;
       bio: string | null;
+      anonymized_at: string | null;
     }>();
 
   if (profileError) {

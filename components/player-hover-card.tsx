@@ -152,10 +152,12 @@ export function PlayerHoverCard({
   const lastPointerTypeRef = useRef<string | null>(null);
   const cardId = `player-card-${useId().replace(/:/g, "")}`;
   const key = playerCacheKey(player);
-  const cachedPreview = getCachedPlayerProfilePreview({
-    playerId: player.id,
-    username: player.username,
-  });
+  const cachedPreview = player.isAnonymized
+    ? null
+    : getCachedPlayerProfilePreview({
+        playerId: player.id,
+        username: player.username,
+      });
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<CardPosition | null>(null);
@@ -240,6 +242,13 @@ export function PlayerHoverCard({
   }, []);
 
   useEffect(() => {
+    if (player.isAnonymized) {
+      setPreview(null);
+      setPreviewState("idle");
+      setOpen(false);
+      return;
+    }
+
     const cached = getCachedPlayerProfilePreview({
       playerId: player.id,
       username: player.username,
@@ -247,10 +256,10 @@ export function PlayerHoverCard({
     setPreview(cached);
     setPreviewState(cached ? "ready" : "idle");
     setOpen(false);
-  }, [key, player.id, player.username]);
+  }, [key, player.id, player.isAnonymized, player.username]);
 
   useEffect(() => {
-    if (!open) {
+    if (!open || player.isAnonymized) {
       return;
     }
 
@@ -520,6 +529,18 @@ export function PlayerHoverCard({
       </div>
     </div>
   );
+
+  if (player.isAnonymized) {
+    return (
+      <span
+        aria-label="Usuario eliminado"
+        className={className}
+        title="Usuario eliminado"
+      >
+        {children}
+      </span>
+    );
+  }
 
   return (
     <span className="contents" ref={wrapperRef}>

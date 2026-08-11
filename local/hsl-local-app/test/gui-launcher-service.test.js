@@ -1174,7 +1174,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(header, /No has iniciado sesión/);
   assert.match(header, /account-mini-avatar--empty/);
   assert.match(copy, /launcherSubtitle: "Tu compañero para jugar la liga\"/);
-  assert.equal(/Cambio rápido disponible|Cambio rÃ¡pido disponible|Cuenta activa|badge badge-ok|No se guardan contrase|Las puntuaciones se guardan|No borra puntuaciones/.test(header), false);
+  assert.equal(/Cambio rápido disponible|Cambio rápido disponible|Cuenta activa|badge badge-ok|No se guardan contrase|Las puntuaciones se guardan|No borra puntuaciones/.test(header), false);
   assert.match(gamePanel, /derivePrimaryActions/);
   assert.match(gamePanel, /renderAvailabilityButton\(actions\.competition/);
   assert.match(gamePanel, /renderAvailabilityButton\(actions\.practice/);

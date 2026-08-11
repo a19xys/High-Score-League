@@ -169,7 +169,7 @@ function snapshot({ samePack = false } = {}) {
       assets: { logo: { url: "./assets/brand/logo-horizontal.png" } },
       developer: "HSL Fixture Studio",
       displayName: `${pack.title}${samePack ? " SAME" : ""}`,
-      errors: heroError ? ["Error sintÃ©tico de fixture"] : [],
+      errors: heroError ? ["Error sintáctico de fixture"] : [],
       favorite: true,
       genre: ["Arcade", "Shooter"],
       id: pack.id,
@@ -213,7 +213,7 @@ function snapshot({ samePack = false } = {}) {
         requiresLogin,
         weekStatus: currentWeekCapability.publicState,
       },
-      blockers: heroChecking ? ["Comprobando participaciÃ³n."] : [],
+      blockers: heroChecking ? ["Comprobando participación."] : [],
       checks: heroError
         ? [{ id: "rom", level: "error" }]
         : membershipFixtureStatus === "not_member"
@@ -306,7 +306,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
         ok: false,
         requiresLogin: true,
         state: snapshot(),
-        summary: "Inicia sesiÃ³n de nuevo para esta cuenta.",
+        summary: "Inicia sesión de nuevo para esta cuenta.",
       };
     }
     if (userId === "expired") {
@@ -315,7 +315,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
         ok: false,
         requiresLogin: true,
         state: snapshot(),
-        summary: "La sesiÃƒÂ³n caducÃƒÂ³ durante el cambio.",
+        summary: "La sesión caducó durante el cambio.",
       };
     }
     if (userId === "valid") activeUserId = "valid";

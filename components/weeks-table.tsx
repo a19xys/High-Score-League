@@ -124,7 +124,7 @@ export function WeeksTable({
         ...new Map(
           publicRows
             .filter((summary) => summary.winner)
-            .map((summary) => [summary.winner?.username, summary.winner]),
+            .map((summary) => [summary.winner?.id, summary.winner]),
         ).values(),
       ].sort((a, b) => (a?.username ?? "").localeCompare(b?.username ?? "")),
     };
@@ -166,7 +166,7 @@ export function WeeksTable({
         const matchesGenre =
           genre === "all" || (!secret && summary.game.taxonomyTags.includes(genre));
         const matchesLeader =
-          leader === "all" || (!secret && summary.winner?.username === leader);
+          leader === "all" || (!secret && summary.winner?.id === leader);
 
         return (
           matchesQuery &&
@@ -352,7 +352,7 @@ export function WeeksTable({
                   <option value="all">Todos</option>
                   {filterOptions.leaders.map((option) =>
                     option ? (
-                      <option key={option.id} value={option.username}>
+                      <option key={option.id} value={option.id}>
                         @{option.username}
                       </option>
                     ) : null,

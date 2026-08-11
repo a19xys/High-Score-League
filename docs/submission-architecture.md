@@ -115,3 +115,17 @@ evidencias competitivas.
 La paginación actual de historiales ocurre en cliente después de cargar y
 calcular el conjunto completo. `SUBMISSIONS-SERVER-PAGINATION-1` se reserva para
 cuando el volumen justifique consultas paginadas, conteos e índices específicos.
+
+## Cuentas anonimizadas
+
+La baja conserva cada submission, su puntuación, semana, estado, timestamps,
+comentario, captura y `rom_name`, porque siguen formando parte del registro
+competitivo y de su procedencia. Limpia `raw_event`, `mame_version`,
+`client_version` y `duplicate_key`, que son metadata técnica prescindible y
+podrían identificar el entorno del usuario. Conservar `rom_name` permite auditar
+la ROM asociada a la captura sin mantener versión de cliente ni payload crudo.
+
+Los historiales proyectan el tombstone `DEL` sin enlace, avatar, bio ni hover.
+El UUID estable evita romper resultados y rankings. La API de ingest exige un
+perfil activo, por lo que un usuario anonimizado no puede crear nuevas filas ni
+usar un token anterior para seguir compitiendo.

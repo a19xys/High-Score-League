@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { SeasonRow } from "@/types/supabase";
+import { hasActiveProfile } from "@/lib/auth/active-profile";
 
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
@@ -24,6 +25,16 @@ export async function POST(_request: NextRequest, { params }: JoinRouteContext) 
 
   if (userError || !userData.user) {
     return jsonError("Necesitas iniciar sesión para unirte a la temporada.", 401);
+  }
+
+  const profileState = await hasActiveProfile(supabase, userData.user.id);
+
+  if (profileState.error) {
+    return jsonError("No se pudo validar el perfil.", 500);
+  }
+
+  if (!profileState.active) {
+    return jsonError("La cuenta no puede unirse a temporadas.", 403);
   }
 
   const { data: season, error: seasonError } = await supabase

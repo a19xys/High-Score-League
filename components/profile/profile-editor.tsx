@@ -125,14 +125,14 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                 .update(payload)
                 .eq("id", userData.user.id)
                 .select(
-                  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,created_at,updated_at",
+                  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,anonymized_at,created_at,updated_at",
                 )
                 .single()
             : await supabase
                 .from("profiles")
                 .insert({ id: userData.user.id, ...payload })
                 .select(
-                  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,created_at,updated_at",
+                  "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,track_play_time,is_admin,anonymized_at,created_at,updated_at",
                 )
                 .single();
 

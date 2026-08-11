@@ -11,6 +11,7 @@ import type {
   HomePollVoteRow,
 } from "@/types/supabase";
 import { resolveMediaUrl } from "@/lib/media/resolver";
+import { hasActiveProfile } from "@/lib/auth/active-profile";
 
 type ClientPair = {
   userClient: SupabaseClient;
@@ -93,6 +94,12 @@ export async function getPublicHomePoll(
 ): Promise<{ poll: PublicHomePoll | null; error: string | null }> {
   const adminClient = createSupabaseAdminClient();
   const readClient = getReadClient({ userClient, adminClient });
+  const profileState = await hasActiveProfile(readClient, userId);
+
+  if (profileState.error || !profileState.active) {
+    return { poll: null, error: profileState.error ?? "Cuenta sin acceso." };
+  }
+
   const visible = await getVisiblePollRows(readClient);
 
   if (visible.error || !visible.poll) {
@@ -198,6 +205,18 @@ export async function votePublicHomePoll(
       ok: false,
       status: 500,
       error: "No se pudo preparar la votación.",
+    };
+  }
+
+  const profileState = await hasActiveProfile(adminClient, userId);
+
+  if (profileState.error || !profileState.active) {
+    return {
+      ok: false,
+      status: profileState.error ? 500 : 403,
+      error: profileState.error
+        ? "No se pudo validar el perfil."
+        : "La cuenta no puede votar.",
     };
   }
 

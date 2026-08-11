@@ -6,7 +6,7 @@ export type AdminAuthResult =
       ok: true;
       supabase: SupabaseClient;
       userId: string;
-      profile: { is_admin: boolean };
+      profile: { anonymized_at: string | null; is_admin: boolean };
     }
   | {
       ok: false;
@@ -36,9 +36,9 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("is_admin")
+    .select("is_admin,anonymized_at")
     .eq("id", userData.user.id)
-    .maybeSingle<{ is_admin: boolean }>();
+    .maybeSingle<{ anonymized_at: string | null; is_admin: boolean }>();
 
   if (profileError) {
     return {
@@ -50,7 +50,7 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
     };
   }
 
-  if (!profile?.is_admin) {
+  if (!profile?.is_admin || profile.anonymized_at !== null) {
     return {
       ok: false,
       status: 403,

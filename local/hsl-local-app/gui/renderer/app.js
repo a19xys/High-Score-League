@@ -567,7 +567,7 @@ async function refreshRemoteStateAfterPackActivation(requestId, expectedInstance
     if (nextData?.selection?.activeInstanceKey !== expectedInstanceKey) return;
     store.setState(launcherSnapshotPatch(nextData));
   } catch {
-    // La activaciÃ³n aceptada sigue siendo autoritativa si el refresh falla.
+    // La activación aceptada sigue siendo autoritativa si el refresh falla.
   }
 }
 
@@ -1674,7 +1674,7 @@ async function switchAccount(button) {
     resetLoginDraft(reloginEmail);
     store.setState({
       ...openAccountFormState(reloginEmail),
-      authError: knownAccount.requiresLoginMessage || "Inicia sesiÃ³n de nuevo para esta cuenta.",
+      authError: knownAccount.requiresLoginMessage || "Inicia sesión de nuevo para esta cuenta.",
     });
     return;
   }

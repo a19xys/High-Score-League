@@ -37,7 +37,7 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
     assert.ok(selection.initialScrollTop > 0, `${selection.view} debe partir desplazada`);
     assert.equal(selection.flicker, false, selection.view);
     assert.equal(selection.maxScrollDelta, 0, selection.view);
-    assert.deepEqual(selection.geometryTransitions, [], `${selection.view} no debe alterar geometrÃ­a`);
+    assert.deepEqual(selection.geometryTransitions, [], `${selection.view} no debe alterar geometrí­a`);
     assert.deepEqual(selection.identityTransitions, [], `${selection.view} no debe reemplazar nodos`);
     assert.equal(selection.trace.at(-1).scrollEvents, 0, `${selection.view} no debe emitir scroll`);
     for (const frame of selection.frameTrace) {
@@ -189,7 +189,7 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
     email: "relogin@example.test",
     formVisible: true,
     menuOpen: true,
-    message: "Inicia sesiÃ³n de nuevo para esta cuenta.",
+    message: "Inicia sesión de nuevo para esta cuenta.",
   });
   assert.deepEqual(result.accounts.unexpectedRelogin, {
     busyOverlaySeen: true,

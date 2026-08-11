@@ -92,7 +92,9 @@ El avatar usa `MediaUpload` y `avatar_storage_path` con fallback a `avatar_url` 
 siglas. `0024_media_uploads.sql` ya está aplicada en el entorno remoto actual.
 En una instalación nueva, `0024_media_uploads.sql` y `0025_play_time.sql` deben
 aplicarse, en ese orden, antes del código que consulta sus funciones
-respectivas; esta auditoría no confirma la aplicación remota de `0025`.
+respectivas. `0026_submission_detected_at_window.sql` ya está aplicada en el
+Supabase remoto actual. `0027_profile_anonymization.sql` está preparada y
+pendiente de aplicación remota.
 
 El contrato de Playtime registra eventos identificados de práctica y
 competición. `play_time_public` solo decide si otros jugadores pueden ver el
@@ -109,18 +111,25 @@ metadata y `public.profiles` se usan para este flujo.
 `/profile/setup` queda como ruta legacy con un mensaje simple y enlace a
 `/profile`. Ya no forma parte del registro ni del login.
 
-## Eliminacion de cuenta
+## Anonimización de cuenta
 
-El borrado físico de cuenta está deshabilitado.
+El borrado físico de actividad histórica continúa deshabilitado.
+`POST /api/profile/anonymize` orquesta una baja irreversible: primero ejecuta la
+RPC de tombstone en base de datos, después elimina solo `avatars/<uid>/`, limpia
+metadata personal de Auth y finalmente usa `auth.admin.deleteUser(id, true)`
+para hacer soft-delete del usuario Auth. La clave `service_role` solo existe en
+servidor y nunca se expone al navegador.
 
-La futura accion "Eliminar cuenta" debe implementarse como anonimizacion, no
-como borrado fisico de actividad historica. Debe anonimizar datos de perfil
-como `username`, avatar, bio y preferencias personales, pero conservar
-submissions, resultados, memberships y actividad necesaria para preservar la
-integridad de las competiciones.
+El UUID y la historia competitiva sobreviven. El usuario retirado no puede
+volver a autenticarse ni recrear un perfil. Las policies y endpoints verifican
+`profiles.anonymized_at is null`, por lo que un token antiguo tampoco concede
+operaciones. El último administrador activo está protegido. Repetir la petición
+tras un fallo parcial es seguro y continúa la limpieza externa.
 
-`POST /auth/delete-account` queda bloqueado y devuelve un error claro. No debe
-usarse `auth.admin.deleteUser` como flujo de usuario en produccion.
+La UI exige escribir el username exacto y marcar una confirmación. Al completar
+invalida cachés conocidas, cierra la sesión global y vuelve a `/`. No se afirma
+un borrado legal exhaustivo: comentarios y mensajes libres históricos se
+conservan y podrían contener datos que requieren moderación aparte.
 
 ## Primer admin
 

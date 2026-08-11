@@ -1,11 +1,18 @@
 import { LogoutButton } from "@/components/auth/logout-button";
 import { ThemeSelect } from "@/components/theme-select";
+import { ProfileAccountAnonymization } from "./profile-account-anonymization";
 
 type ProfileAccountSettingsProps = {
   email: string;
+  playerId?: string;
+  username?: string;
 };
 
-export function ProfileAccountSettings({ email }: ProfileAccountSettingsProps) {
+export function ProfileAccountSettings({
+  email,
+  playerId,
+  username,
+}: ProfileAccountSettingsProps) {
   return (
     <section className="scroll-mt-32 space-y-4" id="cuenta">
       <div className="rounded-2xl border p-4 shadow-panel theme-border theme-surface sm:p-6">
@@ -32,15 +39,18 @@ export function ProfileAccountSettings({ email }: ProfileAccountSettingsProps) {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-[var(--warning-text)] sm:p-6">
-        <p className="text-xs font-extrabold uppercase tracking-[0.14em] opacity-75">
-          Conservación de historial
-        </p>
-        <h2 className="mt-1 text-lg font-black">Gestión futura de la cuenta</h2>
-        <p className="mt-2 text-sm leading-6">
-          La baja de una cuenta se diseñará como anonimización: retirará la identidad personal sin borrar resultados ni alterar la historia de la liga. No hay ninguna acción destructiva activa en esta pantalla.
-        </p>
-      </div>
+      {playerId && username ? (
+        <div className="rounded-2xl border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-[var(--warning-text)] sm:p-6">
+          <p className="text-xs font-extrabold uppercase tracking-[0.14em] opacity-75">
+            Zona de peligro
+          </p>
+          <h2 className="mt-1 text-lg font-black">Eliminar mi cuenta</h2>
+          <p className="mt-2 text-sm leading-6">
+            Retira de forma irreversible tu identidad y acceso. La historia competitiva y el contenido histórico permanecerán asociados a un actor anónimo.
+          </p>
+          <ProfileAccountAnonymization playerId={playerId} username={username} />
+        </div>
+      ) : null}
     </section>
   );
 }

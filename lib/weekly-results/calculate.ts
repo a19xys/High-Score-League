@@ -9,6 +9,7 @@ type SupabaseServerClient =
 type MembershipWithProfile = {
   player_id: string;
   joined_at: string;
+  status: "active" | "left";
   profiles?: RealProfile | RealProfile[] | null;
 };
 
@@ -133,10 +134,9 @@ export async function calculateWeeklyResultsForWeek(
   const { data: memberships, error: membershipsError } = await supabase
     .from("season_memberships")
     .select(
-      "player_id,joined_at,profiles:player_id(id,username,initials,avatar_url,avatar_storage_path,is_admin)",
+      "player_id,joined_at,status,profiles:player_id(id,username,initials,avatar_url,avatar_storage_path,is_admin,anonymized_at)",
     )
     .eq("season_id", week.season_id)
-    .eq("status", "active")
     .lte("joined_at", cutoffAt);
 
   if (membershipsError) {
@@ -147,7 +147,12 @@ export async function calculateWeeklyResultsForWeek(
     };
   }
 
-  const activeMemberships = (memberships ?? []) as MembershipWithProfile[];
+  const activeMemberships = ((memberships ?? []) as MembershipWithProfile[]).filter(
+    (membership) => {
+      const profile = normalizeProfile(membership.profiles);
+      return membership.status === "active" || profile?.anonymized_at != null;
+    },
+  );
   const memberCount = activeMemberships.length;
 
   if (memberCount === 0) {
@@ -211,13 +216,7 @@ export async function calculateWeeklyResultsForWeek(
       return submittedOrder;
     }
 
-    const aProfile = profileByPlayerId.get(a.player_id);
-    const bProfile = profileByPlayerId.get(b.player_id);
-    const usernameOrder = (aProfile?.username ?? "").localeCompare(
-      bProfile?.username ?? "",
-    );
-
-    return usernameOrder || a.player_id.localeCompare(b.player_id);
+    return a.player_id.localeCompare(b.player_id);
   });
 
   return {

@@ -442,18 +442,18 @@ export function derivePrimaryActions(state = {}) {
   else if (["duplicate", "invalid", "mame-unavailable"].includes(pack.status)) competitionReason = pack.description;
   else if (access?.canPlayCompetition === false) {
     const reasons = {
-      "requires-login": "Vuelve a iniciar sesiÃ³n con esta cuenta para competir.",
-      "no-account": "Inicia sesiÃ³n para competir.",
+      "requires-login": "Vuelve a iniciar sesión con esta cuenta para competir.",
+      "no-account": "Inicia sesión para competir.",
       "not-member": membership.description,
-      "membership-unknown": membership.status === "checking" ? membership.title : "TodavÃ­a no se ha confirmado la participaciÃ³n de esta cuenta.",
-      "week-inactive": "La semana todavÃ­a no estÃ¡ activa.",
-      "week-closed": "La semana estÃ¡ cerrada.",
-      "week-unlinked": "El pack no estÃ¡ vinculado a una semana competitiva.",
-      "week-unknown": "TodavÃ­a no se ha confirmado el estado de la semana.",
+      "membership-unknown": membership.status === "checking" ? membership.title : "Todaví­a no se ha confirmado la participación de esta cuenta.",
+      "week-inactive": "La semana todaví­a no está activa.",
+      "week-closed": "La semana está cerrada.",
+      "week-unlinked": "El pack no está vinculado a una semana competitiva.",
+      "week-unknown": "Todaví­a no se ha confirmado el estado de la semana.",
       "local-pack-unavailable": firstReadinessBlocker(readiness, "Este pack no puede ejecutarse localmente."),
-      "local-capture-unavailable": firstReadinessBlocker(readiness, "La captura competitiva local no estÃ¡ preparada."),
+      "local-capture-unavailable": firstReadinessBlocker(readiness, "La captura competitiva local no está preparada."),
     };
-    competitionReason = reasons[access.reason] || "La competiciÃ³n no estÃ¡ disponible.";
+    competitionReason = reasons[access.reason] || "La competición no está disponible.";
   }
   else if (session.requiresLogin) competitionReason = "Vuelve a iniciar sesión con esta cuenta para competir.";
   else if (!session.hasSession) competitionReason = "Inicia sesión para competir.";

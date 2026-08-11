@@ -406,8 +406,8 @@ si esas lecturas se resuelven desde servidor.
 
 ## Queda para más adelante
 
-- `PROFILE-ANONYMIZATION-1`, antes de Presence, para retirar identidad sin
-  destruir historia competitiva.
+- Aplicación remota, despliegue compatible y QA de `PROFILE-ANONYMIZATION-1`;
+  su schema y código ya están preparados en esta revisión.
 - `PROFILE-PRESENCE-1` con heartbeat, expiración y privacidad propios.
 - Panel completo de usuarios y gestión avanzada de memberships.
 - Storage privado y subida de capturas/evidencias.
@@ -443,14 +443,27 @@ guardar el tipo y tamano del archivo resultante.
 
 Aplicar todas las migraciones ausentes de `supabase/migrations/` en orden
 numérico, no sólo `0001_initial_schema.sql`, y verificar después tablas,
-constraints, RLS, Realtime y Storage. `0023` debe preceder a `0024`, y `0024`
-debe preceder a `0025`.
+constraints, RLS, Realtime y Storage. `0023` debe preceder a `0024`, `0024` a
+`0025`, `0025` a `0026` y `0026` a `0027`.
 
 En el entorno remoto actual `0023_profile_bio_max_length.sql` y
-`0024_media_uploads.sql` ya están aplicadas y no deben repetirse. La aplicación
-remota de `0025_play_time.sql` no se ha confirmado en esta auditoría. El
-procedimiento completo y las comprobaciones están en el
+`0024_media_uploads.sql` ya están aplicadas. También está confirmado que
+`0026_submission_detected_at_window.sql` existe y ya fue aplicada remotamente:
+no debe modificarse, renombrarse, duplicarse ni reaplicarse. La migración nueva
+es `0027_profile_anonymization.sql` y está pendiente de aplicación remota.
+
+Antes de aplicarla, ejecutar el preflight SELECT-only de
+`supabase/preflight/0027_profile_anonymization.sql`. La propia migración aborta
+si faltan tablas o columnas de Playtime introducidas por `0025`, el índice de
+`0026` u otras dependencias locales. No crear migraciones posteriores a `0027`
+salvo que aparezca un nuevo conflicto real. El procedimiento completo está en el
 [checklist de despliegue](deploy-checklist.md).
+
+`retired_profile_usernames` conserva únicamente SHA-256 de
+`lower(trim(username))` y no concede lectura a usuarios normales. Esto evita
+guardar o reexponer plaintext y permite bloquear la reutilización, pero no hace
+secreto por arte de magia un username de baja entropía frente a un operador con
+acceso total a la base de datos.
 
 El primer perfil admin se crea manualmente o se actualiza con privilegios de
 servidor; un usuario normal nunca puede asignarse `is_admin = true`.

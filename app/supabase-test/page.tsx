@@ -99,7 +99,7 @@ export default async function SupabaseTestPage() {
     supabase && userData.user
       ? await supabase
           .from("profiles")
-          .select("id,username,initials,avatar_url,is_admin,created_at,updated_at")
+          .select("id,username,initials,avatar_url,is_admin,anonymized_at,created_at,updated_at")
           .eq("id", userData.user.id)
           .maybeSingle()
       : { data: null, error: null };

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { validatePlayTimePayload } from "@/lib/playtime-contract";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { hasActiveProfile } from "@/lib/auth/active-profile";
 
 async function authenticatedClient(request: NextRequest) {
   const authorization = request.headers.get("authorization");
@@ -35,6 +36,13 @@ export async function POST(request: NextRequest) {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) {
     return errorResponse("Necesitas una sesión válida.", 401, "AUTH_REQUIRED");
+  }
+  const profileState = await hasActiveProfile(supabase, userData.user.id);
+  if (profileState.error) {
+    return errorResponse("No se pudo validar el perfil.", 500, "PROFILE_CHECK_FAILED");
+  }
+  if (!profileState.active) {
+    return errorResponse("La cuenta no puede ingerir Playtime.", 403, "ACTIVE_PROFILE_REQUIRED");
   }
   const event = validation.value;
   const { data, error } = await supabase.rpc("ingest_play_time_event", {

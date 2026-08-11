@@ -9,6 +9,7 @@ export type RealProfile = {
   track_play_time?: boolean;
   play_time_public?: boolean;
   is_admin: boolean;
+  anonymized_at: string | null;
   created_at?: string;
   updated_at?: string;
 };

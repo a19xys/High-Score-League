@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { votePublicHomePoll } from "@/lib/data/home-poll";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { hasActiveProfile } from "@/lib/auth/active-profile";
 
 function jsonError(error: string, status = 400, code?: string) {
   return NextResponse.json({ ok: false, code, error }, { status });
@@ -23,6 +24,16 @@ export async function POST(request: NextRequest) {
 
   if (userError || !userData.user) {
     return jsonError("Necesitas iniciar sesión.", 401);
+  }
+
+  const profileState = await hasActiveProfile(supabase, userData.user.id);
+
+  if (profileState.error) {
+    return jsonError("No se pudo validar el perfil.", 500, "PROFILE_CHECK_FAILED");
+  }
+
+  if (!profileState.active) {
+    return jsonError("La cuenta no puede votar.", 403, "ACTIVE_PROFILE_REQUIRED");
   }
 
   let payload: unknown;

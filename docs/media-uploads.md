@@ -109,3 +109,16 @@ Checklist en Supabase:
 Las capturas de submissions no forman parte de esta tarea. Cuando se
 implementen deberán usar un bucket privado separado, autorizaciones y URLs
 firmadas; no deben reutilizar `hsl-public-media`.
+
+## Anonimización de avatar
+
+`PROFILE-ANONYMIZATION-1` elimina de forma recursiva únicamente los objetos del
+prefijo exacto `avatars/<uid>/` en `hsl-public-media` y deja nulo tanto
+`avatar_storage_path` como `avatar_url`. Nunca enumera ni borra las familias de
+juegos, cabeceras, logos o cuestionarios. La limpieza se reintenta si falla tras
+crear el tombstone.
+
+El bucket es público y los objetos usan caché larga; borrar el origen no implica
+que una copia ya servida desaparezca inmediatamente de todos los caches. La UI
+de la revisión compatible deja de renderizar el avatar por datos, pero no se
+afirma una purga instantánea de CDN.

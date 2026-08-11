@@ -9,9 +9,11 @@ import {
   getPlayerCompetitiveProfile,
 } from "@/lib/data/player-profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { RealProfile } from "@/types/supabase";
 import { getPlayerPlayTime } from "@/lib/data/player-playtime";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -26,7 +28,7 @@ async function getAdminCenterData(
   supabase: NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>,
   profile: RealProfile | null,
 ) {
-  if (!profile?.is_admin) {
+  if (!profile?.is_admin || profile.anonymized_at !== null) {
     return { isAdmin: false };
   }
 
@@ -70,7 +72,28 @@ export default async function ProfilePage() {
     );
   }
 
+  const admin = createSupabaseAdminClient();
+
+  if (admin) {
+    const { data: lifecycleProfile } = await admin
+      .from("profiles")
+      .select("anonymized_at")
+      .eq("id", userData.user.id)
+      .maybeSingle<{ anonymized_at: string | null }>();
+
+    if (lifecycleProfile?.anonymized_at) {
+      await supabase.auth.signOut({ scope: "local" });
+      redirect("/");
+    }
+  }
+
   const profileResult = await ensureProfileForCurrentUser(supabase);
+
+  if (profileResult.status === "inaccessible") {
+    await supabase.auth.signOut({ scope: "local" });
+    redirect("/");
+  }
+
   const profile = profileResult.status === "ok" ? profileResult.profile : null;
   const [adminCenter, competitive, playTime] = await Promise.all([
     getAdminCenterData(supabase, profile),

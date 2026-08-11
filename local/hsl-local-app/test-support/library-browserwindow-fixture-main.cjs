@@ -733,7 +733,7 @@ async function hostileSignalMetrics(window) {
     const source = document.querySelector('.pack-card__status-dot');
     const host = document.createElement('section');
     host.id = 'fixture-hostile-signals';
-    host.setAttribute('aria-label', 'Contraste de seÃ±ales');
+    host.setAttribute('aria-label', 'Contraste de señales');
     Object.assign(host.style, {
       background: 'var(--surface)', display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(5, 72px)',
       left: '24px', padding: '16px', position: 'fixed', top: '96px', zIndex: '9999'
@@ -1010,7 +1010,7 @@ async function profileAccountSmoke(window) {
     activeTitle: document.querySelector('[data-action="toggle-account-menu"]')?.title || '',
     emptyUserVisible: Boolean(document.querySelector('[data-action="toggle-account-menu"] .account-mini-avatar--empty-user')),
     forgotA: !document.querySelector('[data-user-id="fixture"]'),
-    noSessionCopy: document.body.innerText.includes('Sin sesiÃƒÂ³n'),
+    noSessionCopy: document.body.innerText.includes('Sin sesión'),
     replacementActive: Boolean(document.querySelector('[data-user-id="valid"]')?.closest('.account-row--active')),
     sessionActionRequired: Boolean(document.querySelector('.account-session-state')),
   }))()`);
@@ -1020,7 +1020,7 @@ async function profileAccountSmoke(window) {
   const deferredSession = await window.webContents.executeJavaScript(`(() => ({
     accountRequiresLogin: Boolean(document.querySelector('.account-row--active .account-row__session-warning')),
     actionRequired: Boolean(document.querySelector('.account-session-state')),
-    bodyRequiresLogin: document.body.innerText.includes('Requiere iniciar sesiÃƒÂ³n'),
+    bodyRequiresLogin: document.body.innerText.includes('Requiere iniciar sesión'),
     title: document.querySelector('[data-action="toggle-account-menu"]')?.title || '',
   }))()`);
   await window.webContents.executeJavaScript("window.hslFixture.emitSessionStatus('valid')");
@@ -1547,7 +1547,7 @@ async function competitionAuthoritySmoke(window) {
         border: badgeStyle.borderColor,
         color: badgeStyle.color,
       } : null,
-      asksForLogin: /autenticar|inicia sesi[oÃ³]n|vuelve a iniciar/i.test(pageText),
+      asksForLogin: /autenticar|inicia sesi[oó]n|vuelve a iniciar/i.test(pageText),
     };
   })()`);
   const emit = async (script, label) => {

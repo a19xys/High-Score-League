@@ -114,7 +114,7 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
           seasons
             .map((summary) => summary.champion ?? summary.leader)
             .filter(Boolean)
-            .map((player) => [player?.username, player]),
+            .map((player) => [player?.id, player]),
         ).values(),
       ].sort((a, b) => (a?.username ?? "").localeCompare(b?.username ?? "")),
     [seasons],
@@ -131,7 +131,7 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
             capAtNow: publicStatus === "active",
             now: archiveNow,
           });
-        const matchesLeader = leader === "all" || visibleLeader?.username === leader;
+        const matchesLeader = leader === "all" || visibleLeader?.id === leader;
 
         return matchesYear && matchesLeader;
       })
@@ -215,7 +215,7 @@ export function SeasonsTable({ seasons, enableControls = false }: SeasonsTablePr
                 <option value="all">Todos</option>
                 {leaders.map((option) =>
                   option ? (
-                    <option key={option.id} value={option.username}>
+                    <option key={option.id} value={option.id}>
                       @{option.username}
                     </option>
                   ) : null,

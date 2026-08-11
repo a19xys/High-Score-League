@@ -15,6 +15,7 @@ export type Player = {
   avatarStoragePath?: string | null;
   bio?: string;
   isAdmin: boolean;
+  isAnonymized: boolean;
 };
 
 export type Game = {

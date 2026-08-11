@@ -7,8 +7,14 @@ export function normalizeInitials(value: string) {
 }
 
 export function validateUsername(value: string) {
-  if (!usernamePattern.test(value.trim())) {
+  const normalized = value.trim();
+
+  if (!usernamePattern.test(normalized)) {
     return "El username debe tener 3-20 caracteres, empezar por letra minúscula y usar solo minúsculas, números o guion bajo.";
+  }
+
+  if (normalized.startsWith("deleted_")) {
+    return "Ese username no está disponible.";
   }
 
   return null;
@@ -55,6 +61,10 @@ export function humanizeSupabaseError(message: string) {
 
   if (lower.includes("profiles_username_lower_unique_idx")) {
     return "Ese username ya está usado.";
+  }
+
+  if (lower.includes("username_retired") || lower.includes("username_reserved")) {
+    return "Ese username no está disponible.";
   }
 
   if (lower.includes("profiles_initials_upper_unique_idx")) {

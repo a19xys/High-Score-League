@@ -124,18 +124,27 @@ Secuencia relevante del repositorio, en orden:
 3. `0024_media_uploads.sql`: añade paths, constraints, bucket y policies de
    media pública. **Aplicada remotamente**.
 4. `0025_play_time.sql`: define el ledger, agregados, RLS y RPC de Playtime y
-   formaliza `play_time_public`. Está en el repositorio y el código web lo usa;
-   esta auditoría no confirma su aplicación remota.
+   formaliza `play_time_public`. Está en el repositorio y el código web lo usa.
+5. `0026_submission_detected_at_window.sql`: endurece la ventana temporal y la
+   idempotencia de submissions. **Existente y aplicada remotamente**; no debe
+   modificarse ni reaplicarse.
+6. `0027_profile_anonymization.sql`: añade tombstones irreversibles, reserva de
+   usernames, guardas de perfil activo, RLS y RPC de anonimización. **Creada por
+   esta tarea y pendiente de aplicación remota**.
 
 En un entorno nuevo se aplican todas las migraciones ausentes, en orden, antes
 de desplegar código que consulte sus columnas. En el entorno remoto actual no
-se deben volver a ejecutar `0023` ni `0024`: ya están aplicadas. La aplicación
-de una migración y el despliegue de una revisión web son estados distintos.
+se deben volver a ejecutar `0023`, `0024` ni `0026`: ya están aplicadas. Antes de
+`0027` se ejecuta el preflight de solo lectura y se verifican especialmente las
+dependencias de Playtime de `0025`. No crear migraciones posteriores a `0027`
+salvo que aparezca un nuevo conflicto real. La aplicación de una migración y el
+despliegue de una revisión web son estados distintos.
 
 ## Estado de despliegue
 
-El repositorio contiene el comportamiento descrito y `0023`/`0024` están
-confirmadas en la infraestructura remota. Esta auditoría no dispone de una
+El repositorio contiene el comportamiento descrito y `0023`/`0024`/`0026` están
+confirmadas en la infraestructura remota. `0027` no se ha aplicado ni esta
+revisión web se ha desplegado. Esta auditoría no dispone de una
 fuente fiable para identificar qué SHA web está actualmente en producción, ni
 afirma que HEAD esté desplegado. `docs/deploy-checklist.md` es un procedimiento
 reutilizable para cada release, no una prueba de que haya un deploy pendiente o
@@ -167,17 +176,21 @@ La documentación del cliente local se mantiene fuera de este estado web.
 
 ## Roadmap web
 
-### 1. Próximo objetivo: PROFILE-ANONYMIZATION-1
+### 1. Cierre operativo: PROFILE-ANONYMIZATION-1
 
-Diseñar la baja de cuenta eliminando o anulando la identidad personal sin
-destruir `submissions`, `weekly_results`, memberships, puntos, posiciones ni
-estadísticas históricas. La tarea futura deberá resolver Auth, email, username,
-avatar, bio, chat, votos, identificadores, FKs, auditoría y la representación
-de un usuario eliminado. Todavía no hay schema, endpoints ni UX definitivos.
+El schema, servicio, endpoint y UX están implementados localmente. La baja
+preserva UUID, submissions, `weekly_results`, memberships, puntos, posiciones,
+votos y chat; crea un tombstone no interactivo, elimina Playtime y avatar,
+retira metadata personal de Auth y hace soft-delete del usuario. No modifica
+texto libre histórico y no promete purga inmediata de caché CDN.
+
+Queda este orden operativo: verificar estado de schema → aplicar `0027` →
+verificar → desplegar web compatible → QA con cuenta desechable. Hasta entonces
+la tarea no se considera cerrada en producción.
 
 ### 2. Después: PROFILE-PRESENCE-1
 
-Diseñar online/offline, jugando ahora, última actividad, expiración de heartbeat
+Después de cerrar el QA anterior, diseñar online/offline, jugando ahora, última actividad, expiración de heartbeat
 y controles de visibilidad. No existe todavía presencia, heartbeat público ni
 última conexión, y Playtime no debe usarse para inferirlos.
 

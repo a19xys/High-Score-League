@@ -51,16 +51,22 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 0024_media_uploads.sql
 0025_play_time.sql
 0026_submission_detected_at_window.sql
+0027_profile_anonymization.sql
 ```
 
 En el Supabase remoto actual, `0023` y `0024` ya están aplicadas. No deben
-repetirse. Esta auditoría no confirma la aplicación remota de `0025` ni `0026`;
-comprobar el historial real del entorno antes de ejecutar cualquier migración.
+repetirse. `0026_submission_detected_at_window.sql` también existe y está
+confirmada como aplicada remotamente: no modificarla, renombrarla, duplicarla,
+reaplicarla ni volver a pedir su aplicación. `0027_profile_anonymization.sql` es
+la migración nueva de esta tarea y continúa pendiente de aplicación remota.
 
-Para la durabilidad competitiva, desplegar en este orden: aplicar `0026`,
-publicar después la web/API y finalmente distribuir el launcher actualizado.
-No publicar el launcher nuevo contra una API nueva sin haber alineado antes el
-índice y la política RLS.
+Para Anonymization, el orden obligatorio es: verificar estado de schema →
+aplicar `0027` → verificar → desplegar web compatible → QA con cuenta
+desechable. Antes de escribir o ejecutar SQL adicional, usar
+`supabase/preflight/0027_profile_anonymization.sql`, que es de solo lectura y
+comprueba especialmente las dependencias Playtime de `0025` y el índice de
+`0026`. No crear migraciones posteriores a `0027` salvo que aparezca un nuevo
+conflicto real.
 
 Comprobar despues:
 
@@ -82,6 +88,14 @@ Comprobar despues:
 - Si el entorno aún no tiene `0025`, verificar el ledger, los dos agregados, la
   RPC `ingest_play_time_event`, sus grants/RLS y que el propietario pueda leer
   su total mientras otro miembro sólo lo vea con `play_time_public = true`.
+- Antes de `0027`, confirmar que todas las filas del preflight marcadas como
+  dependencias tienen `present = true`, que `0026` figura en el historial, que
+  no hay usernames en el namespace `deleted_` y que se conoce el recuento de
+  administradores activos. Detenerse ante cualquier discrepancia.
+- Después de `0027`, verificar `profiles.anonymized_at`, la tabla privada de
+  usernames retirados, la RPC `anonymize_profile_account`, las funciones
+  sustituidas y todas las policies activas. No desplegar la web compatible si la
+  migración no quedó confirmada.
 
 ## 3. Realtime
 
@@ -210,9 +224,14 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
   desde cliente.
 - Usuarios normales no pueden modificar juegos, temporadas, semanas,
   submissions ajenas ni cuestionarios admin.
-- El borrado fisico de cuenta esta deshabilitado. La futura eliminacion de
-  cuenta debe implementarse como anonimizacion, conservando la integridad
-  historica de competiciones, submissions y resultados.
+- La anonimización exige username exacto y confirmación, bloquea al último
+  administrador y no acepta IDs de identidad enviados por el cliente.
+- Tras una baja, probar que el tombstone conserva submissions, resultados,
+  memberships, chat y votos, pero no puede autenticarse, recrear perfil, votar,
+  enviar puntuaciones, escribir chat, unirse a temporadas ni ingerir Playtime.
+- Confirmar que se borraron los tres datasets Playtime, el avatar administrado y
+  la metadata personal/técnica prevista, sin tocar imágenes de juegos, polls ni
+  texto libre histórico.
 
 ## 9. Rollback basico
 
@@ -228,13 +247,14 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
 
 Debe ejecutarse antes de cada despliegue y adaptarse a las migraciones que falten
 en el entorno destino. La aplicación remota de `0023` y `0024` está confirmada,
-pero no se ha verificado qué SHA web está desplegado actualmente.
+igual que la de `0026_submission_detected_at_window.sql`. `0027` sigue pendiente
+y no se ha verificado qué SHA web está desplegado actualmente.
 
 ## Roadmap no bloqueante para releases actuales
 
-- `PROFILE-ANONYMIZATION-1`: siguiente objetivo; baja por anonimización sin
-  borrar actividad histórica.
-- `PROFILE-PRESENCE-1`: objetivo posterior; presencia y última actividad con
+- `PROFILE-ANONYMIZATION-1`: código y migración preparados; quedan aplicación
+  remota, verificación, despliegue compatible y QA desechable.
+- `PROFILE-PRESENCE-1`: objetivo posterior a cerrar ese QA; presencia y última actividad con
   heartbeat, expiración y privacidad propios.
 - `SUBMISSIONS-SERVER-PAGINATION-1`: evaluar consultas paginadas, conteos e
   índices cuando cargar el conjunto completo deje de ser viable.

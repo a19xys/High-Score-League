@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { mapLeagueChatRowToMessage } from "@/lib/data/league-chat";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { LeagueChatMessageRow } from "@/types/supabase";
+import { hasActiveProfile } from "@/lib/auth/active-profile";
 
 const chatMessageMaxLength = 65_536;
 const editWindowMs = 15 * 60 * 1000;
@@ -102,6 +103,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return jsonError("Necesitas iniciar sesion para editar el chat.", 401);
   }
 
+  const profileState = await hasActiveProfile(supabase, userData.user.id);
+
+  if (profileState.error) {
+    return jsonError("No se pudo validar el perfil del chat.", 500);
+  }
+
+  if (!profileState.active) {
+    return jsonError("La cuenta no puede editar mensajes.", 403);
+  }
+
   const { data: existingMessage, error: existingError } = await supabase
     .from("league_chat_messages")
     .select("id,message_type,author_id,content,created_at,edited_at")
@@ -170,6 +181,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
           avatar_url,
           avatar_storage_path,
           is_admin,
+          anonymized_at,
           created_at,
           updated_at
         )

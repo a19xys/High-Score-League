@@ -213,26 +213,55 @@ En una instalación nueva, `0024` sí debe aplicarse antes del código que consu
 sus columnas. Los detalles de rutas, presets, RLS, límites y despliegue están en
 [media uploads](media-uploads.md).
 
+## PROFILE-ANONYMIZATION-1
+
+La implementación está preparada en `0027_profile_anonymization.sql`, el
+endpoint `POST /api/profile/anonymize` y la zona de peligro de `/profile`.
+`0027` todavía no se ha aplicado remotamente: la funcionalidad no debe
+desplegarse hasta verificar el schema, aplicar la migración y comprobarla.
+
+La baja es irreversible y no destruye la historia competitiva. Conserva el UUID,
+submissions, resultados, memberships, puntos, posiciones, votos y mensajes; el
+perfil se convierte en un tombstone no interactivo con alias aleatorio
+`deleted_<24 hex>`, iniciales `DEL`, sin avatar, bio, privilegios admin ni
+Playtime público. El username retirado solo se guarda como huella SHA-256 para
+impedir su reutilización, nunca en texto claro.
+
+La operación elimina los objetos bajo `avatars/<uid>/`, borra los tres datasets
+de Playtime, limpia metadatos técnicos de submissions y retira metadata personal
+de Auth antes de hacer soft-delete del usuario Auth. No borra comentarios ni
+texto libre histórico: pueden contener información introducida por la persona y
+requieren un proceso de moderación separado. Solo reescribe el mensaje de sistema
+exacto de unión al chat; no busca ni reemplaza texto libre.
+
+El tombstone no puede iniciar sesión, crear perfil de nuevo, votar, enviar
+puntuaciones, escribir/editar chat, unirse a temporadas ni usar Playtime. RLS y
+los endpoints exigen un perfil activo incluso si un JWT anterior siguiera vivo.
+El último administrador activo no puede anonimizarse. Un fallo tras el cambio de
+base de datos se muestra como recuperable y reintentar continúa la limpieza
+externa de forma idempotente.
+
+La interfaz exige el username exacto y una confirmación explícita, mantiene el
+diálogo abierto ante fallos parciales y cierra la sesión global al completar.
+La caché pública puede conservar temporalmente una imagen antigua aunque el
+objeto se haya eliminado; no se promete una purga inmediata del CDN. Otro
+navegador que ya tuviera una preview en memoria puede conservarla hasta que
+expire el TTL existente de 45 segundos; no se añade Realtime ni se amplía ese
+TTL para esta tarea.
+
+Preflight de solo lectura:
+`supabase/preflight/0027_profile_anonymization.sql`.
+
+Orden operativo: verificar estado de schema → aplicar `0027` → verificar →
+desplegar web compatible → QA con cuenta desechable. No crear migraciones
+posteriores a `0027` salvo que aparezca un nuevo conflicto real.
+
 ## Tareas futuras
-
-### PROFILE-ANONYMIZATION-1
-
-Es el siguiente gran objetivo recomendado.
-
-Diseñar la baja preservando `submissions`, `weekly_results`, memberships,
-posiciones, puntos y estadísticas históricas. Debe anonimizar o retirar username,
-avatar, bio, email/Auth, preferencias, presencia, última conexión y cualquier
-dato privado, e impedir nuevo acceso.
-
-Antes de usar `auth.admin.deleteUser()` hay que resolver integridad referencial,
-identificador público estable, username anónimo único, representación `Usuario
-eliminado`, chat, votos, auditoría admin, confirmación, periodo de gracia y
-reversibilidad. El endpoint físico continúa bloqueado y esta tarea no añade
-botones destructivos ni migraciones.
 
 ### PROFILE-PRESENCE-1
 
-Es el objetivo posterior a `PROFILE-ANONYMIZATION-1`. Deberá diseñar
+Es el objetivo posterior a aplicar, desplegar y validar
+`PROFILE-ANONYMIZATION-1`. Deberá diseñar
 online/offline, jugando ahora, última actividad, expiración del heartbeat y
 controles de visibilidad con reglas propias. Todavía no existen presencia,
 última conexión, heartbeat web ni heartbeat público. Nunca deben inferirse del
