@@ -1,5 +1,6 @@
 export type MediaPresetKey =
   | "avatar"
+  | "benchmark-icon"
   | "game-header"
   | "game-logo"
   | "poll-option";
@@ -34,6 +35,16 @@ export const MEDIA_PRESETS: Record<MediaPresetKey, MediaPreset> = {
     minQuality: 0.54,
     targetBytes: 350 * 1024,
     pathPrefix: "avatars",
+  },
+  "benchmark-icon": {
+    key: "benchmark-icon",
+    label: "Imagen del benchmark",
+    maxWidth: 256,
+    maxHeight: 256,
+    initialQuality: 0.92,
+    minQuality: 0.68,
+    targetBytes: 180 * 1024,
+    pathPrefix: "benchmarks/icons",
   },
   "game-header": {
     key: "game-header",

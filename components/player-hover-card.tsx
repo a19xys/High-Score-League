@@ -15,7 +15,9 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
+import { PlayerPresenceIndicator } from "@/components/player-presence-indicator";
 import type { PlayerProfilePreview } from "@/lib/data/player-profile-preview";
+import type { PlayerPresence } from "@/lib/player-presence";
 import {
   getCachedPlayerProfilePreview,
   requestCachedPlayerProfilePreview,
@@ -52,6 +54,11 @@ type PreviewPayload = {
   preview?: PlayerProfilePreview;
 };
 
+type PresencePayload = {
+  ok: boolean;
+  presence?: PlayerPresence;
+};
+
 function playerCacheKey(player: Player) {
   return player.id || player.username;
 }
@@ -83,6 +90,22 @@ async function requestPlayerPreview(player: Player) {
       return payload.preview;
     },
   );
+}
+
+async function requestPlayerPresence(player: Player) {
+  const response = await fetch(
+    `/api/players/${encodeURIComponent(player.username)}/presence`,
+    {
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    },
+  );
+
+  if (!response.ok) return null;
+  const payload = (await response.json()) as PresencePayload;
+  if (!payload.ok || !payload.presence) return null;
+  return payload.presence.visibility === "visible" ? payload.presence : null;
 }
 
 function getTriggerElement(wrapper: HTMLSpanElement | null) {
@@ -166,6 +189,10 @@ export function PlayerHoverCard({
   const [previewState, setPreviewState] = useState<
     "idle" | "loading" | "ready" | "error"
   >(cachedPreview ? "ready" : "idle");
+  const [presence, setPresence] = useState<PlayerPresence | null>(null);
+  const [presenceState, setPresenceState] = useState<"idle" | "loading" | "ready">(
+    "idle",
+  );
 
   const isCurrentUser =
     preview?.isCurrentUser ??
@@ -254,6 +281,8 @@ export function PlayerHoverCard({
     });
     setPreview(cached);
     setPreviewState(cached ? "ready" : "idle");
+    setPresence(null);
+    setPresenceState("idle");
     setOpen(false);
   }, [key, player.id, player.isAnonymized, player.username]);
 
@@ -261,6 +290,22 @@ export function PlayerHoverCard({
     if (!open || player.isAnonymized) {
       return;
     }
+
+    let active = true;
+    setPresence(null);
+    setPresenceState("loading");
+    void requestPlayerPresence(player).then(
+      (nextPresence) => {
+        if (!active) return;
+        setPresence(nextPresence);
+        setPresenceState("ready");
+      },
+      () => {
+        if (!active) return;
+        setPresence(null);
+        setPresenceState("ready");
+      },
+    );
 
     const cached = getCachedPlayerProfilePreview({
       playerId: player.id,
@@ -270,33 +315,26 @@ export function PlayerHoverCard({
     if (cached) {
       setPreview(cached);
       setPreviewState("ready");
-      return;
+    } else {
+      setPreview(null);
+      setPreviewState("loading");
+
+      void requestPlayerPreview(player).then(
+        (nextPreview) => {
+          if (!active) return;
+          setPreview(nextPreview);
+          setPreviewState("ready");
+        },
+        () => {
+          if (active) setPreviewState("error");
+        },
+      );
     }
-
-    let active = true;
-    setPreview(null);
-    setPreviewState("loading");
-
-    void requestPlayerPreview(player).then(
-      (nextPreview) => {
-        if (!active) {
-          return;
-        }
-
-        setPreview(nextPreview);
-        setPreviewState("ready");
-      },
-      () => {
-        if (active) {
-          setPreviewState("error");
-        }
-      },
-    );
 
     return () => {
       active = false;
     };
-  }, [key, open, player]);
+  }, [key, open, player.id, player.isAnonymized, player.username]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -451,6 +489,16 @@ export function PlayerHoverCard({
             </p>
           </div>
         </div>
+
+        {presenceState === "loading" ? (
+          <div aria-label="Cargando estado" className="mt-3 min-h-5" role="status">
+            <LoadingLine className="h-2.5 w-24" />
+          </div>
+        ) : presence ? (
+          <div className="mt-3 min-h-5">
+            <PlayerPresenceIndicator presence={presence} variant="compact" />
+          </div>
+        ) : null}
 
         <div className="mt-4">
           {previewState === "loading" ? (

@@ -13,8 +13,8 @@ de una revisión concreta.
   onboarding inline en `/profile`, rutas privadas con `AccessRequired` y
   comprobación server-side de `is_admin` en las rutas administrativas.
 - Perfiles propio y público con identidad, bio de hasta 150 caracteres, aro de
-  avatar protagonista, cuatro métricas reales más el slot neutro `Estado —`,
-  hover cards autenticadas y tabla de mejores marcas con puesto oficial. El
+  avatar protagonista, cuatro métricas reales más un indicador Presence,
+  hover cards autenticadas con snapshot Presence y tabla de mejores marcas con puesto oficial. El
   perfil propio es un workspace por vistas y mantiene el historial privado
   filtrable por juego.
 - Playtime identificado separado de su visibilidad pública. El propietario ve
@@ -50,7 +50,8 @@ sólo sube al guardar. Los objetos viven en el bucket público
 - `avatars/<USER_ID>/<UUID>.webp`;
 - `games/headers/<UUID>.webp`;
 - `games/logos/<UUID>.webp`;
-- `polls/options/<UUID>.webp`.
+- `polls/options/<UUID>.webp`;
+- `benchmarks/icons/<UUID>.webp` tras aplicar `0030`.
 
 El guardado sigue `upload → persistencia → cleanup`. Si falla una subida o la
 persistencia, elimina los objetos nuevos ya creados; nunca elimina el anterior
@@ -61,6 +62,12 @@ migran automáticamente.
 
 Las capturas de submissions no usan este bucket. El Storage privado de
 evidencias sigue pendiente y necesitará un diseño separado.
+
+Los benchmarks usan el mismo pipeline WebP/alpha y lifecycle para
+`image_storage_path`; la web muestra la imagen sin máscara o `REF` cuando falta.
+La UI anterior de speedometers está retirada. `icon_key` sigue únicamente como
+compatibilidad de schema hasta una migración futura. `0030` está preparada pero
+no aplicada remotamente en esta tarea.
 
 ## Archivo, filtros, paginación y marca
 
@@ -139,14 +146,21 @@ Secuencia relevante del repositorio, en orden:
 6. `0027_profile_anonymization.sql`: añade tombstones irreversibles, reserva de
    usernames, guardas de perfil activo, RLS y RPC de anonimización. **Aplicada
    correctamente en Supabase remoto**.
+7. `0028_player_presence.sql`: añade el estado efímero de Presence.
+8. `0029_profile_privacy_defaults.sql`: cambia solo los defaults de perfiles
+   nuevos para Presence y Playtime.
+9. `0030_week_benchmark_images.sql`: añade el path de imagen de benchmark,
+   constraint y policies Storage exactas. **Creada localmente y pendiente de
+   aplicación remota**.
 
 En un entorno nuevo se aplican todas las migraciones ausentes, en orden, antes
 de desplegar código que consulte sus columnas. En el entorno remoto actual no
 se deben volver a ejecutar `0023`, `0024`, `0026` ni `0027`: ya están aplicadas.
 El preflight de 0027 se conserva como verificación de solo lectura para otros
-entornos. No crear migraciones posteriores a `0027` salvo que aparezca un nuevo
-conflicto real. La aplicación de una migración y el despliegue de una revisión
-web son estados distintos.
+entornos y `supabase/preflight/0030_week_benchmark_images.sql` valida el nuevo
+cambio sin escribir. No crear migraciones posteriores a `0030` salvo que
+aparezca un nuevo conflicto real. La aplicación de una migración y el despliegue
+de una revisión web son estados distintos.
 
 ## Estado de despliegue
 
@@ -206,6 +220,12 @@ conexión, historial ni outbox. Playtime no se usa para inferir Presence y las
 submissions conservan toda la autoridad competitiva. Falta aplicar `0028` y
 `0029`, en ese orden, en el entorno remoto antes de considerar operativa esta
 función.
+
+`WEB-WEEK-BENCHMARK-PROFILE-POLISH-2` está implementada en el repositorio. Su
+migración `0030` debe verificarse, aplicarse y comprobarse antes de desplegar la
+web compatible; después corresponde QA admin con datos desechables. Resultados
+oficiales, perfil, sesión, grid admin y geometría/Presence de hover cards no
+requieren migraciones adicionales.
 
 ### Otros pendientes reales
 

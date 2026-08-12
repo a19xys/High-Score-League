@@ -52,6 +52,9 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 0025_play_time.sql
 0026_submission_detected_at_window.sql
 0027_profile_anonymization.sql
+0028_player_presence.sql
+0029_profile_privacy_defaults.sql
+0030_week_benchmark_images.sql
 ```
 
 En el Supabase remoto actual, `0023` y `0024` ya están aplicadas. No deben
@@ -65,7 +68,14 @@ schema → aplicar `0027` → verificar → desplegar web compatible → QA con 
 desechable. Antes de escribir o ejecutar SQL adicional, usar
 `supabase/preflight/0027_profile_anonymization.sql`, que es de solo lectura y
 comprueba especialmente las dependencias Playtime de `0025` y el índice de
-`0026`. No crear migraciones posteriores a `0027` salvo que aparezca un nuevo
+`0026`.
+
+`0030_week_benchmark_images.sql` es la migración nueva de esta revisión y está
+pendiente de aplicación remota. Ejecutar antes su preflight de solo lectura
+`supabase/preflight/0030_week_benchmark_images.sql`. El orden es: verificar el
+schema y bucket → aplicar `0030` → verificar columna, constraint y tres policies
+→ desplegar la web compatible → QA de crear/reemplazar/quitar/eliminar con un
+benchmark desechable. No crear migraciones posteriores a `0030` salvo un nuevo
 conflicto real.
 
 Comprobar despues:
@@ -98,6 +108,11 @@ Comprobar despues:
   usernames retirados, la RPC `anonymize_profile_account`, las funciones
   sustituidas y todas las policies activas. No desplegar la web compatible si la
   migración no quedó confirmada.
+- Antes de `0030`, confirmar que `week_benchmarks` y `hsl-public-media` existen,
+  que `image_storage_path` aún no existe y registrar los conteos de benchmarks y
+  `icon_key` legacy. Después, comprobar el patrón
+  `benchmarks/icons/<UUID>.webp`, las policies admin de `INSERT/SELECT/DELETE` y
+  el fallback `REF` para filas sin imagen.
 
 ## 3. Realtime
 
@@ -260,6 +275,11 @@ ausencia de backfill sobre filas existentes, RLS sin lectura general, cleanup
 al privatizar/tombstone y RPCs reservadas a `service_role`. Si `0028` aún no
 está aplicada, Presence debe fallar de forma silenciosa sin bloquear web,
 launcher, Playtime ni Competition.
+
+Para `WEB-WEEK-BENCHMARK-PROFILE-POLISH-2`, `0030` sigue pendiente: no desplegar
+la web que selecciona `week_benchmarks.image_storage_path` hasta aplicarla y
+verificarla. La migración es aditiva y conserva `icon_key` para permitir un
+rollback temporal a la web anterior.
 
 ## Roadmap no bloqueante para releases actuales
 

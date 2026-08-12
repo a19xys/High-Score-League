@@ -1,100 +1,71 @@
 # Week benchmarks
 
-Los benchmarks de semana son referencias visuales dentro del leaderboard.
-Sirven para comunicar niveles orientativos, por ejemplo puntuación media,
-avanzada o experta.
+Los benchmarks de semana son referencias visuales dentro del leaderboard. No
+son submissions reales: no tienen jugador, perfil ni puntos; tampoco generan
+`weekly_results`, afectan a `M` o aparecen en el historial de envíos.
 
-No son submissions reales:
+## Datos y compatibilidad
 
-- no tienen jugador;
-- no tienen perfil;
-- no cuentan para puntos;
-- no generan `weekly_results`;
-- no afectan a `M`;
-- no aparecen en historial de envíos;
-- no afectan a la clasificación de temporada.
+`0004_week_benchmarks.sql` crea `public.week_benchmarks`. La migración
+`0030_week_benchmark_images.sql` añade la columna nullable
+`image_storage_path`, limitada por constraint a:
 
-## Tabla
+```text
+benchmarks/icons/<UUID>.webp
+```
 
-La migración `supabase/migrations/0004_week_benchmarks.sql` crea
-`public.week_benchmarks`.
+La URL pública se deriva del bucket `hsl-public-media`; no se guardan URLs
+externas ni identificadores de semana, benchmark o label en el nombre del
+objeto. Si el path es `null`, la UI muestra el fallback neutral `REF`.
 
-Campos principales:
+`icon_key`, incorporado históricamente por `0019`, permanece en la base de
+datos durante la ventana de compatibilidad con despliegues web anteriores. Es
+legacy/deprecated: la web actual no lo selecciona, edita ni renderiza, y ya no
+usa los tres speedometers preestablecidos. Una migración futura podrá retirarlo
+cuando no quede una versión desplegada que lo consuma.
 
-- `week_id`
-- `label`
-- `score`
-- `description`
-- `icon_key`
-- `sort_order`
-- `is_active`
+Campos activos principales:
 
-La migración `supabase/migrations/0019_week_benchmark_icon_key.sql` añade
-`icon_key`. Valores permitidos:
+- `week_id`;
+- `label`;
+- `score`;
+- `description`;
+- `image_storage_path`;
+- `sort_order`;
+- `is_active`.
 
-- `speedometer_1`
-- `speedometer_2`
-- `speedometer_3`
+## Administración y lifecycle
 
-Los usuarios autenticados pueden leer benchmarks activos. Solo admins pueden
-gestionarlos.
+Crear y editar comparten el mismo formulario: imagen en su propia fila,
+nombre/puntuación, descripción y acciones. `MediaUpload` procesa JPEG, PNG o
+WebP a un WebP máximo de 256 × 256, conserva el canal alfa y sube un UUID nuevo.
 
-En la UI admin se editan etiqueta, puntuación, descripcion e icono. Si no se elige icono, se guarda `speedometer_3`.
+El ciclo es `upload → persistencia API → cleanup` mediante `executeMediaSave`:
+
+- si POST/PATCH falla, se elimina el objeto recién subido;
+- un reemplazo retira la imagen anterior solo después del PATCH correcto;
+- Quitar persiste `null` antes de limpiar el objeto anterior;
+- DELETE lee primero `image_storage_path`, borra la fila y después intenta
+  limpiar Storage; si esa limpieza falla, devuelve un warning sin restaurar la
+  fila.
+
+Las APIs solo aceptan `imageStoragePath` con el patrón administrado. Rechazan
+URLs públicas y paths de otras familias. Las policies de Storage permiten
+`INSERT`, `SELECT` y `DELETE` en el prefijo exacto únicamente a usuarios
+autenticados para los que `public.is_admin()` sea verdadero.
 
 ## Orden visual
 
-El leaderboard mezcla jugadores y benchmarks por puntuación descendente.
+El leaderboard mezcla jugadores y benchmarks por puntuación descendente. Ante
+la misma puntuación, el jugador aparece primero; entre benchmarks se usa
+`sort_order` y después `label`. La imagen se muestra completa con
+`object-contain`, sin máscara ni tinte. Un benchmark sin imagen conserva el
+mismo ancho de referencia mediante `REF`.
 
-Si un benchmark y un jugador tienen la misma puntuación, el jugador aparece
-primero. Entre benchmarks con la misma puntuación, se usa `sort_order` y luego
-`label` como orden estable.
+## Despliegue
 
-## SQL de prueba
-
-Sustituye `WEEK_ID` por el id real de la semana:
-
-```sql
-insert into public.week_benchmarks (
-  week_id,
-  label,
-  score,
-  description,
-  icon_key
-) values
-  (
-    'WEEK_ID',
-    'Puntuacion media',
-    10000,
-    'Referencia orientativa para una partida consistente.',
-    'speedometer_1'
-  ),
-  (
-    'WEEK_ID',
-    'Puntuación avanzada',
-    30000,
-    'Buen dominio de patrones y riesgo controlado.',
-    'speedometer_2'
-  ),
-  (
-    'WEEK_ID',
-    'Puntuación experta',
-    75000,
-    'Nivel alto para competir por los primeros puestos.',
-    'speedometer_3'
-  )
-on conflict (week_id, label) do update
-set
-  score = excluded.score,
-  description = excluded.description,
-  icon_key = excluded.icon_key,
-  is_active = true;
-```
-
-Para eliminar una referencia desde la web, usa el botón `Eliminar` en
-`/admin/weeks/[weekId]/edit`. Si quieres hacerlo manualmente en desarrollo:
-
-```sql
-delete from public.week_benchmarks
-where week_id = 'WEEK_ID'
-  and label = 'Puntuación media';
-```
+`0030_week_benchmark_images.sql` y su preflight SELECT-only están preparados en
+el repositorio, pero la migración no se ha aplicado remotamente en esta tarea.
+El orden obligatorio es: ejecutar el preflight, aplicar `0030`, verificar
+columna/constraint/policies, desplegar la web compatible y hacer QA del
+lifecycle con un benchmark desechable.

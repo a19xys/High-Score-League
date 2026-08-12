@@ -643,13 +643,14 @@ async function stopRemoteServices() {
   return Promise.allSettled([playTimeDrain, presenceDrain, sessionDrain]);
 }
 
-async function prepareRemoteAction(source) {
+async function prepareRemoteAction(source, options = {}) {
   if (connectivity.getState().reachability !== "connected") {
     return connectivity.getState();
   }
 
   await connectivity.refresh(source, {
-    maxAgeMs: connectivity.config.focusStaleMs,
+    force: options.force === true,
+    maxAgeMs: options.force === true ? 0 : connectivity.config.focusStaleMs,
     phase: "background",
   });
 
@@ -712,8 +713,8 @@ function createMainWindow() {
   });
 }
 
-function sendBusyPhase(event, label) {
-  event?.sender?.send("launcher:busy-phase", { label });
+function sendBusyPhase(event, label, phase = null) {
+  event?.sender?.send("launcher:busy-phase", { label, phase });
 }
 
 async function showImportZipDialog(event) {
@@ -1072,7 +1073,8 @@ function registerIpc() {
     }
   });
   registerLauncherStateHandler("launcher:diagnose", () => service.runDiagnose());
-  registerLauncherStateHandler("launcher:play-competition", async () => {
+  registerLauncherStateHandler("launcher:play-competition", async (event) => {
+    await prepareRemoteAction("play-preflight", { force: true });
     const membershipResolutionActive = membershipStartupCoordinator?.isActive() || membershipCoordinationPaused();
     if (membershipResolutionActive) {
       const state = membershipStartupCoordinator?.getCurrentState()
@@ -1080,8 +1082,11 @@ function registerIpc() {
       if (membershipResolutionBlocksCompetition(state, true)) {
         return {
           action: "play-competition",
+          launchAttempted: false,
           lines: ["Comprobando participación."],
+          mameSpawned: false,
           ok: false,
+          phase: "preflight-rejected",
           reason: "membership-not-confirmed",
           state,
           summary: "Comprobando participación.",
@@ -1100,10 +1105,23 @@ function registerIpc() {
         ...weekCapabilities.getAuthorityContext(),
       }),
       getState: readPreflightState,
-      launch: (playOptions) => withRemoteContext(service.playCompetition(playOptions)),
+      launch: (playOptions) => withRemoteContext(service.playCompetition({
+        ...playOptions,
+        onMamePhase: (phase) => sendBusyPhase(
+          event,
+          phase === "mame-spawned" ? "Competición en curso" : "Cerrando competición",
+          phase,
+        ),
+      })),
     });
   });
-  registerLauncherStateHandler("launcher:practice", () => service.playPractice());
+  registerLauncherStateHandler("launcher:practice", (event) => service.playPractice({
+    onMamePhase: (phase) => sendBusyPhase(
+      event,
+      phase === "mame-spawned" ? "Práctica en curso" : "Cerrando práctica",
+      phase,
+    ),
+  }));
   registerLauncherStateHandler("launcher:force-account-sync", async () => {
     const guarded = await runDeveloperOnlyOperation(developerToolsEnabled, async () => {
       pendingAutoSubmitCoordinator.cancelCurrentRun("development-force");

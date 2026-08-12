@@ -141,10 +141,11 @@ test("server read checks privacy before sessions and public DTOs omit internal i
   assert.doesNotMatch(dto, /clientId|lastSeenAt|playerId|sessionCount/);
 });
 
-test("profile reuses the fifth Estado cell with SSR, polling and privacy preference", async () => {
-  const [stats, presenceStat, editor, layout, ownerPage, publicPage] = await Promise.all([
+test("profile reuses the fifth Estado cell with a shared status indicator, polling and privacy preference", async () => {
+  const [stats, presenceStat, indicator, editor, layout, ownerPage, publicPage] = await Promise.all([
     readFile(join(process.cwd(), "components/profile/profile-stats.tsx"), "utf8"),
     readFile(join(process.cwd(), "components/profile/profile-presence-stat.tsx"), "utf8"),
+    readFile(join(process.cwd(), "components/player-presence-indicator.tsx"), "utf8"),
     readFile(join(process.cwd(), "components/profile/profile-editor.tsx"), "utf8"),
     readFile(join(process.cwd(), "app/layout.tsx"), "utf8"),
     readFile(join(process.cwd(), "app/profile/page.tsx"), "utf8"),
@@ -152,12 +153,9 @@ test("profile reuses the fifth Estado cell with SSR, polling and privacy prefere
   ]);
   assert.match(stats, /lg:grid-cols-5/);
   assert.match(stats, /ProfilePresenceStat/);
-  for (const label of ["JUGANDO", "CONECTADO", "DESCONECTADO", "PRIVADO"]) assert.match(presenceStat, new RegExp(label));
+  assert.match(presenceStat, /PlayerPresenceIndicator/);
+  assert.match(indicator, /whitespace-nowrap/);
   assert.doesNotMatch(presenceStat, /Web y launcher|· Launcher/);
-  assert.match(presenceStat, /label: "CONECTADO", detail: null/);
-  assert.match(presenceStat, /detail: presence\.game\?\.title \|\| null/);
-  assert.match(presenceStat, /Tu estado no se muestra al resto/);
-  assert.match(presenceStat, /Este jugador ha ocultado su estado/);
   assert.match(presenceStat, /POLL_INTERVAL_MS = 15_000/);
   assert.match(presenceStat, /visibilityState === "hidden"/);
   assert.match(presenceStat, /Keep the last valid state/);

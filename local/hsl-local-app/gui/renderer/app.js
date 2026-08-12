@@ -1459,7 +1459,7 @@ function resultToLog(title, response) {
       ]
     : [];
   const ok = response.ok !== false && response.exitCode !== 1;
-  const details = [...lines, ...extra];
+  const details = [...lines, ...(response.technicalDetails || []), ...extra];
   const friendly = {
     login: ok
       ? "Login correcto."
@@ -1494,7 +1494,9 @@ function resultToLog(title, response) {
       : "No se pudo activar el pack desde biblioteca."),
     "play-competition": ok
       ? "MAME se cerró correctamente. La cola local se ha actualizado."
-      : "MAME terminó con aviso. Si jugaste una partida, revisa la cola local.",
+      : response.mameSpawned === true
+        ? "MAME terminó con aviso. Si jugaste una partida, revisa la cola local."
+        : response.summary || lines[0] || "No se pudo abrir la competición.",
     practice: ok
       ? "Práctica cerrada. No se activó el plugin de puntuación desde el launcher."
       : "La práctica terminó con aviso.",
@@ -1547,7 +1549,7 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
           busyLabel,
         });
 
-        if (options.runningLabel) {
+        if (options.runningLabel && options.phaseDriven !== true) {
           activeBusyPhaseTimer = window.setTimeout(() => {
             const current = store.getState();
 
@@ -1562,7 +1564,7 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
         if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
         activeBusyPhaseTimer = null;
 
-        if (options.closingLabel) {
+        if (options.closingLabel && value?.mameSpawned === true) {
           store.setState({ busyLabel: options.closingLabel });
           await delay(options.closingDelayMs || 450);
         }
@@ -2168,6 +2170,7 @@ function bindActions() {
     if (action === "play") {
       runAction(action, "Abriendo competición", COPY.actions.play, () => window.hslLauncher.playCompetition(), {
         closingLabel: "Cerrando competición",
+        phaseDriven: true,
         runningLabel: "Competición en curso",
         scope: "external",
       });
@@ -2176,6 +2179,7 @@ function bindActions() {
     if (action === "practice") {
       runAction(action, "Abriendo práctica", COPY.actions.practice, () => window.hslLauncher.practice(), {
         closingLabel: "Cerrando práctica",
+        phaseDriven: true,
         runningLabel: "Práctica en curso",
         scope: "external",
       });

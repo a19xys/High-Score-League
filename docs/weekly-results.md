@@ -68,6 +68,16 @@ Los benchmarks visuales de `week_benchmarks` no participan en este cálculo. No
 cuentan para `M`, no generan filas en `weekly_results` y no alteran ranks ni
 puntos.
 
+## Presentación pública
+
+La tabla `Resultados oficiales` muestra únicamente `Puesto`, `Jugador` y
+`Puntos`. No repite `final_score`, que sigue almacenado sin cambios y continúa
+disponible en el leaderboard y el historial competitivo. Los puntos se
+presentan como delta de temporada (`+6`, `+3`, `+1`, `+0`) sin modificar el
+valor de dominio. La tabla usa columnas fijas y compactas para caber desde
+320 px sin scroll horizontal, conservando `RankBadge`, `PlayerPill` y
+tombstones.
+
 ## Desempate semanal
 
 En una semana no hay empate competitivo si dos jugadores tienen la misma

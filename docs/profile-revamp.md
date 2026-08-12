@@ -62,11 +62,12 @@ La banda muestra cuatro métricas reales:
 3. participaciones;
 4. tiempo jugado, visible o privado según `play_time_public`.
 
-Una quinta posición muestra `Estado —`. Es solo una reserva visual para
-`PROFILE-PRESENCE-1`: no existen heartbeat, online/offline, última actividad ni
-juego actual, y no se infieren desde Playtime. `officialResults` se conserva en
-el modelo competitivo para consumidores internos, aunque ya no se renderiza en
-la banda.
+Una quinta posición muestra Presence como indicador de estado, no como una
+métrica gigante: punto más `Desconectado`, `Conectado`, `Jugando` o `Privado`;
+`—` queda para indisponibilidad. Al jugar, el nombre canónico aparece en una
+segunda línea. El label usa `whitespace-nowrap`, por lo que `Desconectado` no se
+parte. `officialResults` se conserva en el modelo competitivo aunque ya no se
+renderiza en la banda.
 
 En móvil las métricas forman dos columnas y Estado ocupa ambas; en escritorio
 forman cinco columnas. Las ayudas extensas se ocultan en anchos reducidos.
@@ -103,21 +104,30 @@ slots visuales. El perfil público nunca recibe este dataset.
 
 ## Editor y cuenta
 
-El editor es una única superficie y usa el mismo orden en todos los tamaños:
-foto, identidad, bio, privacidad y guardar. La foto ya no ocupa una columna
+El editor es una única superficie con eyebrow `PERFIL` y usa el mismo orden en
+todos los tamaños: foto, username/siglas, bio, privacidad y guardar. No existe
+un segundo heading `Identidad`. `Foto de perfil` es el label normal del uploader
+y sustituye a `Avatar público`. La foto ya no ocupa una columna
 lateral; su preview y controles sólo se disponen en fila dentro del propio
 subapartado cuando hay espacio. El copy se limita a formatos y máximo de 12 MB,
 y Cambiar, Quitar y Deshacer pueden envolver con targets táctiles de 44 px.
 Sigue habiendo un solo guardado. El éxito se representa junto al botón con un
-check accesible que permanece hasta la siguiente modificación, sin reservar
-altura en idle; errores y avisos de cleanup siguen siendo texto visible.
+check accesible que permanece hasta la siguiente modificación, también en la
+misma línea desde 320 px, sin reservar altura en idle. En `MediaUpload`, el
+estado `Imagen lista: dimensiones · peso` reemplaza al copy gris; Quitar muestra
+su warning en ese mismo slot, nunca ambos mensajes a la vez. Errores y avisos de cleanup siguen siendo texto visible.
 `MediaUpload` mantiene preview local, conversión WebP, upload al guardar,
 persistencia, cleanup, rollback, invalidación de caché y metadata Auth.
 
-Cuenta agrupa apariencia y un único subapartado “Sesión y cuenta”. Email,
-Cerrar sesión y el bloque advertido de Eliminar cuenta viven en ese mismo
-subapartado. El traslado visual no modifica el endpoint, RPC, confirmación,
+Cuenta agrupa apariencia y un único subapartado `Sesión`. El email aparece con
+el contexto `Sesión iniciada con la cuenta:` y las acciones Cerrar sesión y
+Eliminar mi cuenta quedan juntas, envolviendo en móvil. El peligro se conserva
+en el botón y en un copy breve, sin una card amarilla sobredimensionada. El traslado visual no modifica el endpoint, RPC, confirmación,
 tombstone, Storage cleanup ni lifecycle de anonimización.
+
+En Administración, `Semana actual` comparte card y grid con Semanas,
+Temporadas, Juegos y Cuestionarios. El grid progresa de una a dos, tres y cinco
+columnas según el espacio; ya no existe una card hero separada.
 
 ## Hover cards e identidades enlazadas
 
@@ -127,8 +137,16 @@ aparece tras 600 ms de intención sostenida en dispositivos con hover. Las
 identidades no cambian fondo, sombra, posición ni superficie al apuntarlas, pero
 conservan foco visible. El portal deja un gap transparente de 6 px y aplica 220
 ms de gracia al salir del trigger o popup; entrar en el popup cancela el cierre.
-El posicionamiento prefiere debajo, usa arriba si no cabe, limita altura y
-colisiona lateralmente con 12 px de margen. Teclado, touch, Escape, caché,
+Cada apertura lee Presence en paralelo desde el endpoint no-store existente,
+fuera de la caché de preview y sin polling. El popup muestra texto más color
+para conectado/offline y el juego para playing; privado, indisponible o fallo se
+omiten silenciosamente.
+
+El posicionamiento prefiere `bottom-start`; si no cabe horizontalmente usa
+`bottom-end` y solo después hace clamp con 12 px de margen. Si falta altura,
+aplica el mismo orden arriba. `maxHeight` procede del espacio real del viewport,
+no de la altura provisional del skeleton, por lo que la primera apertura puede
+crecer sin heredar un scrollbar falso. Teclado, touch, Escape, caché,
 tombstones y reduced motion mantienen sus contratos. El bio compartido está
 limitado a 150 caracteres y su fallback es `Sin descripción.`.
 
@@ -172,12 +190,13 @@ deliberada para Presence y no modifica la historia de 0027.
 
 La quinta celda `Estado` de `ProfileStats` recibe Presence inicial por SSR y se
 actualiza cada 15 segundos mientras el documento está visible. Los estados
-visuales son `JUGANDO`, `CONECTADO`, `DESCONECTADO` y `PRIVADO`; un fallo de
+visuales son `Jugando`, `Conectado`, `Desconectado` y `Privado`; un fallo de
 lectura conserva el último valor válido o muestra `—`, nunca inventa una
 desconexión. `JUGANDO` tiene prioridad sobre conexiones web o launcher y el
 detalle del juego siempre procede del `game_id` canónico resuelto en servidor.
 
-Presence es efímera y su privacidad se presenta como la acción de ocultarla.
+La presentación se comparte con las hover cards mediante
+`PlayerPresenceIndicator`; no muestra source Web/Launcher. Presence es efímera y su privacidad se presenta como la acción de ocultarla.
 Desde `0029_profile_privacy_defaults.sql`, `presence_public` vale `true` para
 perfiles nuevos; los valores históricos no se migran porque no hay una señal
 fiable que distinga privacidad elegida del antiguo default. Web y launcher

@@ -7,7 +7,6 @@ type ProfileStatsProps = {
   stats: PlayerProfileStats;
   playTime: PlayerPlayTime;
   presence: PlayerPresence;
-  presenceOwner: boolean;
   username: string;
 };
 
@@ -37,7 +36,7 @@ const statDefinitions: Array<{
   },
 ];
 
-export function ProfileStats({ stats, playTime, presence, presenceOwner, username }: ProfileStatsProps) {
+export function ProfileStats({ stats, playTime, presence, username }: ProfileStatsProps) {
   return (
     <dl
       aria-label="Resumen del jugador"
@@ -81,7 +80,6 @@ export function ProfileStats({ stats, playTime, presence, presenceOwner, usernam
       </div>
       <ProfilePresenceStat
         initialPresence={presence}
-        owner={presenceOwner}
         username={username}
       />
     </dl>

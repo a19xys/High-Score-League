@@ -129,7 +129,7 @@ export type WeekBenchmarkRow = {
   label: string;
   score: number;
   description: string | null;
-  icon_key: string;
+  image_storage_path: string | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;

@@ -23,8 +23,8 @@ const position = (trigger: {
 test("hover card positioning stays close at center, edges, header and viewport bottom", () => {
   const center = position({ bottom: 140, height: 40, left: 450, top: 100, width: 100 });
   assert.deepEqual(center, {
-    left: 340,
-    maxHeight: 300,
+    left: 450,
+    maxHeight: 642,
     side: "bottom",
     top: 140,
   });
@@ -43,7 +43,27 @@ test("hover card positioning stays close at center, edges, header and viewport b
 
   const bottom = position({ bottom: 780, height: 40, left: 450, top: 740, width: 100 });
   assert.equal(bottom.side, "top");
-  assert.equal(bottom.top + bottom.maxHeight + 6, 740);
+  assert.equal(bottom.top + 300 + 6, 740);
+});
+
+test("hover card uses start, then end, then clamp and never freezes maxHeight to loading content", () => {
+  const start = position({ bottom: 140, height: 40, left: 300, top: 100, width: 100 });
+  assert.equal(start.left, 300);
+
+  const end = position({ bottom: 140, height: 40, left: 900, top: 100, width: 80 });
+  assert.equal(end.left + 320, 980);
+
+  const loading = calculatePlayerHoverCardPosition({
+    cardGap: 6,
+    panel: { height: 180, width: 300 },
+    trigger: { bottom: 382, height: 40, left: 12, top: 342, width: 500 },
+    viewportHeight: 800,
+    viewportPadding: 12,
+    viewportWidth: 340,
+  });
+  assert.equal(loading.maxHeight, 400);
+  assert.ok(loading.left >= 12);
+  assert.ok(loading.left + 300 <= 328);
 });
 
 test("hover card keeps a positive close grace, popup cancellation and tombstones", async () => {

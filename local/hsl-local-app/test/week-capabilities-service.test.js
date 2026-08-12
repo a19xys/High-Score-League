@@ -11,16 +11,35 @@ async function withTempDir(run) {
 }
 
 const deployment = { apiVersion: 1, build: "build-a", environment: "production" };
-function response(results, generatedAt = "2026-08-01T00:00:00.000Z") {
-  return new Response(JSON.stringify({ version: 1, build: "build-a", environment: "production", generatedAt, results }), {
+function response(results, generatedAt = "2026-08-01T00:00:00.000Z", responseDeployment = deployment, version = 1) {
+  return new Response(JSON.stringify({
+    version,
+    build: responseDeployment.build,
+    environment: responseDeployment.environment,
+    generatedAt,
+    results,
+  }), {
     status: 200,
     headers: {
       "content-type": "application/json",
-      "x-hsl-build": "build-a",
-      "x-hsl-environment": "production",
-      "x-hsl-launcher-api-version": "1",
+      "x-hsl-build": responseDeployment.build,
+      "x-hsl-environment": responseDeployment.environment,
+      "x-hsl-launcher-api-version": String(responseDeployment.apiVersion),
     },
   });
+}
+
+function resultFor(request, publicState = "active") {
+  return {
+    requestKey: request.requestKey,
+    weekId: request.weekId,
+    seasonId: "season-a",
+    seasonStatus: "active",
+    derivedStatus: publicState,
+    publicState,
+    rawStatus: publicState,
+    reason: `week-${publicState}`,
+  };
 }
 
 test("batch remoto queda durable y un fallo posterior no destruye la verdad", async () => {
@@ -312,4 +331,248 @@ test("preflight timeout usa reloj falso, bloquea online y limpia su timer", asyn
     assert.equal(service.getDiagnostics().inFlight, false);
     service.stop();
   });
+});
+
+test("preflight acepta respuestas concluyentes ACTIVE, CLOSED e INACTIVE y conserva el estado", async (t) => {
+  for (const publicState of ["active", "closed", "inactive"]) {
+    await t.test(publicState, async () => withTempDir(async (userDataDir) => {
+      const connection = { deployment, reachability: "connected", reachabilityGeneration: 1 };
+      const service = createWeekCapabilitiesService({
+        fetchImpl: async (_url, init) => {
+          const payload = JSON.parse(init.body);
+          return response(payload.requests.map((request) => resultFor(request, publicState)));
+        },
+        getConnectivityState: () => connection,
+        now: () => Date.parse("2026-08-01T00:00:00Z"),
+        userDataDir,
+      });
+      await service.initialize();
+      service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+      const result = await service.ensureFreshCapability("week-a");
+      assert.equal(result.ok, true);
+      assert.equal(result.status, "updated");
+      assert.equal(result.capability.publicState, publicState);
+      service.stop();
+    }));
+  }
+});
+
+test("HTTP 404 y 503 conservan status, reason y diagnostico sin aceptar ACTIVE cacheada", async (t) => {
+  for (const status of [404, 503]) {
+    await t.test(String(status), async () => withTempDir(async (userDataDir) => {
+      const connection = { deployment, reachability: "connected", reachabilityGeneration: 1 };
+      const cache = require("../src/competitive-authority-cache").createWeekCapabilityCache({ userDataDir });
+      await cache.initialize();
+      await cache.remember({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, {
+        checkedAt: "2026-08-01T00:00:00Z",
+        conclusive: true,
+        publicState: "active",
+        reason: "week-active",
+        weekId: "week-a",
+      });
+      const service = createWeekCapabilitiesService({
+        cache,
+        fetchImpl: async () => new Response("unavailable", { status, headers: { "content-type": "text/plain" } }),
+        getConnectivityState: () => connection,
+        now: () => Date.parse("2026-08-01T00:10:00Z"),
+        userDataDir,
+      });
+      await service.initialize();
+      service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+      const result = await service.ensureFreshCapability("week-a");
+      const diagnostics = service.getDiagnostics();
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, `http-${status}`);
+      assert.equal(result.capability.publicState, "active");
+      assert.equal(diagnostics.lastRequest.httpStatus, status);
+      assert.equal(diagnostics.lastRequest.reason, `http-${status}`);
+      assert.equal(diagnostics.lastRequest.result, "failed");
+      service.stop();
+    }));
+  }
+});
+
+test("JSON, version y resultados incompletos fallan con motivos sanitizados", async (t) => {
+  const cases = [
+    {
+      expected: "invalid-json",
+      name: "invalid-json",
+      response: () => new Response("not-json", {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "x-hsl-build": "build-a",
+          "x-hsl-environment": "production",
+          "x-hsl-launcher-api-version": "1",
+        },
+      }),
+    },
+    {
+      expected: "invalid-response",
+      name: "contract-version",
+      response: (request) => response([resultFor(request)], undefined, deployment, 2),
+    },
+    {
+      expected: "invalid-response",
+      name: "missing-week",
+      response: () => response([]),
+    },
+  ];
+  for (const fixture of cases) {
+    await t.test(fixture.name, async () => withTempDir(async (userDataDir) => {
+      const connection = { deployment, reachability: "connected", reachabilityGeneration: 1 };
+      const service = createWeekCapabilitiesService({
+        fetchImpl: async (_url, init) => fixture.response(JSON.parse(init.body).requests[0]),
+        getConnectivityState: () => connection,
+        userDataDir,
+      });
+      await service.initialize();
+      service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+      const result = await service.ensureFreshCapability("week-a");
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, fixture.expected);
+      assert.equal(service.getDiagnostics().lastRequest.contractValidation, "invalid");
+      service.stop();
+    }));
+  }
+});
+
+test("health stale reproduce deployment-mismatch y una huella resincronizada acepta ACTIVE", async () => {
+  await withTempDir(async (userDataDir) => {
+    const currentDeployment = { apiVersion: 1, build: "build-b", environment: "production" };
+    const connection = { deployment: { ...deployment }, reachability: "connected", reachabilityGeneration: 1 };
+    const service = createWeekCapabilitiesService({
+      fetchImpl: async (_url, init) => {
+        const payload = JSON.parse(init.body);
+        return response(payload.requests.map((request) => resultFor(request)), undefined, currentDeployment);
+      },
+      getConnectivityState: () => connection,
+      userDataDir,
+    });
+    await service.initialize();
+    service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+
+    const staleHealth = await service.ensureFreshCapability("week-a");
+    assert.equal(staleHealth.ok, false);
+    assert.equal(staleHealth.reason, "deployment-mismatch");
+    assert.equal(service.getDiagnostics().lastRequest.deploymentMatch, false);
+
+    connection.deployment = currentDeployment;
+    service.updateDeployment();
+    const resynchronized = await service.ensureFreshCapability("week-a");
+    assert.equal(resynchronized.ok, true);
+    assert.equal(resynchronized.capability.publicState, "active");
+    assert.equal(service.getDiagnostics().lastRequest.deploymentMatch, true);
+    service.stop();
+  });
+});
+
+test("single-flight de la misma week entrega al preflight el resultado del run compartido", async () => {
+  await withTempDir(async (userDataDir) => {
+    let resolveFetch;
+    let requests = 0;
+    const connection = { deployment, reachability: "connected", reachabilityGeneration: 1 };
+    const service = createWeekCapabilitiesService({
+      fetchImpl: (_url, init) => {
+        requests += 1;
+        const payload = JSON.parse(init.body);
+        return new Promise((resolve) => {
+          resolveFetch = () => resolve(response(payload.requests.map((request) => resultFor(request))));
+        });
+      },
+      getConnectivityState: () => connection,
+      userDataDir,
+    });
+    await service.initialize();
+    service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+    const background = service.refresh("background", { force: true });
+    const preflight = service.ensureFreshCapability("week-a");
+    assert.equal(requests, 1);
+    resolveFetch();
+    await background;
+    const result = await preflight;
+    assert.equal(result.ok, true);
+    assert.equal(result.requestRunId, 1);
+    assert.equal(requests, 1);
+    service.stop();
+  });
+});
+
+test("single-flight de otra week espera y crea un run propio sin robar identidad", async () => {
+  await withTempDir(async (userDataDir) => {
+    const pending = [];
+    const connection = { deployment, reachability: "connected", reachabilityGeneration: 1 };
+    const service = createWeekCapabilitiesService({
+      fetchImpl: (_url, init) => {
+        const payload = JSON.parse(init.body);
+        return new Promise((resolve) => pending.push({
+          ids: payload.requests.map((request) => request.weekId),
+          resolve: () => resolve(response(payload.requests.map((request) => resultFor(request)))),
+        }));
+      },
+      getConnectivityState: () => connection,
+      userDataDir,
+    });
+    await service.initialize();
+    service.updateContext({ packs: [{ weekId: "week-a" }, { weekId: "week-b" }], webBaseUrl: "https://hsl.example" });
+    const background = service.refresh("background", { force: true, weekIds: ["week-a"] });
+    const preflight = service.ensureFreshCapability("week-b");
+    assert.deepEqual(pending[0].ids, ["week-a"]);
+    pending[0].resolve();
+    await background;
+    await Promise.resolve();
+    assert.deepEqual(pending[1].ids, ["week-b"]);
+    pending[1].resolve();
+    const result = await preflight;
+    assert.equal(result.ok, true);
+    assert.equal(result.requestRunId, 2);
+    service.stop();
+  });
+});
+
+test("un cambio real de contexto queda stale pero una revision tecnica equivalente no", async (t) => {
+  await t.test("context-change", async () => withTempDir(async (userDataDir) => {
+    let resolveFetch;
+    const connection = { deployment, reachability: "connected", reachabilityGeneration: 1 };
+    const service = createWeekCapabilitiesService({
+      fetchImpl: (_url, init) => {
+        const payload = JSON.parse(init.body);
+        return new Promise((resolve) => { resolveFetch = () => resolve(response(payload.requests.map((request) => resultFor(request)))); });
+      },
+      getConnectivityState: () => connection,
+      userDataDir,
+    });
+    await service.initialize();
+    service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+    const preflight = service.ensureFreshCapability("week-a");
+    service.updateContext({ packs: [{ weekId: "week-b" }], webBaseUrl: "https://hsl.example" });
+    resolveFetch();
+    const result = await preflight;
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, "stale-context");
+    service.stop();
+  }));
+
+  await t.test("equivalent-technical-refresh", async () => withTempDir(async (userDataDir) => {
+    let resolveFetch;
+    const connection = { deployment, deploymentGeneration: 1, reachability: "connected", reachabilityGeneration: 1 };
+    const service = createWeekCapabilitiesService({
+      fetchImpl: (_url, init) => {
+        const payload = JSON.parse(init.body);
+        return new Promise((resolve) => { resolveFetch = () => resolve(response(payload.requests.map((request) => resultFor(request)))); });
+      },
+      getConnectivityState: () => connection,
+      userDataDir,
+    });
+    await service.initialize();
+    service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+    const preflight = service.ensureFreshCapability("week-a");
+    connection.deployment = { ...deployment };
+    connection.deploymentGeneration = 2;
+    service.updateDeployment();
+    resolveFetch();
+    const result = await preflight;
+    assert.equal(result.ok, true);
+    service.stop();
+  }));
 });

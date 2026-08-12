@@ -82,7 +82,6 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       competitive={competitive}
       playTime={playTime}
       presence={presence}
-      presenceOwner={isOwner}
       profile={profileResult.profile}
     />
   );

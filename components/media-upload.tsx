@@ -69,7 +69,9 @@ export function MediaUpload({
       ? "aspect-video w-full object-cover"
       : preset === "avatar"
         ? "h-24 w-24 rounded-full object-cover"
-        : "h-28 w-28 rounded-xl object-contain";
+        : preset === "benchmark-icon"
+          ? "h-20 w-20 rounded-lg object-contain"
+          : "h-28 w-28 rounded-xl object-contain";
 
   return (
     <div className="rounded-xl border p-3 theme-border theme-surface-muted">
@@ -91,16 +93,17 @@ export function MediaUpload({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold theme-text">{label}</p>
-          <p className="mt-1 text-xs leading-5 theme-text-muted">
-            {description ?? `JPEG, PNG o WebP · máximo 12 MB · salida ${config.maxWidth}×${config.maxHeight}`}
-          </p>
           {selection.kind === "replace" ? (
-            <p className="mt-1 text-xs font-semibold text-emerald-600" role="status">
-              Lista: {selection.media.width}×{selection.media.height} · {formatBytes(selection.media.outputBytes)}
+            <p className="mt-1 text-xs font-semibold leading-5 text-emerald-600" role="status">
+              Imagen lista: {selection.media.width}×{selection.media.height} · {formatBytes(selection.media.outputBytes)}
             </p>
           ) : selection.kind === "remove" ? (
-            <p className="mt-1 text-xs font-semibold text-amber-600" role="status">Se quitará al guardar.</p>
-          ) : null}
+            <p className="mt-1 text-xs font-semibold leading-5 text-amber-600" role="status">Se quitará al guardar.</p>
+          ) : (
+            <p className="mt-1 text-xs leading-5 theme-text-muted">
+              {description ?? `JPEG, PNG o WebP · máximo 12 MB · salida ${config.maxWidth}×${config.maxHeight}`}
+            </p>
+          )}
           <div className="mt-3 flex flex-wrap gap-2">
             <input
               accept="image/jpeg,image/png,image/webp"

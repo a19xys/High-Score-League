@@ -24,7 +24,7 @@ export function ProfileAvatarEditor({
       description="JPEG, PNG o WebP · máximo 12 MB"
       disabled={disabled}
       fallbackText={initials || "HSL"}
-      label="Avatar público"
+      label="Foto de perfil"
       onChange={onChange}
       preset="avatar"
       selection={selection}

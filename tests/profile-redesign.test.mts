@@ -158,7 +158,7 @@ test("the profile workspace is accessible, mounted and free of the old anchor na
   assert.doesNotMatch(hero, /Editar identidad|Ver perfil público/);
   assert.doesNotMatch(stats, /label: "Resultados"/);
   assert.match(stats, /ProfilePresenceStat/);
-  assert.match(presenceStat, /visibility === "unavailable"[\s\S]*Estado/);
+  assert.match(presenceStat, /PlayerPresenceIndicator/);
   assert.equal(historyExists, false);
 });
 
@@ -186,8 +186,8 @@ test("profile editor keeps avatar first, responsive controls and non-reserved sa
     read("components", "profile", "profile-account-settings.tsx"),
   ]);
 
-  assert.ok(editor.indexOf("Foto de perfil") < editor.indexOf(">Identidad<"));
-  assert.ok(editor.indexOf(">Identidad<") < editor.indexOf(">Privacidad<"));
+  assert.match(editor, /onboarding \? "Paso esencial" : "Perfil"/);
+  assert.doesNotMatch(editor, />Identidad</);
   assert.doesNotMatch(editor, /lg:grid-cols-\[15rem/);
   assert.doesNotMatch(editor, /className="min-h-5"/);
   assert.match(editor, /kind: "success"/);
@@ -197,7 +197,7 @@ test("profile editor keeps avatar first, responsive controls and non-reserved sa
   assert.match(uploader, />\s*Deshacer\s*</);
   assert.match(uploader, /flex-wrap gap-2/);
   assert.match(uploader, /min-h-11/);
-  assert.match(account, />Sesión y cuenta</);
+  assert.match(account, />Sesión</);
   assert.ok(account.indexOf("<LogoutButton") < account.indexOf("<ProfileAccountAnonymization"));
 });
 

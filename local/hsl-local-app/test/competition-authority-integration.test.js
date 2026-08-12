@@ -65,8 +65,8 @@ test("main integra cache durable, freshness, triggers y preflight sin polling", 
 test("una semana cerrada bloquea antes de iniciar MAME competitivo", async () => {
   const launcher = await fsp.readFile(path.join(__dirname, "..", "gui", "launcher-service.js"), "utf8");
   const competition = launcher.slice(
-    launcher.indexOf("async function playCompetition"),
-    launcher.indexOf("async function playPractice()"),
+    launcher.indexOf("async function playCompetitionAction"),
+    launcher.indexOf("async function playCompetition(options"),
   );
   assert.match(competition, /weekCapability = options\.confirmedCompetition\?\.weekCapability \|\| context\.weekCapability/);
   assert.match(competition, /expectedCompetitionAttempt/);
@@ -76,4 +76,24 @@ test("una semana cerrada bloquea antes de iniciar MAME competitivo", async () =>
   assert.match(competition, /membership\?\.effectiveStatus \|\| membership\?\.status/);
   assert.ok(competition.indexOf("readinessBlockedResponse") < competition.indexOf("launchMameDetailed"));
   assert.ok(competition.indexOf("readinessBlockedResponse") < competition.indexOf("launchMame("));
+});
+
+test("JUGAR refresca health antes del preflight y las fases visibles nacen del lifecycle real", async () => {
+  const [main, launcher, renderer] = await Promise.all([
+    fsp.readFile(path.join(__dirname, "..", "gui", "main.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "launcher-service.js"), "utf8"),
+    fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8"),
+  ]);
+  const handler = main.slice(
+    main.indexOf('registerLauncherStateHandler("launcher:play-competition"'),
+    main.indexOf('registerLauncherStateHandler("launcher:practice"'),
+  );
+  assert.ok(handler.indexOf('prepareRemoteAction("play-preflight", { force: true })') < handler.indexOf("runCompetitionPlayPreflight"));
+  assert.match(handler, /onMamePhase/);
+  assert.match(handler, /mame-spawned/);
+  assert.match(launcher, /options\.onMamePhase\?\.\("mame-spawned"\)/);
+  assert.match(launcher, /options\.onMamePhase\?\.\("mame-closed"\)/);
+  assert.match(renderer, /options\.phaseDriven !== true/);
+  assert.match(renderer, /options\.closingLabel && value\?\.mameSpawned === true/);
+  assert.match(renderer, /response\.technicalDetails/);
 });

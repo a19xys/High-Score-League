@@ -21,6 +21,15 @@ export function AdminProfileCenter({ data }: AdminProfileCenterProps) {
     data.currentWeekId && data.activeWeekCount === 1
       ? "/admin/weeks/current"
       : "/admin/weeks";
+  const links = [
+    {
+      href: currentWeekHref,
+      title: "Semana actual",
+      description: data.currentWeekLabel ?? "Revisar semanas",
+      current: true,
+    },
+    ...adminLinks.map((link) => ({ ...link, current: false })),
+  ];
 
   return (
     <section className="rounded-2xl border p-4 shadow-panel theme-border theme-surface sm:p-6">
@@ -45,22 +54,11 @@ export function AdminProfileCenter({ data }: AdminProfileCenterProps) {
             Hay {data.activeWeekCount} semanas activas. Revisa la configuración.
           </p>
         ) : null}
-        <div className="mb-5 rounded-xl border p-4 theme-border theme-surface-muted">
-          <p className="text-xs font-extrabold uppercase tracking-wide theme-text-muted">
-            Semana actual
-          </p>
-          <Link
-            className="mt-2 inline-flex min-h-11 items-center rounded-lg font-extrabold text-circuit transition hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
-            href={currentWeekHref}
-          >
-            {data.currentWeekLabel ?? "Revisar semanas"}
-          </Link>
-        </div>
         <h3 className="mb-3 text-lg font-black theme-text">Accesos</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {adminLinks.map((link) => (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {links.map((link) => (
             <Link
-              className="rounded-xl border p-4 transition theme-border theme-surface-muted hover:-translate-y-0.5 hover:border-circuit focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit motion-reduce:transform-none"
+              className={`rounded-xl border p-4 transition theme-surface-muted hover:-translate-y-0.5 hover:border-circuit focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit motion-reduce:transform-none ${link.current ? "border-circuit" : "theme-border"}`}
               href={link.href}
               key={link.href}
             >

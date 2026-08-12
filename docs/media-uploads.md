@@ -1,7 +1,7 @@
 # MEDIA-UPLOADS-1: imágenes públicas administrables
 
-La web dispone de un sistema único para avatar, cabecera y logo de juego e
-imagen de opción del cuestionario. `MEDIA-UPLOADS-1` está implementada,
+La web dispone de un sistema único para avatar, cabecera y logo de juego,
+imagen de opción del cuestionario e imagen de benchmark. `MEDIA-UPLOADS-1` está implementada,
 `supabase/migrations/0024_media_uploads.sql` ya está aplicada en el Supabase
 remoto y el sistema está funcional. Esto confirma la infraestructura, no qué
 revisión concreta de la web está desplegada.
@@ -15,12 +15,14 @@ UUID nuevo:
 - `avatars/<USER_ID>/<UUID>.webp`;
 - `games/headers/<UUID>.webp`;
 - `games/logos/<UUID>.webp`;
-- `polls/options/<UUID>.webp`.
+- `polls/options/<UUID>.webp`;
+- `benchmarks/icons/<UUID>.webp`.
 
 La lectura por URL pública no requiere sesión. Las policies de
 `storage.objects` permiten a un usuario autenticado insertar, consultar y
 borrar únicamente objetos bajo su propia carpeta de avatar. `public.is_admin()`
-autoriza esas operaciones en `games/headers`, `games/logos` y `polls/options`.
+autoriza esas operaciones en `games/headers`, `games/logos`, `polls/options` y,
+mediante policies exactas de `0030`, `benchmarks/icons`.
 No hay policy `UPDATE`: todo reemplazo crea un objeto nuevo. Constraints de las
 tablas comprueban además que cada columna solo admita su prefijo, un UUID y
 extensión `.webp`; en avatar también comprueban el `profiles.id` propietario.
@@ -33,6 +35,11 @@ extensión `.webp`; en avatar también comprueban el `profiles.id` propietario.
 - `games.header_image_storage_path`;
 - `games.logo_image_storage_path`;
 - `home_poll_options.image_storage_path`.
+
+`0030_week_benchmark_images.sql` añade
+`week_benchmarks.image_storage_path`. A diferencia de las familias con URL
+legacy, el benchmark deriva siempre su URL pública del path; un valor `null`
+usa `REF`. `icon_key` queda únicamente como columna legacy temporal.
 
 Se conservan `avatar_url`, `header_image_url`, `logo_image_url`, `image_url` y
 `games.image_url`. Cuando hay path, los mapeadores construyen la URL pública del
@@ -64,6 +71,7 @@ ambos encoders fallan o la salida WebP real no baja del máximo de 2 MiB.
 | Preset | Caja máxima | Calidad inicial | Peso objetivo |
 | --- | ---: | ---: | ---: |
 | Avatar | 512 × 512 | 0,86 | 350 KiB |
+| Imagen de benchmark | 256 × 256 | 0,92 | 180 KiB |
 | Cabecera de juego | 1920 × 1080 | 0,86 | 1,5 MiB |
 | Logo de juego | 1400 × 1400 | 0,92 | 1 MiB |
 | Opción de cuestionario | 1024 × 1024 | 0,85 | 700 KiB |
@@ -76,7 +84,7 @@ hay proxy Next ni `service_role` en cliente.
 
 ## Lifecycle y recuperación
 
-Los cuatro editores comparten el mismo ciclo:
+Todos los editores comparten el mismo ciclo:
 
 1. subir todos los reemplazos con rutas nuevas;
 2. persistir paths y URLs en base de datos o API;
@@ -91,11 +99,16 @@ reemplazos y retiradas pendientes.
 
 ## Instalación o despliegue en un entorno nuevo
 
-En un Supabase nuevo, o en uno que todavía no tenga esta migración, se deben
+En un Supabase nuevo, o en uno que todavía no tenga estas migraciones, se deben
 aplicar las migraciones en orden y ejecutar `0024_media_uploads.sql` antes de
 desplegar código que consulte los paths administrados. En el entorno remoto
 actual `0024` ya está aplicada y no debe volver a ejecutarse como si siguiera
 pendiente.
+
+La extensión de benchmark vive en `0030_week_benchmark_images.sql`, que está
+preparada localmente y pendiente de aplicación remota. Debe aplicarse y
+verificarse antes de desplegar la web que consulta
+`week_benchmarks.image_storage_path`.
 
 El código anterior puede seguir funcionando tras la migración porque ignora las
 columnas nuevas; por eso un rollback web continúa siendo posible. Aplicar la
@@ -105,10 +118,11 @@ desplegada.
 Checklist en Supabase:
 
 - bucket `hsl-public-media` público, límite 2 MiB y MIME `image/webp`;
-- las cuatro columnas nuevas existen y son nullable;
+- las columnas de `0024` existen y son nullable;
 - usuario normal solo puede gestionar `avatars/<su uid>/...`;
 - ese usuario no puede escribir juegos, polls ni otro avatar;
-- admin puede gestionar las tres familias administrativas;
+- tras `0030`, admin puede gestionar también el prefijo exacto
+  `benchmarks/icons/<UUID>.webp`;
 - URL pública de un objeto válido responde sin sesión;
 - no existe policy de `UPDATE` para este bucket.
 
@@ -121,7 +135,7 @@ firmadas; no deben reutilizar `hsl-public-media`.
 `PROFILE-ANONYMIZATION-1` elimina de forma recursiva únicamente los objetos del
 prefijo exacto `avatars/<uid>/` en `hsl-public-media` y deja nulo tanto
 `avatar_storage_path` como `avatar_url`. Nunca enumera ni borra las familias de
-juegos, cabeceras, logos o cuestionarios. La limpieza se reintenta si falla tras
+juegos, cabeceras, logos, cuestionarios o benchmarks. La limpieza se reintenta si falla tras
 crear el tombstone.
 
 El bucket es público y los objetos usan caché larga; borrar el origen no implica

@@ -4,7 +4,6 @@ import {
   formatRelativeTime,
   formatScore,
 } from "@/lib/format";
-import { getBenchmarkIconSrc } from "@/lib/benchmark-icons";
 import type { LeaderboardEntry, WeekBenchmark } from "@/types";
 import { PlayerPill } from "./player-pill";
 import { getRankRowClass, RankBadge } from "./rank-badge";
@@ -48,33 +47,18 @@ function getVisualRows(entries: LeaderboardEntry[], benchmarks: WeekBenchmark[])
   });
 }
 
-type MaskedIconProps = {
-  label: string;
-  src: string;
-};
+function BenchmarkImage({ benchmark }: { benchmark: WeekBenchmark }) {
+  if (!benchmark.imageUrl) {
+    return (
+      <span className="inline-flex h-8 min-w-8 items-center justify-center rounded border px-1 text-[9px] font-black tracking-wide theme-border theme-text-muted">
+        REF
+      </span>
+    );
+  }
 
-function MaskedIcon({ label, src }: MaskedIconProps) {
   return (
-    <span
-      aria-label={label}
-      className="inline-flex h-8 w-8 items-center justify-center theme-text"
-      role="img"
-    >
-      <span
-        aria-hidden="true"
-        className="h-7 w-7 bg-current"
-        style={{
-          WebkitMask: `url('${src}') center / contain no-repeat`,
-          mask: `url('${src}') center / contain no-repeat`,
-        }}
-      />
-      <span className="sr-only">{label}</span>
-    </span>
+    <img alt="" className="h-8 w-8 object-contain" src={benchmark.imageUrl} />
   );
-}
-
-function BenchmarkReferenceIcon({ iconKey }: { iconKey?: string | null }) {
-  return <MaskedIcon label="Referencia" src={getBenchmarkIconSrc(iconKey)} />;
 }
 
 export function LeaderboardTable({
@@ -116,7 +100,7 @@ export function LeaderboardTable({
                 key={`benchmark-${row.benchmark.id}`}
               >
                 <td className="w-14 whitespace-nowrap px-2 py-4 text-center sm:w-16 sm:px-3">
-                  <BenchmarkReferenceIcon iconKey={row.benchmark.iconKey} />
+                  <BenchmarkImage benchmark={row.benchmark} />
                 </td>
                 <td className="min-w-0 px-2 py-4 text-left sm:px-3">
                   <div className="min-w-0">

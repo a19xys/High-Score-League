@@ -107,7 +107,8 @@ export type WeekBenchmark = {
   label: string;
   score: number;
   description?: string | null;
-  iconKey: string;
+  imageStoragePath?: string | null;
+  imageUrl?: string | null;
   sortOrder: number;
   isActive: boolean;
 };

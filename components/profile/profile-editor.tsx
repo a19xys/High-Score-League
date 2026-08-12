@@ -213,7 +213,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
   return (
     <section className="rounded-2xl border p-4 shadow-panel theme-border theme-surface sm:p-6">
       <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-circuit">
-        {onboarding ? "Paso esencial" : "Identidad"}
+        {onboarding ? "Paso esencial" : "Perfil"}
       </p>
       <h2 className="mt-1 text-2xl font-black theme-text">
         {onboarding ? "Completa tu tarjeta" : "Editar perfil"}
@@ -226,28 +226,20 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
 
       <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
         <div className="space-y-6">
-          <section>
-            <p className="text-xs font-extrabold uppercase tracking-[0.12em] theme-text-muted">
-              Foto de perfil
-            </p>
-            <div className="mt-3">
-              <ProfileAvatarEditor
-                currentUrl={avatarUrl}
-                disabled={isSubmitting}
-                initials={normalizeInitials(initials)}
-                onChange={(selection) => {
-                  markFormModified();
-                  setAvatarSelection(selection);
-                }}
-                selection={avatarSelection}
-              />
-            </div>
-          </section>
+          <ProfileAvatarEditor
+            currentUrl={avatarUrl}
+            disabled={isSubmitting}
+            initials={normalizeInitials(initials)}
+            onChange={(selection) => {
+              markFormModified();
+              setAvatarSelection(selection);
+            }}
+            selection={avatarSelection}
+          />
 
           <div className="min-w-0 space-y-6">
             <section>
-              <h3 className="text-lg font-black theme-text">Identidad</h3>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block min-w-0">
                   <span className="text-sm font-bold theme-text">Username</span>
                   <input
@@ -375,9 +367,9 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
           </p>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3">
           <button
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-circuit px-5 py-3 text-sm font-extrabold text-slate-950 transition hover:bg-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            className="inline-flex min-h-11 w-fit shrink-0 items-center justify-center rounded-xl bg-circuit px-5 py-3 text-sm font-extrabold text-slate-950 transition hover:bg-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSubmitting}
             type="submit"
           >

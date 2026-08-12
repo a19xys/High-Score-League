@@ -25,6 +25,22 @@ function weekCapabilitiesEndpoint(webBaseUrl) {
   return normalized ? new URL(WEEK_CAPABILITIES_PATH, `${normalized}/`).toString() : null;
 }
 
+function publicDeployment(deployment = {}) {
+  return {
+    apiVersion: Number(deployment.apiVersion) || null,
+    build: String(deployment.build || "unknown"),
+    environment: String(deployment.environment || "unknown"),
+  };
+}
+
+function abortedRequestReason(signal) {
+  if (!signal?.aborted) return null;
+  const reason = String(signal.reason || "cancelled");
+  if (reason === "timeout") return "timeout";
+  if (reason === "context-change") return "stale-context";
+  return "cancelled";
+}
+
 function createWeekCapabilitiesService(options = {}) {
   const config = { ...DEFAULT_WEEK_CAPABILITIES_OPTIONS, ...(options.config || {}) };
   const cache = options.cache || createWeekCapabilityCache({ userDataDir: options.userDataDir }, options.cacheOptions);
@@ -43,6 +59,7 @@ function createWeekCapabilitiesService(options = {}) {
   let initialized = false;
   let stopped = false;
   let inFlight = null;
+  let activeRun = null;
   let controller = null;
   let boundaryTimer = null;
   let pendingIds = new Set();
@@ -155,6 +172,7 @@ function createWeekCapabilitiesService(options = {}) {
     controller?.abort("context-change");
     controller = null;
     inFlight = null;
+    activeRun = null;
     pendingIds = new Set();
     inFlightIds = new Set();
     emit("context-change");
@@ -199,7 +217,7 @@ function createWeekCapabilitiesService(options = {}) {
       throw Object.assign(new Error("Week capability deployment mismatch"), { reason: "deployment-mismatch" });
     }
     const byKey = new Map(payload.results.map((item) => [item?.requestKey, item]));
-    return requests.map((request) => {
+    const capabilities = requests.map((request) => {
       const result = byKey.get(request.requestKey);
       if (!result || result.weekId !== request.weekId || !["inactive", "active", "closed", "unlinked"].includes(result.publicState)) {
         throw Object.assign(new Error("Incomplete week capability response"), { reason: "invalid-response" });
@@ -220,16 +238,28 @@ function createWeekCapabilitiesService(options = {}) {
         weekId: request.weekId,
       };
     });
+    return { bodyDeployment, capabilities };
   }
 
-  function refresh(reason = "context", refreshOptions = {}) {
-    if (stopped || !isCommittedConnected(connection())) return Promise.resolve(snapshot());
-    if (inFlight) return inFlight;
+  function runRefresh(reason = "context", refreshOptions = {}) {
+    if (stopped || !isCommittedConnected(connection())) {
+      return Promise.resolve({ requestedIds: [], results: new Map(), runId: null, state: snapshot() });
+    }
+    if (activeRun) return activeRun.promise;
     const endpoint = weekCapabilitiesEndpoint(context.webBaseUrl);
     const requestedIds = (refreshOptions.weekIds || context.weekIds)
       .filter((weekId) => context.weekIds.includes(weekId))
       .filter((weekId) => refreshOptions.force === true || !getCapability(weekId).fresh);
-    if (!endpoint || requestedIds.length === 0) return Promise.resolve(snapshot());
+    if (!endpoint || requestedIds.length === 0) {
+      const failure = endpoint ? "nothing-to-refresh" : "missing-endpoint";
+      const results = new Map(requestedIds.map((weekId) => [weekId, {
+        checkedAt: new Date(now()).toISOString(),
+        reason: failure,
+        runId: null,
+        status: "failed",
+      }]));
+      return Promise.resolve({ requestedIds, results, runId: null, state: snapshot() });
+    }
 
     const generation = context.generation;
     const requestOrigin = context.webBaseUrl;
@@ -237,15 +267,43 @@ function createWeekCapabilitiesService(options = {}) {
     const requestDeploymentKey = context.deploymentKey;
     const reachabilityGeneration = connection().reachabilityGeneration;
     const runId = ++requestSequence;
+    const run = { ids: new Set(requestedIds), promise: null, runId };
     controller = new AbortController();
     const activeController = controller;
     pendingIds = new Set(requestedIds);
     inFlightIds = new Set(requestedIds);
-    emit(`${reason}:start`);
     const timeout = scheduleTimeout(() => activeController.abort("timeout"), config.requestTimeoutMs);
     timeout?.unref?.();
 
-    inFlight = (async () => {
+    let requestDiagnostic = {
+      checkedAt: new Date(now()).toISOString(),
+      contentType: null,
+      contractVersion: WEEK_CAPABILITIES_CONTRACT_VERSION,
+      contractValidation: "pending",
+      deploymentMatch: null,
+      endpoint,
+      expectedDeployment: publicDeployment(requestDeployment),
+      httpStatus: null,
+      reason: "requesting",
+      requestReason: reason,
+      requestKeys: requestedIds.map((_weekId, index) => `week-${index}`),
+      requestedIds: [...requestedIds],
+      result: "pending",
+      runId,
+    };
+    const updateRequestDiagnostic = (patch) => {
+      requestDiagnostic = { ...requestDiagnostic, ...patch };
+      if (!lastRequest || Number(lastRequest.runId) <= runId) lastRequest = requestDiagnostic;
+    };
+    updateRequestDiagnostic({});
+    let resolveRun;
+    let rejectRun;
+    run.promise = new Promise((resolve, reject) => {
+      resolveRun = resolve;
+      rejectRun = reject;
+    });
+    const execute = async () => {
+      const runResults = new Map();
       try {
         const results = [];
         for (let start = 0; start < requestedIds.length; start += config.batchLimit) {
@@ -260,12 +318,42 @@ function createWeekCapabilitiesService(options = {}) {
             signal: activeController.signal,
           });
           const headerDeployment = readHealthDeployment(response);
-          lastRequest = { checkedAt: new Date(now()).toISOString(), httpStatus: response.status, reason: response.ok ? null : `http-${response.status}`, requestedIds: [...requestedIds], runId };
-          if (!deploymentFingerprintsMatch(requestDeployment, headerDeployment)) {
+          const headerDeploymentMatches = deploymentFingerprintsMatch(requestDeployment, headerDeployment);
+          const contentType = response.headers?.get?.("content-type") || null;
+          updateRequestDiagnostic({
+            checkedAt: new Date(now()).toISOString(),
+            contentType,
+            httpStatus: response.status,
+            deploymentMatch: response.ok ? headerDeploymentMatches : null,
+            receivedHeaderDeployment: publicDeployment(headerDeployment),
+            reason: response.ok ? null : `http-${response.status}`,
+          });
+          if (!response.ok) throw Object.assign(new Error("Week endpoint unavailable"), { reason: `http-${response.status}` });
+          if (!headerDeploymentMatches) {
             throw Object.assign(new Error("Week headers differ from health"), { reason: "deployment-mismatch" });
           }
-          if (!response.ok) throw Object.assign(new Error("Week endpoint unavailable"), { reason: `http-${response.status}` });
-          results.push(...validateResponse(await response.json(), requests, headerDeployment));
+          let payload;
+          try {
+            payload = await response.json();
+          } catch {
+            throw Object.assign(new Error("Invalid week capability JSON"), { reason: "invalid-json" });
+          }
+          const bodyDeployment = readRankingDeployment(payload);
+          const bodyDeploymentMatches = deploymentFingerprintsMatch(headerDeployment, bodyDeployment);
+          updateRequestDiagnostic({
+            deploymentMatch: headerDeploymentMatches && bodyDeploymentMatches,
+            receivedBodyDeployment: publicDeployment(bodyDeployment),
+          });
+          const validated = validateResponse(payload, requests, headerDeployment);
+          updateRequestDiagnostic({
+            contractValidation: "valid",
+            receivedBodyDeployment: publicDeployment(validated.bodyDeployment),
+            responseResults: validated.capabilities.map((capability) => ({
+              publicState: capability.publicState,
+              weekId: capability.weekId,
+            })),
+          });
+          results.push(...validated.capabilities);
         }
         const stillCurrent = !stopped
           && generation === context.generation
@@ -275,34 +363,75 @@ function createWeekCapabilitiesService(options = {}) {
         if (stillCurrent) {
           for (const result of results) {
             await cache.remember(authorityContext(), result);
-            lastResults.set(result.weekId, { checkedAt: result.checkedAt, reason: result.reason, runId, status: "updated" });
+            const outcome = { checkedAt: result.checkedAt, reason: result.reason, runId, status: "updated" };
+            lastResults.set(result.weekId, outcome);
+            runResults.set(result.weekId, outcome);
           }
-          lastRequest = { ...lastRequest, reason: null, result: "updated" };
+          updateRequestDiagnostic({ reason: null, result: "updated" });
         } else {
           for (const weekId of requestedIds) {
-            lastResults.set(weekId, { checkedAt: new Date(now()).toISOString(), reason: "stale-context", runId, status: "stale" });
+            const outcome = { checkedAt: new Date(now()).toISOString(), reason: "stale-context", runId, status: "stale" };
+            lastResults.set(weekId, outcome);
+            runResults.set(weekId, outcome);
           }
+          updateRequestDiagnostic({ reason: "stale-context", result: "stale" });
         }
       } catch (error) {
-        const failure = activeController.signal.aborted ? "timeout" : String(error?.reason || "temporary-failure");
+        const failure = abortedRequestReason(activeController.signal) || String(error?.reason || "temporary-failure");
         const checkedAt = new Date(now()).toISOString();
-        lastRequest = { checkedAt, httpStatus: null, reason: failure, requestedIds: [...requestedIds], result: "failed", runId };
-        for (const weekId of requestedIds) lastResults.set(weekId, { checkedAt, reason: failure, runId, status: "failed" });
+        updateRequestDiagnostic({
+          checkedAt,
+          contractValidation: ["invalid-json", "invalid-response"].includes(failure) ? "invalid" : requestDiagnostic.contractValidation,
+          reason: failure,
+          result: "failed",
+        });
+        for (const weekId of requestedIds) {
+          const outcome = { checkedAt, reason: failure, runId, status: failure === "stale-context" ? "stale" : "failed" };
+          lastResults.set(weekId, outcome);
+          runResults.set(weekId, outcome);
+        }
         if (failure === "timeout" || failure === "temporary-failure" || failure.startsWith("http-")) options.onTransportFailure?.("week-capabilities");
       } finally {
         cancelTimeout(timeout);
-        if (generation === context.generation && controller === activeController) {
+        if (activeRun === run) {
           controller = null;
           inFlight = null;
+          activeRun = null;
           pendingIds = new Set();
           inFlightIds = new Set();
-          emit(`${reason}:complete`);
-          scheduleBoundary();
+          if (generation === context.generation) {
+            emit(`${reason}:complete`);
+            scheduleBoundary();
+          }
         }
       }
-      return snapshot();
-    })();
-    return inFlight;
+      return { requestedIds, results: runResults, runId, state: snapshot() };
+    };
+    activeRun = run;
+    inFlight = run.promise;
+    emit(`${reason}:start`);
+    execute().then(resolveRun, rejectRun);
+    return run.promise;
+  }
+
+  async function refresh(reason = "context", refreshOptions = {}) {
+    return (await runRefresh(reason, refreshOptions)).state;
+  }
+
+  function preflightResult(weekId, outcome) {
+    const attempt = outcome?.results?.get(weekId) || null;
+    const capability = getCapability(weekId);
+    const result = {
+      capability,
+      checkedAt: attempt?.checkedAt || new Date(now()).toISOString(),
+      ok: attempt?.status === "updated",
+      reason: attempt?.reason || "temporary-failure",
+      requestRunId: outcome?.runId || null,
+      status: attempt?.status || "failed",
+      weekId,
+    };
+    lastPreflight = result;
+    return result;
   }
 
   async function ensureFreshCapability(weekId, reason = "play-preflight") {
@@ -317,46 +446,25 @@ function createWeekCapabilitiesService(options = {}) {
       return result;
     }
 
-    if (inFlight) {
-      const includesWeek = inFlightIds.has(weekId);
-      const observedRunId = requestSequence;
-      await inFlight;
-      if (includesWeek) {
-        const attempt = lastResults.get(weekId);
-        const capability = getCapability(weekId);
-        const result = {
-          capability,
-          checkedAt: attempt?.checkedAt || new Date(now()).toISOString(),
-          ok: attempt?.runId === observedRunId && attempt.status === "updated",
-          reason: attempt?.reason || "temporary-failure",
-          status: attempt?.status || "failed",
-          weekId,
-        };
-        lastPreflight = result;
-        return result;
-      }
+    const sharedRun = activeRun;
+    if (sharedRun) {
+      const sharedOutcome = await sharedRun.promise;
+      if (sharedRun.ids.has(weekId)) return preflightResult(weekId, sharedOutcome);
     }
 
-    const expectedRunId = requestSequence + 1;
-    await refresh(reason, { force: true, weekIds: [weekId] });
-    const attempt = lastResults.get(weekId);
-    const capability = getCapability(weekId);
-    const result = {
-      capability,
-      checkedAt: attempt?.checkedAt || new Date(now()).toISOString(),
-      ok: attempt?.runId === expectedRunId && attempt.status === "updated",
-      reason: attempt?.reason || "temporary-failure",
-      status: attempt?.status || "failed",
-      weekId,
-    };
-    lastPreflight = result;
-    return result;
+    const outcome = await runRefresh(reason, { force: true, weekIds: [weekId] });
+    return preflightResult(weekId, outcome);
   }
 
   function stop() {
     stopped = true;
     context.generation += 1;
     controller?.abort("shutdown");
+    controller = null;
+    inFlight = null;
+    activeRun = null;
+    pendingIds = new Set();
+    inFlightIds = new Set();
     clearBoundaryTimer();
     listeners.clear();
   }

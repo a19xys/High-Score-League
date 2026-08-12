@@ -45,14 +45,18 @@ function competitionAttemptsMatch(left, right) {
     && left.weekId === right.weekId;
 }
 
-function blockedResult(state, summary, line = summary, reason = "competition-blocked") {
+function blockedResult(state, summary, line = summary, reason = "competition-blocked", metadata = {}) {
   return {
     action: "play-competition",
+    launchAttempted: false,
     lines: [line],
+    mameSpawned: false,
     ok: false,
+    phase: "preflight-rejected",
     reason,
     state,
     summary,
+    ...metadata,
   };
 }
 
@@ -108,11 +112,16 @@ async function runCompetitionPlayPreflight(options = {}) {
   }
 
   if (!remote?.ok) {
+    const cause = String(remote?.reason || "temporary-failure");
     return blockedResult(
       currentState,
       "No se pudo confirmar la semana activa.",
       "No se pudo confirmar que la semana siga activa. Puedes practicar.",
       "week-refresh-failed",
+      {
+        cause,
+        technicalDetails: ["week-refresh-failed", `cause=${cause}`],
+      },
     );
   }
 

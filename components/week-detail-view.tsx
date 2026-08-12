@@ -5,9 +5,9 @@ import { PlayerPill } from "@/components/player-pill";
 import { SubmissionsTable } from "@/components/submissions-table";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
-import { DataTable, TableHead } from "@/components/ui/table";
+import { DataTable } from "@/components/ui/table";
 import { WeekCountdown } from "@/components/week-countdown";
-import { formatScore, formatWeekRange } from "@/lib/format";
+import { formatLeaguePointsDelta, formatWeekRange } from "@/lib/format";
 import {
   getWeekStatusDisplay,
   type WeekDisplayTone,
@@ -269,26 +269,34 @@ export function WeekDetailView({
             para la clasificación de temporada.
           </CardHeader>
           {weeklyResults.length > 0 ? (
-            <DataTable>
-              <TableHead labels={["Puesto", "Jugador", "Puntuación", "Puntos"]} />
+            <DataTable tableClassName="table-fixed">
+              <colgroup>
+                <col className="w-14 sm:w-16" />
+                <col />
+                <col className="w-[4.5rem] sm:w-20" />
+              </colgroup>
+              <thead className="text-xs font-semibold uppercase theme-table-head">
+                <tr>
+                  <th className="whitespace-nowrap px-2 py-3 text-center sm:px-3" scope="col">Puesto</th>
+                  <th className="whitespace-nowrap px-2 py-3 text-left sm:px-3" scope="col">Jugador</th>
+                  <th className="whitespace-nowrap px-2 py-3 text-right sm:px-3" scope="col">Puntos</th>
+                </tr>
+              </thead>
               <tbody className="divide-y theme-border theme-surface">
                 {weeklyResults.map((result) => (
                   <tr className="theme-hover" key={result.id}>
-                    <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
+                    <td className="whitespace-nowrap px-2 py-4 text-center font-semibold theme-text sm:px-3">
                       <RankBadge rank={result.rank} />
                     </td>
-                    <td className="min-w-0 px-4 py-4 font-semibold theme-text">
+                    <td className="min-w-0 px-2 py-4 font-semibold theme-text sm:px-3">
                       {result.player ? (
                         <PlayerPill compactOnMobile player={result.player} />
                       ) : (
                         <span className="theme-text-muted">Jugador desconocido</span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 font-semibold theme-text">
-                      {formatScore(result.finalScore)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 theme-text-muted">
-                      {result.leaguePoints}
+                    <td className="whitespace-nowrap px-2 py-4 text-right font-semibold tabular-nums theme-text sm:px-3">
+                      {formatLeaguePointsDelta(result.leaguePoints)}
                     </td>
                   </tr>
                 ))}

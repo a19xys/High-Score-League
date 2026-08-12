@@ -19,7 +19,7 @@ import { getPublicMediaUrl, resolveMediaUrl } from "../lib/media/resolver.ts";
 const userId = "11111111-1111-4111-8111-111111111111";
 const objectId = "22222222-2222-4222-8222-222222222222";
 
-test("media paths follow the four entity contracts", () => {
+test("media paths follow the five entity contracts", () => {
   assert.equal(
     createMediaStoragePath("avatar", { userId, uuid: () => objectId }),
     `avatars/${userId}/${objectId}.webp`,
@@ -35,6 +35,10 @@ test("media paths follow the four entity contracts", () => {
   assert.equal(
     createMediaStoragePath("poll-option", { uuid: () => objectId }),
     `polls/options/${objectId}.webp`,
+  );
+  assert.equal(
+    createMediaStoragePath("benchmark-icon", { uuid: () => objectId }),
+    `benchmarks/icons/${objectId}.webp`,
   );
   assert.equal(
     isValidMediaStoragePath(`avatars/${userId}/${objectId}.webp`, "avatar", userId),
@@ -65,6 +69,7 @@ test("presets bound dimensions without upscaling", () => {
       "game-header": [1920, 1080, 1.5 * 1024 * 1024],
       "game-logo": [1400, 1400, 1024 * 1024],
       "poll-option": [1024, 1024, 700 * 1024],
+      "benchmark-icon": [256, 256, 180 * 1024],
     },
   );
 });
@@ -337,4 +342,28 @@ test("lifecycle rolls back every new object when persistence fails", async () =>
   );
   assert.equal(storage.uploaded.length, 1);
   assert.deepEqual(storage.removed, [[storage.uploaded[0]]]);
+});
+
+test("lifecycle persists a removed image as null before cleaning the old object", async () => {
+  const storage = fakeSupabase();
+  const previousPath = `benchmarks/icons/${objectId}.webp`;
+  const saved = await executeMediaSave({
+    supabase: storage.client as never,
+    changes: [
+      {
+        key: "benchmark",
+        selection: { kind: "remove" },
+        currentStoragePath: previousPath,
+        currentUrl: "https://project.supabase.co/old.webp",
+      },
+    ],
+    persist: async ([prepared]) => {
+      assert.equal(prepared.storagePath, null);
+      assert.equal(prepared.publicUrl, null);
+      assert.equal(storage.removed.length, 0);
+      return "removed";
+    },
+  });
+  assert.equal(saved.result, "removed");
+  assert.deepEqual(storage.removed, [[previousPath]]);
 });

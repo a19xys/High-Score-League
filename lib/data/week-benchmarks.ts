@@ -2,9 +2,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { WeekBenchmark } from "@/types";
 import type { WeekBenchmarkRow } from "@/types/supabase";
 import type { DataReadResult } from "./types";
+import { getPublicMediaUrl } from "@/lib/media/resolver";
 
 const benchmarkColumns =
-  "id,week_id,label,score,description,icon_key,sort_order,is_active,created_at,updated_at";
+  "id,week_id,label,score,description,image_storage_path,sort_order,is_active,created_at,updated_at";
 
 export async function getRealWeekBenchmarks(
   weekId: string,
@@ -52,7 +53,8 @@ export function mapWeekBenchmarkRowToBenchmark(
     label: row.label,
     score: row.score,
     description: row.description,
-    iconKey: row.icon_key,
+    imageStoragePath: row.image_storage_path,
+    imageUrl: getPublicMediaUrl(row.image_storage_path),
     sortOrder: row.sort_order,
     isActive: row.is_active,
   };

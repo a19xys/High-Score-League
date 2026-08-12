@@ -2324,7 +2324,7 @@ async function runDiagnose(options = {}) {
   };
 }
 
-async function playCompetition(options = {}) {
+async function playCompetitionAction(options = {}) {
   const context = await getLauncherContext({
     deferRemoteMembership: Boolean(options.confirmedCompetition),
   });
@@ -2426,7 +2426,19 @@ async function playCompetition(options = {}) {
   }
 
   const startedAtMs = Date.now();
-  const mameLifecycle = createMameOperationLifecycle(context, "competition");
+  let mameSpawned = false;
+  const mameLifecycle = combineMameLifecycles([
+    createMameOperationLifecycle(context, "competition"),
+    {
+      onSpawn() {
+        mameSpawned = true;
+        options.onMamePhase?.("mame-spawned");
+      },
+      onClose() {
+        options.onMamePhase?.("mame-closed");
+      },
+    },
+  ]);
   const captured = await captureConsoleAsync(() => (
     isPackV2
       ? launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
@@ -2452,6 +2464,7 @@ async function playCompetition(options = {}) {
     action: "play-competition",
     adoption,
     exitCode,
+    launchAttempted: true,
     lines: [
       ...(membership.status === "unknown" || membership.status === "error"
         ? [membership.message]
@@ -2467,13 +2480,26 @@ async function playCompetition(options = {}) {
       ...(savedLocallyLine ? [savedLocallyLine] : []),
       ...(legacyLine ? [legacyLine] : []),
     ],
+    mameSpawned,
     ok: exitCode === 0,
+    phase: "mame-closed",
     result: captured.result || null,
     state: await getLauncherState({ connected: true }),
   };
 }
 
-async function playPractice() {
+async function playCompetition(options = {}) {
+  const result = await playCompetitionAction(options);
+  if (result?.mameSpawned === true) return result;
+  return {
+    ...result,
+    launchAttempted: false,
+    mameSpawned: false,
+    phase: "preflight-rejected",
+  };
+}
+
+async function playPractice(options = {}) {
   await ensureRememberedPackLoaded();
   const context = await getLauncherContext({ deferRemoteMembership: true });
   const autoSync = getAutoSyncDisplayState({
@@ -2501,7 +2527,19 @@ async function playPractice() {
     };
   }
 
-  const mameLifecycle = createMameOperationLifecycle(context, "practice");
+  let mameSpawned = false;
+  const mameLifecycle = combineMameLifecycles([
+    createMameOperationLifecycle(context, "practice"),
+    {
+      onSpawn() {
+        mameSpawned = true;
+        options.onMamePhase?.("mame-spawned");
+      },
+      onClose() {
+        options.onMamePhase?.("mame-closed");
+      },
+    },
+  ]);
   const captured = await captureConsoleAsync(() => launchMame(
     context.config,
     context.config.pack.rom,
@@ -2515,8 +2553,11 @@ async function playPractice() {
   return {
     action: "practice",
     exitCode,
+    launchAttempted: true,
     lines: captured.lines,
+    mameSpawned,
     ok: exitCode === 0,
+    phase: "mame-closed",
     result: captured.result || null,
     state: await getLauncherState(),
   };

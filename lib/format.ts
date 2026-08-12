@@ -157,6 +157,10 @@ export function formatScore(value: number) {
   return new Intl.NumberFormat("es-ES").format(value);
 }
 
+export function formatLeaguePointsDelta(value: number) {
+  return `${value >= 0 ? "+" : ""}${formatScore(value)}`;
+}
+
 export function formatRelativeTime(value: string, now = new Date()) {
   const target = new Date(value);
   const diffSeconds = Math.max(0, Math.floor((now.getTime() - target.getTime()) / 1000));

@@ -135,7 +135,6 @@ export function ProfileDashboard({
       <ProfileStats
         playTime={playTime}
         presence={presence}
-        presenceOwner
         stats={competitive.stats}
         username={auth.profile.username}
       />

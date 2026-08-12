@@ -21,7 +21,7 @@ export function LogoutButton({ className }: LogoutButtonProps) {
 
     setIsSubmitting(true);
 
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: "local" });
 
     if (error) {
       console.error("No se pudo cerrar sesión:", error.message);

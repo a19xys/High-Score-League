@@ -41,18 +41,26 @@ export function calculatePlayerHoverCardPosition({
       ? "bottom"
       : "top";
   const availableHeight = side === "bottom" ? availableBelow : availableAbove;
-  const maxHeight = Math.min(panel.height, availableHeight);
-  const triggerCenter = trigger.left + trigger.width / 2;
-  const idealLeft = triggerCenter - panel.width / 2;
+  const maxHeight = availableHeight;
+  const renderedHeight = Math.min(panel.height, availableHeight);
+  const startLeft = trigger.left;
+  const endLeft = trigger.left + trigger.width - panel.width;
+  const minLeft = viewportPadding;
   const maxLeft = Math.max(
     viewportPadding,
     viewportWidth - panel.width - viewportPadding,
   );
-  const left = Math.min(Math.max(viewportPadding, idealLeft), maxLeft);
+  const startFits = startLeft >= minLeft && startLeft <= maxLeft;
+  const endFits = endLeft >= minLeft && endLeft <= maxLeft;
+  const left = startFits
+    ? startLeft
+    : endFits
+      ? endLeft
+      : Math.min(Math.max(minLeft, startLeft), maxLeft);
   const top =
     side === "bottom"
       ? trigger.bottom
-      : Math.max(viewportPadding, trigger.top - cardGap - maxHeight);
+      : Math.max(viewportPadding, trigger.top - cardGap - renderedHeight);
 
   return { left, maxHeight, side, top };
 }

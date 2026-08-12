@@ -6,6 +6,7 @@ import {
   validateBenchmarkPayload,
 } from "@/lib/admin/weeks";
 import type { WeekBenchmarkRow } from "@/types/supabase";
+import { deleteManagedMedia } from "@/lib/media/storage";
 
 type RouteContext = {
   params: Promise<{
@@ -83,15 +84,44 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     return jsonCodeError(seasonCheck.code, seasonCheck.error, seasonCheck.status);
   }
 
-  const { error } = await auth.supabase
+  const current = await auth.supabase
+    .from("week_benchmarks")
+    .select("id,image_storage_path")
+    .eq("id", benchmarkId)
+    .eq("week_id", weekId)
+    .maybeSingle<{ id: string; image_storage_path: string | null }>();
+
+  if (current.error) {
+    return jsonError("No se pudo leer el benchmark antes de eliminarlo.", 500);
+  }
+
+  if (!current.data) {
+    return jsonError("Benchmark no encontrado.", 404);
+  }
+
+  const deleted = await auth.supabase
     .from("week_benchmarks")
     .delete()
     .eq("id", benchmarkId)
-    .eq("week_id", weekId);
+    .eq("week_id", weekId)
+    .select("id")
+    .maybeSingle<{ id: string }>();
 
-  if (error) {
+  if (deleted.error) {
     return jsonError("No se pudo eliminar el benchmark.", 500);
   }
 
-  return NextResponse.json({ ok: true, deletedBenchmarkId: benchmarkId });
+  if (!deleted.data) {
+    return jsonError("El benchmark ya no existe; no se retiró ninguna imagen.", 409);
+  }
+
+  const cleanupWarning = await deleteManagedMedia(auth.supabase, [
+    current.data.image_storage_path,
+  ]);
+
+  return NextResponse.json({
+    ok: true,
+    deletedBenchmarkId: benchmarkId,
+    cleanupWarning,
+  });
 }

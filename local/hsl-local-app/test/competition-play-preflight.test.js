@@ -153,8 +153,28 @@ test("fallo temporal online no usa ACTIVE cacheada ni inventa reautenticacion", 
     launch: async () => { launches += 1; return { ok: true }; },
   });
   assert.equal(result.ok, false);
+  assert.equal(result.phase, "preflight-rejected");
+  assert.equal(result.launchAttempted, false);
+  assert.equal(result.mameSpawned, false);
+  assert.equal(result.reason, "week-refresh-failed");
+  assert.equal(result.cause, "timeout");
+  assert.deepEqual(result.technicalDetails, ["week-refresh-failed", "cause=timeout"]);
   assert.match(result.lines[0], /No se pudo confirmar.*Puedes practicar/i);
   assert.doesNotMatch(result.lines[0], /sesi[oó]n|login/i);
+  assert.equal(launches, 0);
+});
+
+test("deployment mismatch bloquea antes de launch y conserva la causa tecnica", async () => {
+  let launches = 0;
+  const result = await runCompetitionPlayPreflight({
+    ensureFreshCapability: async () => ({ ok: false, reason: "deployment-mismatch" }),
+    getAuthorityContext: () => authority(),
+    getState: async () => state(),
+    launch: async () => { launches += 1; return { ok: true }; },
+  });
+  assert.equal(result.reason, "week-refresh-failed");
+  assert.equal(result.cause, "deployment-mismatch");
+  assert.deepEqual(result.technicalDetails, ["week-refresh-failed", "cause=deployment-mismatch"]);
   assert.equal(launches, 0);
 });
 
@@ -175,6 +195,7 @@ test("offline confirmado usa la autoridad durable sin request remoto", async () 
 for (const mutation of [
   { label: "pack", state: { selection: { activeInstanceKey: "pack-b" } } },
   { label: "cuenta", state: { session: { hasSession: true, userId: "user-b" } } },
+  { label: "week", state: { game: { weekId: "week-b" }, weekCapability: { publicState: "active", weekId: "week-b" } } },
   { label: "deployment", authority: { deploymentKey: "build-b:production:1" } },
   { label: "origin", authority: { origin: "https://other-hsl.example" } },
   { label: "generación de conectividad", authority: { reachabilityGeneration: 5 } },

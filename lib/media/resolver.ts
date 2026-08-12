@@ -1,6 +1,9 @@
 export const PUBLIC_MEDIA_BUCKET = "hsl-public-media";
 
-export function getPublicMediaUrl(storagePath: string, supabaseUrl?: string | null) {
+export function getPublicMediaUrl(
+  storagePath?: string | null,
+  supabaseUrl?: string | null,
+) {
   const baseUrl = supabaseUrl ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!baseUrl || !storagePath) return null;
   const encodedPath = storagePath.split("/").map(encodeURIComponent).join("/");

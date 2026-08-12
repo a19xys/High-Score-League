@@ -192,11 +192,15 @@ Campos principales:
 - `label`
 - `score`
 - `description`
-- `icon_key`
+- `image_storage_path`
 - `sort_order`
 - `is_active`
 
-`icon_key` solo admite `speedometer_1`, `speedometer_2` o `speedometer_3`.
+`0030_week_benchmark_images.sql` añade `image_storage_path` nullable y lo
+restringe a `benchmarks/icons/<UUID>.webp` en `hsl-public-media`. La URL se
+deriva del path; `null` usa el fallback `REF`. `icon_key` sigue físicamente en
+la tabla por compatibilidad con despliegues web anteriores, pero es
+legacy/deprecated y la web actual no lo selecciona ni renderiza.
 
 ### league_chat_messages
 
@@ -386,7 +390,9 @@ Todas las tablas principales tienen Row Level Security activado.
   usuario puede unirse con su propio `player_id` a temporadas `active`; admins
   pueden gestionar todas las memberships.
 - `week_benchmarks`: usuarios autenticados pueden leer benchmarks activos;
-  admins pueden gestionar todos.
+  admins pueden gestionar todos. En `storage.objects`, `0030` concede a admins
+  autenticados `INSERT`, `SELECT` y `DELETE` solo para el patrón exacto
+  `benchmarks/icons/<UUID>.webp`.
 - `chat_messages`, solo si existe en el entorno: usuarios autenticados activos
   pueden leer mensajes no borrados e insertar mensajes propios; admins pueden
   gestionar todos. El borrado propio se deja como decisión futura.
@@ -450,23 +456,25 @@ guardar el tipo y tamano del archivo resultante.
 Aplicar todas las migraciones ausentes de `supabase/migrations/` en orden
 numérico, no sólo `0001_initial_schema.sql`, y verificar después tablas,
 constraints, RLS, Realtime y Storage. `0023` debe preceder a `0024`, `0024` a
-`0025`, `0025` a `0026`, `0026` a `0027` y `0027` a `0028`.
+`0025`, `0025` a `0026`, `0026` a `0027`, `0027` a `0028`, `0028` a `0029`
+y `0029` a `0030`.
 
 En el entorno remoto actual `0023_profile_bio_max_length.sql` y
 `0024_media_uploads.sql` ya están aplicadas. También está confirmado que
 `0026_submission_detected_at_window.sql` existe y ya fue aplicada remotamente:
 no debe modificarse, renombrarse, duplicarse ni reaplicarse.
-`0027_profile_anonymization.sql` también está aplicada remotamente;
-`0028_player_presence.sql` está en el repositorio pero no debe asumirse aplicada
-en remoto hasta completar el paso explícito de despliegue.
+`0027_profile_anonymization.sql` también está aplicada remotamente. Las
+migraciones `0028_player_presence.sql` y `0029_profile_privacy_defaults.sql`
+están en el repositorio; `0030_week_benchmark_images.sql` se crea en esta tarea
+y queda pendiente de aplicación remota.
 
 Para verificar una instalación antes de aplicarla, ejecutar el preflight SELECT-only de
 `supabase/preflight/0027_profile_anonymization.sql`. La propia migración aborta
 si faltan tablas o columnas de Playtime introducidas por `0025`, el índice de
-`0026` u otras dependencias locales. No crear otras migraciones posteriores a
-`0027` salvo que aparezca un nuevo conflicto real. El procedimiento completo está en el
-[checklist de despliegue](deploy-checklist.md). `0028` es la única migración
-posterior prevista por esta tarea y no reescribe 0027.
+`0026` u otras dependencias locales. El preflight SELECT-only de `0030` hace
+inventario de `week_benchmarks`, la ausencia previa de la nueva columna, el bucket,
+benchmarks legacy y policies de Storage. El procedimiento completo está en el
+[checklist de despliegue](deploy-checklist.md).
 
 `retired_profile_usernames` conserva únicamente SHA-256 de
 `lower(trim(username))` y no concede lectura a usuarios normales. Esto evita

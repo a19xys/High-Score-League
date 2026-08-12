@@ -37,21 +37,21 @@ export function ProfileAccountSettings({
         </div>
 
         <div className="border-t pt-6 theme-border">
-          <h3 className="text-lg font-black theme-text">Sesión y cuenta</h3>
-          <p className="mt-2 break-all text-sm theme-text-muted">{email}</p>
-          <div className="mt-3">
+          <h3 className="text-lg font-black theme-text">Sesión</h3>
+          <p className="mt-2 text-sm leading-6 theme-text-muted">
+            Sesión iniciada con la cuenta:{" "}
+            <span className="break-all font-semibold theme-text">{email}</span>
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <LogoutButton />
+            {playerId && username ? (
+              <ProfileAccountAnonymization playerId={playerId} username={username} />
+            ) : null}
           </div>
           {playerId && username ? (
-            <div className="mt-6 border-t pt-6 theme-border">
-              <div className="rounded-2xl border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-[var(--warning-text)]">
-                <h4 className="text-lg font-black">Eliminar mi cuenta</h4>
-                <p className="mt-2 text-sm leading-6">
-                  Retira de forma irreversible tu identidad y acceso. La historia competitiva y el contenido histórico permanecerán asociados a un actor anónimo.
-                </p>
-                <ProfileAccountAnonymization playerId={playerId} username={username} />
-              </div>
-            </div>
+            <p className="mt-3 text-sm leading-6 text-[var(--warning-text)]">
+              Eliminar la cuenta es irreversible; tu historial competitivo se conservará de forma anónima.
+            </p>
           ) : null}
         </div>
       </div>

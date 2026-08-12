@@ -14,7 +14,6 @@ type PublicProfileViewProps = {
   competitive: PlayerCompetitiveProfile;
   playTime: PlayerPlayTime;
   presence: PlayerPresence;
-  presenceOwner: boolean;
 };
 
 export function PublicProfileView({
@@ -22,7 +21,6 @@ export function PublicProfileView({
   competitive,
   playTime,
   presence,
-  presenceOwner,
 }: PublicProfileViewProps) {
   return (
     <div className="space-y-6">
@@ -33,7 +31,6 @@ export function PublicProfileView({
       <ProfileStats
         playTime={playTime}
         presence={presence}
-        presenceOwner={presenceOwner}
         stats={competitive.stats}
         username={profile.username}
       />
