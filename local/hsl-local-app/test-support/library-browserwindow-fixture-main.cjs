@@ -19,6 +19,60 @@ const checkOnly = process.env.HSL_LIBRARY_CHECK_ONLY || "";
 const quietOutput = process.env.HSL_LIBRARY_QUIET === "1";
 const TRANSPARENT_TITLE_BAR_OVERLAY = "#00000000";
 let alphaFixtureDirectory = null;
+let productionLibraryAuthority = null;
+
+async function prepareProductionLibraryAuthority() {
+  const libraryRoot = path.join(profileDirectory, "production-library");
+  const userDataDir = path.join(profileDirectory, "production-user-data");
+  const validPack = (index) => ({
+    packVersion: 2,
+    packId: `production-pack-${index}`,
+    gameId: `production-game-${index}`,
+    rom: `production-rom-${index}`,
+    seasonId: "production-season",
+    seasonSlug: "production-season",
+    seasonName: "Temporada de producción",
+    weekId: `production-week-${index}`,
+    weekNumber: index + 1,
+    webBaseUrl: "https://high-score-league.example",
+    runtime: { type: "mame", minVersion: "0.287", recommendedVersion: "0.287" },
+    mame: { romPath: "roms", artworkPath: "artwork", samplePath: "samples", cfgPath: "cfg", launchArgs: [] },
+    capture: { mode: "plugin", pluginName: "hsl-score", adapter: "scripts/capture.lua" },
+    assets: { cover: "assets/cover.png", icon: "assets/icon.png" },
+  });
+  for (let index = 0; index < 5; index += 1) {
+    const packRoot = path.join(libraryRoot, `Pack-${index + 1}`);
+    fs.mkdirSync(path.join(packRoot, "roms"), { recursive: true });
+    fs.mkdirSync(path.join(packRoot, "assets"), { recursive: true });
+    fs.writeFileSync(path.join(packRoot, "pack.json"), JSON.stringify(validPack(index), null, 2));
+    fs.writeFileSync(path.join(packRoot, "roms", `production-rom-${index}.zip`), "fixture");
+    fs.copyFileSync(path.join(__dirname, "..", "gui", "renderer", "assets", "brand", "logo-horizontal.png"), path.join(packRoot, "assets", "cover.png"));
+    fs.copyFileSync(path.join(__dirname, "..", "gui", "renderer", "assets", "brand", "logo-horizontal.png"), path.join(packRoot, "assets", "icon.png"));
+  }
+  const config = { userDataDir };
+  process.env.HSL_USER_DATA_DIR = userDataDir;
+  const { setPackDirectory } = require("../src/pack-directory");
+  const service = require("../gui/launcher-service");
+  service.resetLibrarySnapshotAuthorityForTests();
+  await setPackDirectory(config, libraryRoot);
+  const sources = ["initial", "deployment-context", "membership-checking", "account-profile", "ranking", "week-final"];
+  const states = [];
+  for (const source of sources) {
+    const state = await service.getLauncherState({ config, deferRemoteMembership: true });
+    states.push({ library: state.library, preferenceScope: state.preferenceScope, source });
+  }
+  process.env.HSL_LIBRARY_PRODUCTION_STATES = JSON.stringify(states);
+  productionLibraryAuthority = {
+    instanceKeys: states[0].library.packs.map((pack) => pack.instanceKey),
+    libraryRoot,
+    sources,
+    statesStable: states.every((entry) => (
+      JSON.stringify(entry.library.packs.map((pack) => pack.instanceKey)) ===
+      JSON.stringify(states[0].library.packs.map((pack) => pack.instanceKey))
+    )),
+    userDataDir,
+  };
+}
 
 async function annotateLibraryTopology(publications) {
   const { deriveLibraryPacksRenderModel, libraryPacksTopologyKey } = await import(pathToFileURL(
@@ -252,7 +306,29 @@ async function beginFrameTrace(window) {
         ? [...scroller.querySelectorAll('.pack-card')].find((card) => card.dataset.instanceKey === refs.targetInstanceKey)
         : null;
       const content = scroller.firstElementChild;
+      const heading = document.querySelector('[data-render-region="library-heading"]');
+      const controls = document.querySelector('[data-render-region="library-controls"]');
+      const rectValue = (element) => {
+        const rect = element?.getBoundingClientRect();
+        return rect ? { bottom: rect.bottom, height: rect.height, left: rect.left, right: rect.right, top: rect.top, width: rect.width } : null;
+      };
       return {
+        activeElement: {
+          action: active?.dataset?.action || null,
+          id: active?.id || null,
+          tag: active?.tagName || null,
+        },
+        busy: Boolean(document.querySelector('.busy-overlay')),
+        busyLabel: document.querySelector('.busy-overlay__message')?.textContent.trim() || null,
+        controlsRect: rectValue(controls),
+        launcherPublication: window.hslFixture.getCurrentPublicationTrace(),
+        libraryFilters: {
+          favorite: document.querySelector('[data-action="toggle-library-favorite-filter"].library-favorite-filter-button--active')?.dataset.filter || 'all',
+          query: document.querySelector('[data-library-search]')?.value || '',
+          season: document.querySelector('[data-library-season]')?.value || 'all',
+          sortBy: document.querySelector('[data-library-sort-by]')?.value || null,
+          sortDirection: document.querySelector('[data-action="set-library-sort-direction"]')?.dataset.direction || null,
+        },
         frame: window.__hslFrameTrace?.length || 0,
         phase: window.__hslTracePhase || 'A-stable',
         scrollTop: scroller.scrollTop,
@@ -265,6 +341,7 @@ async function beginFrameTrace(window) {
         pending: document.querySelector('.pack-card--pending')?.dataset.instanceKey || null,
         focusedTag: active?.tagName || null,
         focusedInstanceKey: active?.closest?.('.pack-card')?.dataset.instanceKey || null,
+        headingRect: rectValue(heading),
         contentHeight: content?.getBoundingClientRect().height || 0,
         scrollEvents: window.__hslSelectionScrollEvents || 0,
         nodes: refs ? {
@@ -276,6 +353,7 @@ async function beginFrameTrace(window) {
         cards,
         visibleCards,
         rowTops,
+        scrollerRect: rectValue(scroller),
       };
     };
     const scroller = document.querySelector('[data-render-region="library-packs"]');
@@ -742,6 +820,61 @@ async function passiveTopologyClampDiagnostic(window) {
   return { results };
 }
 
+async function productionAuthorityScrollDiagnostic(window) {
+  process.env.HSL_LIBRARY_PASSIVE_STABLE = "1";
+  const matrix = await passiveTopologyClampDiagnostic(window);
+  await window.webContents.executeJavaScript(`(() => {
+    const resizer = document.querySelector('[data-sidebar-resizer]');
+    for (let index = 0; index < 20; index += 1) {
+      resizer.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
+    }
+    window.hslFixture.setManualConnectivityPublicationMode('expanded');
+    window.hslFixture.setPassiveLibraryVariants(['stable', 'stable', 'stable', 'stable']);
+  })()`);
+  await waitForFrames(window, 3);
+  const setup = await window.webContents.executeJavaScript(`(() => {
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    const cards = [...scroller.querySelectorAll('.pack-card')];
+    const max = scroller.scrollHeight - scroller.clientHeight;
+    scroller.scrollTop = Math.max(1, Math.floor(max * 0.25));
+    scroller.dataset.fixtureIdentity ||= 'production-five-pack-scroller';
+    window.__hslSelectionRefs = {
+      images: cards.map((card) => card.querySelector('.pack-card__art')).filter(Boolean),
+      neighbors: cards.slice(1),
+      scroller,
+      target: cards[0],
+      targetInstanceKey: cards[0].dataset.instanceKey,
+    };
+    return { initialTop: scroller.scrollTop, max, targetTop: Math.max(1, max - 1) };
+  })()`);
+  await beginFrameTrace(window);
+  await window.webContents.executeJavaScript(`document.querySelector('[data-action="refresh-connectivity"]')?.click()`);
+  await waitFor(window, "window.hslFixture.getLibraryPublicationDiagnostics().length >= 1", 12_000);
+  const userTop = await window.webContents.executeJavaScript(`(() => {
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    window.__hslTracePhase = 'user-scroll-during-refresh';
+    scroller.scrollTop = ${setup.targetTop};
+    return scroller.scrollTop;
+  })()`);
+  await waitFor(window, "window.hslFixture.getLibraryPublicationDiagnostics().length >= 4", 12_000);
+  await waitFor(window, "!document.querySelector('.busy-overlay')", 12_000);
+  const frames = await endFrameTrace(window);
+  return {
+    authority: productionLibraryAuthority,
+    matrix,
+    userScroll: {
+      ...setup,
+      finalTop: frames.at(-1).scrollTop,
+      frames,
+      publications: await annotateLibraryTopology(
+        await window.webContents.executeJavaScript("window.hslFixture.getLibraryPublicationDiagnostics()"),
+      ),
+      summary: summarizeFrameTrace(frames),
+      userTop,
+    },
+  };
+}
+
 async function localScanVariationDiagnostic(window) {
   const results = [];
   for (const variant of ["covers-metadata", "cover-asset"]) {
@@ -778,7 +911,7 @@ async function localScanVariationDiagnostic(window) {
 
 async function libraryLocationFlowDiagnostic(window) {
   await window.webContents.executeJavaScript(`(() => {
-    window.hslFixture.setLibraryLocationResponses(['cancel', 'pack-root', 'inside-pack', 'valid']);
+    window.hslFixture.setLibraryLocationResponses(['cancel', 'pack-root', 'inside-pack', 'unsupported-layout', 'valid']);
     const scroller = document.querySelector('[data-render-region="library-packs"]');
     scroller.scrollTop = Math.max(1, scroller.scrollHeight - scroller.clientHeight - 20);
     const cards = [...scroller.querySelectorAll('.pack-card')];
@@ -824,23 +957,42 @@ async function libraryLocationFlowDiagnostic(window) {
   for (const [index, classification] of ["pack-root", "inside-pack"].entries()) {
     await clickChange();
     await waitFor(window, `document.querySelector('[data-library-location-issue="rejected-candidate"]') && window.hslFixture.getLibraryLocationCalls() >= ${index + 2}`, 12_000);
-    await waitFor(window, "document.activeElement?.dataset?.action === 'use-suggested-library-root'", 12_000);
+    await waitFor(window, "document.activeElement?.dataset?.action === 'detect-library-location'", 12_000);
     const dialog = await window.webContents.executeJavaScript(`(() => ({
       classification: ${JSON.stringify(classification)},
       initialFocus: document.activeElement?.dataset?.action || null,
       text: document.querySelector('[data-library-location-issue]')?.innerText || '',
     }))()`);
-    await window.webContents.executeJavaScript(`document.querySelector('[data-action="close-dialog"]')?.click()`);
+    await window.webContents.executeJavaScript(`document.querySelector('[data-action="detect-library-location"]')?.click()`);
     await waitFor(window, "!document.querySelector('[data-dialog]')");
     await waitForFrames(window, 3);
     rejected.push({ dialog, state: await measure() });
   }
 
   await clickChange();
+  await waitFor(window, "document.querySelector('[data-library-location-issue=\"rejected-candidate\"]') && window.hslFixture.getLibraryLocationCalls() >= 4", 12_000);
+  await window.webContents.executeJavaScript(`document.querySelector('[data-action="detect-library-location"]')?.click()`);
+  await waitFor(window, "document.querySelector('.app-dialog__feedback')?.textContent.includes('No se ha podido detectar')", 12_000);
+  const unsupported = await window.webContents.executeJavaScript(`(() => ({
+    actions: [...document.querySelectorAll('[data-dialog] [data-action]')].map((button) => button.dataset.action),
+    feedback: document.querySelector('.app-dialog__feedback')?.textContent.trim() || null,
+  }))()`);
+  window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
+  window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
+  await waitFor(window, "!document.querySelector('[data-dialog]')");
+
+  await clickChange();
   await waitFor(window, "window.hslFixture.getLibraryLocationCalls() >= 4 && document.querySelectorAll('.pack-card').length === 4 && !document.querySelector('.busy-overlay')", 12_000);
   await waitForFrames(window, 3);
   const accepted = await measure();
-  return { accepted, canceled, initial, rejected };
+  return {
+    accepted,
+    canceled,
+    detectionCalls: await window.webContents.executeJavaScript("window.hslFixture.getLibraryLocationDetectionCalls()"),
+    initial,
+    rejected,
+    unsupported,
+  };
 }
 
 async function visualInteractionPolishDiagnostic(window) {
@@ -876,6 +1028,20 @@ async function visualInteractionPolishDiagnostic(window) {
     await waitForFrames(window, 2);
     return styleFor(selector);
   };
+  const press = async (selector) => {
+    const point = await window.webContents.executeJavaScript(`(() => {
+      const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+    })()`);
+    window.webContents.sendInputEvent({ type: "mouseMove", ...point });
+    window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
+    await waitForFrames(window, 1);
+    const active = await styleFor(selector);
+    window.webContents.sendInputEvent({ type: "mouseMove", x: 2, y: 2, movementX: 2 - point.x, movementY: 2 - point.y });
+    window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, x: 2, y: 2 });
+    await waitForFrames(window, 1);
+    return active;
+  };
   const results = [];
   for (const theme of ["dark", "light"]) {
     await window.webContents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
@@ -899,6 +1065,7 @@ async function visualInteractionPolishDiagnostic(window) {
     await waitFor(window, "document.activeElement?.dataset?.action === 'play'", 5_000);
     await waitForFrames(window, 2);
     const focused = await styleFor(playSelector);
+    const active = await press(playSelector);
     const secondaryNormal = await styleFor('[data-action="open-manual"]');
     const secondaryHover = await hover('[data-action="open-manual"]');
     const locationControls = {};
@@ -907,7 +1074,50 @@ async function visualInteractionPolishDiagnostic(window) {
       await waitForFrames(window, 1);
       locationControls[selector] = { normal: await styleFor(selector), hover: await hover(selector) };
     }
-    results.push({ focused, hovered, locationControls, normal, secondaryHover, secondaryNormal, theme });
+    await window.webContents.executeJavaScript(`document.querySelector('[data-action="toggle-account-menu"]')?.click()`);
+    await waitFor(window, "document.querySelector('[data-account-menu] .account-primary')", 5_000);
+    const accountPrimary = await styleFor('[data-account-menu] .account-primary');
+    await window.webContents.executeJavaScript(`document.querySelector('[data-action="toggle-account-menu"]')?.click()`);
+    await waitFor(window, "!document.querySelector('[data-account-menu]')", 5_000);
+    await window.webContents.executeJavaScript(`(() => {
+      window.hslFixture.setLibraryLocationResponses(['pack-root']);
+      document.querySelector('[data-action="choose-pack-directory"]')?.click();
+    })()`);
+    await waitFor(window, "document.querySelector('[data-action=\"detect-library-location\"]')", 12_000);
+    window.webContents.sendInputEvent({ type: "mouseMove", x: 2, y: 2 });
+    const dialogSelector = '.app-dialog__button--primary';
+    const dialogNormal = await styleFor(dialogSelector);
+    const dialogHover = await hover(dialogSelector);
+    await window.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(dialogSelector)}).focus()`);
+    await waitForFrames(window, 1);
+    const dialogFocused = await styleFor(dialogSelector);
+    const dialogActive = await press(dialogSelector);
+    await window.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(dialogSelector)}).disabled = true`);
+    window.webContents.sendInputEvent({ type: "mouseMove", x: 2, y: 2 });
+    await waitForFrames(window, 1);
+    const dialogDisabledNormal = await styleFor(dialogSelector);
+    const dialogDisabledHover = await hover(dialogSelector);
+    await window.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(dialogSelector)}).disabled = false`);
+    window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
+    window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
+    await waitFor(window, "!document.querySelector('[data-dialog]')");
+    results.push({
+      accountPrimary,
+      active,
+      dialogActive,
+      dialogDisabledHover,
+      dialogDisabledNormal,
+      dialogFocused,
+      dialogHover,
+      dialogNormal,
+      focused,
+      hovered,
+      locationControls,
+      normal,
+      secondaryHover,
+      secondaryNormal,
+      theme,
+    });
   }
 
   await window.webContents.executeJavaScript(`window.hslFixture.emitMembershipStatus('not_member')`);
@@ -915,7 +1125,13 @@ async function visualInteractionPolishDiagnostic(window) {
   window.webContents.sendInputEvent({ type: "mouseMove", x: 2, y: 2 });
   const disabledNormal = await styleFor('[data-action="play"]');
   const disabledHover = await hover('[data-action="play"]');
-  return { disabledHover, disabledNormal, results };
+  return {
+    disabledHover,
+    disabledNormal,
+    fullFillFamilies: ["play-button", "app-dialog__button--primary"],
+    results,
+    tintedFamilies: ["account-primary"],
+  };
 }
 
 async function activationStabilityDiagnostic(window) {
@@ -1873,11 +2089,19 @@ async function heroAndDrawerSmoke(window) {
       imageSource: image.getAttribute('src'),
       modalBottom: modalRect.bottom,
       modalTop: modalRect.top,
+      modalOverflow: getComputedStyle(document.querySelector('.modal-layer')).overflow,
+      drawerShadow: getComputedStyle(document.querySelector('.drawer-layer')).boxShadow,
       viewportHeight: innerHeight,
       x: iconRect.left + iconRect.width / 2 - (buttonRect.left + buttonRect.width / 2),
       y: iconRect.top + iconRect.height / 2 - (buttonRect.top + buttonRect.height / 2),
     };
   })()`);
+  const titlebarStrip = async () => (await window.webContents.capturePage({
+    x: 0,
+    y: 0,
+    width: window.getContentBounds().width,
+    height: 32,
+  })).toPNG();
   const headerIcons = await window.webContents.executeJavaScript(`(() => {
     const measure = (selector) => {
       const button = document.querySelector(selector);
@@ -1915,18 +2139,38 @@ async function heroAndDrawerSmoke(window) {
   await waitForFrames(window, 3);
   const errorIndicator = await window.webContents.executeJavaScript("document.querySelector('.game-hero-indicator--status')?.className || null");
   await capture(window, "hero-favorite-error-compact-dark.png");
-  await window.webContents.executeJavaScript("window.hslFixture.emitHeroStatus('ready'); document.querySelector('[data-action=\"show-settings\"]')?.click()");
+  await window.webContents.executeJavaScript("window.hslFixture.emitHeroStatus('ready')");
+  await waitForFrames(window, 2);
+  const titlebarBefore = await titlebarStrip();
+  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"show-settings\"]')?.click()");
   await waitFor(window, "document.querySelector('[data-drawer]')");
   await waitFor(window, "document.querySelector('[data-action=\"close-overlay\"] .ui-icon--loaded')");
   await captureNativeWindow(window, "drawer-settings-close.png");
+  const settingsTitlebar = await titlebarStrip();
   const closeButtons = [await readCloseButton("settings")];
-  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"close-overlay\"]')?.click(); document.querySelector('[data-action=\"show-activity-details\"]')?.click()");
+  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"close-overlay\"]')?.click()");
+  await waitFor(window, "!document.querySelector('[data-drawer]')");
+  const titlebarBetween = await titlebarStrip();
+  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"show-activity-details\"]')?.click()");
   await waitFor(window, "document.querySelector('[data-drawer]')");
   await waitFor(window, "document.querySelector('[data-action=\"close-overlay\"] .ui-icon--loaded')");
   await captureNativeWindow(window, "drawer-activity-close.png");
+  const activityTitlebar = await titlebarStrip();
   closeButtons.push(await readCloseButton("activity"));
   await window.webContents.executeJavaScript("document.querySelector('[data-action=\"close-overlay\"]')?.click()");
-  return { closeButtons, compact, errorIndicator, expanded, headerIcons };
+  return {
+    closeButtons,
+    compact,
+    errorIndicator,
+    expanded,
+    headerIcons,
+    titlebar: {
+      activityUnchanged: titlebarBefore.equals(activityTitlebar),
+      betweenUnchanged: titlebarBefore.equals(titlebarBetween),
+      byteLength: titlebarBefore.length,
+      settingsUnchanged: titlebarBefore.equals(settingsTitlebar),
+    },
+  };
 }
 
 async function microinteractionSmoke(window) {
@@ -2629,6 +2873,7 @@ async function detailScrollMetrics(window) {
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   prepareAccountFixtureAvatar();
+  if (checkOnly === "production-authority-scroll-diagnostic") await prepareProductionLibraryAuthority();
   if (checkOnly === "alpha") prepareAlphaFixtureAssets();
   const window = new BrowserWindow({
     width: 1240,
@@ -2672,6 +2917,7 @@ app.whenReady().then(async () => {
         "render-invariants-before": () => passiveRefreshReproduction(window),
         "interaction-stability-diagnostic": () => passiveLibraryUpdateScenario(window, { expanded: true, view: "covers" }),
         "passive-topology-clamp-diagnostic": () => passiveTopologyClampDiagnostic(window),
+        "production-authority-scroll-diagnostic": () => productionAuthorityScrollDiagnostic(window),
         "local-scan-variation-diagnostic": () => localScanVariationDiagnostic(window),
         "library-location-flow-diagnostic": () => libraryLocationFlowDiagnostic(window),
         "visual-interaction-polish-diagnostic": () => visualInteractionPolishDiagnostic(window),

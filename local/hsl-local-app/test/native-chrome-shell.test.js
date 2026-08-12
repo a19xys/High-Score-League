@@ -147,6 +147,7 @@ test("drawers use the canonical close asset and remain below the native titlebar
   const overlay = app.slice(app.indexOf("function renderOverlay"), app.indexOf("function renderStatusFooter"));
 
   assert.match(css, /\.modal-layer\s*\{[^}]*inset: var\(--native-titlebar-height\) 0 0/);
+  assert.match(css, /\.modal-layer\s*\{[^}]*overflow: hidden/);
   assert.match(css, /\.drawer-layer\s*\{[^}]*height: 100%[^}]*max-height: 100%/);
   assert.match(icon, /close: \{ fallback: "", file: "close\.svg" \}/);
   assert.match(overlay, /renderIcon\("close", \{ className: "button-icon drawer-close-icon", fallback: "", loading: "eager", size: "sm" \}\)/);

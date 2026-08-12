@@ -39,9 +39,12 @@ test("BrowserWindow keeps the library stable through cancel and rejected locatio
     assert.equal(stable.cardCount, 5);
   }
   assert.deepEqual(result.rejected.map((entry) => entry.dialog.classification), ["pack-root", "inside-pack"]);
-  assert.ok(result.rejected.every((entry) => entry.dialog.initialFocus === "use-suggested-library-root"));
+  assert.ok(result.rejected.every((entry) => entry.dialog.initialFocus === "detect-library-location"));
   assert.equal(result.rejected[0].state.focusedAction, "choose-pack-directory");
   assert.equal(result.rejected[1].state.focusedAction, "choose-pack-directory");
+  assert.deepEqual(result.unsupported.actions, ["detect-library-location", "choose-library-location"]);
+  assert.match(result.unsupported.feedback, /No se ha podido detectar una Biblioteca válida/);
+  assert.deepEqual(result.detectionCalls.map((value) => value.split("/").at(-1)), ["pack-root", "inside-pack", "unsupported-layout"]);
   assert.equal(result.accepted.cardCount, 4);
   assert.equal(result.accepted.cardsSame, false);
 });
@@ -63,6 +66,8 @@ test("BrowserWindow validates JUGAR and library interaction states in light and 
     windowsHide: true,
   });
   const result = JSON.parse(stdout.trim());
+  assert.deepEqual(result.fullFillFamilies, ["play-button", "app-dialog__button--primary"]);
+  assert.deepEqual(result.tintedFamilies, ["account-primary"]);
   for (const theme of result.results) {
     assert.equal(theme.normal.filter, "none");
     assert.equal(theme.hovered.filter, "none");
@@ -74,6 +79,24 @@ test("BrowserWindow validates JUGAR and library interaction states in light and 
     assert.notEqual(theme.hovered.backgroundImage, theme.normal.backgroundImage);
     assert.equal(theme.focused.focusVisible, true);
     assert.notEqual(theme.focused.outline, theme.normal.outline);
+    assert.equal(sameRect(theme.normal.rect, theme.active.rect), true);
+    assert.notEqual(theme.active.transform, theme.normal.transform);
+    assert.equal(theme.dialogNormal.filter, "none");
+    assert.equal(theme.dialogHover.filter, "none");
+    assert.doesNotMatch(theme.dialogNormal.transitionProperty, /(^|,\s*)all($|,)/);
+    assert.equal(sameRect(theme.dialogNormal.rect, theme.dialogHover.rect), true);
+    assert.equal(sameRect(theme.dialogNormal.rect, theme.dialogFocused.rect), true);
+    assert.equal(sameRect(theme.dialogNormal.rect, theme.dialogActive.rect), true);
+    assert.notEqual(theme.dialogHover.backgroundImage, theme.dialogNormal.backgroundImage);
+    assert.notEqual(theme.dialogHover.borderColor, theme.dialogNormal.borderColor);
+    assert.notEqual(theme.dialogHover.boxShadow, theme.dialogNormal.boxShadow);
+    assert.equal(theme.dialogFocused.focusVisible, true);
+    assert.notEqual(theme.dialogFocused.outline, theme.dialogNormal.outline);
+    assert.notEqual(theme.dialogActive.transform, theme.dialogNormal.transform);
+    assert.equal(theme.dialogDisabledNormal.backgroundImage, theme.dialogDisabledHover.backgroundImage);
+    assert.equal(theme.dialogDisabledNormal.borderColor, theme.dialogDisabledHover.borderColor);
+    assert.equal(theme.dialogDisabledNormal.boxShadow, theme.dialogDisabledHover.boxShadow);
+    assert.notEqual(theme.accountPrimary.backgroundColor, theme.dialogNormal.backgroundColor);
     assert.equal(sameRect(theme.secondaryNormal.rect, theme.secondaryHover.rect), true);
     assert.equal(theme.secondaryHover.backgroundImage, theme.secondaryNormal.backgroundImage);
     assert.notEqual(theme.secondaryHover.borderColor, theme.secondaryNormal.borderColor);
@@ -178,6 +201,43 @@ test("BrowserWindow keeps five Covers stable across passive Connectivity and Mem
     assert.deepEqual(scenario.summary.identityTransitions, []);
     assert.deepEqual(scenario.summary.geometryTransitions, []);
   }
+});
+
+test("BrowserWindow recorre Connectivity con cinco packs obtenidos de launcher-service y protege el scroll más reciente", { skip: !enabled, timeout: 240_000 }, async () => {
+  const electron = require("electron");
+  const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
+  const { stdout } = await execFileAsync(electron, [fixture], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      HSL_LIBRARY_CHECK_ONLY: "production-authority-scroll-diagnostic",
+      HSL_LIBRARY_PACK_COUNT: "5",
+      HSL_LIBRARY_PASSIVE_STABLE: "1",
+      HSL_LIBRARY_QUIET: "1",
+      HSL_LIBRARY_USE_GPU: "1",
+    },
+    maxBuffer: 24 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const result = JSON.parse(stdout.trim());
+  assert.equal(result.authority.statesStable, true);
+  assert.equal(result.authority.instanceKeys.length, 5);
+  assert.deepEqual(result.authority.sources, ["initial", "deployment-context", "membership-checking", "account-profile", "ranking", "week-final"]);
+  for (const scenario of result.matrix.results) {
+    assert.equal(scenario.frames.every((frame) => frame.scrollTop === scenario.actualTop), true, `${scenario.sidebarWidth}:${scenario.requestedTop}:${scenario.operation}`);
+    assert.equal(scenario.frames.every((frame) => frame.scrollHeight === scenario.frames[0].scrollHeight), true);
+    assert.equal(scenario.frames.every((frame) => !frame.nodes || Object.values(frame.nodes).every(Boolean)), true);
+    assert.equal(scenario.publications.every((publication) => publication.authoritySource === "launcher-service/library-snapshot-authority"), true);
+    assert.equal(scenario.publications.every((publication) => publication.length === 5), true);
+    assert.equal(scenario.publications.every((publication) => publication.renderPlanMode === "incremental"), true);
+  }
+  assert.equal(result.userScroll.userTop, result.userScroll.targetTop);
+  assert.equal(result.userScroll.finalTop, result.userScroll.userTop);
+  const afterUserScroll = result.userScroll.frames.filter((frame) => frame.phase === "user-scroll-during-refresh");
+  assert.ok(afterUserScroll.length > 0);
+  assert.equal(afterUserScroll.every((frame) => frame.scrollTop === result.userScroll.userTop), true);
+  assert.equal(result.userScroll.publications.every((publication) => publication.length === 5), true);
 });
 
 test("BrowserWindow distinguishes hidden Covers metadata from a real cover asset change", { skip: !enabled, timeout: 60_000 }, async () => {
@@ -364,6 +424,8 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
     assert.equal(offset.drawerTop, 32);
     assert.equal(offset.modalBottom, offset.viewportHeight);
     assert.equal(offset.drawerBottom, offset.viewportHeight);
+    assert.equal(offset.modalOverflow, "hidden");
+    assert.notEqual(offset.drawerShadow, "none");
     assert.equal(offset.buttonHeight, 38);
     assert.equal(offset.buttonWidth, 38);
     assert.equal(offset.iconHeight, 18);
@@ -371,6 +433,10 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
     assert.equal(offset.glyphTransform, "matrix(1, 0, 0, 1, 0, 0)");
   });
   assert.deepEqual(result.heroAndDrawers.closeButtons.map(({ drawer }) => drawer), ["settings", "activity"]);
+  assert.equal(result.heroAndDrawers.titlebar.settingsUnchanged, true);
+  assert.equal(result.heroAndDrawers.titlebar.activityUnchanged, true);
+  assert.equal(result.heroAndDrawers.titlebar.betweenUnchanged, true);
+  assert.ok(result.heroAndDrawers.titlebar.byteLength > 0);
   for (const icon of Object.values(result.heroAndDrawers.headerIcons)) {
     assert.equal(icon.buttonHeight, 38);
     assert.equal(icon.buttonWidth, 38);

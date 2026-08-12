@@ -34,6 +34,8 @@ const {
   toggleLibraryFavoriteFromGui,
 } = require("../gui/launcher-service");
 const { setPackDirectory, writePackDirectory } = require("../src/pack-directory");
+const { createAccountSessionRepository } = require("../src/account-session-repository");
+const { createPlayTimeStore } = require("../src/playtime-store");
 const { scanPackLibrary } = require("../src/pack-library");
 const { readLibrarySelection, writeLibrarySelection } = require("../src/library-selection");
 const { writeLastOpenedPack } = require("../src/recent-packs");
@@ -1030,6 +1032,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
     fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "library-geometry.js"), "utf8"),
   ]);
   const presentation = await fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "product-presentation.js"), "utf8");
+  const service = await fsp.readFile(path.join(__dirname, "..", "gui", "launcher-service.js"), "utf8");
 
   assert.match(app, /app-main/);
   assert.match(app, /import \{ renderAppDialog \} from "\.\/components\/app-dialog\.js"/);
@@ -1211,6 +1214,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /"year", "year", "Año"/);
   assert.match(gamePanel, /"genre", "genre", "Género"/);
   assert.match(gamePanel, /"playtime", "playtime", "Tiempo jugado"/);
+  assert.match(service, /playTime:\s*formatPlayTime\(totalSeconds\)/);
   assert.equal(/"Empresa"|"Tiempo"/.test(gamePanel), false);
   assert.match(gamePanel, /"Sin datos"/);
   assert.match(gamePanel, /renderIcon\("calendar"/);
@@ -1611,14 +1615,13 @@ test("missing pack directory dialog renders recovery actions", async () => {
   assert.match(html, /No se encuentra la Biblioteca/);
   assert.match(html, /reintentar la misma ubicación o elegir otra/);
   assert.match(html, /app-dialog__actions--pack-directory/);
-  assert.match(html, /app-dialog__button--primary" type="button" data-action="retry-library-location"/);
-  assert.match(html, /Reintentar/);
-  assert.match(html, /data-action="choose-library-location"[\s\S]*Elegir otra carpeta/);
-  assert.match(html, /app-dialog__button--secondary" type="button" data-action="close-dialog"/);
-  assert.match(html, /Cancelar/);
+  assert.match(html, /app-dialog__button--primary" type="button" data-action="detect-library-location"/);
+  assert.match(html, /Detectar biblioteca/);
+  assert.match(html, /data-action="choose-library-location"[\s\S]*Cambiar carpeta/);
+  assert.doesNotMatch(html, /data-action="close-dialog"|>Cancelar</);
   assert.match(styles, /\.app-dialog__actions[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /@media \(max-width: 520px\)[\s\S]*\.app-dialog__actions[\s\S]*grid-template-columns: 1fr/);
-  assert.match(styles, /\.app-dialog__button--primary:hover:not\(:disabled\)/);
+  assert.match(styles, /:is\(\.play-button, \.app-dialog__button--primary\):hover:not\(:disabled\)/);
 });
 
 test("renderer muestra fallback HSL limpio cuando falta la biblioteca", async () => {
@@ -1838,7 +1841,7 @@ test("producción no contiene fallback de juego Space Invaders", async () => {
   assert.doesNotMatch(packCard, /activePackName|activeName|pack\.packId ===/);
 });
 
-test("renderer controla el dialogo missing una vez y permite reintento explicito", async () => {
+test("renderer controla el dialogo missing una vez y detecta mediante la intención unificada", async () => {
   const app = await fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8");
 
   assert.match(app, /const unavailableDirectoryPrompts = new Set\(\)/);
@@ -1852,7 +1855,7 @@ test("renderer controla el dialogo missing una vez y permite reintento explicito
   assert.match(app, /action === "toggle-library-filters"[\s\S]*getLibraryCapabilities\(store\.getState\(\)\)\.filtersEnabled[\s\S]*return/);
   assert.doesNotMatch(app, /data-hsl-fallback-hero|hero_hsl\.png/);
   assert.match(app, /action === "choose-library-location"[\s\S]*window\.hslLauncher\.choosePackDirectory\(\)/);
-  assert.match(app, /action === "retry-library-location"[\s\S]*window\.hslLauncher\.rescanPackDirectory\(\)/);
+  assert.match(app, /action === "detect-library-location"[\s\S]*window\.hslLauncher\.detectLibraryLocation\(libraryLocationDialog\?\.candidatePath \|\| null\)/);
   assert.match(app, /action === "rescan-pack-directory"[\s\S]*resetUnavailableDirectoryPrompt[\s\S]*window\.hslLauncher\.rescanPackDirectory\(\)/);
   assert.match(app, /action === "close-dialog"[\s\S]*activeDialog: null/);
 });
@@ -3027,6 +3030,60 @@ test("estados pasivos reutilizan el catálogo local estable y un rescan explíci
     assert.equal((await getLauncherState({ config })).library.packs.length, 4);
     const restored = await rescanPackDirectory({ config });
     assert.equal(restored.state.library.packs.length, 5);
+  });
+});
+
+test("Playtime acumulado llega por stateFromContext a game.playTime y al panel", async () => {
+  await withTempDir(async (dir) => {
+    resetLibrarySnapshotAuthorityForTests();
+    const config = {
+      sessionFileAbs: path.join(dir, "userData", "session.json"),
+      supabaseAnonKey: "anon-key",
+      supabaseUrl: "https://example.supabase.co",
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    await writeValidV2PackDir(path.join(libraryRoot, "Pack"));
+    await setPackDirectory(config, libraryRoot);
+    const repository = createAccountSessionRepository({ config });
+    await repository.saveLogin({
+      schemaVersion: 1,
+      session: {
+        access_token: "access-test",
+        expires_at: Math.floor(Date.now() / 1000) + 3_600,
+        refresh_token: "refresh-test",
+        token_type: "bearer",
+      },
+      supabaseUrl: config.supabaseUrl,
+      user: { email: "player@example.test", id: "player-one" },
+    });
+    await createPlayTimeStore(config, "user_player-one").recordEvent({
+      clientVersion: "test",
+      durationSeconds: 7_200,
+      endedAt: "2026-08-13T12:00:00.000Z",
+      eventId: "11111111-1111-4111-8111-111111111111",
+      gameKey: "space-invaders",
+      mode: "practice",
+      rom: "invaders",
+      startedAt: "2026-08-13T10:00:00.000Z",
+      weekId: "week-1",
+    });
+
+    const state = await getLauncherState({ config, deferRemoteMembership: true, refreshLibrary: true });
+    assert.equal(state.game.playTime, "2,0 horas");
+    const { renderGamePanel } = await import(pathToFileURL(path.join(
+      __dirname,
+      "..",
+      "gui",
+      "renderer",
+      "components",
+      "game-panel.js",
+    )).href);
+    assert.match(renderGamePanel({
+      busy: false,
+      data: state,
+      pendingFavoriteKeys: {},
+    }), /aria-label="Tiempo jugado: 2,0 horas"/);
   });
 });
 

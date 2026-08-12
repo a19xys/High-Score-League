@@ -51,17 +51,20 @@ test("connectivity refresh is a separate native keyboard action with visible foc
 
 test("play hover changes its surface without moving or over-brightening the action", async () => {
   const styles = await fsp.readFile(path.join(rendererRoot, "styles", "app.css"), "utf8");
-  const transitionRule = styles.match(/\.play-button\s*\{[^}]*transition:[^}]*\}/)?.[0] || "";
-  const hoverRule = styles.match(/\.play-button:hover:not\(:disabled\)\s*\{[^}]*\}/)?.[0] || "";
+  const transitionRule = styles.match(/:is\(\.play-button, \.app-dialog__button--primary\)\s*\{[^}]*transition:[^}]*\}/)?.[0] || "";
+  const hoverRule = styles.match(/:is\(\.play-button, \.app-dialog__button--primary\):hover:not\(:disabled\)\s*\{[^}]*\}/)?.[0] || "";
 
   assert.match(transitionRule, /border-color 0\.16s ease/);
   assert.match(transitionRule, /box-shadow 0\.16s ease/);
-  assert.doesNotMatch(transitionRule, /\ball\b|filter/);
-  assert.match(hoverRule, /border-color: color-mix/);
-  assert.match(hoverRule, /background: linear-gradient/);
+  assert.doesNotMatch(transitionRule, /\ball\b/);
+  assert.match(hoverRule, /border-color: var\(--full-primary-hover-border\)/);
+  assert.match(hoverRule, /background: var\(--full-primary-hover-background\)/);
   assert.match(hoverRule, /box-shadow:/);
-  assert.doesNotMatch(hoverRule, /filter:|transform:|scale\(/);
-  assert.match(styles, /\.play-button:active:not\(:disabled\)[\s\S]*transform: translateY\(1px\)/);
+  assert.doesNotMatch(hoverRule, /transform:|scale\(/);
+  assert.match(hoverRule, /filter: none/);
+  assert.match(styles, /:is\(\.play-button, \.app-dialog__button--primary\):active:not\(:disabled\)[\s\S]*transform: translateY\(1px\)/);
+  assert.equal((styles.match(/\.play-button:hover:not\(:disabled\)/g) || []).length, 0);
+  assert.equal((styles.match(/\.app-dialog__button--primary:hover:not\(:disabled\)/g) || []).length, 0);
 });
 
 test("light account rows keep distinct idle, hover and active surfaces", async () => {

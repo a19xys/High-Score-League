@@ -59,11 +59,11 @@ test("dialogos de raiz rechazada explican pack e interior y ofrecen sugerencia v
   });
 
   assert.match(packRoot, /Has elegido la carpeta de un pack/);
-  assert.match(packRoot, /Usar carpeta superior/);
-  assert.match(packRoot, /data-action="use-suggested-library-root"/);
+  assert.match(packRoot, /Detectar biblioteca/);
+  assert.match(packRoot, /data-action="detect-library-location"/);
   assert.match(packRoot, /data-action="choose-library-location"/);
   assert.match(insidePack, /Esta carpeta forma parte de un pack/);
-  assert.match(insidePack, /Usar carpeta superior/);
+  assert.match(insidePack, /Detectar biblioteca/);
   assert.match(insidePack, /Estás dentro de un pack[\s\S]*La Biblioteca anterior se mantiene/);
 });
 
@@ -319,16 +319,16 @@ test("controles neutros usan solo borde y contenido azules sin alterar fondos ni
   assert.match(styles, /\.pack-card\[role="button"\]:hover[\s\S]*?box-shadow: var\(--shadow-card-hover\)/);
 });
 
-test("IPC y renderer solo aplican la sugerencia tras una accion explicita", async () => {
+test("IPC y renderer solicitan detección y dejan la validación en main/service", async () => {
   const [main, preload, app] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "main.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "preload.js"), "utf8"),
     fsp.readFile(path.join(rendererRoot, "app.js"), "utf8"),
   ]);
 
-  assert.match(main, /launcher:use-suggested-pack-directory/);
-  assert.match(preload, /useSuggestedPackDirectory/);
-  assert.match(app, /action === "use-suggested-library-root"[\s\S]*suggestedRootPath[\s\S]*useSuggestedPackDirectory/);
+  assert.match(main, /launcher:detect-library-location/);
+  assert.match(preload, /detectLibraryLocation[\s\S]*launcher:detect-library-location/);
+  assert.match(app, /action === "detect-library-location"[\s\S]*detectLibraryLocation\(libraryLocationDialog\?\.candidatePath/);
   assert.match(app, /promptForRejectedLibraryRoot/);
   assert.doesNotMatch(app, /action === "choose-pack-directory"[\s\S]{0,260}neutralizeActivePack: true/);
 });

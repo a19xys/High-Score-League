@@ -45,7 +45,13 @@ const {
   importPackFromZip: importPackZip,
   PackImportError,
 } = require("../src/pack-importer");
-const { getDirectoryKey, readPackDirectory, setPackDirectory } = require("../src/pack-directory");
+const {
+  classifyLibraryRootCandidate,
+  getDirectoryKey,
+  isValidLibraryRootClassification,
+  readPackDirectory,
+  setPackDirectory,
+} = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
 const { createLibrarySnapshotAuthority } = require("../src/library-snapshot-authority");
 const { readLibrarySelection, writeLibrarySelection } = require("../src/library-selection");
@@ -2943,6 +2949,45 @@ async function choosePackDirectoryFromGui(directoryPath, options = {}) {
   };
 }
 
+async function detectLibraryLocationCandidate(directoryPath, options = {}) {
+  const candidate = await classifyLibraryRootCandidate(directoryPath, options.classifierOptions || {});
+  const suggestedRootPath = candidate.suggestedRootPath;
+
+  if (!suggestedRootPath) {
+    return {
+      action: "detect-library-location",
+      detectedRootPath: null,
+      lines: ["No se ha podido detectar una Biblioteca v\u00e1lida."],
+      ok: false,
+      result: candidate,
+      summary: "No se ha podido detectar una Biblioteca v\u00e1lida.",
+    };
+  }
+
+  const validation = await classifyLibraryRootCandidate(suggestedRootPath, options.classifierOptions || {});
+  if (!isValidLibraryRootClassification(validation.classification)) {
+    return {
+      action: "detect-library-location",
+      detectedRootPath: null,
+      lines: ["No se ha podido detectar una Biblioteca v\u00e1lida."],
+      ok: false,
+      result: { ...candidate, suggestedRootPath: null },
+      summary: "No se ha podido detectar una Biblioteca v\u00e1lida.",
+      validation,
+    };
+  }
+
+  return {
+    action: "detect-library-location",
+    detectedRootPath: validation.candidatePath,
+    lines: ["Biblioteca detectada y validada."],
+    ok: true,
+    result: candidate,
+    summary: "Biblioteca detectada y validada.",
+    validation,
+  };
+}
+
 async function cancelImportPack() {
   return {
     action: "import-pack",
@@ -3348,6 +3393,7 @@ module.exports = {
   choosePackDirectoryFromGui,
   configureAccountProfileSync,
   configurePlayTimeSync,
+  detectLibraryLocationCandidate,
   classifyFailureReason,
   deriveOpenedPackConfig,
   drainAccountSessionOperations,

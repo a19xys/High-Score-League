@@ -274,6 +274,32 @@ function rejectedLibraryRootDialogPatch(response) {
   };
 }
 
+function detectedLibraryLocationDialogPatch(response, previousDialog) {
+  const directory = response?.state?.library?.directory || {};
+  if (previousDialog?.issue === "current-root-unavailable") {
+    if (directory.available) return { activeDialog: null };
+    return {
+      activeDialog: {
+        ...previousDialog,
+        classification: directory.classification || directory.reason || previousDialog.classification || "inaccessible",
+        feedback: response?.summary || "La Biblioteca recordada sigue sin estar disponible.",
+      },
+    };
+  }
+
+  if (response?.ok) return { activeDialog: null };
+  const result = response?.result || {};
+  return {
+    activeDialog: {
+      ...previousDialog,
+      candidatePath: result.candidatePath || previousDialog?.candidatePath || null,
+      classification: result.classification || previousDialog?.classification || "inaccessible",
+      feedback: "No se ha podido detectar una Biblioteca v\u00e1lida.",
+      suggestedRootPath: result.suggestedRootPath || null,
+    },
+  };
+}
+
 function resetUnavailableDirectoryPrompt(data) {
   const key = unavailableDirectoryKey(data);
 
@@ -1661,6 +1687,10 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
       Object.assign(statePatch, rejectedLibraryRootDialogPatch(response));
     }
 
+    if (options.promptForDetectedLibraryLocation) {
+      Object.assign(statePatch, detectedLibraryLocationDialogPatch(response, options.libraryLocationDialog));
+    }
+
     store.setState(statePatch);
     restoreTriggerFocus();
     if (action === "choose-pack-directory" && !store.getState().activeDialog) {
@@ -2153,25 +2183,17 @@ function bindActions() {
       });
     }
 
-    if (action === "retry-library-location") {
-      resetUnavailableDirectoryPrompt(current.data);
-      store.setState({ activeDialog: null });
-      runAction("rescan-pack-directory", "Reescaneando", "Reintentar", () => window.hslLauncher.rescanPackDirectory(), {
-        promptForUnavailableDirectory: true,
-      });
-    }
-
-    if (action === "use-suggested-library-root") {
-      const suggestedRootPath = current.activeDialog?.suggestedRootPath;
-
-      if (suggestedRootPath) {
-        store.setState({ activeDialog: null });
-        runAction("choose-pack-directory", "Actualizando biblioteca", "Usar carpeta superior", () => (
-          window.hslLauncher.useSuggestedPackDirectory(suggestedRootPath)
-        ), {
-          promptForRejectedLibraryRoot: true,
-        });
+    if (action === "detect-library-location") {
+      const libraryLocationDialog = current.activeDialog;
+      if (libraryLocationDialog?.issue === "current-root-unavailable") {
+        resetUnavailableDirectoryPrompt(current.data);
       }
+      runAction(action, "Detectando biblioteca", "Detectar biblioteca", () => (
+        window.hslLauncher.detectLibraryLocation(libraryLocationDialog?.candidatePath || null)
+      ), {
+        libraryLocationDialog,
+        promptForDetectedLibraryLocation: true,
+      });
     }
 
     if (action === "import-pack") {

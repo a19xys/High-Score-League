@@ -110,25 +110,10 @@ function renderLibraryLocationDialog(dialog) {
       title: currentRootMissing ? "No se encuentra la Biblioteca" : "No se puede acceder a la Biblioteca",
     }
     : rejectedLocationCopy(dialog.classification);
-  const buttons = currentRootUnavailable
-    ? [
-      { action: "retry-library-location", autofocus: true, icon: "refresh", label: "Reintentar", variant: "primary" },
-      { action: "choose-library-location", icon: "folder", label: "Elegir otra carpeta", variant: "secondary" },
-      { action: "close-dialog", label: "Cancelar", variant: "secondary" },
-    ]
-    : [
-      ...(dialog.suggestedRootPath
-        ? [{ action: "use-suggested-library-root", autofocus: true, icon: "folder", label: "Usar carpeta superior", variant: "primary" }]
-        : []),
-      {
-        action: "choose-library-location",
-        autofocus: !dialog.suggestedRootPath,
-        icon: "folder",
-        label: "Volver a elegir",
-        variant: dialog.suggestedRootPath ? "secondary" : "primary",
-      },
-      { action: "close-dialog", label: "Cancelar", variant: "secondary" },
-    ];
+  const buttons = [
+    { action: "detect-library-location", autofocus: true, icon: "refresh", label: "Detectar biblioteca", variant: "primary" },
+    { action: "choose-library-location", icon: "folder", label: "Cambiar carpeta", variant: "secondary" },
+  ];
 
   return `
     <div class="app-dialog-layer" data-dialog-backdrop>
@@ -137,6 +122,7 @@ function renderLibraryLocationDialog(dialog) {
           <p class="eyebrow">Ubicación de Biblioteca</p>
           <h2 id="${titleId}">${copy.title}</h2>
           <p id="${descriptionId}">${copy.description}</p>
+          ${dialog.feedback ? `<p class="app-dialog__feedback" role="status">${escapeHtml(dialog.feedback)}</p>` : ""}
         </div>
         <div class="app-dialog__actions app-dialog__actions--pack-directory app-dialog__actions--library-root">
           ${buttons.map(renderDialogButton).join("")}

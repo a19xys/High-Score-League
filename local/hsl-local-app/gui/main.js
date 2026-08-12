@@ -962,6 +962,7 @@ function registerIpc() {
     const result = await showLibraryLocationDialog({
       dialog,
       getSelectionContext: () => service.getLibraryLocationSelectionContext(),
+      getSystemPath: (name) => app.getPath(name),
       parentWindow: mainWindow,
     });
 
@@ -971,9 +972,24 @@ function registerIpc() {
 
     return applyPackDirectoryCandidate(result.filePaths[0]);
   });
-  registerLauncherStateHandler("launcher:use-suggested-pack-directory", (_event, directoryPath) => (
-    applyPackDirectoryCandidate(directoryPath)
-  ));
+  registerLauncherStateHandler("launcher:detect-library-location", async (_event, candidatePath) => {
+    if (typeof candidatePath !== "string" || !candidatePath.trim()) {
+      return withMembershipContextMutation(
+        "pack-rescan",
+        () => withRemoteContext(service.rescanPackDirectory()),
+      );
+    }
+
+    const detection = await service.detectLibraryLocationCandidate(candidatePath);
+    if (!detection.ok || !detection.detectedRootPath) {
+      return {
+        ...detection,
+        state: await service.getLauncherState({ deferRemoteMembership: true }),
+      };
+    }
+
+    return applyPackDirectoryCandidate(detection.detectedRootPath);
+  });
   registerLauncherStateHandler("launcher:import-pack-zip", (event) => withRemoteContext(showImportZipDialog(event)));
   registerLauncherStateHandler("launcher:import-pack-folder", (event) => withRemoteContext(showImportFolderDialog(event)));
   registerLauncherStateHandler("launcher:open-pack-directory", () => service.openConfiguredPackDirectory({

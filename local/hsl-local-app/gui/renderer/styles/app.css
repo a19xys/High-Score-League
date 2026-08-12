@@ -609,7 +609,6 @@ p {
   transition: transform 0.16s ease, opacity 0.16s ease;
 }
 
-.play-button:active:not(:disabled),
 .secondary-action:active:not(:disabled),
 .tool-button:active:not(:disabled) {
   transform: translateY(1px);
@@ -2070,6 +2069,7 @@ main,
   display: grid;
   justify-content: end;
   background: rgb(2 6 23 / 0.46);
+  overflow: hidden;
 }
 
 .busy-overlay {
@@ -2218,6 +2218,11 @@ main,
   line-height: 1.45;
 }
 
+.app-dialog__header .app-dialog__feedback {
+  color: var(--text);
+  font-weight: 700;
+}
+
 .app-dialog__actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2250,12 +2255,6 @@ main,
 .app-dialog__button--primary {
   border-color: color-mix(in srgb, var(--circuit) 75%, var(--border));
   background: var(--circuit);
-  color: var(--text-inverse);
-}
-
-.app-dialog__button--primary:hover:not(:disabled) {
-  border-color: var(--circuit-strong);
-  background: var(--circuit-strong);
   color: var(--text-inverse);
 }
 
@@ -5633,18 +5632,6 @@ html:not([data-theme="dark"]) .favorite-slot:hover:not(:disabled) {
   line-height: 1.1;
 }
 
-.play-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--circuit) 72%, var(--text-inverse));
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--circuit) 78%, var(--text-inverse)),
-    color-mix(in srgb, var(--circuit-strong) 78%, var(--circuit))
-  );
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--circuit) 24%, transparent),
-    0 8px 18px color-mix(in srgb, var(--circuit-strong) 24%, transparent);
-}
-
 /* HSL-MANROPE-TYPOGRAPHY-1: calmer interface weights for Manrope. */
 .eyebrow,
 .badge,
@@ -5899,12 +5886,6 @@ html:not([data-theme="dark"]) .icon-button:hover {
 html:not([data-theme="dark"]) .app-dialog__button.app-dialog__button--primary {
   border-color: color-mix(in srgb, var(--circuit) 75%, var(--border));
   background: var(--circuit);
-  color: var(--text-inverse);
-}
-
-html:not([data-theme="dark"]) .app-dialog__button.app-dialog__button--primary:hover:not(:disabled) {
-  border-color: var(--circuit-strong);
-  background: var(--circuit-strong);
   color: var(--text-inverse);
 }
 
@@ -6925,26 +6906,47 @@ html:not([data-theme="dark"]) .game-hero-indicator {
 }
 
 .play-button {
-  filter: none;
-}
-
-.play-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--circuit) 66%, var(--text-inverse));
-  background: linear-gradient(
+  --full-primary-hover-background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--circuit) 92%, var(--surface)),
     color-mix(in srgb, var(--circuit-strong) 94%, var(--surface-strong))
   );
-  box-shadow:
+}
+
+.app-dialog__button--primary {
+  --full-primary-hover-background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--circuit) 94%, var(--surface)),
+    color-mix(in srgb, var(--circuit-strong) 94%, var(--surface-strong))
+  );
+}
+
+:is(.play-button, .app-dialog__button--primary) {
+  --full-primary-hover-border: color-mix(in srgb, var(--circuit) 66%, var(--text-inverse));
+  --full-primary-hover-shadow:
     0 0 0 3px color-mix(in srgb, var(--circuit) 18%, transparent),
     0 10px 24px color-mix(in srgb, var(--circuit-strong) 20%, transparent);
+  --full-primary-focus-shadow:
+    0 0 0 6px color-mix(in srgb, var(--circuit) 38%, transparent),
+    0 10px 24px color-mix(in srgb, var(--circuit-strong) 20%, transparent);
+  filter: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
+}
+
+:is(.play-button, .app-dialog__button--primary):hover:not(:disabled) {
+  border-color: var(--full-primary-hover-border);
+  background: var(--full-primary-hover-background);
+  box-shadow: var(--full-primary-hover-shadow);
+  color: var(--text-inverse);
   filter: none;
 }
 
-.play-button:focus-visible {
+:is(.play-button, .app-dialog__button--primary):focus-visible {
   outline: 3px solid var(--text-inverse);
   outline-offset: 3px;
-  box-shadow:
-    0 0 0 6px color-mix(in srgb, var(--circuit) 38%, transparent),
-    0 10px 24px color-mix(in srgb, var(--circuit-strong) 20%, transparent);
+  box-shadow: var(--full-primary-focus-shadow);
+}
+
+:is(.play-button, .app-dialog__button--primary):active:not(:disabled) {
+  transform: translateY(1px);
 }

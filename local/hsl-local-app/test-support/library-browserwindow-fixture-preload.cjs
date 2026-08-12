@@ -28,7 +28,18 @@ let passiveLibraryVariantIndex = 0;
 let activeLibraryVariant = "stable";
 let libraryLocationResponses = [];
 let libraryLocationCalls = 0;
+const libraryLocationDetectionCalls = [];
 const libraryPublicationDiagnostics = [];
+let currentPublicationTrace = { changedKeys: [], launcherStateRevision: null, source: "initial" };
+const productionAuthorityStates = (() => {
+  try {
+    const parsed = JSON.parse(process.env.HSL_LIBRARY_PRODUCTION_STATES || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+})();
+let productionAuthorityStateIndex = 0;
 let delayLibraryPreferenceWrites = false;
 let releaseLibraryPreferenceWrite = null;
 const libraryPreferenceWrites = [];
@@ -105,7 +116,8 @@ const packs = Array.from({ length: fixturePackCount }, (_, index) => ({
   weekNumber: index + 1,
   year: String(1980 + index),
 }));
-let lastPublishedLibraryPacks = packs;
+let lastPublishedLibraryPacks = productionAuthorityStates[0]?.library?.packs || packs;
+let lastPublishedSnapshot = null;
 
 function libraryPacksForVariant(variant = "stable") {
   if (variant === "omit-last") return packs.slice(0, -1);
@@ -129,7 +141,13 @@ function nextPassiveLibraryVariant() {
 }
 
 function recordLibraryPublication(type, variant, state) {
+  const changedKeys = lastPublishedSnapshot
+    ? Object.keys(state).filter((key) => JSON.stringify(state[key]) !== JSON.stringify(lastPublishedSnapshot[key]))
+    : [];
+  const authorityState = productionAuthorityStates[productionAuthorityStateIndex] || null;
   libraryPublicationDiagnostics.push({
+    authoritySource: authorityState ? "launcher-service/library-snapshot-authority" : "synthetic-fixture",
+    changedKeys,
     directory: {
       available: state.library.directory.available,
       configured: state.library.directory.configured,
@@ -140,6 +158,8 @@ function recordLibraryPublication(type, variant, state) {
     length: state.library.packs.length,
     packs: state.library.packs,
     previousPacks: lastPublishedLibraryPacks,
+    preferenceScope: state.preferenceScope,
+    productionSource: authorityState?.source || null,
     sortBy: state.library.preferences.librarySortBy,
     sortDirection: state.library.preferences.librarySortDirection,
     status: state.library.status,
@@ -147,10 +167,19 @@ function recordLibraryPublication(type, variant, state) {
     variant,
     view: state.library.preferences.libraryView,
   });
+  currentPublicationTrace = {
+    changedKeys,
+    launcherStateRevision: state.launcherStateRevision,
+    source: authorityState?.source || type,
+  };
   lastPublishedLibraryPacks = state.library.packs;
+  lastPublishedSnapshot = state;
 }
 
 function publishLauncherFixture(type, payload = {}, variant = nextPassiveLibraryVariant()) {
+  if (productionAuthorityStates.length > 0) {
+    productionAuthorityStateIndex = Math.min(productionAuthorityStateIndex + 1, productionAuthorityStates.length - 1);
+  }
   const state = snapshot({ libraryVariant: variant });
   recordLibraryPublication(type, variant, state);
   launcherStateListener?.({ ...payload, fixturePhase: type, state });
@@ -195,6 +224,7 @@ function snapshot({ libraryVariant = activeLibraryVariant, samePack = false } = 
   const preferenceScope = preferenceProfileId === "global"
     ? { playerKey: null, scope: "global", scopeKey: "global" }
     : { playerKey: `user_${preferenceProfileId}`, scope: "player", scopeKey: `player:user_${preferenceProfileId}` };
+  const productionAuthority = productionAuthorityStates[productionAuthorityStateIndex] || null;
   const heroChecking = heroStatus === "checking" || membershipFixtureStatus === "checking";
   const heroError = heroStatus === "error";
   const currentWeekCapability = weekFixtureState
@@ -285,7 +315,17 @@ function snapshot({ libraryVariant = activeLibraryVariant, samePack = false } = 
       year: pack.year,
       weekCapability: currentWeekCapability,
     },
-    library: {
+    library: productionAuthority ? {
+      ...productionAuthority.library,
+      packs: productionAuthority.library.packs.map((libraryPack) => ({ ...libraryPack })),
+      preferences: {
+        ...productionAuthority.library.preferences,
+        librarySortBy: preferenceProfile.librarySortBy,
+        librarySortDirection: preferenceProfile.librarySortDirection,
+        libraryView: preferenceProfile.libraryView,
+        sidebarWidth: preferenceProfile.sidebarWidth,
+      },
+    } : {
       directory: { available: true, configured: true, path: "C:/fixture-packs" },
       packs: visiblePacks.map((libraryPack) => ({
         ...libraryPack,
@@ -379,7 +419,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
     if (response === "cancel") {
       return { action: "choose-pack-directory", canceled: true, ok: true, state: snapshot(), summary: "No se seleccionó ninguna carpeta." };
     }
-    if (["pack-root", "inside-pack"].includes(response)) {
+    if (["pack-root", "inside-pack", "unsupported-layout"].includes(response)) {
       return {
         action: "choose-pack-directory",
         ok: false,
@@ -387,7 +427,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
           candidatePath: `C:/fixture-rejected/${response}`,
           classification: response,
           ok: false,
-          suggestedRootPath: "C:/fixture-suggested-root",
+          suggestedRootPath: response === "unsupported-layout" ? null : "C:/fixture-suggested-root",
         },
         state: snapshot(),
         summary: "La Biblioteca anterior se mantiene.",
@@ -396,6 +436,26 @@ contextBridge.exposeInMainWorld("hslLauncher", {
     activeLibraryVariant = "omit-last";
     launcherStateRevision += 1;
     return { action: "choose-pack-directory", ok: true, state: snapshot(), summary: "Directorio de packs actualizado." };
+  },
+  detectLibraryLocation: async (candidatePath) => {
+    libraryLocationDetectionCalls.push(candidatePath || null);
+    const classification = String(candidatePath || "").split("/").at(-1) || "missing";
+    if (!['pack-root', 'inside-pack'].includes(classification)) {
+      return {
+        action: "detect-library-location",
+        ok: false,
+        result: { candidatePath, classification, suggestedRootPath: null },
+        state: snapshot(),
+        summary: "No se ha podido detectar una Biblioteca válida.",
+      };
+    }
+    launcherStateRevision += 1;
+    return {
+      action: "choose-pack-directory",
+      ok: true,
+      state: snapshot(),
+      summary: "Biblioteca detectada y validada.",
+    };
   },
   getConnectivityState: async () => ({
     displayStatus: connectivityStatus,
@@ -587,6 +647,9 @@ contextBridge.exposeInMainWorld("hslLauncher", {
 });
 
 contextBridge.exposeInMainWorld("hslFixture", {
+  getCurrentPublicationTrace() {
+    return JSON.parse(JSON.stringify(currentPublicationTrace));
+  },
   clearLibraryPreferenceWrites() {
     libraryPreferenceWrites.length = 0;
   },
@@ -628,9 +691,13 @@ contextBridge.exposeInMainWorld("hslFixture", {
   getLibraryLocationCalls() {
     return libraryLocationCalls;
   },
+  getLibraryLocationDetectionCalls() {
+    return [...libraryLocationDetectionCalls];
+  },
   setLibraryLocationResponses(responses) {
     libraryLocationResponses = Array.isArray(responses) ? [...responses] : [];
     libraryLocationCalls = 0;
+    libraryLocationDetectionCalls.length = 0;
   },
   emitLibraryVariant(variant) {
     launcherStateRevision += 1;

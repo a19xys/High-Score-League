@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   chooseSharedMameRuntime: invoke("launcher:choose-shared-mame-runtime"),
   checkMembership: invoke("launcher:check-membership"),
   diagnose: invoke("launcher:diagnose"),
+  detectLibraryLocation: (candidatePath) => ipcRenderer.invoke("launcher:detect-library-location", candidatePath),
   getAuthState: invoke("launcher:get-auth-state"),
   getConnectivityState: invoke("launcher:get-connectivity-state"),
   getRankingCapabilitiesState: invoke("launcher:get-ranking-capabilities-state"),
@@ -63,7 +64,6 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   }),
   switchAccount: (userId) => ipcRenderer.invoke("launcher:switch-account", userId),
   toggleLibraryFavorite: (packKey) => ipcRenderer.invoke("launcher:toggle-library-favorite", packKey),
-  useSuggestedPackDirectory: (directoryPath) => ipcRenderer.invoke("launcher:use-suggested-pack-directory", directoryPath),
   useLibraryPack: (packId) => ipcRenderer.invoke("launcher:use-library-pack", packId),
   syncPlugin: invoke("launcher:sync-plugin"),
 });
