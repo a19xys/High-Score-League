@@ -1503,6 +1503,7 @@ test("busy overlay renders blocking action messages without touching favorite mi
   const cases = [
     ["Iniciando", null, null, "startup"],
     ["Activando pack", null, null, "working"],
+    ["Comprobando pack", null, null, "working"],
     ["Importando pack", null, null, "working"],
     ["Eligiendo directorio", null, null, "waiting-user"],
     ["Eligiendo MAME", null, null, "waiting-user"],

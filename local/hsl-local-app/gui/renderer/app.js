@@ -582,10 +582,22 @@ async function refreshRemoteStateAfterPackActivation(requestId, expectedInstance
   try {
     const nextData = await window.hslLauncher.getState();
     if (requestId !== libraryPackSelectionSequence) return;
-    if (nextData?.selection?.activeInstanceKey !== expectedInstanceKey) return;
-    store.setState(launcherSnapshotPatch(nextData));
+    const contextMatches = nextData?.selection?.activeInstanceKey === expectedInstanceKey;
+    store.setState({
+      ...(contextMatches ? launcherSnapshotPatch(nextData) : {}),
+      busy: false,
+      busyLabel: null,
+      libraryActivationInProgress: false,
+    });
   } catch {
     // La activación aceptada sigue siendo autoritativa si el refresh falla.
+    if (requestId === libraryPackSelectionSequence) {
+      store.setState({
+        busy: false,
+        busyLabel: null,
+        libraryActivationInProgress: false,
+      });
+    }
   }
 }
 
@@ -1811,10 +1823,8 @@ async function activateLibraryPackWithPreload(packId) {
     if (requestId !== libraryPackSelectionSequence) return;
 
     store.setState({
-      busy: false,
-      busyLabel: null,
+      busyLabel: "Comprobando pack",
       ...launcherSnapshotPatch(response.state),
-      libraryActivationInProgress: false,
       logs: appendLog(store.getState().logs, resultToLog("Usar pack de biblioteca", response)),
       pendingLibraryPackId: null,
     });

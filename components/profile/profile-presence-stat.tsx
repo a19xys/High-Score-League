@@ -67,7 +67,7 @@ export function ProfilePresenceStat({
   }, [username]);
 
   return (
-    <div className="relative col-span-2 flex min-w-0 flex-col overflow-hidden px-4 py-5 theme-surface sm:px-6 lg:col-span-1">
+    <div className="relative flex min-w-0 flex-col overflow-hidden px-4 py-5 theme-surface sm:px-6">
       <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-sky-500" />
       <dt className="text-[11px] font-extrabold uppercase tracking-[0.12em] theme-text-muted sm:text-xs">
         Estado

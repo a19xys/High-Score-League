@@ -20,6 +20,9 @@ let practiceLaunches = 0;
 let manualConnectivityRefreshCount = 0;
 let manualConnectivityWeekIndex = 0;
 let manualConnectivityWeekStates = ["closed", "active", "inactive"];
+let manualConnectivityPublicationMode = "simple";
+let activationPublicationMode = "simple";
+let manualConnectivityPublications = [];
 let delayLibraryPreferenceWrites = false;
 let releaseLibraryPreferenceWrite = null;
 const libraryPreferenceWrites = [];
@@ -308,6 +311,19 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   getState: async () => {
     await new Promise((resolve) => setTimeout(resolve, 24));
     selectionPhase = "refresh";
+    if (activationPublicationMode === "revalidate") {
+      membershipFixtureStatus = "checking";
+      weekFixtureState = "unknown";
+      launcherStateRevision += 1;
+      const checking = snapshot();
+      setTimeout(() => {
+        membershipFixtureStatus = "member";
+        weekFixtureState = "active";
+        launcherStateRevision += 1;
+        launcherStateListener?.({ competitionAuthority: true, fixturePhase: "activation-final", state: snapshot() });
+      }, 48);
+      return checking;
+    }
     launcherStateRevision += 1;
     return snapshot();
   },
@@ -339,12 +355,29 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   reportStartupMilestone() {},
   requestConnectivityRefresh: async () => {
     manualConnectivityRefreshCount += 1;
+    manualConnectivityPublications.push("connectivity-start");
     connectivityStateListener?.({
       displayStatus: "connected",
       probe: { inFlight: true, phase: "manual" },
       reachability: "connected",
       reachabilityGeneration: manualConnectivityRefreshCount + 1,
     });
+    if (manualConnectivityPublicationMode === "expanded") {
+      weekFixtureState = "unknown";
+      launcherStateRevision += 1;
+      manualConnectivityPublications.push("deployment-context");
+      launcherStateListener?.({ competitionAuthority: true, fixturePhase: "deployment-context", state: snapshot() });
+      membershipFixtureStatus = "checking";
+      launcherStateRevision += 1;
+      manualConnectivityPublications.push("membership-checking");
+      launcherStateListener?.({ membershipResolution: { phase: "checking" }, fixturePhase: "membership-checking", state: snapshot() });
+      await Promise.resolve();
+      membershipFixtureStatus = "member";
+      launcherStateRevision += 1;
+      manualConnectivityPublications.push("profile-and-membership");
+      launcherStateListener?.({ accountProfiles: true, fixturePhase: "profile-and-membership", state: snapshot() });
+    }
+    manualConnectivityPublications.push("ranking-capabilities");
     rankingCapabilitiesStateListener?.({
       entries: {},
       generation: manualConnectivityRefreshCount + 1,
@@ -358,6 +391,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
       reachability: "connected",
       reachabilityGeneration: manualConnectivityRefreshCount + 1,
     });
+    manualConnectivityPublications.push("connectivity-settled");
     const nextWeekState = manualConnectivityWeekStates[
       manualConnectivityWeekIndex % manualConnectivityWeekStates.length
     ];
@@ -365,6 +399,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
     setTimeout(() => {
       weekFixtureState = nextWeekState;
       launcherStateRevision += 1;
+      manualConnectivityPublications.push("week-final");
       launcherStateListener?.({ competitionAuthority: true, state: snapshot() });
     }, 0);
     return { reachability: "connected", reachabilityGeneration: manualConnectivityRefreshCount + 1 };
@@ -470,12 +505,22 @@ contextBridge.exposeInMainWorld("hslFixture", {
   getManualConnectivityRefreshCount() {
     return manualConnectivityRefreshCount;
   },
+  getManualConnectivityPublications() {
+    return [...manualConnectivityPublications];
+  },
   setManualConnectivityWeekStates(states) {
     const accepted = Array.isArray(states)
       ? states.filter((state) => ["active", "inactive", "closed", "unlinked", "unknown"].includes(state))
       : [];
     manualConnectivityWeekStates = accepted.length > 0 ? accepted : ["closed"];
     manualConnectivityWeekIndex = 0;
+  },
+  setManualConnectivityPublicationMode(mode) {
+    manualConnectivityPublicationMode = mode === "expanded" ? "expanded" : "simple";
+    manualConnectivityPublications = [];
+  },
+  setActivationPublicationMode(mode) {
+    activationPublicationMode = mode === "revalidate" ? "revalidate" : "simple";
   },
   emitConnectivityStatus(status) {
     connectivityStatus = status === "disconnected" ? "offline" : "connected";

@@ -67,9 +67,9 @@ test("one shared CSS authority maps transparent, opaque and unknown without view
   const tokens = read(path.join("styles", "tokens.css"));
   const finalStyles = styles.slice(styles.indexOf(".pack-card--list .pack-card__media,"));
 
-  assert.match(finalStyles, /\.pack-card--list \.pack-card__media\[data-art-presentation="transparent"\] \.pack-card__art,\s*\n\.pack-card--icons \.pack-card__media\[data-art-presentation="transparent"\] \.pack-card__art[\s\S]*object-fit: contain[\s\S]*filter: var\(--icon-art-edge\)[\s\S]*padding: 10%/);
-  assert.match(finalStyles, /\.pack-card--list \.pack-card__media\[data-art-presentation="opaque"\] \.pack-card__art,\s*\n\.pack-card--icons \.pack-card__media\[data-art-presentation="opaque"\] \.pack-card__art[\s\S]*object-fit: cover[\s\S]*filter: none[\s\S]*padding: 0/);
-  assert.match(finalStyles, /data-art-presentation="unknown"[\s\S]*object-fit: contain[\s\S]*filter: none[\s\S]*padding: 10%/);
+  assert.match(finalStyles, /\.pack-card--list \.pack-card__media\[data-art-presentation="transparent"\] \.pack-card__art,\s*\n\.pack-card--icons \.pack-card__media\[data-art-presentation="transparent"\] \.pack-card__art\s*\{[^}]*object-fit: contain[^}]*filter: var\(--icon-art-edge\)[^}]*padding: 4%/);
+  assert.match(finalStyles, /\.pack-card--list \.pack-card__media\[data-art-presentation="opaque"\] \.pack-card__art,\s*\n\.pack-card--icons \.pack-card__media\[data-art-presentation="opaque"\] \.pack-card__art\s*\{[^}]*object-fit: cover[^}]*filter: none[^}]*padding: 0/);
+  assert.match(finalStyles, /\.pack-card--list \.pack-card__media\[data-art-presentation="unknown"\] \.pack-card__art,\s*\n\.pack-card--icons \.pack-card__media\[data-art-presentation="unknown"\] \.pack-card__art\s*\{[^}]*object-fit: contain[^}]*filter: none[^}]*padding: 10%/);
   assert.doesNotMatch(styles, /\.pack-card--list \.pack-card__media img\s*\{[^}]*padding/);
   assert.doesNotMatch(styles, /\.pack-card--icons \.pack-card__media img\s*\{[^}]*object-fit/);
   assert.doesNotMatch(`${styles}\n${tokens}`, /icon-art-overscan/);

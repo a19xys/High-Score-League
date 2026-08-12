@@ -157,8 +157,15 @@ test("the profile workspace is accessible, mounted and free of the old anchor na
   assert.match(dashboard, /id: "resumen"[\s\S]*id: "envios"[\s\S]*id: "editar"[\s\S]*id: "cuenta"/);
   assert.doesNotMatch(hero, /Editar identidad|Ver perfil público/);
   assert.doesNotMatch(stats, /label: "Resultados"/);
+  assert.match(stats, /lg:grid-cols-4/);
+  assert.match(stats, />\s*Victorias\s*</);
+  assert.match(stats, /stats\.podiums === 1 \? "podio" : "podios"/);
+  assert.match(stats, />\s*Medallas\s*</);
+  assert.match(stats, />\s*—\s*</);
+  assert.doesNotMatch(stats, /stats\.participations|>\s*Participaciones\s*</);
   assert.match(stats, /ProfilePresenceStat/);
   assert.match(presenceStat, /PlayerPresenceIndicator/);
+  assert.doesNotMatch(presenceStat, /col-span-2|lg:col-span-1/);
   assert.equal(historyExists, false);
 });
 

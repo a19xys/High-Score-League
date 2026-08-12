@@ -28,7 +28,7 @@ function makePreview(id: string, username: string, bio = "Bio") {
       avatarUrl: null,
       bio,
     },
-    stats: { victories: 1, podiums: 2, officialResults: 3 },
+    stats: { victories: 1, podiums: 2 },
   };
 }
 
@@ -80,6 +80,17 @@ test("navigation loads the canonical brand asset in the browser", async () => {
   assert.match(brandImage, /onError=\{\(\) => setImageFailed\(true\)\}/);
   assert.match(brandImage, /\[src\]/);
   assert.doesNotMatch(homePage, /existsSync|node:fs|node:path/);
+});
+
+test("hover preview queries only victories and podiums", async () => {
+  const source = await readFile(
+    join(process.cwd(), "lib", "data", "player-profile-preview.ts"),
+    "utf8",
+  );
+
+  assert.equal((source.match(/\.from\("weekly_results"\)/g) ?? []).length, 2);
+  assert.match(source, /const \[victories, podiums\] = await Promise\.all/);
+  assert.doesNotMatch(source, /officialResults/);
 });
 
 test("preview cache reuses fresh values and expires after its TTL", async () => {

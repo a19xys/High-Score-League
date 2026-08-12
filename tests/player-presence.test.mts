@@ -141,7 +141,7 @@ test("server read checks privacy before sessions and public DTOs omit internal i
   assert.doesNotMatch(dto, /clientId|lastSeenAt|playerId|sessionCount/);
 });
 
-test("profile reuses the fifth Estado cell with a shared status indicator, polling and privacy preference", async () => {
+test("profile uses the fourth Estado block with a shared status indicator, polling and privacy preference", async () => {
   const [stats, presenceStat, indicator, editor, layout, ownerPage, publicPage] = await Promise.all([
     readFile(join(process.cwd(), "components/profile/profile-stats.tsx"), "utf8"),
     readFile(join(process.cwd(), "components/profile/profile-presence-stat.tsx"), "utf8"),
@@ -151,9 +151,10 @@ test("profile reuses the fifth Estado cell with a shared status indicator, polli
     readFile(join(process.cwd(), "app/profile/page.tsx"), "utf8"),
     readFile(join(process.cwd(), "app/players/[username]/page.tsx"), "utf8"),
   ]);
-  assert.match(stats, /lg:grid-cols-5/);
+  assert.match(stats, /lg:grid-cols-4/);
   assert.match(stats, /ProfilePresenceStat/);
   assert.match(presenceStat, /PlayerPresenceIndicator/);
+  assert.doesNotMatch(presenceStat, /col-span-2|lg:col-span-1/);
   assert.match(indicator, /whitespace-nowrap/);
   assert.doesNotMatch(presenceStat, /Web y launcher|· Launcher/);
   assert.match(presenceStat, /POLL_INTERVAL_MS = 15_000/);

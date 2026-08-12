@@ -55,22 +55,21 @@ recibe tabs privadas, email, envíos privados, edición, cuenta ni administraci�
 
 ## Resumen y métricas
 
-La banda muestra cuatro métricas reales:
+La banda muestra cuatro bloques:
 
-1. victorias;
-2. podios;
-3. participaciones;
-4. tiempo jugado, visible o privado según `play_time_public`.
+1. victorias, con el total de podios integrado como metadata secundaria;
+2. medallas, representadas por `—` y `Próximamente` hasta que exista el sistema;
+3. tiempo jugado, visible o privado según `play_time_public`;
+4. Presence como indicador de estado, no como una métrica gigante.
 
-Una quinta posición muestra Presence como indicador de estado, no como una
-métrica gigante: punto más `Desconectado`, `Conectado`, `Jugando` o `Privado`;
+Estado presenta punto más `Desconectado`, `Conectado`, `Jugando` o `Privado`;
 `—` queda para indisponibilidad. Al jugar, el nombre canónico aparece en una
 segunda línea. El label usa `whitespace-nowrap`, por lo que `Desconectado` no se
 parte. `officialResults` se conserva en el modelo competitivo aunque ya no se
 renderiza en la banda.
 
-En móvil las métricas forman dos columnas y Estado ocupa ambas; en escritorio
-forman cinco columnas. Las ayudas extensas se ocultan en anchos reducidos.
+En móvil los cuatro bloques forman una rejilla 2 × 2; en escritorio forman
+cuatro columnas. Estado ya no necesita un span compensatorio.
 
 ## Avatar protagonista
 
@@ -142,10 +141,16 @@ aparece tras 600 ms de intención sostenida en dispositivos con hover. Las
 identidades no cambian fondo, sombra, posición ni superficie al apuntarlas, pero
 conservan foco visible. El portal deja un gap transparente de 6 px y aplica 220
 ms de gracia al salir del trigger o popup; entrar en el popup cancela el cierre.
-Cada apertura lee Presence en paralelo desde el endpoint no-store existente,
-fuera de la caché de preview y sin polling. El popup muestra texto más color
-para conectado/offline y el juego para playing; privado, indisponible o fallo se
-omiten silenciosamente.
+La primera apertura inicia preview y Presence en paralelo y mantiene un único
+skeleton hasta que ambas lecturas concluyen, de modo que bio, métricas y estado
+aparecen conjuntamente. Las reaperturas reutilizan en memoria el último
+snapshot resuelto de Presence —incluido `null`— y vuelven a consultar el
+endpoint no-store en segundo plano, sin loader. Un resultado nuevo se aplica
+silenciosamente y un fallo conserva el último snapshot válido. Presence sigue
+fuera de la caché de preview y no tiene polling. El popup muestra Victorias,
+Podios y Medallas (`—`); la preview ya no consulta resultados oficiales. Para
+Presence muestra texto más color para conectado/offline y el juego para
+playing; privado, indisponible o fallo se omiten silenciosamente.
 
 El posicionamiento prefiere `bottom-start`; si no cabe horizontalmente usa
 `bottom-end` y solo después hace clamp con 12 px de margen. Si falta altura,
@@ -193,7 +198,7 @@ deliberada para Presence y no modifica la historia de 0027.
 
 ## PROFILE-PRESENCE-1
 
-La quinta celda `Estado` de `ProfileStats` recibe Presence inicial por SSR y se
+El cuarto bloque `Estado` de `ProfileStats` recibe Presence inicial por SSR y se
 actualiza cada 15 segundos mientras el documento está visible. Los estados
 visuales son `Jugando`, `Conectado`, `Desconectado` y `Privado`; un fallo de
 lectura conserva el último valor válido o muestra `—`, nunca inventa una

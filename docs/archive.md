@@ -121,13 +121,14 @@ mover otra columna y no hay mediciones responsive en JavaScript.
 
 Los slots estabilizan la geometría y el área concreta de tabla y paginación
 mantiene `overflow-anchor: none` para reducir la intervención automática del
-navegador. La garantía real ya no depende de esas defensas: al pulsar página
-anterior o siguiente, `SubmissionsTable` captura el `scrollTop` exacto del
-documento antes de cambiar de página, lo restaura tras el commit React en un
+navegador. La garantía real ya no depende de esas defensas: al paginar o cambiar
+el orden por Intentos, Score o Envío, `SubmissionsTable` captura el `scrollTop`
+exacto del documento antes del cambio, lo restaura tras el commit React en un
 `useLayoutEffect` y lo verifica una sola vez en el siguiente
-`requestAnimationFrame`. La restauración neutraliza temporalmente el smooth
-scroll global para ser instantánea; sort, reset, tamaño de página, clamping y
-cambios externos de datos no reutilizan una posición pendiente.
+`requestAnimationFrame`. Sorting mantiene su semántica de volver a página 1,
+también si ya estaba en ella. La restauración neutraliza temporalmente el smooth
+scroll global para ser instantánea; reset, tamaño de página, clamping y cambios
+externos de datos no reutilizan una posición pendiente.
 
 Cuando la instancia muestra jugadores, la identidad usa siempre
 `PlayerPill variant="submission"`: avatar compacto más siglas, también en móvil.

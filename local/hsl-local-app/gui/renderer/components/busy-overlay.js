@@ -96,6 +96,12 @@ const BUSY_CONTENT_BY_LABEL = Object.freeze({
     variant: "working",
   },
 
+  "Comprobando pack": {
+    title: "Comprobando pack...",
+    hint: "Validando su estado competitivo.",
+    variant: "working",
+  },
+
   "Actualizando": {
     title: "Actualizando...",
     hint: "Espera un momento...",

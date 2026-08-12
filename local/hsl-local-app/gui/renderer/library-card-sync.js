@@ -38,7 +38,7 @@ function syncLibraryPackFavorite(card, pack, state, interaction) {
   const active = Boolean(pack.favorite);
   const blocked = !state.data?.session?.hasSession || pack.favoriteDisabled || pack.duplicatePackId;
   const label = blocked
-    ? "Inicia sesiÃ³n para marcar favoritos"
+    ? "Inicia sesión para marcar favoritos"
     : active ? "Quitar de favoritos" : "Marcar como favorito";
   favorite.disabled = interaction.favoriteDisabled;
   favorite.classList.toggle("favorite-slot--active", active);

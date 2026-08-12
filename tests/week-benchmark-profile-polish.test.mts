@@ -142,12 +142,15 @@ test("Presence presentation supplies text plus color and hides private compact s
   assert.equal(getPlayerPresencePresentation({ visibility: "unavailable" }, "compact"), null);
 });
 
-test("hover Presence is a fresh parallel snapshot and does not enter preview cache", async () => {
+test("hover Presence reuses its last snapshot, revalidates no-store and stays outside preview cache", async () => {
   const hover = await read("components", "player-hover-card.tsx");
   assert.match(hover, /requestPlayerPresence[\s\S]*\/presence/);
   assert.match(hover, /cache: "no-store"/);
   assert.match(hover, /requestPlayerPresence\(player\)/);
   assert.match(hover, /requestPlayerPreview\(player\)/);
+  assert.match(hover, /getPlayerHoverPresenceSnapshot\(key\)/);
+  assert.match(hover, /rememberPlayerHoverPresence\(key, result\.presence\)/);
+  assert.match(hover, /presenceSnapshot\.resolved \? "ready" : "loading"/);
   assert.match(hover, /PlayerPresenceIndicator[\s\S]*variant="compact"/);
   assert.doesNotMatch(hover, /setInterval[\s\S]*requestPlayerPresence/);
   const cache = await read("lib", "player-profile-preview-cache.ts");

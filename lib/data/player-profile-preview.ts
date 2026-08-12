@@ -13,7 +13,6 @@ export type PlayerProfilePreview = {
   stats: {
     victories: number;
     podiums: number;
-    officialResults: number;
   } | null;
 };
 
@@ -50,7 +49,7 @@ export async function getPlayerProfilePreview(
     return { status: "not-found", preview: null };
   }
 
-  const [victories, podiums, officialResults] = await Promise.all([
+  const [victories, podiums] = await Promise.all([
     supabase
       .from("weekly_results")
       .select("id", { count: "exact", head: true })
@@ -63,14 +62,8 @@ export async function getPlayerProfilePreview(
       .or(
         "is_first_place.eq.true,is_second_place.eq.true,is_third_place.eq.true",
       ),
-    supabase
-      .from("weekly_results")
-      .select("id", { count: "exact", head: true })
-      .eq("player_id", profile.id),
   ]);
-  const statsUnavailable = Boolean(
-    victories.error || podiums.error || officialResults.error,
-  );
+  const statsUnavailable = Boolean(victories.error || podiums.error);
 
   return {
     status: "ok",
@@ -91,7 +84,6 @@ export async function getPlayerProfilePreview(
         : {
             victories: victories.count ?? 0,
             podiums: podiums.count ?? 0,
-            officialResults: officialResults.count ?? 0,
           },
     },
   };

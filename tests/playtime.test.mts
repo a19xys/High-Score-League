@@ -94,13 +94,13 @@ test("migrations keep Playtime transactional and idempotent while changing only 
   assert.doesNotMatch(defaults, /update\s+public\.profiles/i);
 });
 
-test("profile UI has a fifth card and persists only the new visibility preference", async () => {
+test("profile UI keeps Playtime in the four-block summary and persists only its visibility preference", async () => {
   const [stats, editor, route] = await Promise.all([
     readFile(join(process.cwd(), "components/profile/profile-stats.tsx"), "utf8"),
     readFile(join(process.cwd(), "components/profile/profile-editor.tsx"), "utf8"),
     readFile(join(process.cwd(), "app/api/launcher/playtime/ingest/route.ts"), "utf8"),
   ]);
-  assert.match(stats, /lg:grid-cols-5/);
+  assert.match(stats, /lg:grid-cols-4/);
   assert.match(stats, /Esta información no se muestra al resto/);
   assert.match(editor, /play_time_public: !hidePlayTime/);
   assert.match(editor, /profile\?\.play_time_public === false/);

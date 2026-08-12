@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { calculatePlayerHoverCardPosition } from "../lib/player-hover-card-position.ts";
+import {
+  getPlayerHoverPresenceSnapshot,
+  rememberPlayerHoverPresence,
+  resetPlayerHoverPresenceSnapshots,
+} from "../lib/player-hover-presence-snapshots.ts";
 
 const position = (trigger: {
   bottom: number;
@@ -84,4 +89,53 @@ test("hover card keeps a positive close grace, popup cancellation and tombstones
   assert.doesNotMatch(topThree, /PlayerHoverCard[\s\S]{0,240}hover:bg/);
   assert.doesNotMatch(chat, /PlayerHoverCard[\s\S]{0,220}hover:text-circuit/);
   assert.match(podium, /PlayerHoverCard/);
+});
+
+test("hover Presence snapshots distinguish unseen players from resolved null", () => {
+  resetPlayerHoverPresenceSnapshots();
+  assert.deepEqual(getPlayerHoverPresenceSnapshot("player-1"), {
+    resolved: false,
+    presence: null,
+  });
+
+  rememberPlayerHoverPresence("player-1", null);
+  assert.deepEqual(getPlayerHoverPresenceSnapshot("player-1"), {
+    resolved: true,
+    presence: null,
+  });
+
+  const playing = {
+    visibility: "visible" as const,
+    status: "playing" as const,
+    game: { id: "game-1", title: "Pac-Man" },
+  };
+  rememberPlayerHoverPresence("player-1", playing);
+  assert.deepEqual(getPlayerHoverPresenceSnapshot("player-1"), {
+    resolved: true,
+    presence: playing,
+  });
+});
+
+test("hover reveals preview and Presence together, then revalidates silently", async () => {
+  const source = await readFile(
+    join(process.cwd(), "components", "player-hover-card.tsx"),
+    "utf8",
+  );
+  const openEffect = source.slice(
+    source.indexOf("const presenceSnapshot = getPlayerHoverPresenceSnapshot(key);", source.indexOf("if (!open || player.isAnonymized)")),
+    source.indexOf("useLayoutEffect", source.indexOf("if (!open || player.isAnonymized)")),
+  );
+
+  assert.match(openEffect, /const presenceRequest = requestPlayerPresence\(player\)/);
+  assert.match(openEffect, /const previewRequest = cached \? null : requestPlayerPreview\(player\)/);
+  assert.ok(openEffect.indexOf("const presenceRequest") < openEffect.indexOf("void previewRequest?.then"));
+  assert.match(source, /const summaryLoading =[\s\S]*previewState === "loading"[\s\S]*presenceState === "loading"/);
+  assert.equal((source.match(/Cargando resumen del perfil/g) ?? []).length, 1);
+  assert.doesNotMatch(source, /Cargando estado/);
+  assert.match(openEffect, /presenceSnapshot\.resolved \? "ready" : "loading"/);
+  assert.match(openEffect, /rememberPlayerHoverPresence\(key, result\.presence\)/);
+  assert.match(openEffect, /if \(!presenceSnapshot\.resolved\)[\s\S]*rememberPlayerHoverPresence\(key, null\)/);
+  assert.doesNotMatch(openEffect, /setPresence\(null\);\s*setPresenceState\("loading"\)/);
+  assert.match(source, /\{ label: "Medallas", value: "—" \}/);
+  assert.doesNotMatch(source, /Resultados|officialResults/);
 });

@@ -13,8 +13,9 @@ de una revisión concreta.
   onboarding inline en `/profile`, rutas privadas con `AccessRequired` y
   comprobación server-side de `is_admin` en las rutas administrativas.
 - Perfiles propio y público con identidad, bio de hasta 150 caracteres, aro de
-  avatar protagonista, cuatro métricas reales más un indicador Presence,
-  hover cards autenticadas con snapshot Presence y tabla de mejores marcas con puesto oficial. El
+  avatar protagonista y una banda 2 × 2 / cuatro columnas con Victorias,
+  Medallas, Tiempo jugado y Estado. Las hover cards autenticadas muestran
+  Victorias, Podios y Medallas y coordinan preview con Presence. El
   perfil propio es un workspace por vistas y mantiene el historial privado
   filtrable por juego.
 - Playtime identificado separado de su visibilidad pública. El propietario ve
@@ -99,8 +100,8 @@ no aplicada remotamente en esta tarea.
   incluso en anchos estrechos; las container queries reservan el marcador sin
   medir contenido con JavaScript.
 - La región de tabla/paginación conserva `overflow-anchor: none` como defensa,
-  pero la paginación anterior/siguiente preserva explícitamente el `scrollTop`
-  del documento: restaura antes del paint tras el commit y vuelve a comprobarlo
+  pero paginación y sorting preservan explícitamente el `scrollTop` del
+  documento: restauran antes del paint tras el commit y vuelven a comprobarlo
   una sola vez en el siguiente frame para absorber ajustes móviles tardíos.
 - La navegación solicita `/brand/logo.png` y la landing
   `/brand/logo-horizontal.png` directamente. El fallback textual sólo aparece

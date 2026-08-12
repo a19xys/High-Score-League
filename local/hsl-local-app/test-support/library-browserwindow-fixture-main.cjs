@@ -426,6 +426,7 @@ async function selectVisiblePack(window, { nearBottom = false, requestedTop = 60
 
 async function passiveLibraryUpdateScenario(window, {
   direct = false,
+  expanded = false,
   expectedStatuses = ["CERRADA"],
   nearBottom = false,
   requestedTop = 600,
@@ -442,6 +443,7 @@ async function passiveLibraryUpdateScenario(window, {
     const scroller = document.querySelector('[data-render-region="library-packs"]');
     scroller.scrollTop = 0;
     window.hslFixture.setManualConnectivityWeekStates(${JSON.stringify(publicStates)});
+    window.hslFixture.setManualConnectivityPublicationMode(${JSON.stringify(expanded ? "expanded" : "simple")});
     document.querySelector('[data-action="set-library-view"][data-view="${view}"]')?.click();
     window.hslFixture.emitWeekStatus('active');
   })()`);
@@ -532,6 +534,7 @@ async function passiveLibraryUpdateScenario(window, {
       scrollerSame: refs.scroller === scroller,
       finalScrollHeight: scroller.scrollHeight,
       finalScrollTop: scroller.scrollTop,
+      publications: window.hslFixture.getManualConnectivityPublications(),
     };
   })()`);
   return {
@@ -539,6 +542,7 @@ async function passiveLibraryUpdateScenario(window, {
     ...final,
     ...summarizeFrameTrace(frames),
     direct,
+    expanded,
     expectedStatuses,
     nearBottom,
     observedStatuses,
@@ -554,11 +558,48 @@ async function passiveRefreshReproduction(window) {
     { view: "list" },
     { view: "icons" },
     { expectedStatuses: ["CERRADA", "ACTIVA", "INACTIVA"], view: "covers" },
+    { expanded: true, view: "covers" },
     { direct: true, view: "covers" },
   ]) {
     scenarios.push(await passiveLibraryUpdateScenario(window, configuration));
   }
   return { scenarios };
+}
+
+async function activationStabilityDiagnostic(window) {
+  await window.webContents.executeJavaScript(`(() => {
+    window.hslFixture.emitMembershipStatus('member');
+    window.hslFixture.emitWeekStatus('active');
+    window.hslFixture.setActivationPublicationMode('revalidate');
+    window.__hslActivationStates = [];
+    const sample = () => {
+      const play = document.querySelector('[data-action="play"]');
+      window.__hslActivationStates.push({
+        overlay: document.querySelector('.busy-overlay__message')?.textContent.trim() || null,
+        playDisabled: play?.disabled ?? null,
+        playTitle: play?.title || null,
+      });
+    };
+    sample();
+    new MutationObserver(sample).observe(document.querySelector('[data-render-region="game-panel"]'), {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+  })()`);
+  await waitForFrames(window, 2);
+  await window.webContents.executeJavaScript(`(() => {
+    const card = [...document.querySelectorAll('.pack-card[data-action="use-library-pack"]')][0];
+    card?.click();
+  })()`);
+  await waitFor(window, "window.hslFixture.getSelectionPhase() === 'refresh'");
+  await waitFor(window, "document.querySelector('[data-action=\"play\"]')?.disabled === true", 12_000);
+  await waitFor(window, "document.querySelector('[data-action=\"play\"]')?.disabled === false", 12_000);
+  await waitFor(window, "!document.querySelector('.busy-overlay')", 12_000);
+  await waitForFrames(window, 4);
+  return window.webContents.executeJavaScript(`(() => window.__hslActivationStates.filter((entry, index, all) => (
+    index === 0 || JSON.stringify(entry) !== JSON.stringify(all[index - 1])
+  )))()`);
 }
 
 async function visualMetrics(window) {
@@ -2276,6 +2317,8 @@ app.whenReady().then(async () => {
         preferences: () => playerPreferencesSmoke(window),
         profiles: () => profileAccountSmoke(window),
         "render-invariants-before": () => passiveRefreshReproduction(window),
+        "interaction-stability-diagnostic": () => passiveLibraryUpdateScenario(window, { expanded: true, view: "covers" }),
+        "activation-stability-diagnostic": () => activationStabilityDiagnostic(window),
         rows: () => iconRows(window),
         signals: async () => ({ hostile: await hostileSignalMetrics(window), shared: await signalMetrics(window) }),
       };

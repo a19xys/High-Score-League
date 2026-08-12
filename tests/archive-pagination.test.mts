@@ -279,12 +279,16 @@ test("document scroll restoration keeps the exact coordinate instant and verifie
   assert.equal(canceledFrame, 17);
 });
 
-test("submission page navigation owns an explicit pending scroll invariant", async () => {
+test("submission pagination and sorting share the exact pending scroll invariant", async () => {
   const [source, helper] = await Promise.all([
     readFile(join(process.cwd(), "components", "submissions-table.tsx"), "utf8"),
     readFile(join(process.cwd(), "lib", "document-scroll-restoration.ts"), "utf8"),
   ]);
-  const handler = source.slice(
+  const preparation = source.slice(
+    source.indexOf("function prepareTableScrollRestore"),
+    source.indexOf("function changePagePreservingScroll"),
+  );
+  const pageHandler = source.slice(
     source.indexOf("function changePagePreservingScroll"),
     source.indexOf("useLayoutEffect", source.indexOf("function changePagePreservingScroll")),
   );
@@ -297,17 +301,29 @@ test("submission page navigation owns an explicit pending scroll invariant", asy
     helper.indexOf("export function cancelDocumentScrollFrame"),
   );
 
-  assert.ok(handler.indexOf("captureDocumentScrollTop()") < handler.indexOf("setPage(nextPage)"));
+  const sortHandler = source.slice(
+    source.indexOf("function toggleSort"),
+    source.indexOf("const hasOwnHiddenScores"),
+  );
+
+  assert.match(preparation, /cancelPendingTableScrollFrame\(\);[\s\S]*pendingTableScrollTopRef\.current = captureDocumentScrollTop\(\)/);
+  assert.ok(pageHandler.indexOf("prepareTableScrollRestore()") < pageHandler.indexOf("setPage(nextPage)"));
   assert.match(source, /onPageChange=\{changePagePreservingScroll\}/);
   assert.doesNotMatch(source, /onPageChange=\{setPage\}/);
-  assert.match(layoutEffect, /const savedScrollTop = pendingPageScrollTopRef\.current/);
+  assert.match(layoutEffect, /const savedScrollTop = pendingTableScrollTopRef\.current/);
   assert.match(layoutEffect, /if \(savedScrollTop === null\) \{\s*return;/);
   assert.match(layoutEffect, /restoreDocumentScrollTop\(savedScrollTop\)/);
   assert.match(layoutEffect, /verifyDocumentScrollTopOnNextFrame/);
-  assert.match(layoutEffect, /return cancelPendingPageScrollFrame/);
-  assert.match(source, /function toggleSort[\s\S]*?clearPendingPageScrollRestore\(\);[\s\S]*?setPage\(1\)/);
-  assert.match(source, /onPageSizeChange=\{\(nextPageSize\) => \{\s*clearPendingPageScrollRestore\(\);/);
-  assert.match(source, /useEffect\(\(\) => \{\s*clearPendingPageScrollRestore\(\);\s*setPage\(1\);\s*\}, \[clearPendingPageScrollRestore, resetKey\]\)/);
+  assert.match(layoutEffect, /return cancelPendingTableScrollFrame/);
+  assert.match(layoutEffect, /safePage, sortDirection, sortKey/);
+  assert.ok(sortHandler.indexOf("prepareTableScrollRestore()") < sortHandler.indexOf("setPage(1)"));
+  assert.match(sortHandler, /nextSortKey === sortKey[\s\S]*setSortDirection\(\(current\) => \(current === "asc" \? "desc" : "asc"\)\)/);
+  for (const key of ["attempt", "score", "submittedAt"]) {
+    assert.match(source, new RegExp(`onClick=\\{\\(\\) => toggleSort\\("${key}"\\)\\}`));
+  }
+  assert.doesNotMatch(sortHandler, /clearPendingTableScrollRestore/);
+  assert.match(source, /onPageSizeChange=\{\(nextPageSize\) => \{\s*clearPendingTableScrollRestore\(\);/);
+  assert.match(source, /useEffect\(\(\) => \{\s*clearPendingTableScrollRestore\(\);\s*setPage\(1\);\s*\}, \[clearPendingTableScrollRestore, resetKey\]\)/);
   assert.match(helper, /document\.scrollingElement/);
   assert.match(helper, /scrollBehavior = "auto"/);
   assert.equal(verification.match(/runtime\.requestFrame\(/g)?.length, 1);

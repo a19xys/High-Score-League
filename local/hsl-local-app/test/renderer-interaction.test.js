@@ -461,6 +461,24 @@ test("rapid A to B selection keeps stale A callbacks from updating B", () => {
   assert.match(app, /requestId !== libraryPackSelectionSequence/);
 });
 
+test("accepted selection stays busy until its matching competitive refresh settles", () => {
+  const app = source("app.js");
+  const refresh = app.slice(
+    app.indexOf("async function refreshRemoteStateAfterPackActivation"),
+    app.indexOf("function withFavoritePatch"),
+  );
+  const activation = app.slice(
+    app.indexOf("async function activateLibraryPackWithPreload"),
+    app.indexOf("function bindActions"),
+  );
+  assert.match(activation, /busy: true,[\s\S]*libraryActivationInProgress: true/);
+  assert.match(activation, /store\.setState\(\{\s*busyLabel: "Comprobando pack"/);
+  assert.match(activation, /refreshRemoteStateAfterPackActivation\([\s\S]*response\.state\?\.selection\?\.activeInstanceKey/);
+  assert.match(refresh, /requestId !== libraryPackSelectionSequence/);
+  assert.match(refresh, /nextData\?\.selection\?\.activeInstanceKey === expectedInstanceKey/);
+  assert.match(refresh, /busy: false,[\s\S]*libraryActivationInProgress: false/);
+});
+
 test("visible preferences cannot roll back after a newer local change", () => {
   const app = source("app.js");
   assert.match(app, /startedWithLibraryPreferenceRevision === libraryPreferenceUserRevision/);

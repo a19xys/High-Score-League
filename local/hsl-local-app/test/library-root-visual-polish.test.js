@@ -139,9 +139,9 @@ test("Lista e Iconos comparten presentación alpha-aware para iconos y cover fal
   assert.match(listHtml, /pack-card__media--icon/);
   assert.match(fallbackHtml, /pack-card__media--cover-fallback/);
   assert.match(finalCss, /\.pack-card--list \.pack-card__media,\s*\n\.pack-card--icons \.pack-card__media[\s\S]*linear-gradient/);
-  assert.match(finalCss, /data-art-presentation="transparent"[\s\S]*object-fit: contain[\s\S]*filter: var\(--icon-art-edge\)[\s\S]*padding: 10%/);
-  assert.match(finalCss, /data-art-presentation="opaque"[\s\S]*object-fit: cover[\s\S]*filter: none[\s\S]*padding: 0/);
-  assert.match(finalCss, /data-art-presentation="unknown"[\s\S]*object-fit: contain[\s\S]*padding: 10%/);
+  assert.match(finalCss, /\.pack-card--list \.pack-card__media\[data-art-presentation="transparent"\] \.pack-card__art,\s*\n\.pack-card--icons \.pack-card__media\[data-art-presentation="transparent"\] \.pack-card__art\s*\{[^}]*object-fit: contain[^}]*filter: var\(--icon-art-edge\)[^}]*padding: 4%/);
+  assert.match(finalCss, /\.pack-card--list \.pack-card__media\[data-art-presentation="opaque"\] \.pack-card__art,\s*\n\.pack-card--icons \.pack-card__media\[data-art-presentation="opaque"\] \.pack-card__art\s*\{[^}]*object-fit: cover[^}]*filter: none[^}]*padding: 0/);
+  assert.match(finalCss, /\.pack-card--list \.pack-card__media\[data-art-presentation="unknown"\] \.pack-card__art,\s*\n\.pack-card--icons \.pack-card__media\[data-art-presentation="unknown"\] \.pack-card__art\s*\{[^}]*object-fit: contain[^}]*padding: 10%/);
   assert.match(tokens, /--icon-stage-base:/);
   assert.match(tokens, /--icon-stage-highlight:/);
   assert.match(tokens, /--icon-stage-shadow:/);
@@ -198,7 +198,7 @@ test("titulo monotono, signal beacon, ring unico y subtitulo estructural compart
   assert.match(gamePanel, /game-week-icon text-companion-icon/);
   assert.match(html, /pack-card__subtitle-text/);
   assert.match(finalCss, /\.pack-card__subtitle \{[\s\S]*display: flex[\s\S]*align-items: baseline/);
-  assert.match(finalCss, /\.ui-icon\.text-companion-icon\s*\{[^}]*display: inline-block[^}]*inline-size: 1\.12cap[^}]*block-size: 1\.12cap[^}]*flex: 0 0 1\.12cap[^}]*vertical-align: baseline/);
+  assert.match(finalCss, /\.ui-icon\.text-companion-icon\s*\{[^}]*display: inline-block[^}]*inline-size: 1\.16cap[^}]*block-size: 1\.16cap[^}]*flex: 0 0 1\.16cap[^}]*vertical-align: baseline/);
   assert.match(styles, /\.game-week-subtitle\s*\{[^}]*align-items: baseline/);
   assert.match(finalCss, /\.pack-card__subtitle-text[\s\S]*text-overflow: ellipsis/);
   assert.match(finalCss, /\.pack-card--icons \.pack-card__body\s*\{[^}]*display: flex[^}]*align-items: stretch[^}]*justify-content: center/);

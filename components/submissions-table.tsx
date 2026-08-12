@@ -432,8 +432,8 @@ export function SubmissionsTable({
   const [ownHiddenScoresRevealed, setOwnHiddenScoresRevealed] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<TablePageSize>(10);
-  const pendingPageScrollTopRef = useRef<number | null>(null);
-  const pageScrollFrameRef = useRef<number | null>(null);
+  const pendingTableScrollTopRef = useRef<number | null>(null);
+  const tableScrollFrameRef = useRef<number | null>(null);
 
   const decoratedSubmissions = useMemo(
     () =>
@@ -465,47 +465,51 @@ export function SubmissionsTable({
     [decoratedSubmissions, showWeek],
   );
 
-  const cancelPendingPageScrollFrame = useCallback(() => {
-    if (pageScrollFrameRef.current === null) {
+  const cancelPendingTableScrollFrame = useCallback(() => {
+    if (tableScrollFrameRef.current === null) {
       return;
     }
 
-    cancelDocumentScrollFrame(pageScrollFrameRef.current);
-    pageScrollFrameRef.current = null;
+    cancelDocumentScrollFrame(tableScrollFrameRef.current);
+    tableScrollFrameRef.current = null;
   }, []);
 
-  const clearPendingPageScrollRestore = useCallback(() => {
-    pendingPageScrollTopRef.current = null;
-    cancelPendingPageScrollFrame();
-  }, [cancelPendingPageScrollFrame]);
+  const clearPendingTableScrollRestore = useCallback(() => {
+    pendingTableScrollTopRef.current = null;
+    cancelPendingTableScrollFrame();
+  }, [cancelPendingTableScrollFrame]);
+
+  function prepareTableScrollRestore() {
+    cancelPendingTableScrollFrame();
+    pendingTableScrollTopRef.current = captureDocumentScrollTop();
+  }
 
   function changePagePreservingScroll(nextPage: number) {
-    cancelPendingPageScrollFrame();
-    pendingPageScrollTopRef.current = captureDocumentScrollTop();
+    prepareTableScrollRestore();
     setPage(nextPage);
   }
 
   useLayoutEffect(() => {
-    const savedScrollTop = pendingPageScrollTopRef.current;
+    const savedScrollTop = pendingTableScrollTopRef.current;
 
     if (savedScrollTop === null) {
       return;
     }
 
-    pendingPageScrollTopRef.current = null;
-    cancelPendingPageScrollFrame();
+    pendingTableScrollTopRef.current = null;
+    cancelPendingTableScrollFrame();
 
     // Mobile engines can adjust document scroll after paginated rows are replaced.
     restoreDocumentScrollTop(savedScrollTop);
-    pageScrollFrameRef.current = verifyDocumentScrollTopOnNextFrame(
+    tableScrollFrameRef.current = verifyDocumentScrollTopOnNextFrame(
       savedScrollTop,
       () => {
-        pageScrollFrameRef.current = null;
+        tableScrollFrameRef.current = null;
       },
     );
 
-    return cancelPendingPageScrollFrame;
-  }, [cancelPendingPageScrollFrame, safePage]);
+    return cancelPendingTableScrollFrame;
+  }, [cancelPendingTableScrollFrame, safePage, sortDirection, sortKey]);
 
   useEffect(() => {
     if (page !== safePage) {
@@ -514,12 +518,12 @@ export function SubmissionsTable({
   }, [page, safePage]);
 
   useEffect(() => {
-    clearPendingPageScrollRestore();
+    clearPendingTableScrollRestore();
     setPage(1);
-  }, [clearPendingPageScrollRestore, resetKey]);
+  }, [clearPendingTableScrollRestore, resetKey]);
 
   function toggleSort(nextSortKey: SortKey) {
-    clearPendingPageScrollRestore();
+    prepareTableScrollRestore();
     setPage(1);
 
     if (nextSortKey === sortKey) {
@@ -755,7 +759,7 @@ export function SubmissionsTable({
       <TablePagination
         onPageChange={changePagePreservingScroll}
         onPageSizeChange={(nextPageSize) => {
-          clearPendingPageScrollRestore();
+          clearPendingTableScrollRestore();
           setPageSize(nextPageSize);
           setPage(1);
         }}

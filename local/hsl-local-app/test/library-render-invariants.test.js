@@ -289,3 +289,9 @@ test("passive connectivity paths contain no scroll reset or compensation", () =>
   const planSource = fs.readFileSync(path.join(rendererDir, "library-render-plan.js"), "utf8");
   assert.doesNotMatch(`${syncSource}\n${planSource}`, /scrollTop|scrollIntoView|requestAnimationFrame|setTimeout/);
 });
+
+test("incremental favorite fallback copy is valid UTF-8 Spanish", () => {
+  const syncSource = fs.readFileSync(path.join(rendererDir, "library-card-sync.js"), "utf8");
+  assert.match(syncSource, /Inicia sesión para marcar favoritos/);
+  assert.doesNotMatch(syncSource, /Inicia sesiÃ/);
+});

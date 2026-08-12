@@ -299,13 +299,14 @@ test("BrowserWindow preserves cards and scroll during passive connectivity refre
     windowsHide: true,
   });
   const result = JSON.parse(stdout.trim());
-  assert.deepEqual(result.scenarios.map(({ direct, expectedStatuses, nearBottom, view }) => ({ direct, expectedStatuses, nearBottom, view })), [
-    { direct: false, expectedStatuses: ["CERRADA"], nearBottom: false, view: "covers" },
-    { direct: false, expectedStatuses: ["CERRADA"], nearBottom: true, view: "covers" },
-    { direct: false, expectedStatuses: ["CERRADA"], nearBottom: false, view: "list" },
-    { direct: false, expectedStatuses: ["CERRADA"], nearBottom: false, view: "icons" },
-    { direct: false, expectedStatuses: ["CERRADA", "ACTIVA", "INACTIVA"], nearBottom: false, view: "covers" },
-    { direct: true, expectedStatuses: ["CERRADA"], nearBottom: false, view: "covers" },
+  assert.deepEqual(result.scenarios.map(({ direct, expanded, expectedStatuses, nearBottom, view }) => ({ direct, expanded, expectedStatuses, nearBottom, view })), [
+    { direct: false, expanded: false, expectedStatuses: ["CERRADA"], nearBottom: false, view: "covers" },
+    { direct: false, expanded: false, expectedStatuses: ["CERRADA"], nearBottom: true, view: "covers" },
+    { direct: false, expanded: false, expectedStatuses: ["CERRADA"], nearBottom: false, view: "list" },
+    { direct: false, expanded: false, expectedStatuses: ["CERRADA"], nearBottom: false, view: "icons" },
+    { direct: false, expanded: false, expectedStatuses: ["CERRADA", "ACTIVA", "INACTIVA"], nearBottom: false, view: "covers" },
+    { direct: false, expanded: true, expectedStatuses: ["CERRADA"], nearBottom: false, view: "covers" },
+    { direct: true, expanded: false, expectedStatuses: ["CERRADA"], nearBottom: false, view: "covers" },
   ]);
   for (const scenario of result.scenarios) {
     const label = `${scenario.view}:${scenario.nearBottom ? "bottom" : "middle"}:${scenario.direct ? "direct" : "manual"}`;
@@ -337,5 +338,48 @@ test("BrowserWindow preserves cards and scroll during passive connectivity refre
       label,
     );
     assert.equal(scenario.focusAfter, scenario.direct ? scenario.focusBefore : "refresh-connectivity", label);
+    if (scenario.expanded) {
+      assert.deepEqual(scenario.publications, [
+        "connectivity-start",
+        "deployment-context",
+        "membership-checking",
+        "profile-and-membership",
+        "ranking-capabilities",
+        "connectivity-settled",
+        "week-final",
+      ], label);
+    }
   }
+});
+
+test("BrowserWindow keeps JUGAR disabled through accepted pack revalidation", { skip: !enabled, timeout: 60_000 }, async () => {
+  const electron = require("electron");
+  const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
+  const { stdout } = await execFileAsync(electron, [fixture], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      HSL_LIBRARY_CHECK_ONLY: "activation-stability-diagnostic",
+      HSL_LIBRARY_QUIET: "1",
+    },
+    maxBuffer: 2 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const trace = JSON.parse(stdout.trim());
+  assert.deepEqual(trace.map(({ playDisabled }) => playDisabled), [false, true, true, true, false]);
+  assert.deepEqual(trace.map(({ playTitle }) => playTitle), [
+    "Jugar",
+    "Activando pack",
+    "Comprobando pack",
+    "Comprobando participación",
+    "Jugar",
+  ]);
+  assert.deepEqual(trace.map(({ overlay }) => overlay), [
+    null,
+    "Activando pack...",
+    "Comprobando pack...",
+    null,
+    null,
+  ]);
 });

@@ -22,6 +22,10 @@ import {
   getCachedPlayerProfilePreview,
   requestCachedPlayerProfilePreview,
 } from "@/lib/player-profile-preview-cache";
+import {
+  getPlayerHoverPresenceSnapshot,
+  rememberPlayerHoverPresence,
+} from "@/lib/player-hover-presence-snapshots";
 import { getProfileBioDisplay } from "@/lib/profile";
 import {
   calculatePlayerHoverCardPosition,
@@ -59,6 +63,10 @@ type PresencePayload = {
   presence?: PlayerPresence;
 };
 
+type PresenceRequestResult =
+  | { status: "resolved"; presence: PlayerPresence | null }
+  | { status: "error" };
+
 function playerCacheKey(player: Player) {
   return player.id || player.username;
 }
@@ -92,20 +100,30 @@ async function requestPlayerPreview(player: Player) {
   );
 }
 
-async function requestPlayerPresence(player: Player) {
-  const response = await fetch(
-    `/api/players/${encodeURIComponent(player.username)}/presence`,
-    {
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    },
-  );
+async function requestPlayerPresence(
+  player: Player,
+): Promise<PresenceRequestResult> {
+  try {
+    const response = await fetch(
+      `/api/players/${encodeURIComponent(player.username)}/presence`,
+      {
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      },
+    );
 
-  if (!response.ok) return null;
-  const payload = (await response.json()) as PresencePayload;
-  if (!payload.ok || !payload.presence) return null;
-  return payload.presence.visibility === "visible" ? payload.presence : null;
+    if (!response.ok) return { status: "error" };
+    const payload = (await response.json()) as PresencePayload;
+    if (!payload.ok || !payload.presence) return { status: "error" };
+    return {
+      status: "resolved",
+      presence:
+        payload.presence.visibility === "visible" ? payload.presence : null,
+    };
+  } catch {
+    return { status: "error" };
+  }
 }
 
 function getTriggerElement(wrapper: HTMLSpanElement | null) {
@@ -180,6 +198,9 @@ export function PlayerHoverCard({
         playerId: player.id,
         username: player.username,
       });
+  const cachedPresenceSnapshot = player.isAnonymized
+    ? { resolved: false as const, presence: null }
+    : getPlayerHoverPresenceSnapshot(key);
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<HoverCardPosition | null>(null);
@@ -189,9 +210,11 @@ export function PlayerHoverCard({
   const [previewState, setPreviewState] = useState<
     "idle" | "loading" | "ready" | "error"
   >(cachedPreview ? "ready" : "idle");
-  const [presence, setPresence] = useState<PlayerPresence | null>(null);
+  const [presence, setPresence] = useState<PlayerPresence | null>(
+    cachedPresenceSnapshot.presence,
+  );
   const [presenceState, setPresenceState] = useState<"idle" | "loading" | "ready">(
-    "idle",
+    cachedPresenceSnapshot.resolved ? "ready" : "idle",
   );
 
   const isCurrentUser =
@@ -271,6 +294,8 @@ export function PlayerHoverCard({
     if (player.isAnonymized) {
       setPreview(null);
       setPreviewState("idle");
+      setPresence(null);
+      setPresenceState("idle");
       setOpen(false);
       return;
     }
@@ -279,10 +304,11 @@ export function PlayerHoverCard({
       playerId: player.id,
       username: player.username,
     });
+    const presenceSnapshot = getPlayerHoverPresenceSnapshot(key);
     setPreview(cached);
     setPreviewState(cached ? "ready" : "idle");
-    setPresence(null);
-    setPresenceState("idle");
+    setPresence(presenceSnapshot.presence);
+    setPresenceState(presenceSnapshot.resolved ? "ready" : "idle");
     setOpen(false);
   }, [key, player.id, player.isAnonymized, player.username]);
 
@@ -292,25 +318,16 @@ export function PlayerHoverCard({
     }
 
     let active = true;
-    setPresence(null);
-    setPresenceState("loading");
-    void requestPlayerPresence(player).then(
-      (nextPresence) => {
-        if (!active) return;
-        setPresence(nextPresence);
-        setPresenceState("ready");
-      },
-      () => {
-        if (!active) return;
-        setPresence(null);
-        setPresenceState("ready");
-      },
-    );
-
     const cached = getCachedPlayerProfilePreview({
       playerId: player.id,
       username: player.username,
     });
+    const presenceSnapshot = getPlayerHoverPresenceSnapshot(key);
+    const presenceRequest = requestPlayerPresence(player);
+    const previewRequest = cached ? null : requestPlayerPreview(player);
+
+    setPresence(presenceSnapshot.presence);
+    setPresenceState(presenceSnapshot.resolved ? "ready" : "loading");
 
     if (cached) {
       setPreview(cached);
@@ -319,7 +336,7 @@ export function PlayerHoverCard({
       setPreview(null);
       setPreviewState("loading");
 
-      void requestPlayerPreview(player).then(
+      void previewRequest?.then(
         (nextPreview) => {
           if (!active) return;
           setPreview(nextPreview);
@@ -330,6 +347,23 @@ export function PlayerHoverCard({
         },
       );
     }
+
+    void presenceRequest.then((result) => {
+      if (!active) return;
+
+      if (result.status === "resolved") {
+        rememberPlayerHoverPresence(key, result.presence);
+        setPresence(result.presence);
+        setPresenceState("ready");
+        return;
+      }
+
+      if (!presenceSnapshot.resolved) {
+        rememberPlayerHoverPresence(key, null);
+        setPresence(null);
+        setPresenceState("ready");
+      }
+    });
 
     return () => {
       active = false;
@@ -422,6 +456,11 @@ export function PlayerHoverCard({
   }
 
   const stats = preview?.stats ?? null;
+  const summaryLoading =
+    previewState === "idle" ||
+    previewState === "loading" ||
+    presenceState === "idle" ||
+    presenceState === "loading";
   const card = (
     <div
       className={`fixed z-[100] w-[min(20rem,calc(100vw-1.5rem))] ${
@@ -490,62 +529,64 @@ export function PlayerHoverCard({
           </div>
         </div>
 
-        {presenceState === "loading" ? (
-          <div aria-label="Cargando estado" className="mt-3 min-h-5" role="status">
+        {summaryLoading ? (
+          <div
+            aria-label="Cargando resumen del perfil"
+            className="mt-4 space-y-4"
+            role="status"
+          >
             <LoadingLine className="h-2.5 w-24" />
-          </div>
-        ) : presence ? (
-          <div className="mt-3 min-h-5">
-            <PlayerPresenceIndicator presence={presence} variant="compact" />
-          </div>
-        ) : null}
-
-        <div className="mt-4">
-          {previewState === "loading" ? (
-            <div
-              aria-label="Cargando resumen del perfil"
-              className="space-y-2"
-              role="status"
-            >
+            <div className="space-y-2">
               <LoadingLine className="h-3 w-full" />
               <LoadingLine className="h-3 w-5/6" />
             </div>
-          ) : (
-            <p className="whitespace-pre-wrap break-words text-sm leading-5 theme-text-muted">
-              {getProfileBioDisplay(identity.bio)}
-            </p>
-          )}
-        </div>
+            <div className="grid grid-cols-3 gap-2 border-y py-3 theme-border">
+              {["victories", "podiums", "medals"].map((item) => (
+                <div className="space-y-2 text-center" key={item}>
+                  <LoadingLine className="mx-auto h-4 w-8" />
+                  <LoadingLine className="mx-auto h-2.5 w-12" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            {presence ? (
+              <div className="mt-3 min-h-5">
+                <PlayerPresenceIndicator presence={presence} variant="compact" />
+              </div>
+            ) : null}
 
-        <div className="mt-4 grid grid-cols-3 gap-2 border-y py-3 theme-border">
-          {previewState === "loading" ? (
-            ["victories", "podiums", "results"].map((item) => (
-              <div className="space-y-2 text-center" key={item}>
-                <LoadingLine className="mx-auto h-4 w-8" />
-                <LoadingLine className="mx-auto h-2.5 w-12" />
-              </div>
-            ))
-          ) : stats ? (
-            [
-              { label: "Victorias", value: stats.victories },
-              { label: "Podios", value: stats.podiums },
-              { label: "Resultados", value: stats.officialResults },
-            ].map((stat) => (
-              <div className="min-w-0 text-center" key={stat.label}>
-                <p className="text-lg font-black leading-none theme-text">
-                  {stat.value}
+            <div className="mt-4">
+              <p className="whitespace-pre-wrap break-words text-sm leading-5 theme-text-muted">
+                {getProfileBioDisplay(identity.bio)}
+              </p>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 border-y py-3 theme-border">
+              {stats ? (
+                [
+                  { label: "Victorias", value: stats.victories },
+                  { label: "Podios", value: stats.podiums },
+                  { label: "Medallas", value: "—" },
+                ].map((stat) => (
+                  <div className="min-w-0 text-center" key={stat.label}>
+                    <p className="text-lg font-black leading-none theme-text">
+                      {stat.value}
+                    </p>
+                    <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wide theme-text-muted">
+                      {stat.label}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="col-span-3 self-center text-center text-xs theme-text-muted">
+                  El resumen competitivo no está disponible ahora.
                 </p>
-                <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wide theme-text-muted">
-                  {stat.label}
-                </p>
-              </div>
-            ))
-          ) : (
-            <p className="col-span-3 self-center text-center text-xs theme-text-muted">
-              El resumen competitivo no está disponible ahora.
-            </p>
-          )}
-        </div>
+              )}
+            </div>
+          </>
+        )}
 
         <Link
           aria-label={
