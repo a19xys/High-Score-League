@@ -48,16 +48,16 @@ function getVisualRows(entries: LeaderboardEntry[], benchmarks: WeekBenchmark[])
 }
 
 function BenchmarkImage({ benchmark }: { benchmark: WeekBenchmark }) {
-  if (!benchmark.imageUrl) {
-    return (
-      <span className="inline-flex h-8 min-w-8 items-center justify-center rounded border px-1 text-[9px] font-black tracking-wide theme-border theme-text-muted">
-        REF
-      </span>
-    );
-  }
-
   return (
-    <img alt="" className="h-8 w-8 object-contain" src={benchmark.imageUrl} />
+    <span className="flex w-full items-center justify-center">
+      {benchmark.imageUrl ? (
+        <img alt="" className="h-8 w-8 object-contain" src={benchmark.imageUrl} />
+      ) : (
+        <span className="inline-flex h-8 min-w-8 items-center justify-center rounded border px-1 text-[9px] font-black tracking-wide theme-border theme-text-muted">
+          REF
+        </span>
+      )}
+    </span>
   );
 }
 

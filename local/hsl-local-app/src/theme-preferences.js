@@ -2,6 +2,8 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
+const { atomicWriteJson } = require("./secure-session-storage");
+const { normalizePreferenceScope } = require("./preference-scope");
 
 const THEME_SCHEMA_VERSION = 1;
 const VALID_THEMES = new Set(["light", "dark"]);
@@ -25,13 +27,21 @@ function themeBackgroundColor(theme) {
   return theme === "light" ? "#eef4fb" : "#0f172a";
 }
 
-function getThemePreferenceDirectory(userDataDir) {
+function getThemePreferenceDirectory(userDataDir, scope = {}) {
   if (!userDataDir) throw new Error("userDataDir es obligatorio para el tema.");
+  const preferenceScope = normalizePreferenceScope(scope);
+  if (preferenceScope.scope === "player") {
+    return path.join(userDataDir, "players", preferenceScope.playerKey, "preferences");
+  }
   return path.join(userDataDir, "hsl", "preferences");
 }
 
-function getThemePreferencePath(userDataDir) {
-  return path.join(getThemePreferenceDirectory(userDataDir), "theme.json");
+function getThemePreferencePath(userDataDir, scope = {}) {
+  return path.join(getThemePreferenceDirectory(userDataDir, scope), "theme.json");
+}
+
+function getPlayerThemeMigrationPath(userDataDir) {
+  return path.join(getThemePreferenceDirectory(userDataDir), "player-theme-migration.json");
 }
 
 function getLegacyThemePreferencePath(userDataDir) {
@@ -307,14 +317,19 @@ function writeThemeStateSync(filePath, state) {
   }
 }
 
-async function readThemePreferenceSource(userDataDir) {
-  const filePath = getThemePreferencePath(userDataDir);
+async function readThemePreferenceSource(userDataDir, scope = {}) {
+  const preferenceScope = normalizePreferenceScope(scope);
+  const filePath = getThemePreferencePath(userDataDir, preferenceScope);
   try {
     return { contents: await fsp.readFile(filePath, "utf8"), origin: "canonical", warnings: [] };
   } catch (error) {
     if (error.code !== "ENOENT") {
       return { contents: "{invalid", origin: "canonical", warnings: ["theme-preference-read-failed"] };
     }
+  }
+
+  if (preferenceScope.scope === "player") {
+    return { contents: null, origin: "missing", warnings: [] };
   }
 
   const legacyFilePath = getLegacyThemePreferencePath(userDataDir);
@@ -341,11 +356,12 @@ async function readThemePreferenceSource(userDataDir) {
   }
 }
 
-function createThemeAuthority({ now, readSystemTheme, userDataDir }) {
-  const filePath = getThemePreferencePath(userDataDir);
-  let state = null;
-  let initialPreferenceKind = "missing";
-  let mutationTail = Promise.resolve();
+function createThemeAuthority({ now, readSystemTheme, userDataDir, writeThemeStateImpl = writeThemeState }) {
+  const states = new Map();
+  const initialPreferenceKinds = new Map();
+  const mutationTails = new Map();
+  let activeScope = normalizePreferenceScope();
+  let switchGeneration = 0;
 
   function observeSystemTheme() {
     try {
@@ -355,37 +371,122 @@ function createThemeAuthority({ now, readSystemTheme, userDataDir }) {
     }
   }
 
-  async function initialize() {
-    const preferenceSource = await readThemePreferenceSource(userDataDir);
-    const contents = preferenceSource.contents;
-    initialPreferenceKind = parseThemePreference(contents).kind;
-    let next = resolveThemeForStartup(contents, observeSystemTheme(), { now: now?.() });
+  function stateFor(scope) {
+    const preferenceScope = normalizePreferenceScope(scope);
+    const state = states.get(preferenceScope.scopeKey);
+    return state ? {
+      ...state,
+      playerKey: preferenceScope.playerKey,
+      scope: preferenceScope.scope,
+      scopeKey: preferenceScope.scopeKey,
+      warnings: [...state.warnings],
+    } : null;
+  }
+
+  async function readMigrationMarker() {
+    try {
+      const parsed = JSON.parse(await fsp.readFile(getPlayerThemeMigrationPath(userDataDir), "utf8"));
+      return typeof parsed?.playerKey === "string" && parsed.playerKey ? parsed : { invalid: true };
+    } catch (error) {
+      return error.code === "ENOENT" ? null : { invalid: true };
+    }
+  }
+
+  async function claimGlobalMigration(scope) {
+    const marker = await readMigrationMarker();
+    if (marker?.invalid) return false;
+    if (marker?.playerKey) return marker.playerKey === scope.playerKey;
+    await atomicWriteJson(getPlayerThemeMigrationPath(userDataDir), {
+      playerKey: scope.playerKey,
+      schemaVersion: 1,
+      status: "pending",
+      updatedAt: now?.() || new Date().toISOString(),
+    });
+    return true;
+  }
+
+  async function completeGlobalMigration(scope) {
+    await atomicWriteJson(getPlayerThemeMigrationPath(userDataDir), {
+      playerKey: scope.playerKey,
+      schemaVersion: 1,
+      status: "claimed",
+      updatedAt: now?.() || new Date().toISOString(),
+    });
+  }
+
+  async function loadScope(scope) {
+    const preferenceScope = normalizePreferenceScope(scope);
+    let preferenceSource = await readThemePreferenceSource(userDataDir, preferenceScope);
+    let parsed = parseThemePreference(preferenceSource.contents);
+    let migratedGlobal = false;
+
+    if (preferenceScope.scope === "player" && parsed.kind === "missing") {
+      const globalSource = await readThemePreferenceSource(userDataDir);
+      const globalParsed = parseThemePreference(globalSource.contents);
+      if (!["missing", "invalid"].includes(globalParsed.kind) && await claimGlobalMigration(preferenceScope)) {
+        preferenceSource = {
+          contents: globalSource.contents,
+          origin: "global-player-migration",
+          warnings: [...globalSource.warnings, "global-theme-migrated-to-player"],
+        };
+        parsed = globalParsed;
+        migratedGlobal = true;
+      }
+    }
+
+    initialPreferenceKinds.set(preferenceScope.scopeKey, parsed.kind);
+    let next = resolveThemeForStartup(preferenceSource.contents, observeSystemTheme(), { now: now?.() });
     next = {
       ...next,
-      source: preferenceSource.origin === "legacy-layout" ? `${next.source}-legacy-layout` : next.source,
+      source: preferenceSource.origin === "legacy-layout"
+        ? `${next.source}-legacy-layout`
+        : preferenceSource.origin === "global-player-migration"
+          ? `${next.source}-global-player-migration`
+          : next.source,
       warnings: [...new Set([...next.warnings, ...preferenceSource.warnings])],
     };
     try {
-      await writeThemeState(filePath, next);
+      await writeThemeStateImpl(getThemePreferencePath(userDataDir, preferenceScope), next);
+      if (migratedGlobal) await completeGlobalMigration(preferenceScope);
     } catch (error) {
       next = { ...next, warnings: [...new Set([...next.warnings, themePersistenceErrorCode(error)])] };
     }
-    state = next;
-    return getState();
+    states.set(preferenceScope.scopeKey, next);
+    return stateFor(preferenceScope);
+  }
+
+  async function switchScope(scope = {}) {
+    const preferenceScope = normalizePreferenceScope(scope);
+    const generation = ++switchGeneration;
+    const loaded = states.has(preferenceScope.scopeKey)
+      ? stateFor(preferenceScope)
+      : await loadScope(preferenceScope);
+    if (generation === switchGeneration) activeScope = preferenceScope;
+    return loaded;
+  }
+
+  async function initialize(scope = {}) {
+    return switchScope(scope);
   }
 
   function getState() {
-    return state ? { ...state, warnings: [...state.warnings] } : null;
+    return stateFor(activeScope);
+  }
+
+  function getScope() {
+    return { ...activeScope };
   }
 
   function canMigrateRendererLegacyTheme() {
-    return initialPreferenceKind === "missing" || initialPreferenceKind === "invalid";
+    const kind = initialPreferenceKinds.get(activeScope.scopeKey) || "missing";
+    return kind === "missing" || kind === "invalid";
   }
 
   function migrateRendererLegacyThemeSync(theme) {
     if (!canMigrateRendererLegacyTheme()) return getState();
     const legacyTheme = normalizeTheme(theme);
     if (!legacyTheme) return getState();
+    const targetScope = { ...activeScope };
     const next = canonicalThemeState({
       effectiveTheme: legacyTheme,
       lastSystemTheme: observeSystemTheme(),
@@ -395,29 +496,41 @@ function createThemeAuthority({ now, readSystemTheme, userDataDir }) {
       source: "renderer-legacy-migrated",
       warnings: ["legacy-theme-migrated"],
     });
-    writeThemeStateSync(filePath, next);
-    state = next;
-    initialPreferenceKind = "canonical";
-    return getState();
+    writeThemeStateSync(getThemePreferencePath(userDataDir, targetScope), next);
+    states.set(targetScope.scopeKey, next);
+    initialPreferenceKinds.set(targetScope.scopeKey, "canonical");
+    return stateFor(targetScope);
   }
 
-  async function setManualTheme(theme) {
-    const operation = mutationTail.then(async () => {
-      const next = chooseManualTheme(state, theme, observeSystemTheme(), { now: now?.() });
-      await writeThemeState(filePath, next);
-      state = next;
-      return getState();
+  async function setManualTheme(theme, expectedScopeKey = null) {
+    const targetScope = { ...activeScope };
+    if (expectedScopeKey && expectedScopeKey !== targetScope.scopeKey) {
+      const error = new Error("El tema pertenece a un jugador que ya no está activo.");
+      error.code = "PREFERENCE_SCOPE_STALE";
+      throw error;
+    }
+    const previous = mutationTails.get(targetScope.scopeKey) || Promise.resolve();
+    const operation = previous.catch(() => {}).then(async () => {
+      const current = states.get(targetScope.scopeKey);
+      const next = chooseManualTheme(current, theme, observeSystemTheme(), { now: now?.() });
+      await writeThemeStateImpl(getThemePreferencePath(userDataDir, targetScope), next);
+      states.set(targetScope.scopeKey, next);
+      return stateFor(targetScope);
     });
-    mutationTail = operation.catch(() => {});
-    return operation;
+    mutationTails.set(targetScope.scopeKey, operation);
+    return operation.finally(() => {
+      if (mutationTails.get(targetScope.scopeKey) === operation) mutationTails.delete(targetScope.scopeKey);
+    });
   }
 
   return {
     canMigrateRendererLegacyTheme,
+    getScope,
     getState,
     initialize,
     migrateRendererLegacyThemeSync,
     setManualTheme,
+    switchScope,
   };
 }
 
@@ -429,6 +542,7 @@ module.exports = {
   chooseManualTheme,
   createThemeAuthority,
   getLegacyThemePreferencePath,
+  getPlayerThemeMigrationPath,
   getThemePreferenceDirectory,
   getThemePreferencePath,
   normalizeSystemTheme,

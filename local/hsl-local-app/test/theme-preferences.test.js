@@ -15,6 +15,7 @@ const {
   themeBackgroundColor,
   writeThemeState,
 } = require("../src/theme-preferences");
+const { playerPreferenceScope } = require("../src/preference-scope");
 
 const now = "2026-07-26T12:00:00.000Z";
 const canonical = (patch = {}) => JSON.stringify({
@@ -240,4 +241,112 @@ test("atomic writes leave no partial file and persist only the public theme sche
 test("native window colors correspond to the effective theme", () => {
   assert.equal(themeBackgroundColor("light"), "#eef4fb");
   assert.equal(themeBackgroundColor("dark"), "#0f172a");
+});
+
+test("theme paths y estados A, B y global permanecen independientes", async () => {
+  const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-theme-scopes-"));
+  try {
+    const a = playerPreferenceScope("A");
+    const b = playerPreferenceScope("B");
+    await writeThemeState(getThemePreferencePath(directory, a), JSON.parse(canonical({ manualTheme: "light", effectiveTheme: "light" })));
+    await writeThemeState(getThemePreferencePath(directory, b), JSON.parse(canonical({ manualTheme: "dark", effectiveTheme: "dark" })));
+    await writeThemeState(getThemePreferencePath(directory), JSON.parse(canonical({ manualTheme: "dark", effectiveTheme: "dark" })));
+    const authority = createThemeAuthority({ now: () => now, readSystemTheme: () => "dark", userDataDir: directory });
+    assert.equal((await authority.initialize(a)).effectiveTheme, "light");
+    assert.equal((await authority.switchScope(b)).effectiveTheme, "dark");
+    assert.equal((await authority.switchScope(a)).effectiveTheme, "light");
+    assert.equal((await authority.switchScope()).effectiveTheme, "dark");
+    assert.equal(getThemePreferencePath(directory, a), path.join(directory, "players", a.playerKey, "preferences", "theme.json"));
+    assert.equal(getThemePreferencePath(directory), path.join(directory, "hsl", "preferences", "theme.json"));
+  } finally {
+    await fsp.rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("el tema global legacy solo puede sembrar un jugador y global se conserva", async () => {
+  const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-theme-player-migration-"));
+  try {
+    const a = playerPreferenceScope("A");
+    const b = playerPreferenceScope("B");
+    await fsp.mkdir(path.dirname(getThemePreferencePath(directory)), { recursive: true });
+    await fsp.writeFile(getThemePreferencePath(directory), canonical(), "utf8");
+    const authority = createThemeAuthority({ now: () => now, readSystemTheme: () => "dark", userDataDir: directory });
+    const migratedA = await authority.initialize(a);
+    const freshB = await authority.switchScope(b);
+    assert.equal(migratedA.effectiveTheme, "light");
+    assert.ok(migratedA.warnings.includes("global-theme-migrated-to-player"));
+    assert.equal(freshB.effectiveTheme, "dark");
+    assert.equal(JSON.parse(await fsp.readFile(getThemePreferencePath(directory, a), "utf8")).manualTheme, "light");
+    assert.equal(JSON.parse(await fsp.readFile(getThemePreferencePath(directory, b), "utf8")).mode, "system");
+    assert.equal(JSON.parse(await fsp.readFile(getThemePreferencePath(directory), "utf8")).manualTheme, "light");
+  } finally {
+    await fsp.rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("una escritura tardía de A persiste en A sin cambiar el tema activo de B", async () => {
+  const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-theme-scope-race-"));
+  try {
+    const a = playerPreferenceScope("A");
+    const b = playerPreferenceScope("B");
+    await writeThemeState(getThemePreferencePath(directory, a), JSON.parse(canonical({ manualTheme: "dark", effectiveTheme: "dark" })));
+    await writeThemeState(getThemePreferencePath(directory, b), JSON.parse(canonical({ manualTheme: "dark", effectiveTheme: "dark" })));
+    let releaseA;
+    const waitA = new Promise((resolve) => { releaseA = resolve; });
+    let startedA;
+    const aStarted = new Promise((resolve) => { startedA = resolve; });
+    const authority = createThemeAuthority({
+      now: () => now,
+      readSystemTheme: () => "dark",
+      userDataDir: directory,
+      writeThemeStateImpl: async (filePath, state) => {
+        if (filePath === getThemePreferencePath(directory, a) && state.manualTheme === "light") {
+          startedA();
+          await waitA;
+        }
+        return writeThemeState(filePath, state);
+      },
+    });
+    await authority.initialize(a);
+    const delayedA = authority.setManualTheme("light", a.scopeKey);
+    await aStarted;
+    await authority.switchScope(b);
+    releaseA();
+    const completedA = await delayedA;
+    assert.equal(completedA.scopeKey, a.scopeKey);
+    assert.equal(authority.getState().scopeKey, b.scopeKey);
+    assert.equal(authority.getState().effectiveTheme, "dark");
+    assert.equal(JSON.parse(await fsp.readFile(getThemePreferencePath(directory, a), "utf8")).manualTheme, "light");
+    assert.equal((await authority.switchScope(a)).effectiveTheme, "light");
+  } finally {
+    await fsp.rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("toggles rápidos se serializan por scope y A/B progresan de forma independiente", async () => {
+  const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-theme-scope-queues-"));
+  try {
+    const a = playerPreferenceScope("A");
+    const b = playerPreferenceScope("B");
+    await writeThemeState(getThemePreferencePath(directory, a), JSON.parse(canonical({ manualTheme: "dark", effectiveTheme: "dark" })));
+    await writeThemeState(getThemePreferencePath(directory, b), JSON.parse(canonical({ manualTheme: "dark", effectiveTheme: "dark" })));
+    const authority = createThemeAuthority({ now: () => now, readSystemTheme: () => "dark", userDataDir: directory });
+    await authority.initialize(a);
+    const writesA = [
+      authority.setManualTheme("light", a.scopeKey),
+      authority.setManualTheme("dark", a.scopeKey),
+      authority.setManualTheme("light", a.scopeKey),
+    ];
+    await authority.switchScope(b);
+    const writesB = [
+      authority.setManualTheme("dark", b.scopeKey),
+      authority.setManualTheme("light", b.scopeKey),
+    ];
+    await Promise.all([...writesA, ...writesB]);
+    assert.equal(JSON.parse(await fsp.readFile(getThemePreferencePath(directory, a), "utf8")).manualTheme, "light");
+    assert.equal(JSON.parse(await fsp.readFile(getThemePreferencePath(directory, b), "utf8")).manualTheme, "light");
+    assert.equal(authority.getState().scopeKey, b.scopeKey);
+  } finally {
+    await fsp.rm(directory, { recursive: true, force: true });
+  }
 });

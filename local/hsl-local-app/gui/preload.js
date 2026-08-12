@@ -56,7 +56,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   rescanPackDirectory: invoke("launcher:rescan-pack-directory"),
   restoreFailed: (filename) => ipcRenderer.invoke("launcher:restore-failed", filename),
   setLibraryPreferences: (patch) => ipcRenderer.invoke("launcher:set-library-preferences", patch),
-  setTheme: (theme) => ipcRenderer.invoke("launcher:set-theme", theme),
+  setTheme: (theme, scopeKey) => ipcRenderer.invoke("launcher:set-theme", { scopeKey, theme }),
   startupTheme: Object.freeze({
     effectiveTheme: startupTheme,
     legacyThemeMigrationAllowed,

@@ -124,7 +124,7 @@ export function ProfileAccountAnonymization({ playerId, username }: Props) {
   return (
     <>
       <button
-        className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--warning-border)] px-4 py-2 text-sm font-extrabold text-[var(--warning-text)] transition hover:bg-[var(--warning-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--warning-text)]"
+        className="inline-flex min-h-11 items-center justify-center rounded-md border border-[var(--destructive-border)] px-4 py-3 text-sm font-semibold text-[var(--destructive-text)] transition hover:bg-[var(--destructive-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--destructive-border)]"
         onClick={() => setOpen(true)}
         ref={triggerRef}
         type="button"

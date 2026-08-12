@@ -121,13 +121,18 @@ persistencia, cleanup, rollback, invalidación de caché y metadata Auth.
 
 Cuenta agrupa apariencia y un único subapartado `Sesión`. El email aparece con
 el contexto `Sesión iniciada con la cuenta:` y las acciones Cerrar sesión y
-Eliminar mi cuenta quedan juntas, envolviendo en móvil. El peligro se conserva
-en el botón y en un copy breve, sin una card amarilla sobredimensionada. El traslado visual no modifica el endpoint, RPC, confirmación,
+Eliminar mi cuenta quedan juntas, envolviendo en móvil. Ambas comparten radio,
+padding, peso y altura; Eliminar mi cuenta se distingue mediante borde, texto,
+hover y foco rojos. El copy permanente redundante desaparece, mientras el modal
+conserva toda la explicación de irreversibilidad. El traslado visual no modifica el endpoint, RPC, confirmación,
 tombstone, Storage cleanup ni lifecycle de anonimización.
 
-En Administración, `Semana actual` comparte card y grid con Semanas,
-Temporadas, Juegos y Cuestionarios. El grid progresa de una a dos, tres y cinco
-columnas según el espacio; ya no existe una card hero separada.
+En Administración, `Semana actual` sigue dentro de Accesos, pero es la card
+featured: usa identidad circuit, mayor jerarquía interna y ocupa dos unidades
+desde el grid de dos columnas. La composición progresa de una a dos, tres y seis
+unidades; en escritorio grande Semana actual ocupa dos y Semanas, Temporadas,
+Juegos y Cuestionarios una cada una. La ruta y el fallback dependen todavía de
+la semana activa real y los warnings permanecen por encima del grid.
 
 ## Hover cards e identidades enlazadas
 

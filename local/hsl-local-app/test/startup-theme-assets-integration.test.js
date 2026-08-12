@@ -67,8 +67,8 @@ test("the user sees only a two-theme toggle and a manual change never remounts a
   const header = read("gui/renderer/components/header.js");
   const allRenderer = renderer + header + read("gui/renderer/components/copy.js");
   assert.equal((renderer.match(/root\.innerHTML\s*=/g) || []).length, 1);
-  assert.match(renderer, /window\.hslLauncher\.setTheme\(theme\)/);
-  assert.match(renderer, /store\.setState\(\{ theme: effectiveTheme \}\)/);
+  assert.match(renderer, /window\.hslLauncher\.setTheme\(theme, scopeKey\)/);
+  assert.match(renderer, /result\?\.scopeKey === libraryPreferencesScopeKey/);
   assert.doesNotMatch(allRenderer, />\s*Sistema\s*</i);
   assert.doesNotMatch(read("gui/main.js"), /nativeTheme\.(?:on|addListener)\(/);
 });

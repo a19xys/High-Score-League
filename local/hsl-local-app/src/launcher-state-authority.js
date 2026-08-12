@@ -54,6 +54,9 @@ function createLauncherStateAuthority() {
     publishResult,
     publishSnapshot,
     reserveRevision,
+    isEffectRevisionCurrent(reservedRevision) {
+      return Number(reservedRevision) === latestEffectRevision;
+    },
   };
 }
 

@@ -187,14 +187,20 @@ function withDetailAssetAuthority(snapshot) {
   };
 }
 
-function evaluateLauncherSnapshot(snapshot) {
+function evaluateLauncherSnapshot(snapshot, options = {}) {
   if (!snapshot) return { accepted: false, patch: {} };
   const decision = launcherStateGate.accept(snapshot);
   const nextData = decision.accepted ? withDetailAssetAuthority(snapshot) : null;
+  const current = store.getState();
   return {
     accepted: decision.accepted,
     patch: {
-      ...(decision.accepted ? { data: nextData, ...invalidateStaleRankingFeedback(nextData) } : {}),
+      ...(decision.accepted ? {
+        data: nextData,
+        ...invalidateStaleRankingFeedback(nextData),
+        ...libraryPreferencesStatePatch(nextData, current, options.allowPreferenceHydration !== false),
+        ...themeStatePatch(nextData),
+      } : {}),
       launcherStateDiagnostics: launcherStateGate.getDiagnostics(),
     },
   };
@@ -467,7 +473,13 @@ function syncGameMetadataLayout() {
 }
 
 function libraryPreferencesScopeKey(preferences = {}) {
-  return `${preferences.scope || "global"}:${preferences.playerKey || ""}`;
+  return preferences.scopeKey || (preferences.scope === "player" && preferences.playerKey
+    ? `player:${preferences.playerKey}`
+    : "global");
+}
+
+function snapshotPreferenceScope(data = {}) {
+  return data.preferenceScope || data.library?.preferences || {};
 }
 
 function markLibraryPreferenceUserChange() {
@@ -480,7 +492,7 @@ function libraryPreferencesStatePatch(data, current, allowHydration = true) {
   }
 
   const preferences = data.library?.preferences || {};
-  const scopeKey = libraryPreferencesScopeKey(preferences);
+  const scopeKey = libraryPreferencesScopeKey(snapshotPreferenceScope(data));
 
   if (hydratedLibraryPreferencesScopeKey === scopeKey) {
     return {};
@@ -496,6 +508,11 @@ function libraryPreferencesStatePatch(data, current, allowHydration = true) {
   };
 }
 
+function themeStatePatch(data = {}) {
+  const effectiveTheme = data.preferences?.theme?.effectiveTheme;
+  return ["light", "dark"].includes(effectiveTheme) ? { theme: effectiveTheme } : {};
+}
+
 function currentLibraryPreferencesPatch(patch = {}) {
   const current = store.getState();
 
@@ -503,6 +520,7 @@ function currentLibraryPreferencesPatch(patch = {}) {
     librarySortBy: current.librarySortBy,
     librarySortDirection: current.librarySortDirection,
     libraryView: current.libraryView,
+    scopeKey: libraryPreferencesScopeKey(snapshotPreferenceScope(current.data)),
     sidebarWidth: current.librarySidebarWidth,
     ...patch,
   };
@@ -1032,7 +1050,8 @@ async function refreshState() {
   const startedWithLibraryPreferenceRevision = libraryPreferenceUserRevision;
   const data = await window.hslLauncher.getInitialState();
   const current = store.getState();
-  const snapshot = evaluateLauncherSnapshot(data);
+  const allowLibraryPreferenceHydration = startedWithLibraryPreferenceRevision === libraryPreferenceUserRevision;
+  const snapshot = evaluateLauncherSnapshot(data, { allowPreferenceHydration: allowLibraryPreferenceHydration });
   if (!snapshot.accepted) {
     if (store.getState().data) {
       store.setState(snapshot.patch);
@@ -1045,7 +1064,6 @@ async function refreshState() {
     startupReadiness.mark("criticalAssets", "fallback");
     return;
   }
-  const allowLibraryPreferenceHydration = startedWithLibraryPreferenceRevision === libraryPreferenceUserRevision;
   const noticeLogs = (data.notices || [])
     .filter((notice) => !current.noticeIds.includes(notice.id))
     .map((notice) => ({
@@ -1061,7 +1079,6 @@ async function refreshState() {
     ...snapshot.patch,
     initialLoadError: null,
     libraryFavoriteFilter: data.session?.hasSession ? current.libraryFavoriteFilter : "all",
-    ...libraryPreferencesStatePatch(data, current, allowLibraryPreferenceHydration),
     logs: noticeLogs.reduce((logs, notice) => appendLog(logs, notice), current.logs),
     noticeIds: [
       ...current.noticeIds,
@@ -1085,14 +1102,17 @@ async function refreshState() {
 
 async function setManualTheme(theme) {
   try {
-    const result = await window.hslLauncher.setTheme(theme);
+    const scopeKey = libraryPreferencesScopeKey(snapshotPreferenceScope(store.getState().data));
+    const result = await window.hslLauncher.setTheme(theme, scopeKey);
     if (result?.ok === false) {
       const error = new Error("No se pudo persistir el tema. La apariencia actual se mantiene.");
       error.code = result.persistenceError || "THEME_PERSISTENCE_FAILED";
       throw error;
     }
     const effectiveTheme = result?.effectiveTheme === "light" ? "light" : result?.effectiveTheme === "dark" ? "dark" : null;
-    if (effectiveTheme) store.setState({ theme: effectiveTheme });
+    if (effectiveTheme && result?.scopeKey === libraryPreferencesScopeKey(snapshotPreferenceScope(store.getState().data))) {
+      store.setState({ theme: effectiveTheme });
+    }
   } catch (error) {
     store.setState({
       logs: appendLog(store.getState().logs, {
@@ -1118,7 +1138,7 @@ async function persistLibraryPreferences(patch) {
   const requestId = ++libraryPreferencesPersistSequence;
 
   try {
-    await window.hslLauncher.setLibraryPreferences(currentLibraryPreferencesPatch(patch));
+    await window.hslLauncher.setLibraryPreferences(patch.scopeKey ? patch : currentLibraryPreferencesPatch(patch));
   } catch (error) {
     if (requestId !== libraryPreferencesPersistSequence) {
       return;
@@ -1136,10 +1156,13 @@ async function persistLibraryPreferences(patch) {
 }
 
 function persistLibraryPreferencesSoon(patch) {
-  pendingLibraryPreferencesPatch = {
-    ...pendingLibraryPreferencesPatch,
-    ...patch,
-  };
+  const captured = currentLibraryPreferencesPatch(patch);
+  if (pendingLibraryPreferencesPatch.scopeKey && pendingLibraryPreferencesPatch.scopeKey !== captured.scopeKey) {
+    const previous = pendingLibraryPreferencesPatch;
+    pendingLibraryPreferencesPatch = {};
+    persistLibraryPreferences(previous);
+  }
+  pendingLibraryPreferencesPatch = { ...pendingLibraryPreferencesPatch, ...captured };
 
   if (libraryPreferencesPersistTimer) {
     window.clearTimeout(libraryPreferencesPersistTimer);
@@ -1151,6 +1174,15 @@ function persistLibraryPreferencesSoon(patch) {
     libraryPreferencesPersistTimer = null;
     persistLibraryPreferences(nextPatch);
   }, 250);
+}
+
+async function flushPendingLibraryPreferences() {
+  if (!libraryPreferencesPersistTimer) return;
+  window.clearTimeout(libraryPreferencesPersistTimer);
+  libraryPreferencesPersistTimer = null;
+  const nextPatch = pendingLibraryPreferencesPatch;
+  pendingLibraryPreferencesPatch = {};
+  if (nextPatch.scopeKey) await persistLibraryPreferences(nextPatch);
 }
 
 async function toggleLibraryFavorite(packKey) {
@@ -1627,7 +1659,10 @@ async function submitLogin(form) {
 
   try {
     const response = await runWithOperationFeedback({
-      operation: () => window.hslLauncher.login(email, password),
+      operation: async () => {
+        await flushPendingLibraryPreferences();
+        return window.hslLauncher.login(email, password);
+      },
     });
 
     store.setState({
@@ -1691,7 +1726,10 @@ async function switchAccount(button) {
         busyLabel: "Cambiando cuenta",
         operationFeedbackMode: "overlay",
       }),
-      operation: () => window.hslLauncher.switchAccount(userId),
+      operation: async () => {
+        await flushPendingLibraryPreferences();
+        return window.hslLauncher.switchAccount(userId);
+      },
     });
     const nextState = {
       busy: false,
@@ -2220,7 +2258,10 @@ function bindActions() {
 
       if (userId) {
         store.setState({ activeDialog: null });
-        runAction("remove-known-account", "Quitando cuenta", "Quitar cuenta", () => window.hslLauncher.removeKnownAccount(userId));
+        runAction("remove-known-account", "Quitando cuenta", "Quitar cuenta", async () => {
+          await flushPendingLibraryPreferences();
+          return window.hslLauncher.removeKnownAccount(userId);
+        });
       }
     }
 
@@ -2229,7 +2270,10 @@ function bindActions() {
     }
 
     if (action === "logout") {
-      runAction(action, "Cerrando sesión", COPY.actions.logout, () => window.hslLauncher.logout());
+      runAction(action, "Cerrando sesión", COPY.actions.logout, async () => {
+        await flushPendingLibraryPreferences();
+        return window.hslLauncher.logout();
+      });
     }
   });
 }

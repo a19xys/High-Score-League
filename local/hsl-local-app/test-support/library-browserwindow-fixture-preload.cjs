@@ -20,8 +20,34 @@ let practiceLaunches = 0;
 let manualConnectivityRefreshCount = 0;
 let manualConnectivityWeekIndex = 0;
 let manualConnectivityWeekStates = ["closed", "active", "inactive"];
+let delayLibraryPreferenceWrites = false;
+let releaseLibraryPreferenceWrite = null;
+const libraryPreferenceWrites = [];
 const forgottenAccountIds = new Set();
 const fixtureAvatarUrl = process.env.HSL_ACCOUNT_AVATAR_FILE_URL || null;
+const preferenceProfiles = Object.freeze({
+  fixture: Object.freeze({
+    librarySortBy: "title",
+    librarySortDirection: "desc",
+    libraryView: "covers",
+    sidebarWidth: 560,
+    theme: "dark",
+  }),
+  global: Object.freeze({
+    librarySortBy: "developer",
+    librarySortDirection: "asc",
+    libraryView: "list",
+    sidebarWidth: 440,
+    theme: "dark",
+  }),
+  valid: Object.freeze({
+    librarySortBy: "weeks",
+    librarySortDirection: "asc",
+    libraryView: "icons",
+    sidebarWidth: 360,
+    theme: "light",
+  }),
+});
 
 const titles = [
   "SPACE INVADERS Y EL TEMPLO DEL MALO MALOSO",
@@ -100,6 +126,13 @@ function snapshot({ samePack = false } = {}) {
     { displayName: "Cuenta bloqueada", email: "relogin@example.test", hasLocalSession: false, isActive: false, requiresLogin: true, userId: "relogin" },
   ].filter((account) => !forgottenAccountIds.has(account.userId));
   const noActiveSession = accountFixtureMode === "remembered";
+  const preferenceProfileId = accountFixtureMode === "empty" || noActiveSession
+    ? "global"
+    : activeUserId;
+  const preferenceProfile = preferenceProfiles[preferenceProfileId] || preferenceProfiles.global;
+  const preferenceScope = preferenceProfileId === "global"
+    ? { playerKey: null, scope: "global", scopeKey: "global" }
+    : { playerKey: `user_${preferenceProfileId}`, scope: "player", scopeKey: `player:user_${preferenceProfileId}` };
   const heroChecking = heroStatus === "checking" || membershipFixtureStatus === "checking";
   const heroError = heroStatus === "error";
   const currentWeekCapability = weekFixtureState
@@ -197,17 +230,25 @@ function snapshot({ samePack = false } = {}) {
         weekCapability: libraryPack.id === pack.id ? currentWeekCapability : libraryPack.weekCapability,
       })),
       preferences: {
-        filtersOpen: false,
-        sidebarWidth: 440,
-        sortBy: "weeks",
-        sortDirection: "asc",
-        view: "covers",
+        ...preferenceScope,
+        librarySortBy: preferenceProfile.librarySortBy,
+        librarySortDirection: preferenceProfile.librarySortDirection,
+        libraryView: preferenceProfile.libraryView,
+        sidebarWidth: preferenceProfile.sidebarWidth,
       },
       status: "available-populated",
       totals: { packs: packs.length },
     },
     membership,
     notices: [],
+    preferenceScope,
+    preferences: {
+      scope: preferenceScope,
+      theme: {
+        effectiveTheme: preferenceProfile.theme,
+        mode: "manual",
+      },
+    },
     queue: { totals: { failed: 0, pending: 0, sent: 0 } },
     readiness: {
       canPlayCompetition,
@@ -329,7 +370,14 @@ contextBridge.exposeInMainWorld("hslLauncher", {
     return { reachability: "connected", reachabilityGeneration: manualConnectivityRefreshCount + 1 };
   },
   resolveThemeBootstrap: () => ({ effectiveTheme: "dark", mode: "manual" }),
-  setLibraryPreferences: async () => ({ ok: true }),
+  setLibraryPreferences: async (patch) => {
+    libraryPreferenceWrites.push(JSON.parse(JSON.stringify(patch || {})));
+    if (delayLibraryPreferenceWrites) {
+      await new Promise((resolve) => { releaseLibraryPreferenceWrite = resolve; });
+      releaseLibraryPreferenceWrite = null;
+    }
+    return { ok: true };
+  },
   setAccountFixtureMode: async (mode) => {
     accountFixtureMode = ["empty", "remembered"].includes(mode) ? mode : "existing";
     launcherStateRevision += 1;
@@ -353,7 +401,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
     launcherStateRevision += 1;
     return { action: "remove-known-account", ok: true, state: snapshot(), summary: "Cuenta olvidada." };
   },
-  setTheme: async (theme) => ({ effectiveTheme: theme === "light" ? "light" : "dark", ok: true }),
+  setTheme: async (theme, scopeKey) => ({ effectiveTheme: theme === "light" ? "light" : "dark", ok: true, scopeKey }),
   switchAccount: async (userId) => {
     switchAccountCalls += 1;
     if (userId === "relogin") {
@@ -374,9 +422,21 @@ contextBridge.exposeInMainWorld("hslLauncher", {
         summary: "La sesión caducó durante el cambio.",
       };
     }
-    if (userId === "valid") activeUserId = "valid";
+    activeUserId = userId;
     launcherStateRevision += 1;
     return { ok: true, state: snapshot() };
+  },
+  login: async () => {
+    accountFixtureMode = "existing";
+    activeUserId = "fixture";
+    launcherStateRevision += 1;
+    return { action: "login", ok: true, state: snapshot(), summary: "Login fixture correcto." };
+  },
+  logout: async () => {
+    accountFixtureMode = "empty";
+    activeUserId = null;
+    launcherStateRevision += 1;
+    return { action: "logout", ok: true, state: snapshot(), summary: "Logout fixture correcto." };
   },
   startupTheme: Object.freeze({ effectiveTheme: "dark", legacyThemeMigrationAllowed: false }),
   toggleLibraryFavorite: async () => ({ ok: true }),
@@ -391,6 +451,19 @@ contextBridge.exposeInMainWorld("hslLauncher", {
 });
 
 contextBridge.exposeInMainWorld("hslFixture", {
+  clearLibraryPreferenceWrites() {
+    libraryPreferenceWrites.length = 0;
+  },
+  getLibraryPreferenceWrites() {
+    return JSON.parse(JSON.stringify(libraryPreferenceWrites));
+  },
+  releaseLibraryPreferenceWrite() {
+    delayLibraryPreferenceWrites = false;
+    releaseLibraryPreferenceWrite?.();
+  },
+  setLibraryPreferenceWriteDelay(value) {
+    delayLibraryPreferenceWrites = value === true;
+  },
   competitionCounts() {
     return { competitionLaunches, practiceLaunches };
   },

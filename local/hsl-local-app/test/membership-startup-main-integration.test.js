@@ -40,7 +40,7 @@ test("checking snapshots and final results use the existing monotonic authority"
   ]);
 
   assert.match(main, /reserveRevision: \(\) => launcherStateAuthority\.reserveRevision\(\)/);
-  assert.match(main, /launcherStateAuthority\.publishSnapshot\(syncedState, resolution\.revision\)/);
+  assert.match(main, /launcherStateAuthority\.publishSnapshot\(preferenceState, resolution\.revision\)/);
   assert.match(main, /publish\(state, resolution\) \{[\s\S]*if \(!launcherStateAuthority\.acceptEffects\(resolution\.revision\)\) return;/);
   assert.match(main, /sendRendererEvent\("launcher:state"/);
   assert.match(coordinator, /contextCurrent: true/);

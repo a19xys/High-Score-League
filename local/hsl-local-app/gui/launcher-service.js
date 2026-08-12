@@ -51,9 +51,16 @@ const { readLibrarySelection, writeLibrarySelection } = require("../src/library-
 const {
   readLibraryFavorites,
   readLibraryPreferences,
+  publicLibraryPreferences,
   toggleLibraryFavorite,
   writeLibraryPreferences,
 } = require("../src/library-preferences");
+const {
+  normalizePreferenceScope,
+  preferenceScopeFromAccounts,
+  preferenceScopeFromSession,
+  resolvePlayerPreferenceScope,
+} = require("../src/preference-scope");
 const {
   resolvePackManual,
   resolvePackRanking,
@@ -1202,15 +1209,16 @@ async function getLauncherContext(options = {}) {
       deferRemote: options.connected !== true,
       signal: remoteSignal.signal,
     });
-    const [library, libraryPreferences] = await Promise.all([
+    const [library, accountsStore] = await Promise.all([
       scanPackLibrary(runtimeConfig),
-      readLibraryPreferences(runtimeConfig, session),
+      readKnownAccounts(runtimeConfig),
     ]);
+    const preferenceScope = preferenceScopeFromAccounts(accountsStore);
+    const libraryPreferences = await readLibraryPreferences(runtimeConfig, preferenceScope);
     const selection = await reconcileLibrarySelection(runtimeConfig, library, libraryPreferences);
     const baseConfig = selection.activeInstanceKey
       ? getEffectiveConfig(runtimeConfig)
       : deriveNoActivePackConfig(runtimeConfig);
-    const accountsStore = await readKnownAccounts(baseConfig);
     const weekId = baseConfig.defaultWeekId || baseConfig.pack?.weekId || null;
     const weekCapability = getWeekCapability(weekId);
     const authorityContext = getCompetitionAuthorityContext();
@@ -1232,6 +1240,7 @@ async function getLauncherContext(options = {}) {
       library,
       libraryPreferences,
       membership,
+      preferenceScope,
       queue,
       scoped,
       selection,
@@ -1251,6 +1260,7 @@ async function stateFromContext(context) {
     library,
     libraryPreferences,
     membership,
+    preferenceScope,
     queue,
     scoped,
     selection,
@@ -1308,7 +1318,7 @@ async function stateFromContext(context) {
       favoriteDisabled: Boolean(pack.duplicatePackId),
       weekCapability: getWeekCapability(pack.weekId),
     })),
-    preferences: libraryPreferences,
+    preferences: publicLibraryPreferences(libraryPreferences),
   };
   const activeLibraryPack = selection.activeInstanceKey
     ? libraryState.packs.find((pack) => pack.instanceKey === selection.activeInstanceKey) || null
@@ -1367,6 +1377,7 @@ async function stateFromContext(context) {
     library: libraryState,
     membership,
     notices: recentPackNotices,
+    preferenceScope: normalizePreferenceScope(preferenceScope),
     queue,
     readiness,
     competitionAccess: readiness.competitionAccess || null,
@@ -3165,13 +3176,23 @@ async function setLibraryPreferencesFromGui(patch = {}, options = {}) {
   }
 
   const config = options.config || loadRuntimeConfig();
-  const session = options.session || await getAuthState(config, { deferRemote: true });
-  const preferences = await writeLibraryPreferences(config, session, patch, options);
+  const requestedScopeKey = typeof patch.scopeKey === "string" ? patch.scopeKey : null;
+  const preferenceScope = options.preferenceScope
+    ? normalizePreferenceScope(options.preferenceScope)
+    : options.session
+      ? preferenceScopeFromSession(options.session)
+      : await resolvePlayerPreferenceScope(config);
+  if (requestedScopeKey && requestedScopeKey !== preferenceScope.scopeKey) {
+    const error = new Error("La preferencia pertenece a un jugador que ya no está activo.");
+    error.code = "PREFERENCE_SCOPE_STALE";
+    throw error;
+  }
+  const preferences = await writeLibraryPreferences(config, preferenceScope, patch, options);
 
   return {
     action: "set-library-preferences",
     ok: true,
-    preferences,
+    preferences: publicLibraryPreferences(preferences),
     state: options.includeState === false ? null : await getLauncherState(),
     summary: "Preferencias de biblioteca guardadas.",
   };

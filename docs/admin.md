@@ -17,14 +17,19 @@ admin vuelven a comprobar `is_admin` en servidor.
 
 ## Centro admin en `/profile`
 
-El bloque de administracion contiene:
+El bloque de administracion contiene un grid responsive de accesos:
 
-- Semana actual.
+- Semana actual como acceso featured de identidad circuit. Ocupa el ancho normal
+  en móvil y dos unidades desde el grid de dos columnas.
 - Todas las semanas.
 - Temporadas, enlazando a `/admin/seasons`.
 - Juegos, enlazando al catalogo real en `/admin/games`.
 - Cuestionarios, enlazando a `/admin/polls`.
 - Usuarios como placeholder.
+
+En escritorio grande el grid usa seis unidades: Semana actual ocupa dos y cada
+uno de los otros cuatro accesos reales ocupa una. La jerarquía visual no cambia
+la resolución de rutas ni traslada los warnings al interior de la card.
 
 `Publicar resultados` y `Revisar submissions` no son tarjetas separadas porque
 pertenecen a una semana concreta. Se gestionan desde `/admin/weeks/[weekId]`.

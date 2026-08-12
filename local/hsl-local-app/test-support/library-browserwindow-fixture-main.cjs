@@ -637,6 +637,29 @@ async function signalMetrics(window) {
 }
 
 async function iconRows(window) {
+  const openedFilters = await window.webContents.executeJavaScript(`(() => {
+    const wasClosed = !document.querySelector('[data-library-sort-by]');
+    if (wasClosed) document.querySelector('[data-action="toggle-library-filters"]')?.click();
+    return wasClosed;
+  })()`);
+  await waitFor(window, "document.querySelector('[data-library-sort-by]')");
+  await window.webContents.executeJavaScript(`(() => {
+    const select = document.querySelector('[data-library-sort-by]');
+    if (select?.value !== 'weeks') {
+      select.value = 'weeks';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  })()`);
+  await waitForFrames(window);
+  await window.webContents.executeJavaScript(`(() => {
+    const direction = document.querySelector('[data-action="toggle-library-sort-direction"]');
+    if (direction?.title.includes('descendente')) direction.click();
+  })()`);
+  await waitForFrames(window);
+  if (openedFilters) {
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"toggle-library-filters\"]')?.click()");
+    await waitForFrames(window);
+  }
   await window.webContents.executeJavaScript("document.querySelector('[data-action=\"set-library-view\"][data-view=\"icons\"]')?.click()");
   await waitForFrames(window);
   const rows = [];
@@ -912,6 +935,23 @@ async function hostileSignalMetrics(window) {
 }
 
 async function accountMetrics(window) {
+  const readPreferences = async () => {
+    await window.webContents.executeJavaScript(`(() => {
+      if (!document.querySelector('[data-library-sort-by]')) {
+        document.querySelector('[data-action="toggle-library-filters"]')?.click();
+      }
+    })()`);
+    await waitFor(window, "document.querySelector('[data-library-sort-by]')");
+    return window.webContents.executeJavaScript(`(() => ({
+      account: document.querySelector('[data-action="toggle-account-menu"]')?.title,
+      direction: document.querySelector('[data-action="toggle-library-sort-direction"]')?.title.includes('descendente') ? 'desc' : 'asc',
+      sidebar: Number.parseFloat(getComputedStyle(document.querySelector('.app-main')).getPropertyValue('--library-sidebar-width')),
+      sort: document.querySelector('[data-library-sort-by]')?.value,
+      theme: document.documentElement.dataset.theme,
+      view: document.querySelector('[data-action="set-library-view"][aria-pressed="true"]')?.dataset.view,
+    }))()`);
+  };
+  const initialPreferences = await readPreferences();
   const observeSwitch = async (userId) => {
     await window.webContents.executeJavaScript(`(() => {
       if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action="toggle-account-menu"]').click();
@@ -972,6 +1012,7 @@ async function accountMetrics(window) {
   }))()`);
   const callsAfterValid = await window.webContents.executeJavaScript("window.hslFixture.getSwitchAccountCalls()");
   valid.calls = callsAfterValid - callsBeforeValid;
+  valid.preferences = await readPreferences();
   await capture(window, "account-valid-switch.png");
   await window.webContents.executeJavaScript(`(() => {
     document.querySelector('[data-action="toggle-account-menu"]')?.click();
@@ -984,7 +1025,128 @@ async function accountMetrics(window) {
     menuOpen: Boolean(document.querySelector('[data-account-menu]')),
   }))()`);
   await window.webContents.executeJavaScript("window.__fixtureBusyObserver?.disconnect()");
-  return { addAccount, requiresLogin, unexpectedRelogin, valid };
+  return { addAccount, initialPreferences, requiresLogin, unexpectedRelogin, valid };
+}
+
+async function playerPreferencesSmoke(window) {
+  const read = async () => {
+    await window.webContents.executeJavaScript(`(() => {
+      if (!document.querySelector('[data-library-sort-by]')) document.querySelector('[data-action="toggle-library-filters"]')?.click();
+    })()`);
+    await waitFor(window, "document.querySelector('[data-library-sort-by]')");
+    return window.webContents.executeJavaScript(`(() => ({
+      account: document.querySelector('[data-action="toggle-account-menu"]')?.title || '',
+      busy: Boolean(document.querySelector('.busy-overlay')),
+      direction: document.querySelector('[data-action="toggle-library-sort-direction"]')?.title.includes('descendente') ? 'desc' : 'asc',
+      sidebar: Number.parseFloat(getComputedStyle(document.querySelector('.app-main')).getPropertyValue('--library-sidebar-width')),
+      sort: document.querySelector('[data-library-sort-by]')?.value,
+      theme: document.documentElement.dataset.theme,
+      view: document.querySelector('[data-action="set-library-view"][aria-pressed="true"]')?.dataset.view,
+    }))()`);
+  };
+  const clickSwitch = async (userId) => {
+    await window.webContents.executeJavaScript(`(() => {
+      if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action="toggle-account-menu"]')?.click();
+      document.querySelector('[data-action="switch-account"][data-user-id=${JSON.stringify(userId)}]')?.click();
+    })()`);
+  };
+  const traceSwitch = async (userId, expectedEmail) => {
+    await window.webContents.executeJavaScript(`(() => {
+      window.__preferenceFrameTrace = [];
+      window.__preferenceTraceActive = true;
+      const sample = () => {
+        if (!window.__preferenceTraceActive) return;
+        const directionButton = document.querySelector('[data-action="toggle-library-sort-direction"]');
+        window.__preferenceFrameTrace.push({
+          account: document.querySelector('[data-action="toggle-account-menu"]')?.title || '',
+          busy: Boolean(document.querySelector('.busy-overlay')),
+          direction: directionButton?.title.includes('descendente') ? 'desc' : 'asc',
+          sidebar: Number.parseFloat(getComputedStyle(document.querySelector('.app-main')).getPropertyValue('--library-sidebar-width')),
+          sort: document.querySelector('[data-library-sort-by]')?.value,
+          theme: document.documentElement.dataset.theme,
+          view: document.querySelector('[data-action="set-library-view"][aria-pressed="true"]')?.dataset.view,
+        });
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    })()`);
+    await clickSwitch(userId);
+    await waitFor(window, `document.querySelector('[data-action="toggle-account-menu"]')?.title.includes(${JSON.stringify(expectedEmail)}) && !document.querySelector('.busy-overlay')`);
+    await waitForFrames(window, 3);
+    return window.webContents.executeJavaScript(`(() => {
+      window.__preferenceTraceActive = false;
+      return window.__preferenceFrameTrace;
+    })()`);
+  };
+
+  const initial = await read();
+  await clickSwitch("relogin");
+  await waitFor(window, "document.querySelector('[data-auth-form]')");
+  const requiresLogin = await read();
+  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"cancel-login\"]')?.click()");
+  await waitForFrames(window);
+  await clickSwitch("expired");
+  await waitFor(window, "document.querySelector('#hsl-login-email')?.value === 'expired@example.test'");
+  const failedSwitch = await read();
+  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"cancel-login\"]')?.click()");
+  await waitForFrames(window);
+
+  const toBTrace = await traceSwitch("valid", "valid@example.test");
+  const b = await read();
+  await window.webContents.executeJavaScript(`(() => {
+    document.querySelector('[data-action="set-library-view"][data-view="covers"]')?.click();
+    window.hslFixture.emitSamePackSnapshot();
+  })()`);
+  await waitForFrames(window, 3);
+  const sameScopeAfterStale = await read();
+  await window.webContents.executeJavaScript("document.querySelector('[data-action=\"set-library-view\"][data-view=\"icons\"]')?.click()");
+  await delay(320);
+  await window.webContents.executeJavaScript("window.hslFixture.clearLibraryPreferenceWrites()");
+  const toATrace = await traceSwitch("fixture", "fixture@example.test");
+  const restoredA = await read();
+
+  await window.webContents.executeJavaScript(`(() => {
+    window.hslFixture.setLibraryPreferenceWriteDelay(true);
+    document.querySelector('[data-action="set-library-view"][data-view="list"]')?.click();
+    if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action="toggle-account-menu"]')?.click();
+    document.querySelector('[data-action="switch-account"][data-user-id="valid"]')?.click();
+  })()`);
+  await waitFor(window, "window.hslFixture.getLibraryPreferenceWrites().length === 1");
+  const raceBeforeRelease = await read();
+  await window.webContents.executeJavaScript("window.hslFixture.releaseLibraryPreferenceWrite()");
+  await waitFor(window, "document.querySelector('[data-action=\"toggle-account-menu\"]')?.title.includes('valid@example.test') && !document.querySelector('.busy-overlay')");
+  const raceAfterRelease = await read();
+  const raceWrites = await window.webContents.executeJavaScript("window.hslFixture.getLibraryPreferenceWrites()");
+
+  await window.webContents.executeJavaScript("window.hslLauncher.logout().then((result) => window.hslLauncher.setAccountFixtureMode('empty'))");
+  await waitFor(window, "document.querySelector('[data-action=\"set-library-view\"][data-view=\"list\"]')?.getAttribute('aria-pressed') === 'true' && document.documentElement.dataset.theme === 'dark'");
+  const global = await read();
+  await window.webContents.executeJavaScript(`(() => {
+    document.querySelector('[data-action="toggle-account-menu"]')?.click();
+    const form = document.querySelector('[data-auth-form]');
+    form.querySelector('#hsl-login-email').value = 'fixture@example.test';
+    form.querySelector('#hsl-login-password').value = 'fixture-secret';
+    form.requestSubmit();
+  })()`);
+  await waitFor(window, "document.querySelector('[data-action=\"toggle-account-menu\"]')?.title.includes('fixture@example.test') && !document.querySelector('.busy-overlay')");
+  const reloginA = await read();
+
+  const forgetAccount = async (userId) => {
+    await window.webContents.executeJavaScript(`(() => {
+      if (!document.querySelector('[data-account-menu]')) document.querySelector('[data-action="toggle-account-menu"]')?.click();
+      document.querySelector('[data-action="remove-known-account"][data-user-id=${JSON.stringify(userId)}]')?.click();
+    })()`);
+    await waitFor(window, "document.querySelector('[data-action=\"confirm-forget-account\"]')");
+    await window.webContents.executeJavaScript("document.querySelector('[data-action=\"confirm-forget-account\"]')?.click()");
+    await waitFor(window, "!document.querySelector('.busy-overlay') && !document.querySelector('[data-action=\"confirm-forget-account\"]')");
+  };
+  await forgetAccount("typography");
+  const forgetInactive = await read();
+  await forgetAccount("fixture");
+  await waitFor(window, "document.querySelector('[data-action=\"toggle-account-menu\"]')?.title.includes('valid@example.test')");
+  const forgetActive = await read();
+
+  return { b, failedSwitch, forgetActive, forgetInactive, global, initial, raceAfterRelease, raceBeforeRelease, raceWrites, reloginA, requiresLogin, restoredA, sameScopeAfterStale, toATrace, toBTrace };
 }
 
 async function profileAccountSmoke(window) {
@@ -1273,6 +1435,14 @@ async function profileAccountSmoke(window) {
 }
 
 async function heroAndDrawerSmoke(window) {
+  await window.webContents.executeJavaScript(`(async () => {
+    await window.hslLauncher.setAccountFixtureMode('existing');
+    window.hslFixture.emitSessionStatus('valid');
+    window.hslFixture.emitMembershipStatus('member');
+    window.hslFixture.emitWeekStatus('active');
+    window.hslFixture.emitHeroStatus('ready');
+  })()`);
+  await waitForFrames(window, 3);
   const readIndicators = () => window.webContents.executeJavaScript(`(() => ({
     indicators: [...document.querySelectorAll('.game-hero-indicator')].map((indicator) => ({
       labelWidth: indicator.querySelector('.game-hero-indicator__label').getBoundingClientRect().width,
@@ -2103,6 +2273,7 @@ app.whenReady().then(async () => {
         icons: () => iconAlphaMetrics(window),
         microinteractions: () => microinteractionSmoke(window),
         polish: () => finalPolishSmoke(window),
+        preferences: () => playerPreferencesSmoke(window),
         profiles: () => profileAccountSmoke(window),
         "render-invariants-before": () => passiveRefreshReproduction(window),
         rows: () => iconRows(window),

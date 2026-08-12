@@ -1,19 +1,17 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import type { Metadata } from "next";
 import { AccessRequired } from "@/components/auth/access-required";
 import { SeasonTable } from "@/components/season-table";
+import { SeasonWeeksTable } from "@/components/season-weeks-table";
 import { PodiumPlaceholder } from "@/components/podium-placeholder";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
-import { DataTable } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SeasonJoinButton } from "@/components/season-join-button";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
-import { formatCompactDateRange, formatWeekCount, formatWeekRange } from "@/lib/format";
+import { formatWeekCount, formatWeekRange } from "@/lib/format";
 import { getSeasonDetailData } from "@/lib/data/season-detail";
 import { getServerSession } from "@/lib/auth/session";
-import type { WeekSummary } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -37,108 +35,6 @@ function seasonStatusLabel(status: string) {
   }
   
   return "Inactiva";
-}
-
-function isSecretWeek(summary: WeekSummary, currentWeekNumber?: number) {
-  return (
-    summary.week.status === "draft" ||
-    summary.week.gameId === null ||
-    (summary.season.status === "active" &&
-      typeof currentWeekNumber === "number" &&
-      summary.week.number > currentWeekNumber &&
-      summary.week.status !== "published")
-  );
-}
-
-function RealSeasonWeeksTable({
-  weeks,
-  currentWeekNumber,
-}: {
-  weeks: WeekSummary[];
-  currentWeekNumber?: number;
-}) {
-  if (weeks.length === 0) {
-    return (
-      <EmptyState
-        title="No hay semanas visibles."
-        description="La temporada existe, pero todavía no tiene semanas asociadas."
-      />
-    );
-  }
-
-  return (
-    <DataTable tableClassName="w-full table-fixed">
-      <thead className="text-xs font-semibold uppercase theme-table-head">
-        <tr>
-          <th className="w-[30%] px-2 py-3 text-left sm:w-28 sm:px-4">Semana</th>
-          <th className="hidden w-36 px-4 py-3 text-left sm:table-cell">Fechas</th>
-          <th className="hidden w-28 px-4 py-3 text-left sm:table-cell">Estado</th>
-          <th className="px-2 py-3 text-left sm:px-4">Juego</th>
-          <th className="w-16 px-2 py-3 text-left sm:w-28 sm:px-4">Acción</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y theme-border theme-surface">
-        {weeks.map((summary) => {
-          const hasDates = summary.week.startsAt && summary.week.endsAt;
-          const secret = isSecretWeek(summary, currentWeekNumber);
-
-          return (
-            <tr className="theme-hover" key={summary.week.id}>
-              <td className="min-w-0 px-2 py-3 align-middle sm:px-4 sm:py-4">
-                <p className="truncate whitespace-nowrap font-semibold theme-text">
-                  Semana {summary.week.number}
-                </p>
-                <p className="mt-0.5 truncate whitespace-nowrap text-[11px] font-normal leading-4 theme-text-muted sm:hidden">
-                  {hasDates
-                    ? formatCompactDateRange(summary.week.startsAt, summary.week.endsAt)
-                    : "-"}
-                </p>
-              </td>
-              <td className="hidden whitespace-nowrap px-4 py-4 theme-text-muted sm:table-cell">
-                {hasDates
-                  ? formatCompactDateRange(summary.week.startsAt, summary.week.endsAt)
-                  : "-"}
-              </td>
-              <td className="hidden whitespace-nowrap px-4 py-4 sm:table-cell">
-                <StatusBadge status={summary.week.status} />
-              </td>
-              <td className="min-w-0 px-2 py-3 align-middle sm:px-4 sm:py-4">
-                <p
-                  className="truncate whitespace-nowrap theme-text"
-                  title={secret ? "Por anunciar" : summary.game.title}
-                >
-                  {secret ? "Por anunciar" : summary.game.title}
-                </p>
-                <div className="mt-1 sm:hidden">
-                  <StatusBadge compact status={summary.week.status} />
-                </div>
-              </td>
-              <td className="whitespace-nowrap px-2 py-3 align-middle sm:px-4 sm:py-4">
-                {secret ? (
-                  <span
-                    className="cursor-not-allowed font-semibold theme-text-muted"
-                    title="Semana no disponible todavía."
-                  >
-                    <span aria-hidden="true" className="sm:hidden">—</span>
-                    <span className="sr-only sm:hidden">No disponible</span>
-                    <span className="hidden sm:inline">No disponible</span>
-                  </span>
-                ) : (
-                  <Link
-                    className="font-semibold text-circuit hover:underline"
-                    href={`/weeks/${summary.week.id}`}
-                  >
-                    <span className="sm:hidden">Ver</span>
-                    <span className="hidden sm:inline">Ver semana</span>
-                  </Link>
-                )}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </DataTable>
-  );
 }
 
 export default async function SeasonDetailPage({ params }: SeasonDetailPageProps) {
@@ -215,7 +111,7 @@ export default async function SeasonDetailPage({ params }: SeasonDetailPageProps
 
       <Card>
         <CardHeader title="Semanas incluidas" eyebrow="Calendario" />
-        <RealSeasonWeeksTable
+        <SeasonWeeksTable
           weeks={seasonData.weeks}
           currentWeekNumber={seasonData.currentWeekNumber}
         />

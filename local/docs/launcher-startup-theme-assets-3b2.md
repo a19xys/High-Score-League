@@ -124,3 +124,12 @@ asset del DOM puede terminar tarde para la misma selección, aunque nunca para o
 política `font-display: optional` puede usar la fuente del sistema en una máquina con I/O
 local excepcionalmente lento. 3B.3 conserva copy completa, densidad final, Ranking,
 badges, accesibilidad global y pulido visual general.
+
+## Continuidad: `LOCAL-PLAYER-PREFERENCES-2`
+
+La autoridad descrita aquí continúa en `main`, pero el fichero global es ahora el scope
+legítimo sin cuenta. La cuenta local activa se resuelve antes de `BrowserWindow` y usa
+`userData/players/<playerKey>/preferences/theme.json`. La transición de cuenta coordina
+tema, chrome nativo y snapshot del renderer; una escritura tardía conserva el scope en
+que nació. La migración global puede sembrar un único player y nunca se convierte en un
+fallback vivo compartido. Véase [player-preferences-2.md](player-preferences-2.md).

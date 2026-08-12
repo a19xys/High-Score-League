@@ -98,6 +98,7 @@ test("admin benchmark UI uses shared managed media fields and no preset icon sel
   assert.match(manager, /executeMediaSave/);
   assert.doesNotMatch(manager, /BENCHMARK_ICON_KEYS|IconSelect|BenchmarkIconPreview|speedometer/);
   assert.match(leaderboard, />\s*REF\s*</);
+  assert.match(leaderboard, /flex w-full items-center justify-center/);
   assert.match(leaderboard, /object-contain/);
   assert.doesNotMatch(leaderboard, /mask|speedometer|BenchmarkReferenceIcon/);
   assert.match(deleteRoute, /select\("id,image_storage_path"\)[\s\S]*\.delete\(\)[\s\S]*deleteManagedMedia/);

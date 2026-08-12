@@ -12,6 +12,8 @@ const {
   toggleLibraryFavorite,
   writeLibraryPreferences,
 } = require("../src/library-preferences");
+const { playerPreferenceScope } = require("../src/preference-scope");
+const { atomicWriteJson } = require("../src/secure-session-storage");
 const { rememberAccount, removeKnownAccount } = require("../src/account-store");
 
 async function withTempDir(fn) {
@@ -197,4 +199,76 @@ test("clampSidebarWidth respeta limites seguros", () => {
   assert.equal(clampSidebarWidth(1), MIN_SIDEBAR_WIDTH);
   assert.equal(clampSidebarWidth(9999), MAX_SIDEBAR_WIDTH);
   assert.equal(clampSidebarWidth(455.4), 455);
+});
+
+test("A, B y global conservan snapshots completos e independientes", async () => {
+  await withTempDir(async (dir) => {
+    const a = playerPreferenceScope("A");
+    const b = playerPreferenceScope("B");
+    await Promise.all([
+      writeLibraryPreferences(config(dir), a, { libraryView: "icons", librarySortBy: "title", librarySortDirection: "desc", sidebarWidth: 560 }),
+      writeLibraryPreferences(config(dir), b, { libraryView: "covers", librarySortBy: "weeks", librarySortDirection: "asc", sidebarWidth: 360 }),
+      writeLibraryPreferences(config(dir), { scope: "global" }, { libraryView: "list", librarySortBy: "developer", librarySortDirection: "asc", sidebarWidth: 440 }),
+    ]);
+    const [storedA, storedB, global] = await Promise.all([
+      readLibraryPreferences(config(dir), a),
+      readLibraryPreferences(config(dir), b),
+      readLibraryPreferences(config(dir), { scope: "global" }),
+    ]);
+    assert.deepEqual(
+      [storedA.libraryView, storedA.librarySortBy, storedA.librarySortDirection, storedA.sidebarWidth],
+      ["icons", "title", "desc", 560],
+    );
+    assert.deepEqual(
+      [storedB.libraryView, storedB.librarySortBy, storedB.librarySortDirection, storedB.sidebarWidth],
+      ["covers", "weeks", "asc", 360],
+    );
+    assert.deepEqual(
+      [global.libraryView, global.librarySortBy, global.librarySortDirection, global.sidebarWidth],
+      ["list", "developer", "asc", 440],
+    );
+  });
+});
+
+test("writes se serializan por scope, A lento no bloquea ni contamina B y la última A gana", async () => {
+  await withTempDir(async (dir) => {
+    const a = playerPreferenceScope("A");
+    const b = playerPreferenceScope("B");
+    let releaseA;
+    const waitA = new Promise((resolve) => { releaseA = resolve; });
+    let startedA;
+    const aStarted = new Promise((resolve) => { startedA = resolve; });
+    const delayedAtomicWrite = async (filePath, value) => {
+      if (filePath.includes(`${path.sep}${a.playerKey}${path.sep}`) && value.libraryView === "list") {
+        startedA();
+        await waitA;
+      }
+      return atomicWriteJson(filePath, value);
+    };
+
+    const firstA = writeLibraryPreferences(config(dir), a, { libraryView: "list" }, { atomicWriteImpl: delayedAtomicWrite });
+    await aStarted;
+    const secondA = writeLibraryPreferences(config(dir), a, { libraryView: "icons" }, { atomicWriteImpl: delayedAtomicWrite });
+    const writeB = writeLibraryPreferences(config(dir), b, { libraryView: "covers", sidebarWidth: 360 }, { atomicWriteImpl: delayedAtomicWrite });
+    assert.equal((await writeB).scopeKey, b.scopeKey);
+    releaseA();
+    await Promise.all([firstA, secondA]);
+
+    assert.equal((await readLibraryPreferences(config(dir), a)).libraryView, "icons");
+    assert.equal((await readLibraryPreferences(config(dir), b)).libraryView, "covers");
+  });
+});
+
+test("fallo de escritura atómica conserva el library.json anterior completo", async () => {
+  await withTempDir(async (dir) => {
+    const a = playerPreferenceScope("A");
+    await writeLibraryPreferences(config(dir), a, { libraryView: "covers", sidebarWidth: 500 });
+    const filePath = (await readLibraryPreferences(config(dir), a)).filePath;
+    const before = await fsp.readFile(filePath, "utf8");
+    await assert.rejects(() => writeLibraryPreferences(config(dir), a, { libraryView: "icons" }, {
+      atomicWriteImpl: async () => { throw new Error("fixture-write-failed"); },
+    }), /fixture-write-failed/);
+    assert.equal(await fsp.readFile(filePath, "utf8"), before);
+    assert.deepEqual(await fsp.readdir(path.dirname(filePath)), ["library.json"]);
+  });
 });

@@ -59,11 +59,13 @@ Jerarquías públicas:
 
 `Semanas` enlaza a `/archive#weeks` y `Temporadas` a `/archive#seasons`.
 
-La tabla “Calendario · Semanas incluidas” de una temporada conserva sus cinco
-columnas en escritorio. En móvil usa el mismo dataset y componente con tres
-columnas: Semana incorpora la fecha, Juego incorpora un badge compacto de
-estado y Acción muestra `Ver` o una indisponibilidad compacta. El layout fijo y
-el truncado evitan overflow horizontal desde 320 px.
+`SeasonWeeksTable` presenta “Calendario · Semanas incluidas” con un único
+dataset, un solo map y layout fijo. Juego es la columna flexible y las columnas
+compactas aparecen progresivamente: móvil muestra Semana, Juego y Acción;
+intermedio añade Estado; escritorio amplio separa también Fechas. Hasta ese
+último ancho, la fecha vive debajo de Semana, y en móvil el badge compacto vive
+debajo de Juego. El truncado y los anchos deterministas evitan overflow
+horizontal desde 320 px sin ocultar contenido estructural.
 
 ## Paginación compacta de submissions
 

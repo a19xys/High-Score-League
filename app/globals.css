@@ -28,6 +28,37 @@
   --warning-surface: #fff3c4;
   --warning-border: #d97706;
   --warning-text: #7c3d02;
+  --destructive-surface: rgba(220, 38, 38, 0.08);
+  --destructive-border: #dc2626;
+  --destructive-text: #b91c1c;
+  --landing-bg-start: #f8fcff;
+  --landing-bg-mid: #e8f8fb;
+  --landing-bg-end: #f8effc;
+  --landing-glow-cyan: rgba(34, 211, 238, 0.22);
+  --landing-glow-pink: rgba(217, 70, 239, 0.16);
+  --landing-aurora-cyan: rgba(6, 182, 212, 0.2);
+  --landing-aurora-pink: rgba(236, 72, 153, 0.17);
+  --landing-aurora-wash-start: rgba(14, 165, 233, 0.08);
+  --landing-aurora-wash-end: rgba(217, 70, 239, 0.07);
+  --landing-aurora-opacity-min: 0.38;
+  --landing-aurora-opacity-max: 0.62;
+  --landing-aurora-opacity-reduced: 0.5;
+  --landing-card: rgba(255, 255, 255, 0.76);
+  --landing-card-border: rgba(15, 71, 94, 0.16);
+  --landing-card-shadow: 0 24px 70px rgba(46, 94, 126, 0.16);
+  --landing-title: #10243f;
+  --landing-body: #4b6681;
+  --landing-eyebrow: #087f8c;
+  --landing-primary: #0e9aaa;
+  --landing-primary-hover: #087f8c;
+  --landing-primary-text: #ffffff;
+  --landing-secondary: rgba(255, 255, 255, 0.62);
+  --landing-secondary-hover: rgba(255, 255, 255, 0.9);
+  --landing-secondary-border: rgba(15, 39, 66, 0.2);
+  --landing-secondary-text: #17324f;
+  --landing-fallback: rgba(255, 255, 255, 0.64);
+  --landing-fallback-border: rgba(15, 71, 94, 0.18);
+  --landing-logo-shadow: 0 18px 30px rgba(49, 84, 117, 0.2);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -57,6 +88,37 @@
     --warning-surface: #3b2f18;
     --warning-border: #b45309;
     --warning-text: #fde68a;
+    --destructive-surface: rgba(248, 113, 113, 0.12);
+    --destructive-border: #f87171;
+    --destructive-text: #fca5a5;
+    --landing-bg-start: #020617;
+    --landing-bg-mid: #07111f;
+    --landing-bg-end: #12051a;
+    --landing-glow-cyan: rgba(34, 211, 238, 0.24);
+    --landing-glow-pink: rgba(236, 72, 153, 0.22);
+    --landing-aurora-cyan: rgba(6, 182, 212, 0.34);
+    --landing-aurora-pink: rgba(244, 114, 182, 0.3);
+    --landing-aurora-wash-start: rgba(14, 165, 233, 0.12);
+    --landing-aurora-wash-end: rgba(236, 72, 153, 0.1);
+    --landing-aurora-opacity-min: 0.62;
+    --landing-aurora-opacity-max: 0.9;
+    --landing-aurora-opacity-reduced: 0.78;
+    --landing-card: rgba(2, 6, 23, 0.7);
+    --landing-card-border: rgba(255, 255, 255, 0.15);
+    --landing-card-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+    --landing-title: #ffffff;
+    --landing-body: #cbd5e1;
+    --landing-eyebrow: rgba(207, 250, 254, 0.8);
+    --landing-primary: #67e8f9;
+    --landing-primary-hover: #a5f3fc;
+    --landing-primary-text: #020617;
+    --landing-secondary: rgba(255, 255, 255, 0.1);
+    --landing-secondary-hover: rgba(255, 255, 255, 0.15);
+    --landing-secondary-border: rgba(255, 255, 255, 0.2);
+    --landing-secondary-text: #ffffff;
+    --landing-fallback: rgba(255, 255, 255, 0.1);
+    --landing-fallback-border: rgba(255, 255, 255, 0.15);
+    --landing-logo-shadow: 0 22px 40px rgba(0, 0, 0, 0.42);
   }
 }
 
@@ -90,6 +152,37 @@ html[data-theme="dark"] {
   --warning-surface: #3b2f18;
   --warning-border: #b45309;
   --warning-text: #fde68a;
+  --destructive-surface: rgba(248, 113, 113, 0.12);
+  --destructive-border: #f87171;
+  --destructive-text: #fca5a5;
+  --landing-bg-start: #020617;
+  --landing-bg-mid: #07111f;
+  --landing-bg-end: #12051a;
+  --landing-glow-cyan: rgba(34, 211, 238, 0.24);
+  --landing-glow-pink: rgba(236, 72, 153, 0.22);
+  --landing-aurora-cyan: rgba(6, 182, 212, 0.34);
+  --landing-aurora-pink: rgba(244, 114, 182, 0.3);
+  --landing-aurora-wash-start: rgba(14, 165, 233, 0.12);
+  --landing-aurora-wash-end: rgba(236, 72, 153, 0.1);
+  --landing-aurora-opacity-min: 0.62;
+  --landing-aurora-opacity-max: 0.9;
+  --landing-aurora-opacity-reduced: 0.78;
+  --landing-card: rgba(2, 6, 23, 0.7);
+  --landing-card-border: rgba(255, 255, 255, 0.15);
+  --landing-card-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  --landing-title: #ffffff;
+  --landing-body: #cbd5e1;
+  --landing-eyebrow: rgba(207, 250, 254, 0.8);
+  --landing-primary: #67e8f9;
+  --landing-primary-hover: #a5f3fc;
+  --landing-primary-text: #020617;
+  --landing-secondary: rgba(255, 255, 255, 0.1);
+  --landing-secondary-hover: rgba(255, 255, 255, 0.15);
+  --landing-secondary-border: rgba(255, 255, 255, 0.2);
+  --landing-secondary-text: #ffffff;
+  --landing-fallback: rgba(255, 255, 255, 0.1);
+  --landing-fallback-border: rgba(255, 255, 255, 0.15);
+  --landing-logo-shadow: 0 22px 40px rgba(0, 0, 0, 0.42);
 }
 
 * {
@@ -137,9 +230,9 @@ textarea {
     justify-content: center;
     overflow: clip;
     background:
-      radial-gradient(circle at 18% 20%, rgba(34, 211, 238, 0.24), transparent 32rem),
-      radial-gradient(circle at 82% 18%, rgba(236, 72, 153, 0.22), transparent 30rem),
-      linear-gradient(135deg, #020617 0%, #07111f 45%, #12051a 100%);
+      radial-gradient(circle at 18% 20%, var(--landing-glow-cyan), transparent 32rem),
+      radial-gradient(circle at 82% 18%, var(--landing-glow-pink), transparent 30rem),
+      linear-gradient(135deg, var(--landing-bg-start) 0%, var(--landing-bg-mid) 45%, var(--landing-bg-end) 100%);
     padding-block: clamp(2rem, 5vw, 4rem);
     padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
     text-align: center;
@@ -151,10 +244,10 @@ textarea {
     inset: 0;
     z-index: -1;
     background:
-      radial-gradient(circle at 28% 58%, rgba(6, 182, 212, 0.34), transparent 28rem),
-      radial-gradient(circle at 74% 42%, rgba(244, 114, 182, 0.3), transparent 30rem),
-      linear-gradient(115deg, rgba(14, 165, 233, 0.12), rgba(236, 72, 153, 0.1));
-    opacity: 0.72;
+      radial-gradient(circle at 28% 58%, var(--landing-aurora-cyan), transparent 28rem),
+      radial-gradient(circle at 74% 42%, var(--landing-aurora-pink), transparent 30rem),
+      linear-gradient(115deg, var(--landing-aurora-wash-start), var(--landing-aurora-wash-end));
+    opacity: var(--landing-aurora-opacity-min);
     animation: public-landing-drift 18s ease-in-out infinite alternate;
   }
 
@@ -166,13 +259,65 @@ textarea {
   }
 
   .public-landing-content img {
-    filter: drop-shadow(0 22px 40px rgba(0, 0, 0, 0.42));
+    filter: drop-shadow(var(--landing-logo-shadow));
   }
 
   .public-landing-logo {
-    animation: public-landing-logo-heartbeat 3.2s ease-in-out infinite;
+    animation: public-landing-logo-breathe 6.2s ease-in-out infinite;
     transform-origin: center;
     will-change: transform;
+  }
+
+  .public-landing-content .public-landing-logo {
+    max-inline-size: calc(100% / 1.09);
+  }
+
+  .public-landing-logo-fallback {
+    color: var(--landing-title);
+    filter: drop-shadow(var(--landing-logo-shadow));
+  }
+
+  .public-landing-logo-mark {
+    background: var(--landing-fallback);
+    color: var(--landing-title);
+    box-shadow: inset 0 0 0 1px var(--landing-fallback-border);
+  }
+
+  .public-landing-card {
+    border-color: var(--landing-card-border);
+    background: var(--landing-card);
+    box-shadow: var(--landing-card-shadow);
+  }
+
+  .public-landing-eyebrow {
+    color: var(--landing-eyebrow);
+  }
+
+  .public-landing-title {
+    color: var(--landing-title);
+  }
+
+  .public-landing-body {
+    color: var(--landing-body);
+  }
+
+  .public-landing-primary-action {
+    background: var(--landing-primary);
+    color: var(--landing-primary-text);
+  }
+
+  .public-landing-primary-action:hover {
+    background: var(--landing-primary-hover);
+  }
+
+  .public-landing-secondary-action {
+    border-color: var(--landing-secondary-border);
+    background: var(--landing-secondary);
+    color: var(--landing-secondary-text);
+  }
+
+  .public-landing-secondary-action:hover {
+    background: var(--landing-secondary-hover);
   }
 
   .theme-surface {
@@ -443,29 +588,22 @@ textarea {
 
 @keyframes public-landing-drift {
   from {
-    opacity: 0.62;
+    opacity: var(--landing-aurora-opacity-min);
   }
 
   to {
-    opacity: 0.9;
+    opacity: var(--landing-aurora-opacity-max);
   }
 }
 
-@keyframes public-landing-logo-heartbeat {
+@keyframes public-landing-logo-breathe {
   0%,
-  12%,
-  24%,
-  36%,
   100% {
     transform: scale(1);
   }
 
-  18% {
-    transform: scale(1.075);
-  }
-
-  30% {
-    transform: scale(1.035);
+  50% {
+    transform: scale(1.09);
   }
 }
 
@@ -500,7 +638,7 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   .public-landing-aurora {
     animation: none;
-    opacity: 0.78;
+    opacity: var(--landing-aurora-opacity-reduced);
   }
 
   .public-landing-logo {

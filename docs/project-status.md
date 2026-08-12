@@ -24,7 +24,9 @@ de una revisión concreta.
   benchmarks, resultados oficiales, clasificación de temporada, chat global y
   cuestionario único de Home conectados a Supabase.
 - Panel admin para juegos, temporadas, semanas, submissions, benchmarks,
-  cuestionarios y publicación/regeneración manual de `weekly_results`.
+  cuestionarios y publicación/regeneración manual de `weekly_results`. En el
+  centro de Administración, Semana actual es el acceso featured dentro de un
+  grid responsive de seis unidades, sin cambiar su resolución segura.
 - `/submit` se conserva como herramienta legacy/interna para admins, pero el
   botón de envío manual está deshabilitado. El contrato de integración vigente
   es `POST /api/submissions/ingest` con sesión o bearer token Supabase.
@@ -80,6 +82,10 @@ no aplicada remotamente en esta tarea.
   años que cruza en `Europe/Madrid`; los activos se recortan a `now` para no
   revelar años futuros. La columna, los badges y la ordenación por Estado se
   conservan.
+- El detalle de temporada extrae `SeasonWeeksTable`: Semana, Juego y Acción
+  forman la base móvil; Estado aparece en intermedio y Fechas en escritorio.
+  Juego conserva el espacio flexible y las semanas secretas siguen mostrando
+  `Por anunciar` sin enlace.
 - `SubmissionsTable` calcula intentos, mejor score, visibilidad y orden sobre el
   conjunto completo y pagina después. Usa 10 por defecto y permite 10/25/50.
   En móvil muestra `[‹] 1–10 de 24 [›]`; en escritorio centra ese bloque y
@@ -100,6 +106,10 @@ no aplicada remotamente en esta tarea.
   `/brand/logo-horizontal.png` directamente. El fallback textual sólo aparece
   tras un `onError` real del navegador; no existe detección server-side con
   `existsSync`, `process.cwd()` o `hasBrandLogo`.
+- La landing mantiene una sola estructura y consume variables semánticas
+  propias para claro, oscuro explícito y oscuro de Sistema. Conserva la aurora
+  en ambas paletas y el logo usa una respiración continua basada sólo en
+  `transform`, desactivada con reduced motion.
 
 ## Cuestionario y media administrativa
 

@@ -6,10 +6,10 @@ type AdminProfileCenterProps = {
 };
 
 const adminLinks = [
-  { href: "/admin/weeks", title: "Semanas", description: "Calendario, envíos y publicación" },
-  { href: "/admin/seasons", title: "Temporadas", description: "Estructura competitiva" },
-  { href: "/admin/games", title: "Juegos", description: "Catálogo y recursos" },
-  { href: "/admin/polls", title: "Cuestionarios", description: "Pregunta activa de la Home" },
+  { href: "/admin/weeks", title: "Semanas", description: "Calendario, envíos y publicación", featured: false },
+  { href: "/admin/seasons", title: "Temporadas", description: "Estructura competitiva", featured: false },
+  { href: "/admin/games", title: "Juegos", description: "Catálogo y recursos", featured: false },
+  { href: "/admin/polls", title: "Cuestionarios", description: "Pregunta activa de la Home", featured: false },
 ];
 
 export function AdminProfileCenter({ data }: AdminProfileCenterProps) {
@@ -26,9 +26,9 @@ export function AdminProfileCenter({ data }: AdminProfileCenterProps) {
       href: currentWeekHref,
       title: "Semana actual",
       description: data.currentWeekLabel ?? "Revisar semanas",
-      current: true,
+      featured: true,
     },
-    ...adminLinks.map((link) => ({ ...link, current: false })),
+    ...adminLinks,
   ];
 
   return (
@@ -55,15 +55,26 @@ export function AdminProfileCenter({ data }: AdminProfileCenterProps) {
           </p>
         ) : null}
         <h3 className="mb-3 text-lg font-black theme-text">Accesos</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {links.map((link) => (
             <Link
-              className={`rounded-xl border p-4 transition theme-surface-muted hover:-translate-y-0.5 hover:border-circuit focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit motion-reduce:transform-none ${link.current ? "border-circuit" : "theme-border"}`}
+              className={`rounded-xl border p-4 transition hover:-translate-y-0.5 hover:border-circuit focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit motion-reduce:transform-none ${
+                link.featured
+                  ? "border-circuit bg-teal-500/10 shadow-[inset_0_0_0_1px_rgba(20,184,166,0.12),0_12px_30px_rgba(20,184,166,0.10)] sm:col-span-2 lg:col-span-2 xl:col-span-2"
+                  : "theme-border theme-surface-muted"
+              }`}
               href={link.href}
-              key={link.href}
+              key={link.title}
             >
-              <p className="font-extrabold theme-text">{link.title}</p>
-              <p className="mt-2 text-xs leading-5 theme-text-muted">
+              {link.featured ? (
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-circuit">
+                  Acceso principal
+                </p>
+              ) : null}
+              <p className={`${link.featured ? "mt-1 text-xl" : ""} font-extrabold theme-text`}>
+                {link.title}
+              </p>
+              <p className={`${link.featured ? "mt-1 text-sm" : "mt-2 text-xs"} leading-5 theme-text-muted`}>
                 {link.description}
               </p>
             </Link>

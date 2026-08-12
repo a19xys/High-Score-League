@@ -1072,13 +1072,13 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(app, /gameScroll\.scrollTop = 0/);
   assert.match(app, /currentDetailScrollKey = nextDetailScrollKey/);
   assert.equal(/window\.scrollTo/.test(app), false);
-  assert.match(app, /"library-packs": renderLibraryPacks\(state\)/);
+  assert.match(app, /"library-packs": renderLibraryPacks\(state, packsModel\)/);
   assert.match(app, /setLibraryPreferences/);
   assert.match(app, /toggleLibraryFavorite/);
   assert.match(app, /button\.disabled \|\| !store\.getState\(\)\.data\?\.session\?\.hasSession/);
   assert.match(app, /event\.stopPropagation\(\)/);
   assert.match(app, /persistLibraryPreferencesSoon\(\{ libraryView \}\)/);
-  assert.match(app, /await window\.hslLauncher\.setLibraryPreferences\(currentLibraryPreferencesPatch\(patch\)\)/);
+  assert.match(app, /window\.hslLauncher\.setLibraryPreferences\(patch\.scopeKey \? patch : currentLibraryPreferencesPatch\(patch\)\)/);
   assert.equal(/response\.state[\s\S]{0,400}libraryView/.test(app), false);
   assert.match(libraryGeometry, /LIBRARY_SIDEBAR_MIN = 340/);
   assert.match(libraryGeometry, /LIBRARY_SIDEBAR_MAX = 600/);
@@ -3390,7 +3390,8 @@ test("library preferences and favorites stay local to userData", async () => {
     assert.equal(preferences.preferences.librarySortDirection, "desc");
     assert.equal(preferences.preferences.libraryView, "list");
     assert.equal(preferences.preferences.sidebarWidth, 520);
-    assert.match(preferences.preferences.filePath, /players/);
+    assert.equal(preferences.preferences.filePath, undefined);
+    assert.equal(preferences.preferences.scopeKey, "player:user_user-1");
     assert.equal(favorite.ok, true);
     assert.equal(favorite.favorites.favorites["space-invaders-week-1"], true);
     assert.match(favorite.favorites.filePath, /players[\\/]user_user-1[\\/]preferences[\\/]favorites\.json$/);

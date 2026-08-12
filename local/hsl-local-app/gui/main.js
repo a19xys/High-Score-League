@@ -30,6 +30,10 @@ const {
   themeBackgroundColor,
   themePersistenceErrorCode,
 } = require("../src/theme-preferences");
+const {
+  normalizePreferenceScope,
+  resolvePlayerPreferenceScope,
+} = require("../src/preference-scope");
 
 if (process.env.HSL_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.HSL_USER_DATA_DIR));
 
@@ -174,7 +178,10 @@ function publicThemeState(state = themeAuthority?.getState()) {
     lastSystemTheme: ["light", "dark"].includes(state?.lastSystemTheme) ? state.lastSystemTheme : null,
     manualTheme: ["light", "dark"].includes(state?.manualTheme) ? state.manualTheme : null,
     mode: state?.mode === "manual" ? "manual" : "system",
+    playerKey: state?.scope === "player" ? state.playerKey || null : null,
     schemaVersion: Number(state?.schemaVersion) || 1,
+    scope: state?.scope === "player" ? "player" : "global",
+    scopeKey: state?.scopeKey || "global",
     warnings: Array.isArray(state?.warnings) ? state.warnings : [],
   };
 }
@@ -260,14 +267,20 @@ async function publishAccountProfileState() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const revision = launcherStateAuthority.reserveRevision();
   const state = await service.getLauncherState({ deferRemoteMembership: true });
+  if (!launcherStateAuthority.acceptEffects(revision)) return;
   const syncedState = syncRemoteContext(state, {
     coordinateMembership: false,
     refreshWeekCapabilities: false,
     scheduleAutoSubmit: false,
   });
+  const preferenceState = await enrichPreferenceState(syncedState, {
+    isCurrent: () => launcherStateAuthority.isEffectRevisionCurrent(revision),
+  });
+  if (!preferenceState) return;
+  if (!launcherStateAuthority.isEffectRevisionCurrent(revision)) return;
   sendRendererEvent("launcher:state", {
     accountProfiles: true,
-    state: launcherStateAuthority.publishSnapshot(syncedState, revision),
+    state: launcherStateAuthority.publishSnapshot(preferenceState, revision),
   });
 }
 
@@ -275,14 +288,20 @@ async function publishWeekCapabilityState() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const revision = launcherStateAuthority.reserveRevision();
   const state = await service.getLauncherState({ deferRemoteMembership: true });
+  if (!launcherStateAuthority.acceptEffects(revision)) return;
   const syncedState = syncRemoteContext(state, {
     coordinateMembership: false,
     refreshWeekCapabilities: false,
     scheduleAutoSubmit: false,
   });
+  const preferenceState = await enrichPreferenceState(syncedState, {
+    isCurrent: () => launcherStateAuthority.isEffectRevisionCurrent(revision),
+  });
+  if (!preferenceState) return;
+  if (!launcherStateAuthority.isEffectRevisionCurrent(revision)) return;
   sendRendererEvent("launcher:state", {
     competitionAuthority: true,
-    state: launcherStateAuthority.publishSnapshot(syncedState, revision),
+    state: launcherStateAuthority.publishSnapshot(preferenceState, revision),
   });
 }
 
@@ -363,14 +382,45 @@ function coordinateMembershipResult(value, trigger, revision, options = {}) {
   return nestedState ? { ...value, state } : state;
 }
 
+async function enrichPreferenceState(sourceState, options = {}) {
+  const preferenceScope = normalizePreferenceScope(sourceState.preferenceScope);
+  const previousScopeKey = themeAuthority?.getScope?.().scopeKey || "global";
+  const theme = await themeAuthority.switchScope(preferenceScope);
+  if (typeof options.isCurrent === "function" && !options.isCurrent()) return null;
+  const publicTheme = publicThemeState(theme);
+  if (previousScopeKey !== preferenceScope.scopeKey) {
+    applyNativeWindowTheme(mainWindow, publicTheme.effectiveTheme);
+  }
+  return {
+    ...sourceState,
+    preferenceScope,
+    preferences: {
+      scope: preferenceScope,
+      theme: publicTheme,
+    },
+  };
+}
+
+async function coordinatePreferenceResult(value, revision) {
+  const nestedState = isLauncherSnapshot(value?.state) ? value.state : null;
+  const directState = nestedState ? null : isLauncherSnapshot(value) ? value : null;
+  const sourceState = nestedState || directState;
+  if (!sourceState || !launcherStateAuthority.isEffectRevisionCurrent(Number(revision))) return value;
+  const state = await enrichPreferenceState(sourceState, {
+    isCurrent: () => launcherStateAuthority.isEffectRevisionCurrent(Number(revision)),
+  });
+  if (!state) return value;
+  if (!launcherStateAuthority.isEffectRevisionCurrent(Number(revision))) return value;
+  return nestedState ? { ...value, state } : state;
+}
+
 function registerLauncherStateHandler(channel, handler) {
   ipcMain.handle(channel, (event, ...args) => {
     const revision = launcherStateAuthority.reserveRevision();
     return Promise.resolve(handler(event, ...args))
-      .then((value) => launcherStateAuthority.publishResult(
-        coordinateMembershipResult(value, `ipc:${channel}`, revision),
-        revision,
-      ));
+      .then((value) => coordinateMembershipResult(value, `ipc:${channel}`, revision))
+      .then((value) => coordinatePreferenceResult(value, revision))
+      .then((value) => launcherStateAuthority.publishResult(value, revision));
   });
 }
 
@@ -449,15 +499,20 @@ function initializeRemoteServices() {
     connectivityTimeoutMs: connectivity.config.healthTimeoutMs,
     execute: ({ signal }) => service.getLauncherState({ connected: true, signal }),
     getConnectivityState: () => connectivity.getState(),
-    publish(state, resolution) {
+    async publish(state, resolution) {
       if (!launcherStateAuthority.acceptEffects(resolution.revision)) return;
       const syncedState = syncRemoteContext(state, {
         coordinateMembership: false,
         membershipTrigger: resolution.phase,
       });
+      const preferenceState = await enrichPreferenceState(syncedState, {
+        isCurrent: () => launcherStateAuthority.isEffectRevisionCurrent(resolution.revision),
+      });
+      if (!preferenceState) return;
+      if (!launcherStateAuthority.isEffectRevisionCurrent(resolution.revision)) return;
       sendRendererEvent("launcher:state", {
         membershipResolution: { phase: resolution.phase },
-        state: launcherStateAuthority.publishSnapshot(syncedState, resolution.revision),
+        state: launcherStateAuthority.publishSnapshot(preferenceState, resolution.revision),
       });
     },
     reserveRevision: () => launcherStateAuthority.reserveRevision(),
@@ -480,10 +535,16 @@ function initializeRemoteServices() {
         revision,
         { scheduleAutoSubmit: false },
       );
+      if (!launcherStateAuthority.isEffectRevisionCurrent(revision)) return;
+      const preferenceState = await enrichPreferenceState(coordinatedState, {
+        isCurrent: () => launcherStateAuthority.isEffectRevisionCurrent(revision),
+      });
+      if (!preferenceState) return;
+      if (!launcherStateAuthority.isEffectRevisionCurrent(revision)) return;
       sendRendererEvent("launcher:state", {
         autoSubmit: result,
         state: launcherStateAuthority.publishSnapshot(
-          coordinatedState,
+          preferenceState,
           revision,
         ),
       });
@@ -784,11 +845,15 @@ function registerIpc() {
     applyNativeWindowTheme(mainWindow, publicState.effectiveTheme);
     event.returnValue = { ...publicState, legacyMigrationStatus };
   });
-  ipcMain.handle("launcher:set-theme", async (_event, theme) => {
+  ipcMain.handle("launcher:set-theme", async (_event, request) => {
+    const theme = typeof request === "string" ? request : request?.theme;
+    const scopeKey = typeof request === "object" ? request?.scopeKey : null;
     try {
-      const state = await themeAuthority.setManualTheme(theme);
+      const state = await themeAuthority.setManualTheme(theme, scopeKey);
       const publicState = publicThemeState(state);
-      applyNativeWindowTheme(mainWindow, publicState.effectiveTheme);
+      if (publicState.scopeKey === themeAuthority.getScope().scopeKey) {
+        applyNativeWindowTheme(mainWindow, publicState.effectiveTheme);
+      }
       return { ...publicState, ok: true };
     } catch (error) {
       return {
@@ -1167,7 +1232,8 @@ if (!hasSingleInstanceLock) {
       readSystemTheme,
       userDataDir: app.getPath("userData"),
     });
-    await themeAuthority.initialize();
+    const startupPreferenceScope = await resolvePlayerPreferenceScope({ userDataDir: app.getPath("userData") });
+    await themeAuthority.initialize(startupPreferenceScope);
     recordStartupMilestone("theme-resolved");
     initializeSecureSessionStorage();
     initializeRemoteServices();

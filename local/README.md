@@ -659,15 +659,29 @@ password while the saved session remains valid. Closing session clears only the
 active `session.json`; removing a remembered account removes its quick access
 session but does not delete local scores.
 
-Library favorites are also scoped to the active account when there is a session:
+Player library and theme preferences use the locally active account from
+`known-accounts.json`, independently of temporary remote-session or connectivity state:
+
+```text
+userData/players/<playerKey>/preferences/library.json
+userData/players/<playerKey>/preferences/theme.json
+```
+
+Without a locally active account, library preferences use
+`userData/library/preferences.json` and theme uses the collision-safe
+`userData/hsl/preferences/theme.json`. View, sort, sort direction and sidebar width are
+persistent; filters, focus and scroll are not. See
+[`docs/player-preferences-2.md`](docs/player-preferences-2.md).
+
+Library favorites remain scoped to the active authenticated session:
 
 ```text
 userData/players/<playerKey>/preferences/favorites.json
 ```
 
-Without a session, favorites stay in the anonymous fallback
-`userData/library/favorites.json`. The launcher does not migrate anonymous
-favorites into accounts automatically.
+Without a session, the UI does not write favorites. The legacy anonymous compatibility
+file remains at `userData/library/favorites.json` and is never copied into accounts
+automatically.
 
 Architecture constraints for that GUI:
 

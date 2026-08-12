@@ -162,7 +162,7 @@ test("the profile workspace is accessible, mounted and free of the old anchor na
   assert.equal(historyExists, false);
 });
 
-test("avatar ring and public logo heartbeat animate only transforms with reduced motion", async () => {
+test("avatar ring and public logo breathe animate only transforms with reduced motion", async () => {
   const [styles, hero] = await Promise.all([
     read("app", "globals.css"),
     read("components", "profile", "profile-hero.tsx"),
@@ -172,9 +172,16 @@ test("avatar ring and public logo heartbeat animate only transforms with reduced
   assert.match(styles, /profile-avatar-glow::before/);
   assert.match(styles, /conic-gradient/);
   assert.match(styles, /profile-avatar-ring-spin 5\.5s linear infinite/);
-  assert.match(styles, /public-landing-logo-heartbeat 3\.2s/);
-  assert.match(styles, /18%[\s\S]*scale\(1\.075\)/);
-  assert.match(styles, /30%[\s\S]*scale\(1\.035\)/);
+  assert.match(styles, /public-landing-logo-breathe 6\.2s ease-in-out infinite/);
+  assert.match(styles, /max-inline-size:\s*calc\(100% \/ 1\.09\)/);
+  assert.match(styles, /@keyframes public-landing-logo-breathe[\s\S]*50%\s*\{\s*transform: scale\(1\.09\)/);
+  assert.doesNotMatch(styles, /public-landing-logo-heartbeat/);
+  const breathe = styles.slice(
+    styles.indexOf("@keyframes public-landing-logo-breathe"),
+    styles.indexOf("@keyframes profile-avatar-ring-spin"),
+  );
+  assert.doesNotMatch(breathe, /opacity|width|height|margin|filter/);
+  assert.match(styles, /prefers-reduced-motion:\s*reduce[\s\S]*public-landing-logo[\s\S]*animation:\s*none[\s\S]*transform:\s*none/);
   assert.match(styles, /prefers-reduced-motion:\s*reduce[\s\S]*profile-avatar-glow::before/);
 });
 
@@ -201,17 +208,26 @@ test("profile editor keeps avatar first, responsive controls and non-reserved sa
   assert.ok(account.indexOf("<LogoutButton") < account.indexOf("<ProfileAccountAnonymization"));
 });
 
-test("season week calendar has one fixed responsive table with three mobile columns", async () => {
-  const source = await read("app", "seasons", "[seasonId]", "page.tsx");
-  const table = source.slice(
-    source.indexOf("function RealSeasonWeeksTable"),
-    source.indexOf("export default async function SeasonDetailPage"),
-  );
+test("season week calendar is one extracted table with progressive columns", async () => {
+  const [page, table] = await Promise.all([
+    read("app", "seasons", "[seasonId]", "page.tsx"),
+    read("components", "season-weeks-table.tsx"),
+  ]);
 
-  assert.match(table, /tableClassName="w-full table-fixed"/);
-  assert.match(table, /hidden w-36[^\n]+sm:table-cell">Fechas/);
-  assert.match(table, /hidden w-28[^\n]+sm:table-cell">Estado/);
+  assert.match(page, /import \{ SeasonWeeksTable \}/);
+  assert.match(page, /<SeasonWeeksTable[\s\S]*weeks=\{seasonData\.weeks\}/);
+  assert.doesNotMatch(page, /RealSeasonWeeksTable|function isSecretWeek/);
+  assert.match(table, /tableClassName="season-weeks-table w-full table-fixed"/);
+  assert.match(table, /w-14 md:w-16 lg:w-32/);
+  assert.match(table, /<colgroup>/);
+  assert.match(table, /<col \/>/);
+  assert.match(table, />Semana<[\s\S]*>Juego<[\s\S]*>Fechas<[\s\S]*>Estado<[\s\S]*>Acción/);
+  assert.match(table, /hidden px-4 py-3 text-left lg:table-cell">Fechas/);
+  assert.match(table, /hidden px-3 py-3 text-left md:table-cell/);
+  assert.match(table, /theme-text-muted lg:hidden/);
+  assert.match(table, /className="mt-1 md:hidden"/);
   assert.match(table, /<StatusBadge compact/);
-  assert.match(table, /className="sm:hidden">Ver</);
+  assert.match(table, /className="lg:hidden">Ver</);
   assert.equal((table.match(/weeks\.map/g) ?? []).length, 1);
+  assert.doesNotMatch(table, /MobileSeasonWeeksTable|DesktopSeasonWeeksTable/);
 });

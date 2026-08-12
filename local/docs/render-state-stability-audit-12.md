@@ -45,8 +45,9 @@ Persistencia revisada:
 
 - `libraryView`, `librarySortBy`, `librarySortDirection` y `sidebarWidth` viven
   en `userData/.../preferences/library.json`;
-- con sesion se guardan por `playerKey`;
-- sin sesion usan fallback global;
+- el scope visual se deriva de la cuenta local activa, incluso si su sesión remota está
+  temporalmente degradada;
+- sin cuenta local activa usan fallback global;
 - favoritos siguen separados en `favorites.json` por cuenta activa.
 
 La causa real o riesgo principal era que `persistLibraryPreferences()` esperaba

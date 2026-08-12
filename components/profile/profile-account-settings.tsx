@@ -48,11 +48,6 @@ export function ProfileAccountSettings({
               <ProfileAccountAnonymization playerId={playerId} username={username} />
             ) : null}
           </div>
-          {playerId && username ? (
-            <p className="mt-3 text-sm leading-6 text-[var(--warning-text)]">
-              Eliminar la cuenta es irreversible; tu historial competitivo se conservará de forma anónima.
-            </p>
-          ) : null}
         </div>
       </div>
     </section>

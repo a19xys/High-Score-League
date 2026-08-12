@@ -1,6 +1,11 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { derivePlayerKey } = require("./scoped-queue");
+const { atomicWriteJson } = require("./secure-session-storage");
+const {
+  normalizePreferenceScope,
+  preferenceScopeFromSession,
+} = require("./preference-scope");
 
 const VALID_LIBRARY_VIEWS = new Set(["covers", "list", "icons"]);
 const VALID_LIBRARY_SORT_BY = new Set(["weeks", "title", "developer", "year"]);
@@ -11,6 +16,7 @@ const DEFAULT_LIBRARY_SORT_DIRECTION = "asc";
 const DEFAULT_SIDEBAR_WIDTH = 440;
 const MIN_SIDEBAR_WIDTH = 320;
 const MAX_SIDEBAR_WIDTH = 600;
+const libraryWriteChains = new Map();
 
 function clampSidebarWidth(value) {
   const numeric = Number(value);
@@ -34,18 +40,25 @@ function normalizeLibrarySortDirection(value) {
   return VALID_LIBRARY_SORT_DIRECTIONS.has(value) ? value : DEFAULT_LIBRARY_SORT_DIRECTION;
 }
 
-function getPreferencesPath(config = {}, session = {}) {
+function libraryPreferenceScope(identity = {}) {
+  if (identity?.scope || identity?.scopeKey) return normalizePreferenceScope(identity);
+  return preferenceScopeFromSession(identity);
+}
+
+function getPreferencesPath(config = {}, identity = {}) {
   if (!config.userDataDir) {
     throw new Error("config.userDataDir es obligatorio para preferencias de biblioteca.");
   }
 
-  const playerKey = derivePlayerKey(session);
+  const preferenceScope = libraryPreferenceScope(identity);
+  const { playerKey } = preferenceScope;
 
   if (playerKey) {
     return {
       filePath: path.join(config.userDataDir, "players", playerKey, "preferences", "library.json"),
       playerKey,
       scope: "player",
+      scopeKey: preferenceScope.scopeKey,
     };
   }
 
@@ -53,6 +66,7 @@ function getPreferencesPath(config = {}, session = {}) {
     filePath: path.join(config.userDataDir, "library", "preferences.json"),
     playerKey: null,
     scope: "global",
+    scopeKey: "global",
   };
 }
 
@@ -87,14 +101,15 @@ function normalizePreferences(raw = {}, context = {}) {
     playerKey: context.playerKey || null,
     schemaVersion: 1,
     scope: context.scope || "global",
+    scopeKey: context.scopeKey || "global",
     sidebarWidth: clampSidebarWidth(raw.sidebarWidth),
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : null,
     warnings: context.warnings || [],
   };
 }
 
-async function readLibraryPreferences(config = {}, session = {}) {
-  const context = getPreferencesPath(config, session);
+async function readLibraryPreferences(config = {}, identity = {}) {
+  const context = getPreferencesPath(config, identity);
 
   try {
     const raw = JSON.parse(await fsp.readFile(context.filePath, "utf8"));
@@ -106,36 +121,63 @@ async function readLibraryPreferences(config = {}, session = {}) {
 
     return normalizePreferences({}, {
       ...context,
-      warnings: [`No se pudo leer library.json: ${error.message}`],
+      warnings: ["No se pudo leer library.json; se usan valores seguros."],
     });
   }
 }
 
-async function writeLibraryPreferences(config = {}, session = {}, patch = {}, options = {}) {
-  const current = await readLibraryPreferences(config, session);
-  const updatedAt = options.now || new Date().toISOString();
-  const next = normalizePreferences({
-    librarySortBy: patch.librarySortBy === undefined ? current.librarySortBy : patch.librarySortBy,
-    librarySortDirection: patch.librarySortDirection === undefined ? current.librarySortDirection : patch.librarySortDirection,
-    libraryView: patch.libraryView === undefined ? current.libraryView : patch.libraryView,
-    sidebarWidth: patch.sidebarWidth === undefined ? current.sidebarWidth : patch.sidebarWidth,
-    updatedAt,
-  }, current);
-  const data = {
-    librarySortBy: next.librarySortBy,
-    librarySortDirection: next.librarySortDirection,
-    libraryView: next.libraryView,
-    schemaVersion: 1,
-    sidebarWidth: next.sidebarWidth,
-    updatedAt,
-  };
+function serializeLibraryWrite(scopeKey, operation) {
+  const previous = libraryWriteChains.get(scopeKey) || Promise.resolve();
+  const current = previous.catch(() => {}).then(operation);
+  libraryWriteChains.set(scopeKey, current);
+  return current.finally(() => {
+    if (libraryWriteChains.get(scopeKey) === current) libraryWriteChains.delete(scopeKey);
+  });
+}
 
-  await fsp.mkdir(path.dirname(current.filePath), { recursive: true });
-  await fsp.writeFile(current.filePath, JSON.stringify(data, null, 2), "utf8");
+async function writeLibraryPreferences(config = {}, identity = {}, patch = {}, options = {}) {
+  const context = getPreferencesPath(config, identity);
+  return serializeLibraryWrite(context.scopeKey, async () => {
+    const current = await readLibraryPreferences(config, context);
+    const updatedAt = options.now || new Date().toISOString();
+    const next = normalizePreferences({
+      librarySortBy: patch.librarySortBy === undefined ? current.librarySortBy : patch.librarySortBy,
+      librarySortDirection: patch.librarySortDirection === undefined ? current.librarySortDirection : patch.librarySortDirection,
+      libraryView: patch.libraryView === undefined ? current.libraryView : patch.libraryView,
+      sidebarWidth: patch.sidebarWidth === undefined ? current.sidebarWidth : patch.sidebarWidth,
+      updatedAt,
+    }, current);
+    const data = {
+      librarySortBy: next.librarySortBy,
+      librarySortDirection: next.librarySortDirection,
+      libraryView: next.libraryView,
+      schemaVersion: 1,
+      sidebarWidth: next.sidebarWidth,
+      updatedAt,
+    };
 
+    await (options.atomicWriteImpl || atomicWriteJson)(current.filePath, data);
+
+    return {
+      ...next,
+      warnings: [],
+    };
+  });
+}
+
+function publicLibraryPreferences(preferences = {}) {
+  const scope = normalizePreferenceScope(preferences);
   return {
-    ...next,
-    warnings: [],
+    librarySortBy: normalizeLibrarySortBy(preferences.librarySortBy),
+    librarySortDirection: normalizeLibrarySortDirection(preferences.librarySortDirection),
+    libraryView: normalizeLibraryView(preferences.libraryView),
+    playerKey: scope.playerKey,
+    schemaVersion: 1,
+    scope: scope.scope,
+    scopeKey: scope.scopeKey,
+    sidebarWidth: clampSidebarWidth(preferences.sidebarWidth),
+    updatedAt: typeof preferences.updatedAt === "string" ? preferences.updatedAt : null,
+    warnings: Array.isArray(preferences.warnings) ? preferences.warnings : [],
   };
 }
 
@@ -240,6 +282,7 @@ module.exports = {
   normalizeLibrarySortBy,
   normalizeLibrarySortDirection,
   normalizeLibraryView,
+  publicLibraryPreferences,
   readLibraryFavorites,
   readLibraryPreferences,
   toggleLibraryFavorite,
