@@ -1,6 +1,14 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   formatExactDateTime,
   formatLongDateWithoutYear,
@@ -15,6 +23,12 @@ import {
   paginateItems,
   type TablePageSize,
 } from "@/lib/pagination";
+import {
+  cancelDocumentScrollFrame,
+  captureDocumentScrollTop,
+  restoreDocumentScrollTop,
+  verifyDocumentScrollTopOnNextFrame,
+} from "@/lib/document-scroll-restoration";
 import { PlayerPill } from "./player-pill";
 import { EmptyState } from "./ui/state";
 import { DataTable } from "./ui/table";
@@ -418,6 +432,8 @@ export function SubmissionsTable({
   const [ownHiddenScoresRevealed, setOwnHiddenScoresRevealed] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<TablePageSize>(10);
+  const pendingPageScrollTopRef = useRef<number | null>(null);
+  const pageScrollFrameRef = useRef<number | null>(null);
 
   const decoratedSubmissions = useMemo(
     () =>
@@ -449,6 +465,48 @@ export function SubmissionsTable({
     [decoratedSubmissions, showWeek],
   );
 
+  const cancelPendingPageScrollFrame = useCallback(() => {
+    if (pageScrollFrameRef.current === null) {
+      return;
+    }
+
+    cancelDocumentScrollFrame(pageScrollFrameRef.current);
+    pageScrollFrameRef.current = null;
+  }, []);
+
+  const clearPendingPageScrollRestore = useCallback(() => {
+    pendingPageScrollTopRef.current = null;
+    cancelPendingPageScrollFrame();
+  }, [cancelPendingPageScrollFrame]);
+
+  function changePagePreservingScroll(nextPage: number) {
+    cancelPendingPageScrollFrame();
+    pendingPageScrollTopRef.current = captureDocumentScrollTop();
+    setPage(nextPage);
+  }
+
+  useLayoutEffect(() => {
+    const savedScrollTop = pendingPageScrollTopRef.current;
+
+    if (savedScrollTop === null) {
+      return;
+    }
+
+    pendingPageScrollTopRef.current = null;
+    cancelPendingPageScrollFrame();
+
+    // Mobile engines can adjust document scroll after paginated rows are replaced.
+    restoreDocumentScrollTop(savedScrollTop);
+    pageScrollFrameRef.current = verifyDocumentScrollTopOnNextFrame(
+      savedScrollTop,
+      () => {
+        pageScrollFrameRef.current = null;
+      },
+    );
+
+    return cancelPendingPageScrollFrame;
+  }, [cancelPendingPageScrollFrame, safePage]);
+
   useEffect(() => {
     if (page !== safePage) {
       setPage(safePage);
@@ -456,10 +514,12 @@ export function SubmissionsTable({
   }, [page, safePage]);
 
   useEffect(() => {
+    clearPendingPageScrollRestore();
     setPage(1);
-  }, [resetKey]);
+  }, [clearPendingPageScrollRestore, resetKey]);
 
   function toggleSort(nextSortKey: SortKey) {
+    clearPendingPageScrollRestore();
     setPage(1);
 
     if (nextSortKey === sortKey) {
@@ -619,17 +679,10 @@ export function SubmissionsTable({
                 <td className={`${cellClassName} min-w-0 whitespace-nowrap font-semibold theme-text`}>
                   <div className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden">
                     {showPlayer && submission.player ? (
-                      <>
-                        <span className="submission-player-rich min-w-0 overflow-hidden">
-                          <PlayerPill
-                            player={submission.player}
-                            variant="submission"
-                          />
-                        </span>
-                        <span className="submission-player-compact shrink-0">
-                          {submission.playerInitials}
-                        </span>
-                      </>
+                      <PlayerPill
+                        player={submission.player}
+                        variant="submission"
+                      />
                     ) : (
                       <span className="shrink-0">{submission.playerInitials}</span>
                     )}
@@ -700,8 +753,9 @@ export function SubmissionsTable({
         </tbody>
       </DataTable>
       <TablePagination
-        onPageChange={setPage}
+        onPageChange={changePagePreservingScroll}
         onPageSizeChange={(nextPageSize) => {
+          clearPendingPageScrollRestore();
           setPageSize(nextPageSize);
           setPage(1);
         }}

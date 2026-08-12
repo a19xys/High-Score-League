@@ -551,6 +551,10 @@ test("renderer pack library renders seasons, views, filters and empty states", a
     path.join(__dirname, "..", "gui", "renderer", "components", "pack-card.js"),
     "utf8",
   );
+  const packStatus = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "library-pack-status.js"),
+    "utf8",
+  );
   const libraryOrder = await fsp.readFile(
     path.join(__dirname, "..", "gui", "shared", "library-order.mjs"),
     "utf8",
@@ -665,13 +669,13 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(libraryPanel, /data-action="rescan-pack-directory"/);
   assert.equal(/Gestionar biblioteca|<summary>/.test(libraryPanel), false);
   assert.equal(/Juegos instalados|Temporadas y packs disponibles|juegos instalados/.test(libraryPanel), false);
-  assert.match(libraryPanel, /renderPackCard\(pack, state, state\.libraryView\)/);
+  assert.match(libraryPanel, /renderPackCard\(pack, state, model\.view\)/);
   assert.match(libraryPanel, /const sorted = sortPacks\(filtered, state\)/);
   assert.match(libraryPanel, /from "\.\.\/\.\.\/shared\/library-order\.mjs"/);
   assert.match(libraryOrder, /export function normalizedYear\(pack\)/);
   assert.match(libraryOrder, /export function primaryDeveloper\(pack\)/);
   assert.match(libraryPanel, /function shouldGroupPacks\(sortBy\)/);
-  assert.match(libraryPanel, /if \(!shouldGroupPacks\(sortBy\)\)/);
+  assert.match(libraryPanel, /const grouped = shouldGroupPacks\(sortBy\)/);
   assert.match(libraryPanel, /groupPacks\(sorted, sortBy\)/);
   assert.match(libraryOrder, /sortBy === "developer"/);
   assert.match(libraryOrder, /sortBy === "year"/);
@@ -683,16 +687,16 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(packCard, /kind: "cover-fallback"/);
   assert.equal(/pack\.logo/.test(packCard), false);
   assert.match(packCard, /pack-card__placeholder/);
-  assert.match(packCard, /statusMeta/);
-  assert.match(packCard, /REQUIERE ATENCION/);
-  assert.doesNotMatch(packCard, /label: "LEGACY"|label: "LISTO"/);
-  assert.match(packCard, /ACTIVA/);
-  assert.match(packCard, /INACTIVA/);
-  assert.match(packCard, /CERRADA/);
-  assert.match(packCard, /SIN VINCULAR/);
-  assert.match(packCard, /SIN DATOS/);
+  assert.match(packCard, /deriveLibraryPackStatus/);
+  assert.match(packStatus, /REQUIERE ATENCION/);
+  assert.doesNotMatch(packStatus, /label: "LEGACY"|label: "LISTO"/);
+  assert.match(packStatus, /ACTIVA/);
+  assert.match(packStatus, /INACTIVA/);
+  assert.match(packStatus, /CERRADA/);
+  assert.match(packStatus, /SIN VINCULAR/);
+  assert.match(packStatus, /SIN DATOS/);
   assert.match(packCard, /week-status-badge/);
-  assert.match(packCard, /week-status--ready/);
+  assert.match(packStatus, /week-status--ready/);
   assert.equal(/ABIERTO/.test(packCard), false);
   assert.equal(/Seleccionar|library-use-button|Ya activo/.test(packCard), false);
   assert.match(packCard, /data-action="use-library-pack"/);
@@ -2252,6 +2256,10 @@ test("pack directory actions are exposed without legacy location UI", async () =
     path.join(__dirname, "..", "gui", "renderer", "components", "pack-card.js"),
     "utf8",
   );
+  const packStatus = await fsp.readFile(
+    path.join(__dirname, "..", "gui", "renderer", "components", "library-pack-status.js"),
+    "utf8",
+  );
 
   assert.match(main, /launcher:choose-pack-directory/);
   assert.match(main, /launcher:open-pack-directory/);
@@ -2284,9 +2292,9 @@ test("pack directory actions are exposed without legacy location UI", async () =
   assert.match(devTools, /data-action="rescan-pack-directory"/);
   assert.match(devTools, /data-action="open-pack-directory"/);
   assert.match(devTools, /data-action="choose-shared-mame-runtime"/);
-  assert.match(packCard, /REQUIERE ATENCION/);
-  assert.doesNotMatch(packCard, /label: "LEGACY"|label: "LISTO"/);
-  assert.match(packCard, /ACTIVA|INACTIVA|CERRADA|SIN VINCULAR|SIN DATOS/);
+  assert.match(packStatus, /REQUIERE ATENCION/);
+  assert.doesNotMatch(packStatus, /label: "LEGACY"|label: "LISTO"/);
+  assert.match(packStatus, /ACTIVA|INACTIVA|CERRADA|SIN VINCULAR|SIN DATOS/);
   assert.equal(/ABIERTO/.test(packCard), false);
   assert.equal(/addLibraryLocation|removeLibraryLocation|launcher:add-library-location|launcher:remove-library-location/.test(main + preload + app), false);
 });

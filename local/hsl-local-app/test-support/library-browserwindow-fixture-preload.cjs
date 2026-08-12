@@ -7,6 +7,7 @@ let connectivityStateListener = null;
 let heroStatus = "ready";
 let launcherStateRevision = 1;
 let launcherStateListener = null;
+let rankingCapabilitiesStateListener = null;
 let selectionPhase = "initial";
 let switchAccountCalls = 0;
 let accountFixtureMode = "existing";
@@ -16,6 +17,9 @@ let weekFixtureState = null;
 let competitionPreflightMode = "active";
 let competitionLaunches = 0;
 let practiceLaunches = 0;
+let manualConnectivityRefreshCount = 0;
+let manualConnectivityWeekIndex = 0;
+let manualConnectivityWeekStates = ["closed", "active", "inactive"];
 const forgottenAccountIds = new Set();
 const fixtureAvatarUrl = process.env.HSL_ACCOUNT_AVATAR_FILE_URL || null;
 
@@ -269,7 +273,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   onBusyPhase: () => () => {},
   onConnectivityState: subscription((callback) => { connectivityStateListener = callback; }),
   onLauncherState: subscription((callback) => { launcherStateListener = callback; }),
-  onRankingCapabilitiesState: () => () => {},
+  onRankingCapabilitiesState: subscription((callback) => { rankingCapabilitiesStateListener = callback; }),
   playCompetition: async () => {
     if (competitionPreflightMode === "closed") {
       weekFixtureState = "closed";
@@ -292,7 +296,38 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   reportConnectivityApplied() {},
   reportRankingApplied() {},
   reportStartupMilestone() {},
-  requestConnectivityRefresh: async () => ({ reachability: "connected", reachabilityGeneration: 1 }),
+  requestConnectivityRefresh: async () => {
+    manualConnectivityRefreshCount += 1;
+    connectivityStateListener?.({
+      displayStatus: "connected",
+      probe: { inFlight: true, phase: "manual" },
+      reachability: "connected",
+      reachabilityGeneration: manualConnectivityRefreshCount + 1,
+    });
+    rankingCapabilitiesStateListener?.({
+      entries: {},
+      generation: manualConnectivityRefreshCount + 1,
+      inFlight: false,
+      stateSequence: manualConnectivityRefreshCount + 1,
+    });
+    await Promise.resolve();
+    connectivityStateListener?.({
+      displayStatus: "connected",
+      probe: { inFlight: false, phase: "idle" },
+      reachability: "connected",
+      reachabilityGeneration: manualConnectivityRefreshCount + 1,
+    });
+    const nextWeekState = manualConnectivityWeekStates[
+      manualConnectivityWeekIndex % manualConnectivityWeekStates.length
+    ];
+    manualConnectivityWeekIndex += 1;
+    setTimeout(() => {
+      weekFixtureState = nextWeekState;
+      launcherStateRevision += 1;
+      launcherStateListener?.({ competitionAuthority: true, state: snapshot() });
+    }, 0);
+    return { reachability: "connected", reachabilityGeneration: manualConnectivityRefreshCount + 1 };
+  },
   resolveThemeBootstrap: () => ({ effectiveTheme: "dark", mode: "manual" }),
   setLibraryPreferences: async () => ({ ok: true }),
   setAccountFixtureMode: async (mode) => {
@@ -358,6 +393,16 @@ contextBridge.exposeInMainWorld("hslLauncher", {
 contextBridge.exposeInMainWorld("hslFixture", {
   competitionCounts() {
     return { competitionLaunches, practiceLaunches };
+  },
+  getManualConnectivityRefreshCount() {
+    return manualConnectivityRefreshCount;
+  },
+  setManualConnectivityWeekStates(states) {
+    const accepted = Array.isArray(states)
+      ? states.filter((state) => ["active", "inactive", "closed", "unlinked", "unknown"].includes(state))
+      : [];
+    manualConnectivityWeekStates = accepted.length > 0 ? accepted : ["closed"];
+    manualConnectivityWeekIndex = 0;
   },
   emitConnectivityStatus(status) {
     connectivityStatus = status === "disconnected" ? "offline" : "connected";

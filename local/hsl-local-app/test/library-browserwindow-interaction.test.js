@@ -283,3 +283,59 @@ test("BrowserWindow autocorrige autoridad competitiva antes de JUGAR", { skip: !
   assert.equal(result.actions.afterTemporaryFailure.asksForLogin, false);
   assert.deepEqual(result.actions.actionCounts, { competitionLaunches: 0, practiceLaunches: 1 });
 });
+
+test("BrowserWindow preserves cards and scroll during passive connectivity refresh", { skip: !enabled, timeout: 240_000 }, async () => {
+  const electron = require("electron");
+  const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
+  const { stdout } = await execFileAsync(electron, [fixture], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      HSL_LIBRARY_CHECK_ONLY: "render-invariants-before",
+      HSL_LIBRARY_QUIET: "1",
+    },
+    maxBuffer: 2 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const result = JSON.parse(stdout.trim());
+  assert.deepEqual(result.scenarios.map(({ direct, expectedStatuses, nearBottom, view }) => ({ direct, expectedStatuses, nearBottom, view })), [
+    { direct: false, expectedStatuses: ["CERRADA"], nearBottom: false, view: "covers" },
+    { direct: false, expectedStatuses: ["CERRADA"], nearBottom: true, view: "covers" },
+    { direct: false, expectedStatuses: ["CERRADA"], nearBottom: false, view: "list" },
+    { direct: false, expectedStatuses: ["CERRADA"], nearBottom: false, view: "icons" },
+    { direct: false, expectedStatuses: ["CERRADA", "ACTIVA", "INACTIVA"], nearBottom: false, view: "covers" },
+    { direct: true, expectedStatuses: ["CERRADA"], nearBottom: false, view: "covers" },
+  ]);
+  for (const scenario of result.scenarios) {
+    const label = `${scenario.view}:${scenario.nearBottom ? "bottom" : "middle"}:${scenario.direct ? "direct" : "manual"}`;
+    assert.equal(scenario.beforeStatus, "ACTIVA", label);
+    assert.equal(scenario.afterStatus, scenario.expectedStatuses.at(-1), label);
+    assert.deepEqual(scenario.observedStatuses, scenario.expectedStatuses, label);
+    assert.equal(scenario.allCardsSame, true, label);
+    assert.equal(scenario.allImagesSame, true, label);
+    assert.equal(scenario.scrollerSame, true, label);
+    assert.equal(scenario.initialScrollHeight, scenario.finalScrollHeight, label);
+    assert.equal(scenario.initialScrollTop, scenario.finalScrollTop, label);
+    assert.ok(scenario.initialScrollTop > 0, label);
+    assert.equal(scenario.maxScrollDelta, 0, label);
+    assert.equal(scenario.frameTrace.at(-1).scrollEvents, 0, label);
+    assert.deepEqual(scenario.geometryTransitions, [], label);
+    assert.deepEqual(scenario.identityTransitions, [], label);
+    assert.equal(new Set(scenario.frameTrace.map((frame) => frame.scrollHeight)).size, 1, label);
+    scenario.frameTrace.forEach((frame) => assert.equal(frame.scrollTop, scenario.initialScrollTop, `${label}:frame-${frame.frame}`));
+    assert.deepEqual(scenario.imageStatesAfter, scenario.imageStates, label);
+    scenario.imageStates.forEach((image, index) => {
+      if (image.status === "loaded") {
+        assert.equal(scenario.imageStatesAfter[index].status, "loaded", label);
+        assert.equal(scenario.imageStatesAfter[index].hidden, false, label);
+      }
+    });
+    assert.equal(
+      scenario.finalRefreshCount - scenario.initialRefreshCount,
+      scenario.direct ? 0 : scenario.expectedStatuses.length,
+      label,
+    );
+    assert.equal(scenario.focusAfter, scenario.direct ? scenario.focusBefore : "refresh-connectivity", label);
+  }
+});

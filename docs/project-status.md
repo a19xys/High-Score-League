@@ -89,9 +89,13 @@ no aplicada remotamente en esta tarea.
   score, visibilidad o rango. Con cero filas se usa `EmptyState`.
 - Filas reales y slots comparten una altura por variante. `table-layout: fixed`
   y un `colgroup` sin track de fecha móvil fijan el layout; la fecha sólo entra
-  en el formato desde 42 rem. Container queries muestran identidad rica y
-  marcador sin medir contenido con JavaScript. El anclaje se desactiva sólo en
-  la región de tabla/paginación para evitar saltos móviles.
+  en el formato desde 42 rem. La identidad compacta mantiene avatar y siglas
+  incluso en anchos estrechos; las container queries reservan el marcador sin
+  medir contenido con JavaScript.
+- La región de tabla/paginación conserva `overflow-anchor: none` como defensa,
+  pero la paginación anterior/siguiente preserva explícitamente el `scrollTop`
+  del documento: restaura antes del paint tras el commit y vuelve a comprobarlo
+  una sola vez en el siguiente frame para absorber ajustes móviles tardíos.
 - La navegación solicita `/brand/logo.png` y la landing
   `/brand/logo-horizontal.png` directamente. El fallback textual sólo aparece
   tras un `onError` real del navegador; no existe detección server-side con

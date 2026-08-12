@@ -1,5 +1,6 @@
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
+import { deriveLibraryPackStatus } from "./library-pack-status.js";
 import { renderStatusBeacon } from "./status-primitives.js";
 
 function getInitials(title) {
@@ -20,70 +21,14 @@ function isActivePack(pack, data = {}) {
   );
 }
 
-function statusMeta(pack) {
-  if (pack.status === "error") {
-    return {
-      className: "week-status--error",
-      signalTone: "error",
-      label: "REQUIERE ATENCION",
-      title: "Este pack esta incompleto o no es valido.",
-    };
-  }
-
-  const state = pack.weekCapability?.publicState || (pack.weekId ? "unknown" : "unlinked");
-
-  if (state === "active") {
-    return {
-      className: "week-status--ready",
-      signalTone: "success",
-      label: "ACTIVA",
-      title: "La semana competitiva esta activa.",
-    };
-  }
-
-  if (state === "inactive") {
-    return {
-      className: "week-status--warning",
-      signalTone: "warning",
-      label: "INACTIVA",
-      title: "La semana competitiva todavia no esta activa.",
-    };
-  }
-
-  if (state === "closed") {
-    return {
-      className: "week-status--closed",
-      signalTone: "warning",
-      label: "CERRADA",
-      title: "La semana competitiva esta cerrada.",
-    };
-  }
-
-  if (state === "unlinked") {
-    return {
-      className: "week-status--warning",
-      signalTone: "warning",
-      label: "SIN VINCULAR",
-      title: "El pack no esta vinculado a una semana publica.",
-    };
-  }
-
-  return {
-    className: "week-status--unknown",
-    signalTone: "inactive",
-    label: "SIN DATOS",
-    title: "Todavia no se ha confirmado el estado de la semana.",
-  };
-}
-
-function subtitleForPack(pack) {
+export function subtitleForPack(pack) {
   const season = pack.seasonName || null;
   const week = pack.weekNumber ? `Semana ${pack.weekNumber}` : null;
 
   return pack.subtitle || [season, week].filter(Boolean).join(" · ") || "Pack local";
 }
 
-function visualAsset(pack, view) {
+export function visualAsset(pack, view) {
   if (view === "covers") {
     return pack.cover
       ? { ...pack.cover, kind: "cover" }
@@ -136,19 +81,19 @@ function renderFavorite(pack, disabled, hasSession) {
 }
 
 function renderBadges(pack, view) {
-  const meta = statusMeta(pack);
+  const meta = deriveLibraryPackStatus(pack);
 
   if (view === "icons") {
     return `
-      <div class="pack-card__status pack-card__status--dot" title="${escapeHtml(meta.title)}">
-        ${renderStatusBeacon(meta.signalTone, { className: "pack-card__status-dot", label: meta.label, variant: "pack" })}
+      <div class="pack-card__status pack-card__status--dot" data-pack-status title="${escapeHtml(meta.title)}">
+        ${renderStatusBeacon(meta.signalTone, { className: "pack-card__status-dot", label: meta.label, statusHook: true, variant: "pack" })}
       </div>
     `;
   }
 
   return `
-    <div class="pack-card__status" title="${escapeHtml(meta.title)}">
-      <span class="badge week-status-badge ${meta.className}">${escapeHtml(meta.label)}</span>
+    <div class="pack-card__status" data-pack-status title="${escapeHtml(meta.title)}">
+      <span class="badge week-status-badge ${meta.className}" data-pack-status-label>${escapeHtml(meta.label)}</span>
     </div>
   `;
 }
@@ -203,7 +148,7 @@ export function renderPackCard(pack, state, view = "covers") {
 export const packCardTestApi = {
   getInitials,
   isActivePack,
-  statusMeta,
+  statusMeta: deriveLibraryPackStatus,
   subtitleForPack,
   visualAsset,
 };

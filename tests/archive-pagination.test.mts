@@ -20,6 +20,13 @@ import {
   normalizePageSize,
   paginateItems,
 } from "../lib/pagination.ts";
+import {
+  cancelDocumentScrollFrame,
+  captureDocumentScrollTop,
+  restoreDocumentScrollTop,
+  verifyDocumentScrollTopOnNextFrame,
+  type DocumentScrollRuntime,
+} from "../lib/document-scroll-restoration.ts";
 
 test("archive section accepts only the canonical values", () => {
   assert.equal(parseArchiveSection(undefined), null);
@@ -209,6 +216,126 @@ test("submissions mobile layout has no date col track and localizes scroll ancho
   assert.doesNotMatch(columns, /submission-col-date/);
   assert.doesNotMatch(styles, /\.submission-col-date/);
   assert.match(styles, /\.submissions-table-region\s*\{\s*overflow-anchor:\s*none/);
+});
+
+test("document scroll restoration keeps the exact coordinate instant and verifies once", () => {
+  let currentScrollTop = 843.5;
+  let completed = 0;
+  let canceledFrame: number | null = null;
+  const assignments: Array<{ behavior: string; scrollTop: number }> = [];
+  const queuedFrames: Array<() => void> = [];
+  const style = { scrollBehavior: "smooth" };
+  const scrollingElement = {
+    style,
+    get scrollTop() {
+      return currentScrollTop;
+    },
+    set scrollTop(value: number) {
+      assignments.push({ behavior: style.scrollBehavior, scrollTop: value });
+      currentScrollTop = value;
+    },
+  };
+  const runtime: DocumentScrollRuntime = {
+    cancelFrame(frameId) {
+      canceledFrame = frameId;
+    },
+    getScrollingElement() {
+      return scrollingElement;
+    },
+    requestFrame(callback) {
+      queuedFrames.push(callback);
+      return 17;
+    },
+  };
+
+  assert.equal(captureDocumentScrollTop(runtime), 843.5);
+
+  currentScrollTop = 120;
+  restoreDocumentScrollTop(843.5, runtime);
+  assert.equal(currentScrollTop, 843.5);
+  assert.equal(style.scrollBehavior, "smooth");
+
+  const frameId = verifyDocumentScrollTopOnNextFrame(
+    843.5,
+    () => {
+      completed += 1;
+    },
+    runtime,
+  );
+  assert.equal(frameId, 17);
+  assert.equal(queuedFrames.length, 1);
+
+  currentScrollTop = 431.25;
+  queuedFrames[0]();
+  assert.equal(currentScrollTop, 843.5);
+  assert.equal(completed, 1);
+  assert.equal(queuedFrames.length, 1);
+  assert.deepEqual(assignments, [
+    { behavior: "auto", scrollTop: 843.5 },
+    { behavior: "auto", scrollTop: 843.5 },
+  ]);
+
+  cancelDocumentScrollFrame(frameId, runtime);
+  assert.equal(canceledFrame, 17);
+});
+
+test("submission page navigation owns an explicit pending scroll invariant", async () => {
+  const [source, helper] = await Promise.all([
+    readFile(join(process.cwd(), "components", "submissions-table.tsx"), "utf8"),
+    readFile(join(process.cwd(), "lib", "document-scroll-restoration.ts"), "utf8"),
+  ]);
+  const handler = source.slice(
+    source.indexOf("function changePagePreservingScroll"),
+    source.indexOf("useLayoutEffect", source.indexOf("function changePagePreservingScroll")),
+  );
+  const layoutEffect = source.slice(
+    source.indexOf("useLayoutEffect", source.indexOf("function changePagePreservingScroll")),
+    source.indexOf("useEffect", source.indexOf("useLayoutEffect", source.indexOf("function changePagePreservingScroll"))),
+  );
+  const verification = helper.slice(
+    helper.indexOf("export function verifyDocumentScrollTopOnNextFrame"),
+    helper.indexOf("export function cancelDocumentScrollFrame"),
+  );
+
+  assert.ok(handler.indexOf("captureDocumentScrollTop()") < handler.indexOf("setPage(nextPage)"));
+  assert.match(source, /onPageChange=\{changePagePreservingScroll\}/);
+  assert.doesNotMatch(source, /onPageChange=\{setPage\}/);
+  assert.match(layoutEffect, /const savedScrollTop = pendingPageScrollTopRef\.current/);
+  assert.match(layoutEffect, /if \(savedScrollTop === null\) \{\s*return;/);
+  assert.match(layoutEffect, /restoreDocumentScrollTop\(savedScrollTop\)/);
+  assert.match(layoutEffect, /verifyDocumentScrollTopOnNextFrame/);
+  assert.match(layoutEffect, /return cancelPendingPageScrollFrame/);
+  assert.match(source, /function toggleSort[\s\S]*?clearPendingPageScrollRestore\(\);[\s\S]*?setPage\(1\)/);
+  assert.match(source, /onPageSizeChange=\{\(nextPageSize\) => \{\s*clearPendingPageScrollRestore\(\);/);
+  assert.match(source, /useEffect\(\(\) => \{\s*clearPendingPageScrollRestore\(\);\s*setPage\(1\);\s*\}, \[clearPendingPageScrollRestore, resetKey\]\)/);
+  assert.match(helper, /document\.scrollingElement/);
+  assert.match(helper, /scrollBehavior = "auto"/);
+  assert.equal(verification.match(/runtime\.requestFrame\(/g)?.length, 1);
+  assert.doesNotMatch(`${source}\n${helper}`, /setTimeout|setInterval|scrollIntoView|window\.innerWidth|navigator\.userAgent/);
+});
+
+test("submission player identity uses one compact avatar representation at every width", async () => {
+  const [source, styles, playerPill, weekDetail, profileHistory, validation] = await Promise.all([
+    readFile(join(process.cwd(), "components", "submissions-table.tsx"), "utf8"),
+    readFile(join(process.cwd(), "app", "globals.css"), "utf8"),
+    readFile(join(process.cwd(), "components", "player-pill.tsx"), "utf8"),
+    readFile(join(process.cwd(), "components", "week-detail-view.tsx"), "utf8"),
+    readFile(join(process.cwd(), "components", "profile", "profile-submissions-history.tsx"), "utf8"),
+    readFile(join(process.cwd(), "lib", "auth", "validation.ts"), "utf8"),
+  ]);
+
+  assert.match(
+    source,
+    /showPlayer && submission\.player \? \(\s*<PlayerPill\s+player=\{submission\.player\}\s+variant="submission"/,
+  );
+  assert.equal(source.match(/variant="submission"/g)?.length, 1);
+  assert.doesNotMatch(`${source}\n${styles}`, /submission-player-rich|submission-player-compact/);
+  assert.match(playerPill, /size=\{isSubmission \? "submission" : "pill"\}/);
+  assert.doesNotMatch(playerPill, /isSubmission[^\n]+hidden|hidden[^\n]+isSubmission/);
+  assert.match(validation, /initialsPattern = \/\^\[A-Z0-9\]\{3\}\$\//);
+  assert.match(weekDetail, /<SubmissionsTable[\s\S]*?showWeek=\{false\}/);
+  assert.doesNotMatch(weekDetail, /showPlayer=\{false\}/);
+  assert.match(profileHistory, /<SubmissionsTable[\s\S]*?showPlayer=\{false\}/);
 });
 
 test("pagination normalizes the three supported page sizes", () => {

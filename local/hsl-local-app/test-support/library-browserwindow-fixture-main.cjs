@@ -263,7 +263,6 @@ function summarizeFrameTrace(frames) {
   for (let index = 1; index < frames.length; index += 1) {
     const before = frames[index - 1];
     const after = frames[index];
-    if (before.scrollHeight === after.scrollHeight && before.scrollTop === after.scrollTop) continue;
     const beforeCards = new Map(before.cards.map((card) => [card.instanceKey, card]));
     const changedCards = after.cards.flatMap((card) => {
       const previous = beforeCards.get(card.instanceKey);
@@ -276,6 +275,8 @@ function summarizeFrameTrace(frames) {
         after: Object.fromEntries(["height", "mediaHeight", "bodyHeight", "titleHeight"].map((key) => [key, card[key]])),
       }] : [];
     });
+    const scrollChanged = before.scrollHeight !== after.scrollHeight || before.scrollTop !== after.scrollTop;
+    if (!scrollChanged && changedCards.length === 0) continue;
     geometryTransitions.push({
       frame: after.frame,
       before: { scrollHeight: before.scrollHeight, scrollTop: before.scrollTop, maxScrollTop: before.maxScrollTop },
@@ -421,6 +422,143 @@ async function selectVisiblePack(window, { nearBottom = false, requestedTop = 60
     trace,
     view,
   };
+}
+
+async function passiveLibraryUpdateScenario(window, {
+  direct = false,
+  expectedStatuses = ["CERRADA"],
+  nearBottom = false,
+  requestedTop = 600,
+  view = "covers",
+} = {}) {
+  const publicStates = expectedStatuses.map((label) => ({
+    ACTIVA: "active",
+    CERRADA: "closed",
+    INACTIVA: "inactive",
+    "SIN DATOS": "unknown",
+    "SIN VINCULAR": "unlinked",
+  })[label]);
+  await window.webContents.executeJavaScript(`(() => {
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    scroller.scrollTop = 0;
+    window.hslFixture.setManualConnectivityWeekStates(${JSON.stringify(publicStates)});
+    document.querySelector('[data-action="set-library-view"][data-view="${view}"]')?.click();
+    window.hslFixture.emitWeekStatus('active');
+  })()`);
+  await waitForFrames(window, 3);
+  await waitFor(window, `(() => {
+    const card = document.querySelector('.pack-card[data-selected="true"]');
+    return (card?.querySelector('[data-pack-status-label]')?.textContent.trim()
+      || card?.querySelector('[data-pack-status-beacon]')?.getAttribute('aria-label')) === 'ACTIVA';
+  })()`);
+  await scrollLibraryWithWheel(window, { nearBottom, requestedTop });
+  await waitForLibraryScrollToSettle(window);
+  await waitFor(window, "[...document.querySelectorAll('.pack-card__art')].every((image) => image.dataset.assetStatus !== 'pending')");
+  const setup = await window.webContents.executeJavaScript(`(() => {
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    const cards = [...scroller.querySelectorAll('.pack-card')];
+    const target = cards.find((card) => card.dataset.selected === 'true') || cards[0];
+    const refresh = document.querySelector('[data-action="refresh-connectivity"]');
+    const rect = refresh.getBoundingClientRect();
+    const status = (card) => card.querySelector('[data-pack-status-label]')?.textContent.trim()
+      || card.querySelector('[data-pack-status-beacon]')?.getAttribute('aria-label')
+      || null;
+    scroller.dataset.fixtureIdentity ||= 'library-packs-node';
+    window.__hslSelectionRefs = {
+      images: cards.map((card) => card.querySelector('.pack-card__art')).filter(Boolean),
+      neighbors: cards.filter((card) => card !== target),
+      scroller,
+      target,
+      targetInstanceKey: target.dataset.instanceKey,
+    };
+    if (${direct}) target.focus({ preventScroll: true });
+    window.__hslTracePhase = 'passive-before';
+    return {
+      beforeStatus: status(target),
+      cardCount: cards.length,
+      focusBefore: document.activeElement?.dataset?.action || document.activeElement?.tagName || null,
+      imageCount: window.__hslSelectionRefs.images.length,
+      imageStates: window.__hslSelectionRefs.images.map((image) => ({
+        hidden: image.hidden,
+        status: image.dataset.assetStatus,
+      })),
+      initialRefreshCount: window.hslFixture.getManualConnectivityRefreshCount(),
+      initialScrollHeight: scroller.scrollHeight,
+      initialScrollTop: scroller.scrollTop,
+      x: Math.round(rect.left + rect.width / 2),
+      y: Math.round(rect.top + rect.height / 2),
+    };
+  })()`);
+  await beginFrameTrace(window);
+  const observedStatuses = [];
+  for (let index = 0; index < expectedStatuses.length; index += 1) {
+    const expectedStatus = expectedStatuses[index];
+    await window.webContents.executeJavaScript(`window.__hslTracePhase = ${JSON.stringify(`${direct ? "direct" : "manual"}-${index + 1}`)}`);
+    if (direct) {
+      await window.webContents.executeJavaScript(`window.hslFixture.emitWeekStatus(${JSON.stringify(publicStates[index])})`);
+    } else {
+      window.webContents.sendInputEvent({ type: "mouseMove", x: setup.x, y: setup.y });
+      window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, x: setup.x, y: setup.y });
+      window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, x: setup.x, y: setup.y });
+    }
+    await waitFor(window, `(() => {
+      const card = document.querySelector('.pack-card[data-selected="true"]');
+      return (card?.querySelector('[data-pack-status-label]')?.textContent.trim()
+        || card?.querySelector('[data-pack-status-beacon]')?.getAttribute('aria-label')) === ${JSON.stringify(expectedStatus)};
+    })()`);
+    if (!direct) await waitFor(window, "!document.querySelector('.busy-overlay')", 12_000);
+    observedStatuses.push(expectedStatus);
+  }
+  await waitForFrames(window, 4);
+  const frames = await endFrameTrace(window);
+  const final = await window.webContents.executeJavaScript(`(() => {
+    const refs = window.__hslSelectionRefs;
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    const cards = [...scroller.querySelectorAll('.pack-card')];
+    const target = cards.find((card) => card.dataset.instanceKey === refs.targetInstanceKey);
+    const status = (card) => card.querySelector('[data-pack-status-label]')?.textContent.trim()
+      || card.querySelector('[data-pack-status-beacon]')?.getAttribute('aria-label')
+      || null;
+    return {
+      afterStatus: status(target),
+      allCardsSame: refs.target === target && refs.neighbors.every((card) => card.isConnected && cards.includes(card)),
+      allImagesSame: refs.images.every((image) => image.isConnected && cards.some((card) => card.querySelector('.pack-card__art') === image)),
+      focusAfter: document.activeElement?.dataset?.action || document.activeElement?.tagName || null,
+      imageStatesAfter: refs.images.map((image) => ({
+        hidden: image.hidden,
+        status: image.dataset.assetStatus,
+      })),
+      finalRefreshCount: window.hslFixture.getManualConnectivityRefreshCount(),
+      scrollerSame: refs.scroller === scroller,
+      finalScrollHeight: scroller.scrollHeight,
+      finalScrollTop: scroller.scrollTop,
+    };
+  })()`);
+  return {
+    ...setup,
+    ...final,
+    ...summarizeFrameTrace(frames),
+    direct,
+    expectedStatuses,
+    nearBottom,
+    observedStatuses,
+    view,
+  };
+}
+
+async function passiveRefreshReproduction(window) {
+  const scenarios = [];
+  for (const configuration of [
+    { view: "covers" },
+    { nearBottom: true, view: "covers" },
+    { view: "list" },
+    { view: "icons" },
+    { expectedStatuses: ["CERRADA", "ACTIVA", "INACTIVA"], view: "covers" },
+    { direct: true, view: "covers" },
+  ]) {
+    scenarios.push(await passiveLibraryUpdateScenario(window, configuration));
+  }
+  return { scenarios };
 }
 
 async function visualMetrics(window) {
@@ -1966,6 +2104,7 @@ app.whenReady().then(async () => {
         microinteractions: () => microinteractionSmoke(window),
         polish: () => finalPolishSmoke(window),
         profiles: () => profileAccountSmoke(window),
+        "render-invariants-before": () => passiveRefreshReproduction(window),
         rows: () => iconRows(window),
         signals: async () => ({ hostile: await hostileSignalMetrics(window), shared: await signalMetrics(window) }),
       };

@@ -204,18 +204,16 @@ test("pack selection uses incremental attributes without scroll compensation", (
   );
 
   assert.match(app, /function renderLibraryRegions\(state\)/);
-  assert.match(app, /syncLibraryPackSelectionState\(region, state\)/);
-  assert.match(app, /regionRenderer\.prime\("library-packs", libraryPacksHtml\)/);
+  assert.match(app, /applyLibraryPacksRenderPlan\(/);
+  assert.match(app, /syncLibraryPackRegionState\(target, state, renderModel\)/);
   assert.doesNotMatch(app, /libraryPackSelectionScroll|contentBlockSize|applyLibraryPackSelectionExtentLock|releaseLibraryPackSelectionScroll|--library-packs-min-block-size/);
   assert.doesNotMatch(activation, /requestAnimationFrame|scrollTop|scrollIntoView|setTimeout/);
 });
 
-test("selection-only states share structural HTML while real library changes invalidate it", async () => {
-  const [{ createRegionRenderer }, { renderLibraryPacks }, { libraryPacksStructuralState }] = await Promise.all([
-    import(pathToFileURL(path.join(appDir, "region-renderer.js"))),
-    import(pathToFileURL(path.join(appDir, "components", "library-panel.js"))),
-    import(pathToFileURL(path.join(appDir, "library-selection-sync.js"))),
-  ]);
+test("selection-only states share topology while real library changes invalidate it", async () => {
+  const { deriveLibraryPacksRenderModel, libraryPacksTopologyKey, renderLibraryPacks } = await import(
+    pathToFileURL(path.join(appDir, "components", "library-panel.js"))
+  );
   const initial = rendererState();
   const secondPack = {
     ...initial.data.library.packs[0],
@@ -243,19 +241,12 @@ test("selection-only states share structural HTML while real library changes inv
       selection: { activeInstanceKey: "instance-b" },
     },
   };
-  const structuralHtml = (state) => renderLibraryPacks(libraryPacksStructuralState(state));
+  const topology = (state) => libraryPacksTopologyKey(deriveLibraryPacksRenderModel(state));
 
-  assert.equal(structuralHtml(pending), structuralHtml(initial));
-  assert.equal(structuralHtml(accepted), structuralHtml(initial));
+  assert.equal(topology(pending), topology(initial));
+  assert.equal(topology(accepted), topology(initial));
   assert.notEqual(renderLibraryPacks(pending), renderLibraryPacks(initial));
   assert.notEqual(renderLibraryPacks(accepted), renderLibraryPacks(initial));
-
-  const { regions, renderer } = fakeRenderer(createRegionRenderer, ["library-packs"]);
-  renderer.prime("library-packs", structuralHtml(initial));
-  const identity = regions.get("library-packs").identity;
-  renderer.render("library-packs", structuralHtml(pending));
-  assert.equal(regions.get("library-packs").identity, identity);
-  assert.equal(regions.get("library-packs").writes, 0);
 
   const filterChanged = { ...initial, libraryQuery: "Extended" };
   const sortChanged = { ...initial, librarySortDirection: "desc" };
@@ -272,19 +263,15 @@ test("selection-only states share structural HTML while real library changes inv
   };
 
   for (const changed of [filterChanged, sortChanged, viewChanged, metadataChanged]) {
-    assert.notEqual(structuralHtml(changed), structuralHtml(initial));
+    assert.notEqual(topology(changed), topology(initial));
   }
-  renderer.render("library-packs", structuralHtml(filterChanged));
-  assert.equal(regions.get("library-packs").writes, 1);
 });
 
 test("favorite ON/OFF is incremental in Covers, List and Icons while Favorites filtering stays structural", async () => {
-  const [{ createRegionRenderer }, { renderLibraryPacks }, { libraryPacksStructuralState }] = await Promise.all([
-    import(pathToFileURL(path.join(appDir, "region-renderer.js"))),
-    import(pathToFileURL(path.join(appDir, "components", "library-panel.js"))),
-    import(pathToFileURL(path.join(appDir, "library-selection-sync.js"))),
-  ]);
-  const structuralHtml = (state) => renderLibraryPacks(libraryPacksStructuralState(state));
+  const { deriveLibraryPacksRenderModel, libraryPacksTopologyKey } = await import(
+    pathToFileURL(path.join(appDir, "components", "library-panel.js"))
+  );
+  const topology = (state) => libraryPacksTopologyKey(deriveLibraryPacksRenderModel(state));
 
   for (const libraryView of ["covers", "list", "icons"]) {
     const initial = rendererState({ libraryView });
@@ -294,29 +281,26 @@ test("favorite ON/OFF is incremental in Covers, List and Icons while Favorites f
       favorite: true,
       favoritePending: true,
     }));
-    assert.equal(structuralHtml(favorite), structuralHtml(initial), libraryView);
+    assert.equal(topology(favorite), topology(initial), libraryView);
 
     const acknowledged = rendererState({ libraryView });
     acknowledged.data.library.packs = acknowledged.data.library.packs.map((pack) => ({ ...pack, favorite: true }));
     const rolledBack = rendererState({ libraryView });
-    const { regions, renderer } = fakeRenderer(createRegionRenderer, ["library-packs"]);
-    const region = regions.get("library-packs");
-    region.scrollTop = 417;
-    renderer.prime("library-packs", structuralHtml(initial));
     for (const next of [favorite, acknowledged, rolledBack]) {
-      renderer.render("library-packs", structuralHtml(next));
-      assert.equal(region.scrollTop, 417, libraryView);
+      assert.equal(topology(next), topology(initial), libraryView);
     }
-    assert.equal(region.writes, 0, libraryView);
 
     const favoritesOnly = { ...favorite, libraryFavoriteFilter: "favorites" };
     const noneFavorite = rendererState({ libraryFavoriteFilter: "favorites", libraryView });
-    assert.notEqual(structuralHtml(favoritesOnly), structuralHtml(noneFavorite), libraryView);
+    assert.notEqual(topology(favoritesOnly), topology(noneFavorite), libraryView);
   }
 });
 
 test("incremental selection preserves card identity and synchronizes accessibility", async () => {
-  const { syncLibraryPackSelectionState } = await import(pathToFileURL(path.join(appDir, "library-selection-sync.js")));
+  const [{ syncLibraryPackRegionState }, { deriveLibraryPacksRenderModel }] = await Promise.all([
+    import(pathToFileURL(path.join(appDir, "library-card-sync.js"))),
+    import(pathToFileURL(path.join(appDir, "components", "library-panel.js"))),
+  ]);
   const attributes = (entries = {}) => new Map(Object.entries(entries));
   const fakeCard = (instanceKey) => {
     const cardAttributes = attributes({ "aria-current": "false", "data-action": "use-library-pack", "data-pack-id": instanceKey.replace("instance", "pack"), role: "button", tabindex: "0" });
@@ -347,7 +331,7 @@ test("incremental selection preserves card identity and synchronizes accessibili
       },
       dataset: { instanceKey, selected: "false" },
       getAttribute: (name) => cardAttributes.get(name) ?? null,
-      querySelector: () => favorite,
+      querySelector: (selector) => selector === '[data-action="toggle-library-favorite"]' ? favorite : null,
       removeAttribute: (name) => cardAttributes.delete(name),
       setAttribute: (name, value) => cardAttributes.set(name, String(value)),
       favorite,
@@ -368,7 +352,11 @@ test("incremental selection preserves card identity and synchronizes accessibili
   });
   state.data.library.packs = packs;
 
-  assert.equal(syncLibraryPackSelectionState(region, state), 2);
+  assert.deepEqual(syncLibraryPackRegionState(region, state, deriveLibraryPacksRenderModel(state)), {
+    ok: true,
+    reason: null,
+    synchronized: 2,
+  });
   assert.equal(activeCard.dataset.selected, "true");
   assert.equal(activeCard.getAttribute("aria-current"), "true");
   assert.equal(activeCard.getAttribute("data-action"), null);
@@ -383,7 +371,7 @@ test("incremental selection preserves card identity and synchronizes accessibili
   const accepted = rendererState();
   accepted.data.library.packs = packs;
   accepted.data.selection.activeInstanceKey = "instance-b";
-  syncLibraryPackSelectionState(region, accepted);
+  syncLibraryPackRegionState(region, accepted, deriveLibraryPacksRenderModel(accepted));
   assert.equal(cards[0], activeCard);
   assert.equal(cards[1], pendingCard);
   assert.equal(activeCard.dataset.selected, "false");

@@ -117,10 +117,20 @@ explícito de 9,5 rem. Así WebKit móvil no puede reservar una columna fantasma
 Los textos y números largos se truncan —los scores usan cifras tabulares— sin
 mover otra columna y no hay mediciones responsive en JavaScript.
 
-El área concreta de tabla y paginación usa `overflow-anchor: none`. Junto con el
-contrato idéntico de diez filas reales o completadas evita que el scroll
-anchoring móvil reajuste el viewport al cambiar de página, sin usar
-`window.scrollTo` ni desactivar el anclaje global.
+Los slots estabilizan la geometría y el área concreta de tabla y paginación
+mantiene `overflow-anchor: none` para reducir la intervención automática del
+navegador. La garantía real ya no depende de esas defensas: al pulsar página
+anterior o siguiente, `SubmissionsTable` captura el `scrollTop` exacto del
+documento antes de cambiar de página, lo restaura tras el commit React en un
+`useLayoutEffect` y lo verifica una sola vez en el siguiente
+`requestAnimationFrame`. La restauración neutraliza temporalmente el smooth
+scroll global para ser instantánea; sort, reset, tamaño de página, clamping y
+cambios externos de datos no reutilizan una posición pendiente.
+
+Cuando la instancia muestra jugadores, la identidad usa siempre
+`PlayerPill variant="submission"`: avatar compacto más siglas, también en móvil.
+No existe una degradación a siglas sin avatar por debajo de 26 rem. Las tablas
+configuradas con `showPlayer=false` siguen omitiendo esa identidad.
 
 La columna se llama siempre `Intentos` y su control accesible es `Ordenar por
 intentos`. El perfil propio entrega todos los envíos válidos ya cargados, sin el

@@ -1,7 +1,7 @@
 import { escapeHtml } from "./html.js";
 import { renderIcon } from "./icon.js";
 import { renderLibraryEmptyState } from "./library-empty-state.js";
-import { renderPackCard } from "./pack-card.js";
+import { renderPackCard, subtitleForPack, visualAsset } from "./pack-card.js";
 import { getLibraryCapabilities } from "../library-capabilities.js";
 import {
   deriveLibraryPresentation,
@@ -247,59 +247,78 @@ export function renderLibraryControls(state, packs) {
   `;
 }
 
-function renderLibraryPacksContent(state) {
+function emptyLibraryPacksModel(key, { action = null, body, title }) {
+  return {
+    action,
+    body,
+    key,
+    kind: "empty",
+    title,
+  };
+}
+
+function structuralPackDescriptor(pack, view) {
+  const asset = visualAsset(pack, view);
+  return {
+    asset: asset?.url ? { kind: asset.kind, url: asset.url } : null,
+    favoriteKey: String(pack.favoriteKey || pack.id || ""),
+    id: String(pack.id || ""),
+    instanceKey: String(pack.instanceKey || ""),
+    metadata: view === "covers"
+      ? [pack.developer || pack.publisher || null, pack.year ? String(pack.year) : null, pack.genre?.[0] || null]
+      : null,
+    subtitle: subtitleForPack(pack),
+    title: pack.title || "Pack local",
+  };
+}
+
+export function deriveLibraryPacksRenderModel(state) {
   const packs = state.data?.library?.packs || [];
   const directory = state.data?.library?.directory || {};
   const library = deriveLibraryPresentation(state.data?.library, state.data?.selection);
 
   if (!directory.path) {
-    return renderLibraryEmptyState({
+    return emptyLibraryPacksModel("directory-missing", {
       action: {
         label: "Elegir directorio",
         type: "choose-pack-directory",
       },
       body: library.description,
-      state,
       title: library.title,
     });
   }
 
   if (directory.status === "pack-root") {
-    return renderLibraryEmptyState({
+    return emptyLibraryPacksModel("pack-root", {
       body: "Has seleccionado la carpeta de un juego. Cambia al directorio que contiene todos tus packs.",
-      state,
       title: "Ese directorio parece un pack.",
     });
   }
 
   if (directory.classification === "inside-pack") {
-    return renderLibraryEmptyState({
+    return emptyLibraryPacksModel("inside-pack", {
       body: "Selecciona la carpeta que contiene todos tus packs.",
-      state,
       title: "La ubicación forma parte de un pack.",
     });
   }
 
   if (directory.classification === "unsupported-layout") {
-    return renderLibraryEmptyState({
+    return emptyLibraryPacksModel("unsupported-layout", {
       body: "Mueve cada pack a una subcarpeta directa de la biblioteca.",
-      state,
       title: "Los packs están demasiado profundos.",
     });
   }
 
   if (directory.configured && !directory.available) {
-    return renderLibraryEmptyState({
+    return emptyLibraryPacksModel("directory-unavailable", {
       body: library.description,
-      state,
       title: library.title,
     });
   }
 
   if (packs.length === 0) {
-    return renderLibraryEmptyState({
+    return emptyLibraryPacksModel("library-empty", {
       body: library.description,
-      state,
       title: library.title,
     });
   }
@@ -310,43 +329,92 @@ function renderLibraryPacksContent(state) {
 
   if (filtered.length === 0) {
     if (favoriteFilterActive(state)) {
-      return renderLibraryEmptyState({
+      return emptyLibraryPacksModel("favorites-empty", {
         body: "Marca algún pack como favorito.",
-        state,
         title: "No hay favoritos todavía.",
       });
     }
 
-    return renderLibraryEmptyState({
+    return emptyLibraryPacksModel("filters-empty", {
       body: "Prueba otra búsqueda o temporada.",
-      state,
       title: "No hay packs que coincidan con los filtros.",
     });
   }
 
-  if (!shouldGroupPacks(sortBy)) {
+  const grouped = shouldGroupPacks(sortBy);
+  const sourceGroups = grouped
+    ? groupPacks(sorted, sortBy)
+    : [{ id: "all", packs: sorted, title: null }];
+
+  return {
+    grouped,
+    groups: sourceGroups.map((group) => ({
+      id: group.id,
+      packs: group.packs,
+      structuralPacks: group.packs.map((pack) => structuralPackDescriptor(pack, state.libraryView)),
+      title: group.title,
+    })),
+    kind: "cards",
+    view: state.libraryView,
+  };
+}
+
+export function libraryPacksTopologyKey(model) {
+  if (model.kind === "empty") {
+    return JSON.stringify({
+      action: model.action,
+      body: model.body,
+      key: model.key,
+      kind: model.kind,
+      title: model.title,
+    });
+  }
+
+  return JSON.stringify({
+    grouped: model.grouped,
+    groups: model.groups.map((group) => ({
+      id: group.id,
+      packs: group.structuralPacks,
+      title: group.title,
+    })),
+    kind: model.kind,
+    view: model.view,
+  });
+}
+
+function renderLibraryPacksContent(state, model = deriveLibraryPacksRenderModel(state)) {
+  if (model.kind === "empty") {
+    return renderLibraryEmptyState({
+      action: model.action,
+      body: model.body,
+      state,
+      title: model.title,
+    });
+  }
+
+  if (!model.grouped) {
     return `
-      <div class="library-pack-grid library-pack-grid--${escapeHtml(state.libraryView)}">
-        ${sorted.map((pack) => renderPackCard(pack, state, state.libraryView)).join("")}
+      <div class="library-pack-grid library-pack-grid--${escapeHtml(model.view)}">
+        ${model.groups[0].packs.map((pack) => renderPackCard(pack, state, model.view)).join("")}
       </div>
     `;
   }
 
-  return groupPacks(sorted, sortBy).map((group) => `
+  return model.groups.map((group) => `
     <section class="season-group">
       <div class="season-group__heading">
         <h3>${escapeHtml(group.title)}</h3>
         <span>${group.packs.length} ${group.packs.length === 1 ? "pack" : "packs"}</span>
       </div>
-      <div class="library-pack-grid library-pack-grid--${escapeHtml(state.libraryView)}">
-        ${group.packs.map((pack) => renderPackCard(pack, state, state.libraryView)).join("")}
+      <div class="library-pack-grid library-pack-grid--${escapeHtml(model.view)}">
+        ${group.packs.map((pack) => renderPackCard(pack, state, model.view)).join("")}
       </div>
     </section>
   `).join("");
 }
 
-export function renderLibraryPacks(state) {
-  return renderLibraryPacksContent(state);
+export function renderLibraryPacks(state, model = deriveLibraryPacksRenderModel(state)) {
+  return renderLibraryPacksContent(state, model);
 }
 
 function renderLibraryCount(data) {

@@ -21,8 +21,9 @@ export function renderStatusBeacon(tone, options = {}) {
   const accessibility = options.decorative === true
     ? `aria-hidden="true"`
     : `role="img" aria-label="${escapeHtml(label)}"`;
+  const statusHook = options.statusHook === true ? " data-pack-status-beacon" : "";
 
-  return `<span class="status-beacon status-beacon--${safeTone} status-beacon--${safeVariant}${className}" ${accessibility}></span>`;
+  return `<span class="status-beacon status-beacon--${safeTone} status-beacon--${safeVariant}${className}"${statusHook} ${accessibility}></span>`;
 }
 
 export function renderStatusBadge(model, { className = "" } = {}) {

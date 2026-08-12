@@ -257,13 +257,8 @@ textarea {
   }
 
   .submission-date-cell,
-  .submission-player-rich,
   .submission-best-marker {
     display: none;
-  }
-
-  .submission-player-compact {
-    display: inline;
   }
 
   .profile-hero {
@@ -340,13 +335,6 @@ textarea {
       width: 8.5rem;
     }
 
-    .submission-player-rich {
-      display: inline-flex;
-    }
-
-    .submission-player-compact {
-      display: none;
-    }
   }
 
   @container submissions-table (min-width: 34rem) {

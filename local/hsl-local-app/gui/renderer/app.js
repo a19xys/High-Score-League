@@ -20,6 +20,8 @@ import {
 } from "./components/header.js";
 import { markIconLoaded, markIconMissing, renderIcon } from "./components/icon.js";
 import {
+  deriveLibraryPacksRenderModel,
+  libraryPacksTopologyKey,
   renderLibraryControls,
   renderLibraryHeading,
   renderLibraryPacks,
@@ -37,10 +39,8 @@ import {
   LIBRARY_SIDEBAR_MAX,
   LIBRARY_SIDEBAR_MIN,
 } from "./library-geometry.js";
-import {
-  libraryPacksStructuralState,
-  syncLibraryPackSelectionState,
-} from "./library-selection-sync.js";
+import { syncLibraryPackRegionState } from "./library-card-sync.js";
+import { applyLibraryPacksRenderPlan } from "./library-render-plan.js";
 import { resolveLibraryArtPresentation } from "./library-art-presentation.js";
 import { createRegionRenderer, preservedScrollElements } from "./region-renderer.js";
 import {
@@ -119,7 +119,7 @@ let currentDialogType = null;
 let currentOverlayType = null;
 let currentGameStructureKey = null;
 let currentLibraryStructureKey = null;
-let currentLibraryPacksStructureHtml = null;
+let currentLibraryPacksTopologyKey = null;
 let rendererMounted = false;
 const loginDraft = createEphemeralLoginDraft();
 let loginDraftOpen = false;
@@ -679,12 +679,12 @@ function knownAccountForUserId(state, userId) {
   return (state.data?.accounts?.knownAccounts || []).find((account) => account.userId === userId) || null;
 }
 
-function libraryRegionHtml(state) {
+function libraryRegionHtml(state, packsModel = deriveLibraryPacksRenderModel(state)) {
   const packs = state.data?.library?.packs || [];
   return {
     "library-controls": renderLibraryControls(state, packs),
     "library-heading": renderLibraryHeading(state),
-    "library-packs": renderLibraryPacks(state),
+    "library-packs": renderLibraryPacks(state, packsModel),
   };
 }
 
@@ -710,35 +710,35 @@ function renderRegions(regions) {
   return changed;
 }
 
-function libraryPacksStructureHtml(state) {
-  return renderLibraryPacks(libraryPacksStructuralState(state));
-}
-
 function primeLibraryRegions(state) {
-  primeRegions(libraryRegionHtml(state));
-  currentLibraryPacksStructureHtml = libraryPacksStructureHtml(state);
+  const model = deriveLibraryPacksRenderModel(state);
+  primeRegions(libraryRegionHtml(state, model));
+  currentLibraryPacksTopologyKey = libraryPacksTopologyKey(model);
 }
 
 function renderLibraryRegions(state) {
-  const regions = libraryRegionHtml(state);
+  const model = deriveLibraryPacksRenderModel(state);
+  const regions = libraryRegionHtml(state, model);
   const libraryPacksHtml = regions["library-packs"];
   delete regions["library-packs"];
   const changed = renderRegions(regions);
-  const structureHtml = libraryPacksStructureHtml(state);
+  const topologyKey = libraryPacksTopologyKey(model);
   const region = root.querySelector('[data-render-region="library-packs"]');
-  const canSynchronizeSelection = Boolean(
-    region?.querySelector(".pack-card") &&
-    structureHtml === currentLibraryPacksStructureHtml
-  );
+  const result = applyLibraryPacksRenderPlan({
+    currentTopologyKey: currentLibraryPacksTopologyKey,
+    html: libraryPacksHtml,
+    model,
+    nextTopologyKey: topologyKey,
+    region,
+    regionRenderer,
+    synchronize: (target, renderModel) => syncLibraryPackRegionState(target, state, renderModel),
+  });
 
-  if (canSynchronizeSelection) {
-    syncLibraryPackSelectionState(region, state);
-    regionRenderer.prime("library-packs", libraryPacksHtml);
-  } else if (regionRenderer.render("library-packs", libraryPacksHtml)) {
+  if (result.wrote) {
     changed.add("library-packs");
   }
 
-  currentLibraryPacksStructureHtml = structureHtml;
+  currentLibraryPacksTopologyKey = topologyKey;
   return changed;
 }
 
@@ -804,7 +804,7 @@ function mountRenderer(state) {
   if (state.data) primeLibraryRegions(state);
   if (state.data?.game && detailScrollKeyFromState(state)) primeRegions(gameRegionHtml(state));
   currentLibraryStructureKey = state.data ? "ready" : "loading";
-  if (!state.data) currentLibraryPacksStructureHtml = null;
+  if (!state.data) currentLibraryPacksTopologyKey = null;
   currentGameStructureKey = gameStructureKey(state);
   currentDetailScrollKey = detailScrollKeyFromState(state);
   rendererMounted = true;
@@ -882,7 +882,7 @@ function render(nextState, changedKeys = []) {
     regionRenderer.render("library-panel", renderLibraryPanel(state));
     currentLibraryStructureKey = nextLibraryStructureKey;
     if (state.data) primeLibraryRegions(state);
-    else currentLibraryPacksStructureHtml = null;
+    else currentLibraryPacksTopologyKey = null;
   } else if (state.data) {
     renderLibraryRegions(state);
   }
