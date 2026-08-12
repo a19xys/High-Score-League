@@ -573,8 +573,8 @@ test("renderer pack library renders seasons, views, filters and empty states", a
     "utf8",
   );
 
-  assert.match(libraryPanel, /library-open-control/);
-  assert.match(libraryPanel, /library-open-label">Biblioteca<\/span>/);
+  assert.match(libraryPanel, /<h2 class="library-heading-title">[\s\S]*Biblioteca[\s\S]*<\/h2>/);
+  assert.doesNotMatch(libraryPanel, /library-open-control/);
   assert.match(libraryPanel, /library-count-pill/);
   assert.match(libraryPanel, /renderLibraryCount/);
   assert.match(libraryPanel, /1 \? "pack" : "packs"/);
@@ -587,7 +587,7 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.equal(/data-action="import-pack-zip"|data-action="import-pack-folder"/.test(libraryPanel), false);
   assert.equal(/Importar ZIP|Importar carpeta/.test(libraryPanel), false);
   assert.match(libraryPanel, /data-action="choose-pack-directory"[\s\S]*data-action="toggle-library-filters"/);
-  assert.match(libraryPanel, /class="library-open-control"[\s\S]*data-action="open-pack-directory"[\s\S]*library-open-label">Biblioteca<\/span>[\s\S]*data-action="rescan-pack-directory"/);
+  assert.match(libraryPanel, /library-heading-title[\s\S]*library-heading-actions[\s\S]*data-action="open-pack-directory"[\s\S]*data-action="rescan-pack-directory"/);
   assert.match(libraryPanel, /renderIcon\("library"/);
   assert.match(libraryPanel, /renderIcon\("refresh"/);
   assert.match(libraryPanel, /library-refresh-button/);
@@ -747,9 +747,9 @@ test("renderer pack library renders seasons, views, filters and empty states", a
   assert.match(styles, /\.library-control-button span[\s\S]*align-items: center/);
   assert.match(styles, /\.library-control-button,\s*\n\.view-button[\s\S]*font-size: 12\.5px/);
   assert.match(styles, /\.library-control-button[\s\S]*gap: 7px/);
-  assert.match(styles, /\.library-open-control[\s\S]*border: 0[\s\S]*background: transparent[\s\S]*cursor: pointer/);
-  assert.match(styles, /\.library-open-control:hover:not\(:disabled\)[\s\S]*background: transparent[\s\S]*color: var\(--text\)/);
-  assert.match(styles, /\.library-open-control:focus-visible[\s\S]*outline/);
+  assert.match(styles, /\.library-heading-title\s*\{[\s\S]*display: inline-flex[\s\S]*color: var\(--text\)/);
+  assert.match(styles, /\.library-heading-button:hover:not\(:disabled\):not\(\[aria-disabled="true"\]\)[\s\S]*background: var\(--hover\)/);
+  assert.match(styles, /\.library-heading-button:focus-visible[\s\S]*outline/);
   assert.match(styles, /\.library-refresh-button[\s\S]*width: 28px[\s\S]*height: 28px/);
   assert.match(styles, /\.library-refresh-icon\.ui-icon[\s\S]*width: 14px[\s\S]*height: 14px/);
   assert.match(styles, /\.library-heading-button:hover:not\(:disabled\)[\s\S]*var\(--circuit\)/);
@@ -1393,7 +1393,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-detail-card \.compact-action \.action-button-label[\s\S]*font-size: 20px/);
   assert.match(styles, /HSL-MANROPE-TYPOGRAPHY-1/);
   assert.match(styles, /\.game-metadata-value,[\s\S]*\.game-detail-card \.compact-action \.action-button-label[\s\S]*font-weight: 700/);
-  assert.match(styles, /\.library-open-label,[\s\S]*\.game-title-main h2,[\s\S]*\.busy-overlay__message,[\s\S]*font-weight: 800/);
+  assert.match(styles, /\.game-title-main h2,[\s\S]*\.busy-overlay__message,[\s\S]*font-weight: 800/);
   assert.equal(styles.lastIndexOf("font-size: 24px") > styles.lastIndexOf("font-size: 19px"), true);
   assert.equal(styles.lastIndexOf("font-size: 20px") > styles.lastIndexOf("font-size: 16.5px"), true);
   assert.equal(styles.lastIndexOf("width: 38px") > styles.lastIndexOf("width: 34px"), true);
@@ -1606,13 +1606,14 @@ test("missing pack directory dialog renders recovery actions", async () => {
     path.join(__dirname, "..", "gui", "renderer", "styles", "app.css"),
     "utf8",
   );
-  const html = renderAppDialog({ activeDialog: { type: "pack-directory-unavailable" } });
+  const html = renderAppDialog({ activeDialog: { classification: "missing", issue: "current-root-unavailable", type: "library-location" } });
 
-  assert.match(html, /No se encuentran los packs/);
-  assert.match(html, /Selecciónala de nuevo o elige otra carpeta/);
+  assert.match(html, /No se encuentra la Biblioteca/);
+  assert.match(html, /reintentar la misma ubicación o elegir otra/);
   assert.match(html, /app-dialog__actions--pack-directory/);
-  assert.match(html, /app-dialog__button--primary" type="button" data-action="choose-unavailable-pack-directory"/);
-  assert.match(html, /Elegir carpeta/);
+  assert.match(html, /app-dialog__button--primary" type="button" data-action="retry-library-location"/);
+  assert.match(html, /Reintentar/);
+  assert.match(html, /data-action="choose-library-location"[\s\S]*Elegir otra carpeta/);
   assert.match(html, /app-dialog__button--secondary" type="button" data-action="close-dialog"/);
   assert.match(html, /Cancelar/);
   assert.match(styles, /\.app-dialog__actions[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
@@ -1850,7 +1851,8 @@ test("renderer controla el dialogo missing una vez y permite reintento explicito
   assert.match(app, /Object\.assign\(statePatch, libraryUnavailableStatePatch\(response\.state\), \{ initialLoadError: null \}\)/);
   assert.match(app, /action === "toggle-library-filters"[\s\S]*getLibraryCapabilities\(store\.getState\(\)\)\.filtersEnabled[\s\S]*return/);
   assert.doesNotMatch(app, /data-hsl-fallback-hero|hero_hsl\.png/);
-  assert.match(app, /action === "choose-unavailable-pack-directory"[\s\S]*window\.hslLauncher\.choosePackDirectory\(\)/);
+  assert.match(app, /action === "choose-library-location"[\s\S]*window\.hslLauncher\.choosePackDirectory\(\)/);
+  assert.match(app, /action === "retry-library-location"[\s\S]*window\.hslLauncher\.rescanPackDirectory\(\)/);
   assert.match(app, /action === "rescan-pack-directory"[\s\S]*resetUnavailableDirectoryPrompt[\s\S]*window\.hslLauncher\.rescanPackDirectory\(\)/);
   assert.match(app, /action === "close-dialog"[\s\S]*activeDialog: null/);
 });
@@ -2287,7 +2289,7 @@ test("pack directory actions are exposed without legacy location UI", async () =
   assert.match(app, /action === "show-settings"/);
   assert.match(header, /data-action="show-settings"/);
   assert.match(libraryPanel, /data-action="choose-pack-directory"/);
-  assert.match(libraryPanel, /class="library-open-control"[\s\S]*data-action="open-pack-directory"[\s\S]*library-open-label">Biblioteca<\/span>[\s\S]*data-action="rescan-pack-directory"/);
+  assert.match(libraryPanel, /<h2 class="library-heading-title">[\s\S]*Biblioteca[\s\S]*<\/h2>[\s\S]*data-action="open-pack-directory"[\s\S]*data-action="rescan-pack-directory"/);
   assert.equal(/<span>Reescanear<\/span>|<span>Abrir carpeta<\/span>/.test(libraryPanel), false);
   assert.match(devTools, /Biblioteca de packs/);
   assert.match(devTools, /data-action="choose-pack-directory"/);

@@ -807,3 +807,11 @@ importar?` para elegir `Archivo ZIP`, `Carpeta` o `Cancelar`. El selector
 nativo de Electron se conserva solo para escoger la ruta real del ZIP o carpeta
 cross-platform. Futuros flujos como instalar juegos faltantes deben reutilizar
 este sistema en vez de `alert`, `confirm` o `dialog.showMessageBox`.
+
+## Avance LOCAL-LIBRARY-LOCATION-UX-2
+
+La primera capa de Biblioteca consolida la ubicación sin recuperar el modelo de múltiples raíces. `Biblioteca` es un encabezado estable; Abrir carpeta y Reescanear son botones de icono explícitos y Cambiar ubicación permanece en la toolbar. Los tres consumen la proyección semántica de acciones existente. Importar pack continúa en Configuración/Ajustes.
+
+El selector nativo comienza en la raíz canónica de `pack-directory.json`, nunca en el pack seleccionado o abierto. Cancelar o rechazar mantiene raíz, selección y catálogo; aceptar una raíz válida es la única operación que persiste el cambio y permite reconstruir la topología. Los avisos de candidata inválida y raíz recordada no disponible comparten el diálogo `library-location`, pero conservan copies y acciones propias de cada situación.
+
+El retorno de foco identifica semánticamente el control que abrió el flujo. Así puede volver a Cambiar ubicación aunque el nodo se haya sustituido durante el feedback de operación, usando `preventScroll` y sin añadir restauraciones de scroll o bloqueos de extensión.

@@ -404,7 +404,7 @@ export function AdminHomePollForm({ initialData }: AdminHomePollFormProps) {
 
       <div className="rounded-lg border p-4 theme-border theme-surface-muted">
         <p className="font-semibold theme-text">Estadísticas</p>
-        <p className="mt-1 text-sm theme-text-muted">Total votos: {data.totalVotes}</p>
+        <p className="mt-1 text-sm theme-text-muted">Votos totales: {data.totalVotes}</p>
         {data.totalVotes === 0 ? (
           <p className="mt-4 text-sm theme-text-muted">Todavía no hay votos.</p>
         ) : null}

@@ -2,6 +2,7 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, powerMonitor, safeStorage, shell } = require("electron");
 const service = require("./launcher-service");
+const { applyLibraryLocationCandidate, showLibraryLocationDialog } = require("./library-location-dialog");
 const { createConnectivityService, isCommittedConnected } = require("../src/connectivity-service");
 const { createRankingCapabilitiesService, safeRankingUrl } = require("../src/ranking-capabilities-service");
 const { createWeekCapabilitiesService } = require("../src/week-capabilities-service");
@@ -111,6 +112,16 @@ async function withMembershipContextMutation(reason, operation) {
   } finally {
     activeMembershipContextMutations.delete(runId);
   }
+}
+
+async function applyPackDirectoryCandidate(directoryPath) {
+  return applyLibraryLocationCandidate({
+    chooseCandidate: (candidatePath) => service.choosePackDirectoryFromGui(candidatePath, { includeState: false }),
+    directoryPath,
+    readAcceptedState: () => withRemoteContext(service.getLauncherState()),
+    readStableState: () => service.getLauncherState({ deferRemoteMembership: true }),
+    runAcceptedMutation: (operation) => withMembershipContextMutation("pack-directory-change", operation),
+  });
 }
 
 async function withAccountProfileRefreshAfterMutation(reason, operation) {
@@ -948,27 +959,20 @@ function registerIpc() {
     );
   });
   registerLauncherStateHandler("launcher:choose-pack-directory", async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      buttonLabel: "Elegir directorio",
-      message: "Elige la carpeta que contiene todos tus packs locales",
-      properties: ["openDirectory"],
-      title: "Directorio de packs de High Score League",
+    const result = await showLibraryLocationDialog({
+      dialog,
+      getSelectionContext: () => service.getLibraryLocationSelectionContext(),
+      parentWindow: mainWindow,
     });
 
     if (result.canceled || result.filePaths.length === 0) {
       return service.cancelChoosePackDirectory();
     }
 
-    return withMembershipContextMutation(
-      "pack-directory-change",
-      () => withRemoteContext(service.choosePackDirectoryFromGui(result.filePaths[0])),
-    );
+    return applyPackDirectoryCandidate(result.filePaths[0]);
   });
   registerLauncherStateHandler("launcher:use-suggested-pack-directory", (_event, directoryPath) => (
-    withMembershipContextMutation(
-      "pack-directory-change",
-      () => withRemoteContext(service.choosePackDirectoryFromGui(directoryPath)),
-    )
+    applyPackDirectoryCandidate(directoryPath)
   ));
   registerLauncherStateHandler("launcher:import-pack-zip", (event) => withRemoteContext(showImportZipDialog(event)));
   registerLauncherStateHandler("launcher:import-pack-folder", (event) => withRemoteContext(showImportFolderDialog(event)));

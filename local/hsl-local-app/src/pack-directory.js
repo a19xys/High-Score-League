@@ -562,7 +562,7 @@ async function readLegacyFallback(config, options = {}) {
 async function readPackDirectory(config, options = {}) {
   const stored = await readStoredPackDirectory(config);
 
-  if (stored.directoryPath || stored.error) {
+  if (stored.directoryPath || stored.error || options.allowLegacyFallback === false) {
     return stored;
   }
 

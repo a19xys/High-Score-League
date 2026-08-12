@@ -422,9 +422,6 @@ function renderLibraryCount(data) {
 
 export function renderLibraryHeading(state) {
   const data = state.data;
-  const hasDirectory = Boolean(data?.library?.directory?.path);
-  const disabled = state.busy ? "disabled" : "";
-  const openDirectoryDisabled = !hasDirectory ? "disabled" : disabled;
   const rescanning = state.busy && state.busyLabel === "Reescaneando";
   const actions = deriveSupportingActions(state);
   const openFolder = actions.openLibraryFolder;
@@ -433,13 +430,18 @@ export function renderLibraryHeading(state) {
   return `
       <div class="panel-heading compact">
         <div class="library-title-row">
-          <button class="library-open-control" type="button" data-action="open-pack-directory" ${openFolder.available ? openDirectoryDisabled : "disabled"} aria-label="Abrir carpeta de packs" title="${escapeHtml(openFolder.reason || "Abrir carpeta de packs")}" ${!openFolder.available && openFolder.reason ? `aria-describedby="${openFolder.reasonId}" aria-disabled="true"` : ""}>
-            ${renderIcon("library", { className: "library-heading-icon library-open-icon" })}
-            <span class="library-open-label">Biblioteca</span>
-          </button>
-          <button class="library-heading-button library-refresh-button ${rescanning ? "library-heading-button--spinning" : ""}" type="button" data-action="rescan-pack-directory" ${rescan.available ? disabled : "disabled"} aria-label="Reescanear biblioteca" title="${escapeHtml(rescan.reason || "Reescanear biblioteca")}" aria-busy="${rescanning ? "true" : "false"}" ${!rescan.available && rescan.reason ? `aria-describedby="${rescan.reasonId}" aria-disabled="true"` : ""}>
-            ${renderIcon("refresh", { className: "library-heading-icon library-refresh-icon" })}
-          </button>
+          <h2 class="library-heading-title">
+            ${renderIcon("library", { className: "library-heading-icon library-title-icon" })}
+            <span>Biblioteca</span>
+          </h2>
+          <div class="library-heading-actions">
+            <button class="library-heading-button library-open-folder-button" type="button" data-action="open-pack-directory" ${openFolder.available ? "" : "disabled"} aria-label="Abrir carpeta de packs" title="${escapeHtml(openFolder.reason || "Abrir carpeta de packs")}" ${!openFolder.available && openFolder.reason ? `aria-describedby="${openFolder.reasonId}" aria-disabled="true"` : ""}>
+              ${renderIcon("folder", { className: "library-heading-icon library-open-folder-icon" })}
+            </button>
+            <button class="library-heading-button library-refresh-button ${rescanning ? "library-heading-button--spinning" : ""}" type="button" data-action="rescan-pack-directory" ${rescan.available ? "" : "disabled"} aria-label="Reescanear biblioteca" title="${escapeHtml(rescan.reason || "Reescanear biblioteca")}" aria-busy="${rescanning ? "true" : "false"}" ${!rescan.available && rescan.reason ? `aria-describedby="${rescan.reasonId}" aria-disabled="true"` : ""}>
+              ${renderIcon("refresh", { className: "library-heading-icon library-refresh-icon" })}
+            </button>
+          </div>
           ${!openFolder.available && openFolder.reason ? `<span class="sr-only" id="${openFolder.reasonId}">${escapeHtml(openFolder.reason)}</span>` : ""}
           ${!rescan.available && rescan.reason ? `<span class="sr-only" id="${rescan.reasonId}">${escapeHtml(rescan.reason)}</span>` : ""}
           <span class="library-count-pill">${escapeHtml(renderLibraryCount(data))}</span>

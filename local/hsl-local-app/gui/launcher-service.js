@@ -2903,6 +2903,20 @@ async function cancelChoosePackDirectory(options = {}) {
   };
 }
 
+async function getLibraryLocationSelectionContext(options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  const directory = await readPackDirectory(config, {
+    allowLegacyFallback: false,
+    migrateLegacy: false,
+  });
+
+  return {
+    classification: directory.classification || null,
+    configured: directory.configured === true,
+    defaultPath: directory.directoryPath || null,
+  };
+}
+
 async function choosePackDirectoryFromGui(directoryPath, options = {}) {
   const config = options.config || loadRuntimeConfig();
   const result = await setPackDirectory(config, directoryPath, options);
@@ -3348,6 +3362,7 @@ module.exports = {
   getRemoteBootstrapState,
   resolveCanonicalSessionForRemote,
   getLauncherState,
+  getLibraryLocationSelectionContext,
   importPackFromFolderForGui,
   importPackFromZipForGui,
   invalidateInteractiveRemoteOperations,

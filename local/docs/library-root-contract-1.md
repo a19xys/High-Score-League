@@ -45,3 +45,11 @@ Una carpeta genuinamente vacia es valida. Se persiste como `available-empty`, de
 Una ubicacion efectiva procedente de `locations.json` tambien se conserva cuando una nueva seleccion se rechaza. El rechazo no fuerza una migracion legacy.
 
 Los estados persistidos antiguos que apunten a un pack, una carpeta interna o un layout profundo se reclasifican al leerlos. El escaner no los usa y el diagnostico ofrece una recomendacion especifica en lugar de tratar todos los casos como una unidad desconectada.
+
+## Selector y diálogo de ubicación
+
+El selector nativo obtiene `defaultPath` exclusivamente de la raíz canónica guardada en `pack-directory.json`. Esta consulta es local y mínima: no construye un launcher state, no escanea packs y no consulta Membership, Connectivity ni otras autoridades remotas. El pack activo, un pack externo de desarrollo, la última candidata rechazada, una ubicación de `locations.json` y una sugerencia todavía no aceptada no intervienen. Sin raíz canónica se omite `defaultPath`; si la raíz recordada está `missing` o `inaccessible`, continúa siendo el valor canónico que se entrega al sistema operativo.
+
+La presentación usa una única familia de diálogo `library-location`. `rejected-candidate` explica `pack-root`, `inside-pack`, `unsupported-layout`, `missing`, `inaccessible` o `invalid-file`, conserva la raíz anterior y permite volver a elegir; solo ofrece la carpeta superior cuando el servicio ha validado `suggestedRootPath`. `current-root-unavailable` representa una raíz ya recordada y permite reintentarla, elegir otra o cerrar el aviso sin olvidarla.
+
+Cancelar o rechazar no abre el lifecycle de un cambio de raíz, no invalida el contexto competitivo y no sustituye el catálogo visible. Solo aceptar explícitamente una raíz válida persiste el cambio y habilita un descubrimiento estructural local. `Importar pack` conserva su flujo independiente en Configuración.

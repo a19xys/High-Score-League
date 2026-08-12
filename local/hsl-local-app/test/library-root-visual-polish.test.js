@@ -44,25 +44,27 @@ test("dialogos de raiz rechazada explican pack e interior y ofrecen sugerencia v
   const packRoot = renderAppDialog({
     activeDialog: {
       classification: "pack-root",
+      issue: "rejected-candidate",
       suggestedRootPath: "X:\\library",
-      type: "library-root-rejected",
+      type: "library-location",
     },
   });
   const insidePack = renderAppDialog({
     activeDialog: {
       classification: "inside-pack",
+      issue: "rejected-candidate",
       suggestedRootPath: "X:\\library",
-      type: "library-root-rejected",
+      type: "library-location",
     },
   });
 
   assert.match(packRoot, /Has elegido la carpeta de un pack/);
   assert.match(packRoot, /Usar carpeta superior/);
   assert.match(packRoot, /data-action="use-suggested-library-root"/);
-  assert.match(packRoot, /data-action="choose-other-library-root"/);
+  assert.match(packRoot, /data-action="choose-library-location"/);
   assert.match(insidePack, /Esta carpeta forma parte de un pack/);
-  assert.match(insidePack, /Usar biblioteca detectada/);
-  assert.match(insidePack, /La biblioteca anterior se mantiene sin cambios|carpeta interna de un juego/);
+  assert.match(insidePack, /Usar carpeta superior/);
+  assert.match(insidePack, /Estás dentro de un pack[\s\S]*La Biblioteca anterior se mantiene/);
 });
 
 test("bootstrap de tema se ejecuta antes del CSS y app reutiliza el valor normalizado", async () => {

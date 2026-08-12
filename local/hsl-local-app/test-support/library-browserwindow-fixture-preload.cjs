@@ -25,6 +25,9 @@ let activationPublicationMode = "simple";
 let manualConnectivityPublications = [];
 let passiveLibraryVariants = [];
 let passiveLibraryVariantIndex = 0;
+let activeLibraryVariant = "stable";
+let libraryLocationResponses = [];
+let libraryLocationCalls = 0;
 const libraryPublicationDiagnostics = [];
 let delayLibraryPreferenceWrites = false;
 let releaseLibraryPreferenceWrite = null;
@@ -172,7 +175,7 @@ if (process.env.HSL_LIBRARY_ALPHA_ASSETS) {
   packs[4].title = "FALLBACK DE PORTADA";
 }
 
-function snapshot({ libraryVariant = "stable", samePack = false } = {}) {
+function snapshot({ libraryVariant = activeLibraryVariant, samePack = false } = {}) {
   const pack = packs[activeIndex];
   const visiblePacks = libraryPacksForVariant(libraryVariant);
   const accounts = accountFixtureMode === "empty" ? [] : [
@@ -370,6 +373,30 @@ async function performManualMembershipCheck({ publishFinal = false } = {}) {
 }
 
 contextBridge.exposeInMainWorld("hslLauncher", {
+  choosePackDirectory: async () => {
+    libraryLocationCalls += 1;
+    const response = libraryLocationResponses.shift() || "cancel";
+    if (response === "cancel") {
+      return { action: "choose-pack-directory", canceled: true, ok: true, state: snapshot(), summary: "No se seleccionó ninguna carpeta." };
+    }
+    if (["pack-root", "inside-pack"].includes(response)) {
+      return {
+        action: "choose-pack-directory",
+        ok: false,
+        result: {
+          candidatePath: `C:/fixture-rejected/${response}`,
+          classification: response,
+          ok: false,
+          suggestedRootPath: "C:/fixture-suggested-root",
+        },
+        state: snapshot(),
+        summary: "La Biblioteca anterior se mantiene.",
+      };
+    }
+    activeLibraryVariant = "omit-last";
+    launcherStateRevision += 1;
+    return { action: "choose-pack-directory", ok: true, state: snapshot(), summary: "Directorio de packs actualizado." };
+  },
   getConnectivityState: async () => ({
     displayStatus: connectivityStatus,
     probe: { inFlight: false, phase: "idle" },
@@ -476,7 +503,9 @@ contextBridge.exposeInMainWorld("hslLauncher", {
     return { reachability: "connected", reachabilityGeneration: manualConnectivityRefreshCount + 1 };
   },
   checkMembership: () => performManualMembershipCheck(),
+  openPackDirectory: async () => ({ action: "open-pack-directory", ok: true, state: snapshot(), summary: "Directorio abierto." }),
   resolveThemeBootstrap: () => ({ effectiveTheme: "dark", mode: "manual" }),
+  rescanPackDirectory: async () => ({ action: "rescan-pack-directory", ok: true, state: snapshot(), summary: "Biblioteca reescaneada." }),
   setLibraryPreferences: async (patch) => {
     libraryPreferenceWrites.push(JSON.parse(JSON.stringify(patch || {})));
     if (delayLibraryPreferenceWrites) {
@@ -595,6 +624,13 @@ contextBridge.exposeInMainWorld("hslFixture", {
       : [];
     passiveLibraryVariantIndex = 0;
     libraryPublicationDiagnostics.length = 0;
+  },
+  getLibraryLocationCalls() {
+    return libraryLocationCalls;
+  },
+  setLibraryLocationResponses(responses) {
+    libraryLocationResponses = Array.isArray(responses) ? [...responses] : [];
+    libraryLocationCalls = 0;
   },
   emitLibraryVariant(variant) {
     launcherStateRevision += 1;

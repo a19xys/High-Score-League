@@ -268,8 +268,8 @@ test("every automatic busy overlay entry point uses the common lifecycle", async
   assert.match(app, /cleanupRendererLifecycle[\s\S]*cancelActiveOperationFeedback\(\)/);
 
   for (const action of [
-    "refresh", "open-pack", "choose-pack-directory", "choose-unavailable-pack-directory",
-    "choose-other-library-root", "use-suggested-library-root", "import-pack-zip", "import-pack-folder",
+    "refresh", "open-pack", "choose-pack-directory", "choose-library-location",
+    "retry-library-location", "use-suggested-library-root", "import-pack-zip", "import-pack-folder",
     "choose-shared-mame-runtime", "open-pack-directory", "open-shared-mame-runtime", "rescan-pack-directory",
     "open-membership-url", "open-manual", "refresh-connectivity", "check-membership", "diagnose", "play",
     "practice", "force-account-sync", "force-ranking-refresh", "restore-failed", "confirm-forget-account",

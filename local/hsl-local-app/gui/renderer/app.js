@@ -126,6 +126,7 @@ let loginDraftOpen = false;
 let pendingLoginDraftSeed = null;
 let lastRenderedState = null;
 let dialogReturnFocus = null;
+let dialogReturnFocusIdentity = null;
 let overlayReturnFocus = null;
 let busyRunSequence = 0;
 let activeBusyPhaseTimer = null;
@@ -226,6 +227,7 @@ function unavailableDirectoryKey(data) {
 
 function unavailableDirectoryDialogPatch(data) {
   const key = unavailableDirectoryKey(data);
+  const directory = data?.library?.directory || {};
 
   if (!key) {
     return {};
@@ -238,8 +240,10 @@ function unavailableDirectoryDialogPatch(data) {
   unavailableDirectoryPrompts.add(key);
   return {
     activeDialog: {
+      classification: directory.classification || directory.reason || "inaccessible",
       directoryKey: key,
-      type: "pack-directory-unavailable",
+      issue: "current-root-unavailable",
+      type: "library-location",
     },
   };
 }
@@ -263,8 +267,9 @@ function rejectedLibraryRootDialogPatch(response) {
     activeDialog: {
       candidatePath: result.candidatePath || null,
       classification: result.classification,
+      issue: "rejected-candidate",
       suggestedRootPath: result.suggestedRootPath || null,
-      type: "library-root-rejected",
+      type: "library-location",
     },
   };
 }
@@ -297,6 +302,14 @@ function elementInteractionIdentity(element) {
   }
 
   return null;
+}
+
+function resolveInteractionIdentity(identity) {
+  if (!identity) return null;
+  const attributes = Object.entries(identity);
+  if (attributes.length === 0) return null;
+  return [...root.querySelectorAll(`[${attributes[0][0]}]`)]
+    .find((element) => attributes.every(([attribute, value]) => element.getAttribute(attribute) === value)) || null;
 }
 
 function captureRegionInteraction(region) {
@@ -1026,16 +1039,24 @@ function syncDialogFocus(state) {
 
   if (dialogType && !currentDialogType) {
     dialogReturnFocus = document.activeElement;
+    dialogReturnFocusIdentity ||= elementInteractionIdentity(dialogReturnFocus);
   }
   const closing = !dialogType && currentDialogType;
   currentDialogType = dialogType;
   window.requestAnimationFrame(() => {
     if (dialogType) {
       root.querySelector("[data-dialog-initial-focus]")?.focus();
-    } else if (closing && dialogReturnFocus?.isConnected) {
-      dialogReturnFocus.focus({ preventScroll: true });
+    } else if (closing) {
+      const target = resolveInteractionIdentity(dialogReturnFocusIdentity)
+        || (dialogReturnFocus?.isConnected && dialogReturnFocus !== document.body
+          ? dialogReturnFocus
+          : null);
+      target?.focus({ preventScroll: true });
     }
-    if (!dialogType) dialogReturnFocus = null;
+    if (!dialogType) {
+      dialogReturnFocus = null;
+      dialogReturnFocusIdentity = null;
+    }
   });
 }
 
@@ -1642,6 +1663,9 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
 
     store.setState(statePatch);
     restoreTriggerFocus();
+    if (action === "choose-pack-directory" && !store.getState().activeDialog) {
+      dialogReturnFocusIdentity = null;
+    }
   } catch (error) {
     if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
     activeBusyPhaseTimer = null;
@@ -1659,6 +1683,9 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
       }),
     });
     restoreTriggerFocus();
+    if (action === "choose-pack-directory" && !store.getState().activeDialog) {
+      dialogReturnFocusIdentity = null;
+    }
   }
 }
 
@@ -2109,25 +2136,28 @@ function bindActions() {
     }
 
     if (action === "choose-pack-directory") {
+      dialogReturnFocusIdentity = elementInteractionIdentity(button);
       runAction(action, "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
         promptForRejectedLibraryRoot: true,
+        restoreTriggerFocus: true,
         scope: "interactive",
       });
     }
 
-    if (action === "choose-unavailable-pack-directory") {
+    if (action === "choose-library-location") {
       store.setState({ activeDialog: null });
       runAction("choose-pack-directory", "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
         promptForRejectedLibraryRoot: true,
+        restoreTriggerFocus: true,
         scope: "interactive",
       });
     }
 
-    if (action === "choose-other-library-root") {
+    if (action === "retry-library-location") {
+      resetUnavailableDirectoryPrompt(current.data);
       store.setState({ activeDialog: null });
-      runAction("choose-pack-directory", "Eligiendo directorio", "Elegir directorio", () => window.hslLauncher.choosePackDirectory(), {
-        promptForRejectedLibraryRoot: true,
-        scope: "interactive",
+      runAction("rescan-pack-directory", "Reescaneando", "Reintentar", () => window.hslLauncher.rescanPackDirectory(), {
+        promptForUnavailableDirectory: true,
       });
     }
 

@@ -202,5 +202,5 @@ test("forget-account keeps an accessible confirmation and a cancel-first focus p
   assert.match(app, /action === "remove-known-account"[\s\S]*activeDialog: \{[\s\S]*type: "forget-account"[\s\S]*userId/);
   assert.match(app, /action === "confirm-forget-account"[\s\S]*window\.hslLauncher\.removeKnownAccount\(userId\)/);
   assert.match(app, /current\.accountMenuOpen[\s\S]*!target\.closest\("\[data-dialog\]"\)[\s\S]*!target\.closest\("\[data-account-menu\]"\)/);
-  assert.match(app, /closing && dialogReturnFocus\?\.isConnected[\s\S]*focus\(\{ preventScroll: true \}\)/);
+  assert.match(app, /closing[\s\S]*resolveInteractionIdentity\(dialogReturnFocusIdentity\)[\s\S]*target\?\.focus\(\{ preventScroll: true \}\)/);
 });

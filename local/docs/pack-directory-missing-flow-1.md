@@ -2,14 +2,14 @@
 
 El launcher distingue entre una biblioteca sin configurar, una carpeta existente y vacía, packs individuales con errores y una carpeta configurada que ha desaparecido o no es accesible.
 
-Si la biblioteca estaba en un disco extraíble, una unidad de red o una carpeta movida, el launcher muestra el diálogo **No se encuentran los packs**. Desde ahí se puede escoger otra carpeta o cancelar. Cancelar cierra el aviso sin borrar la ruta configurada, favoritos, colas ni otros datos locales.
+Si la biblioteca estaba en un disco extraíble, una unidad de red o una carpeta movida, el launcher muestra la variante `current-root-unavailable` del diálogo unificado de ubicación. Desde ahí se puede **Reintentar** la misma raíz, **Elegir otra carpeta** o **Cancelar**. Cancelar cierra el aviso sin borrar la ruta configurada, favoritos, colas ni otros datos locales.
 
 ## Jerarquía de acciones
 
 Mientras la carpeta no está disponible, las acciones de recuperación viven únicamente en dos lugares:
 
-- el diálogo inicial, con **Elegir carpeta** como acción primaria y **Cancelar** como secundaria;
-- la cabecera de Biblioteca, con **Cambiar ubicación** y el icono **Reescanear**.
+- el diálogo inicial, con **Reintentar**, **Elegir otra carpeta** y **Cancelar**;
+- la cabecera de Biblioteca, donde `Biblioteca` es un encabezado real y **Abrir carpeta** y **Reescanear** son controles explícitos; **Cambiar ubicación** permanece en la toolbar.
 
 La tarjeta informativa y el detalle derecho no duplican estas acciones. El botón **Filtros** queda cerrado y deshabilitado (aria-expanded=false y aria-disabled=true) para los estados missing e inaccessible. Al recuperar la biblioteca vuelve a estar disponible, pero no se abre automáticamente.
 
@@ -28,5 +28,7 @@ La imagen respeta el mismo contenedor y proporción que el hero de packs mediant
 Mientras la raíz está `missing` o `inaccessible`, el estado activo es `null`; el launcher puede conservar únicamente el recuerdo de la instancia elegida para esa raíz. Al reaparecer la carpeta, se vuelve a escanear y se reconcilia todo el estado antes de renderizar: se recupera la instancia recordada si sigue presente o se elige el primer pack del orden visible. Si la carpeta reaparece vacía, permanece sin selección y muestra el empty state de biblioteca vacía.
 
 Escoger otra raíz nunca traslada el pack activo anterior. Cancelar el selector conserva la raíz y su selección, porque no se modifica la configuración. El renderer neutraliza el detalle mientras espera un cambio o reescaneo y solo aplica el estado completo devuelto por el servicio.
+
+El selector usa como `defaultPath` la ruta canónica recordada incluso cuando está `missing` o `inaccessible`; no asciende al padre ni adopta un pack activo. El sistema operativo puede degradar técnicamente el punto inicial si la ruta ya no existe, pero esa decisión no escribe otra raíz. Abrir/cancelar el selector y rechazar una candidata tampoco se consideran una mutación de Biblioteca.
 
 El modelo completo y su persistencia están descritos en [library-selection-state-robustness-3.md](./library-selection-state-robustness-3.md).

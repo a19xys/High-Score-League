@@ -504,3 +504,9 @@ la sección correspondiente sin renumerar el apéndice histórico, salvo que una
 nueva tarea autorice expresamente otro censo completo. No debe reclasificar una
 propuesta como requisito sin fuente aprobada ni cerrar un QA mediante inspección
 estática.
+
+## Continuidad posterior: cierre de PR-004 / 4V.6
+
+`LOCAL-LIBRARY-LOCATION-UX-2` implementa PR-004 / 4V.6 sin reescribir el inventario histórico: el selector usa únicamente la raíz canónica como `defaultPath`; cancelación y candidatas rechazadas no escriben ni abren un lifecycle de cambio; aceptar una raíz válida sí publica el cambio local; y rechazo/recuperación comparten el diálogo `library-location`. La cabecera hace explícitos Abrir carpeta y Reescanear sin mover Importar pack desde Configuración.
+
+La evidencia incluye pruebas unitarias del contexto del selector y de las opciones enviadas a Electron, la matriz de clasificaciones y mutación A/A/B, y un BrowserWindow de cinco Portadas que conserva scroller, cards, assets, selección y `scrollTop` al cancelar o rechazar y cambia el catálogo únicamente tras aceptar. El cierre conserva la autoridad pasiva de topología y no añade restauración de scroll, extent lock, RAF ni timers compensatorios.

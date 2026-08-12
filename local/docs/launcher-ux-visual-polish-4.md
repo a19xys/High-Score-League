@@ -49,3 +49,11 @@ Los subtitulos separan wrapper de icono y texto. Flex, caja optica fija y el nue
 ## Diferencias deliberadas entre temas
 
 Ambos temas mantienen la misma anatomia y estados. Claro usa superficies luminosas y elevacion suave; oscuro usa superficies azul marino, bordes mas presentes y sombras mas contenidas. Los rings y botones secundarios cambian de token para conservar contraste sin igualar visualmente ambos temas.
+
+## Interacciones de acciones y ubicación
+
+`Jugar` conserva su gradiente primario en reposo. Su hover ya no satura toda la superficie: desplaza el fondo de forma moderada y comunica interacción principalmente mediante borde y halo. `focus-visible` mantiene un outline exterior inequívoco y un ring separado; `active` conserva el desplazamiento visual de un píxel sin alterar el layout. Disabled no recibe hover ni active. Las transiciones siguen enumerando propiedades concretas y no usan `transition: all` ni `filter`.
+
+Practicar, Manual y Ranking conservan su jerarquía secundaria y su hover neutral. Los controles Cambiar ubicación, Abrir carpeta y Reescanear comparten superficie, borde, foco y target estable con el resto de controles compactos de Biblioteca; hover no se confunde con selected.
+
+El pase se validó en claro y oscuro sin cambiar geometría entre reposo, hover y foco. Se conservaron deliberadamente artwork adaptativo, conexión, menú de cuenta, hero, badges, cards, selección/pending y sus autoridades.

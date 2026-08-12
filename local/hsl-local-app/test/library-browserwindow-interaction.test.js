@@ -8,6 +8,85 @@ const { promisify } = require("node:util");
 const execFileAsync = promisify(execFile);
 const enabled = process.env.HSL_RUN_BROWSERWINDOW_TESTS === "1";
 
+function sameRect(a, b) {
+  return a.height === b.height && a.left === b.left && a.top === b.top && a.width === b.width;
+}
+
+test("BrowserWindow keeps the library stable through cancel and rejected locations, then accepts a real root", { skip: !enabled, timeout: 90_000 }, async () => {
+  const electron = require("electron");
+  const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
+  const { stdout } = await execFileAsync(electron, [fixture], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      HSL_LIBRARY_CHECK_ONLY: "library-location-flow-diagnostic",
+      HSL_LIBRARY_PACK_COUNT: "5",
+      HSL_LIBRARY_QUIET: "1",
+      HSL_LIBRARY_USE_GPU: "1",
+    },
+    maxBuffer: 8 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const result = JSON.parse(stdout.trim());
+  for (const stable of [result.canceled, ...result.rejected.map((entry) => entry.state)]) {
+    assert.equal(stable.scrollerSame, true);
+    assert.equal(stable.cardsSame, true);
+    assert.equal(stable.imagesSame, true);
+    assert.equal(stable.scrollTop, result.initial.scrollTop);
+    assert.equal(stable.scrollHeight, result.initial.scrollHeight);
+    assert.equal(stable.active, result.initial.active);
+    assert.equal(stable.cardCount, 5);
+  }
+  assert.deepEqual(result.rejected.map((entry) => entry.dialog.classification), ["pack-root", "inside-pack"]);
+  assert.ok(result.rejected.every((entry) => entry.dialog.initialFocus === "use-suggested-library-root"));
+  assert.equal(result.rejected[0].state.focusedAction, "choose-pack-directory");
+  assert.equal(result.rejected[1].state.focusedAction, "choose-pack-directory");
+  assert.equal(result.accepted.cardCount, 4);
+  assert.equal(result.accepted.cardsSame, false);
+});
+
+test("BrowserWindow validates JUGAR and library interaction states in light and dark themes", { skip: !enabled, timeout: 60_000 }, async () => {
+  const electron = require("electron");
+  const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
+  const { stdout } = await execFileAsync(electron, [fixture], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      HSL_LIBRARY_CHECK_ONLY: "visual-interaction-polish-diagnostic",
+      HSL_LIBRARY_PACK_COUNT: "5",
+      HSL_LIBRARY_QUIET: "1",
+      HSL_LIBRARY_USE_GPU: "1",
+    },
+    maxBuffer: 8 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const result = JSON.parse(stdout.trim());
+  for (const theme of result.results) {
+    assert.equal(theme.normal.filter, "none");
+    assert.equal(theme.hovered.filter, "none");
+    assert.doesNotMatch(theme.normal.transitionProperty, /(^|,\s*)all($|,)/);
+    assert.equal(sameRect(theme.normal.rect, theme.hovered.rect), true);
+    assert.equal(sameRect(theme.normal.rect, theme.focused.rect), true);
+    assert.notEqual(theme.hovered.borderColor, theme.normal.borderColor);
+    assert.notEqual(theme.hovered.boxShadow, theme.normal.boxShadow);
+    assert.notEqual(theme.hovered.backgroundImage, theme.normal.backgroundImage);
+    assert.equal(theme.focused.focusVisible, true);
+    assert.notEqual(theme.focused.outline, theme.normal.outline);
+    assert.equal(sameRect(theme.secondaryNormal.rect, theme.secondaryHover.rect), true);
+    assert.equal(theme.secondaryHover.backgroundImage, theme.secondaryNormal.backgroundImage);
+    assert.notEqual(theme.secondaryHover.borderColor, theme.secondaryNormal.borderColor);
+    for (const control of Object.values(theme.locationControls)) {
+      assert.equal(sameRect(control.normal.rect, control.hover.rect), true);
+      assert.notEqual(control.hover.borderColor, control.normal.borderColor);
+    }
+  }
+  assert.equal(result.disabledNormal.backgroundImage, result.disabledHover.backgroundImage);
+  assert.equal(result.disabledNormal.borderColor, result.disabledHover.borderColor);
+  assert.equal(result.disabledNormal.boxShadow, result.disabledHover.boxShadow);
+});
+
 test("BrowserWindow characterizes the five-Covers clamp caused by a transient four-pack scan", { skip: !enabled, timeout: 120_000 }, async () => {
   const electron = require("electron");
   const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
@@ -159,7 +238,11 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
     const samples = Object.fromEntries(selection.trace.map((sample) => [sample.label, sample]));
     const before = samples["A-stable"];
     assert.ok(selection.initialScrollTop > 0, `${selection.view} debe partir desplazada`);
-    assert.equal(selection.flicker, false, selection.view);
+    assert.equal(selection.flicker, false, JSON.stringify({
+      geometryTransitions: selection.geometryTransitions,
+      identityTransitions: selection.identityTransitions,
+      view: selection.view,
+    }));
     assert.equal(selection.maxScrollDelta, 0, selection.view);
     assert.deepEqual(selection.geometryTransitions, [], `${selection.view} no debe alterar geometrí­a`);
     assert.deepEqual(selection.identityTransitions, [], `${selection.view} no debe reemplazar nodos`);

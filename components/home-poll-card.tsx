@@ -143,7 +143,22 @@ export function HomePollCard({ initialPoll }: HomePollCardProps) {
     poll.options.length > 0 && poll.options.every((option) => Boolean(option.imageUrl));
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="relative overflow-hidden">
+      {isPending ? (
+        <div
+          aria-live="polite"
+          className="absolute inset-0 z-30 flex items-center justify-center bg-[var(--surface)]/75 p-5 backdrop-blur-sm"
+          role="status"
+        >
+          <div className="flex items-center gap-3 rounded-full border px-4 py-3 shadow-panel theme-border theme-surface theme-text">
+            <span
+              aria-hidden="true"
+              className="h-4 w-4 animate-spin rounded-full border-2 border-circuit/30 border-t-circuit motion-reduce:animate-none"
+            />
+            <span className="text-sm font-semibold">Recalculando votaciones...</span>
+          </div>
+        </div>
+      ) : null}
       <CardHeader title={poll.question} eyebrow="Cuestionario">
         Cierra el {formatCloseDate(poll.closesAt)}.
       </CardHeader>
@@ -231,7 +246,7 @@ export function HomePollCard({ initialPoll }: HomePollCardProps) {
         {poll.hasVoted ? (
           <p className="text-sm theme-text-muted">
             Puedes cambiar tu voto mientras el cuestionario siga abierto.
-            {poll.totalVotes !== undefined ? ` Total votos: ${poll.totalVotes}.` : ""}
+            {poll.totalVotes !== undefined ? ` Votos totales: ${poll.totalVotes}.` : ""}
           </p>
         ) : (
           <p className="text-sm theme-text-muted">

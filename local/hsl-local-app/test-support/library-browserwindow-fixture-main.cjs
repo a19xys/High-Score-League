@@ -398,7 +398,7 @@ async function waitForLibraryScrollToSettle(window) {
       "document.querySelector('[data-render-region=\"library-packs\"]').scrollTop",
     );
     stableFrames = top === previous ? stableFrames + 1 : 0;
-    if (stableFrames >= 3) return top;
+    if (stableFrames >= 6) return top;
     previous = top;
   }
 
@@ -774,6 +774,148 @@ async function localScanVariationDiagnostic(window) {
     results.push({ variant, ...setup, frames, summary: summarizeFrameTrace(frames) });
   }
   return { results };
+}
+
+async function libraryLocationFlowDiagnostic(window) {
+  await window.webContents.executeJavaScript(`(() => {
+    window.hslFixture.setLibraryLocationResponses(['cancel', 'pack-root', 'inside-pack', 'valid']);
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    scroller.scrollTop = Math.max(1, scroller.scrollHeight - scroller.clientHeight - 20);
+    const cards = [...scroller.querySelectorAll('.pack-card')];
+    window.__hslLocationRefs = {
+      active: document.querySelector('.pack-card[data-selected="true"]')?.dataset.instanceKey || null,
+      cards,
+      images: cards.map((card) => card.querySelector('.pack-card__art')).filter(Boolean),
+      scroller,
+      scrollTop: scroller.scrollTop,
+    };
+  })()`);
+  const measure = () => window.webContents.executeJavaScript(`(() => {
+    const refs = window.__hslLocationRefs;
+    const scroller = document.querySelector('[data-render-region="library-packs"]');
+    const cards = [...scroller.querySelectorAll('.pack-card')];
+    const images = cards.map((card) => card.querySelector('.pack-card__art')).filter(Boolean);
+    return {
+      active: document.querySelector('.pack-card[data-selected="true"]')?.dataset.instanceKey || null,
+      cardCount: cards.length,
+      cardsSame: cards.length === refs.cards.length && cards.every((card, index) => card === refs.cards[index]),
+      focusedAction: document.activeElement?.dataset?.action || null,
+      imagesSame: images.length === refs.images.length && images.every((image, index) => image === refs.images[index]),
+      scrollerSame: scroller === refs.scroller,
+      scrollHeight: scroller.scrollHeight,
+      scrollTop: scroller.scrollTop,
+    };
+  })()`);
+  const clickChange = async () => {
+    await window.webContents.executeJavaScript(`(() => {
+      const button = document.querySelector('[data-action="choose-pack-directory"]');
+      button.focus({ focusVisible: true });
+      button.click();
+    })()`);
+  };
+  const initial = await measure();
+
+  await clickChange();
+  await waitFor(window, "window.hslFixture.getLibraryLocationCalls() >= 1 && !document.querySelector('.busy-overlay')", 12_000);
+  await waitForFrames(window, 3);
+  const canceled = await measure();
+
+  const rejected = [];
+  for (const [index, classification] of ["pack-root", "inside-pack"].entries()) {
+    await clickChange();
+    await waitFor(window, `document.querySelector('[data-library-location-issue="rejected-candidate"]') && window.hslFixture.getLibraryLocationCalls() >= ${index + 2}`, 12_000);
+    await waitFor(window, "document.activeElement?.dataset?.action === 'use-suggested-library-root'", 12_000);
+    const dialog = await window.webContents.executeJavaScript(`(() => ({
+      classification: ${JSON.stringify(classification)},
+      initialFocus: document.activeElement?.dataset?.action || null,
+      text: document.querySelector('[data-library-location-issue]')?.innerText || '',
+    }))()`);
+    await window.webContents.executeJavaScript(`document.querySelector('[data-action="close-dialog"]')?.click()`);
+    await waitFor(window, "!document.querySelector('[data-dialog]')");
+    await waitForFrames(window, 3);
+    rejected.push({ dialog, state: await measure() });
+  }
+
+  await clickChange();
+  await waitFor(window, "window.hslFixture.getLibraryLocationCalls() >= 4 && document.querySelectorAll('.pack-card').length === 4 && !document.querySelector('.busy-overlay')", 12_000);
+  await waitForFrames(window, 3);
+  const accepted = await measure();
+  return { accepted, canceled, initial, rejected };
+}
+
+async function visualInteractionPolishDiagnostic(window) {
+  window.show();
+  window.focus();
+  window.webContents.focus();
+  await waitForFrames(window, 2);
+  const styleFor = (selector) => window.webContents.executeJavaScript(`(() => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      activeAction: document.activeElement?.dataset?.action || null,
+      backgroundColor: style.backgroundColor,
+      backgroundImage: style.backgroundImage,
+      borderColor: style.borderColor,
+      boxShadow: style.boxShadow,
+      filter: style.filter,
+      focusVisible: element.matches(':focus-visible'),
+      opacity: style.opacity,
+      outline: style.outline,
+      rect: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
+      transform: style.transform,
+      transitionProperty: style.transitionProperty,
+    };
+  })()`);
+  const hover = async (selector) => {
+    const point = await window.webContents.executeJavaScript(`(() => {
+      const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+    })()`);
+    window.webContents.sendInputEvent({ type: "mouseMove", ...point });
+    await waitForFrames(window, 2);
+    return styleFor(selector);
+  };
+  const results = [];
+  for (const theme of ["dark", "light"]) {
+    await window.webContents.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
+    await waitForFrames(window, 2);
+    window.webContents.sendInputEvent({ type: "mouseMove", x: 2, y: 2 });
+    await window.webContents.executeJavaScript("document.activeElement?.blur()");
+    await waitForFrames(window, 2);
+    const playSelector = '[data-action="play"]';
+    const normal = await styleFor(playSelector);
+    const hovered = await hover(playSelector);
+    window.webContents.sendInputEvent({ type: "mouseMove", x: 2, y: 2 });
+    await waitForFrames(window, 2);
+    await window.webContents.executeJavaScript(`(() => {
+      const target = document.querySelector(${JSON.stringify(playSelector)});
+      const focusable = [...document.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), [href], [tabindex]:not([tabindex="-1"])')]
+        .filter((element) => element.getClientRects().length > 0);
+      focusable[focusable.indexOf(target) - 1]?.focus({ preventScroll: true });
+    })()`);
+    window.webContents.sendInputEvent({ type: "rawKeyDown", keyCode: "Tab" });
+    window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
+    await waitFor(window, "document.activeElement?.dataset?.action === 'play'", 5_000);
+    await waitForFrames(window, 2);
+    const focused = await styleFor(playSelector);
+    const secondaryNormal = await styleFor('[data-action="open-manual"]');
+    const secondaryHover = await hover('[data-action="open-manual"]');
+    const locationControls = {};
+    for (const selector of ['[data-action="choose-pack-directory"]', '[data-action="open-pack-directory"]', '[data-action="rescan-pack-directory"]']) {
+      window.webContents.sendInputEvent({ type: "mouseMove", x: 2, y: 2 });
+      await waitForFrames(window, 1);
+      locationControls[selector] = { normal: await styleFor(selector), hover: await hover(selector) };
+    }
+    results.push({ focused, hovered, locationControls, normal, secondaryHover, secondaryNormal, theme });
+  }
+
+  await window.webContents.executeJavaScript(`window.hslFixture.emitMembershipStatus('not_member')`);
+  await waitFor(window, "document.querySelector('[data-action=\"play\"]')?.disabled === true");
+  window.webContents.sendInputEvent({ type: "mouseMove", x: 2, y: 2 });
+  const disabledNormal = await styleFor('[data-action="play"]');
+  const disabledHover = await hover('[data-action="play"]');
+  return { disabledHover, disabledNormal, results };
 }
 
 async function activationStabilityDiagnostic(window) {
@@ -2531,6 +2673,8 @@ app.whenReady().then(async () => {
         "interaction-stability-diagnostic": () => passiveLibraryUpdateScenario(window, { expanded: true, view: "covers" }),
         "passive-topology-clamp-diagnostic": () => passiveTopologyClampDiagnostic(window),
         "local-scan-variation-diagnostic": () => localScanVariationDiagnostic(window),
+        "library-location-flow-diagnostic": () => libraryLocationFlowDiagnostic(window),
+        "visual-interaction-polish-diagnostic": () => visualInteractionPolishDiagnostic(window),
         "activation-stability-diagnostic": () => activationStabilityDiagnostic(window),
         rows: () => iconRows(window),
         signals: async () => ({ hostile: await hostileSignalMetrics(window), shared: await signalMetrics(window) }),
