@@ -47,6 +47,7 @@ const {
 } = require("../src/pack-importer");
 const { getDirectoryKey, readPackDirectory, setPackDirectory } = require("../src/pack-directory");
 const { scanPackLibrary } = require("../src/pack-library");
+const { createLibrarySnapshotAuthority } = require("../src/library-snapshot-authority");
 const { readLibrarySelection, writeLibrarySelection } = require("../src/library-selection");
 const {
   readLibraryFavorites,
@@ -117,6 +118,7 @@ let accountProfileSync = null;
 let playTimeSync = null;
 let presenceLifecycleProvider = null;
 let presenceAccountLifecycleProvider = null;
+const librarySnapshotAuthority = createLibrarySnapshotAuthority({ scan: scanPackLibrary });
 const playTimeRecorder = createPlayTimeRecorder();
 const launcherClientVersion = require("../package.json").version;
 const libraryOrderModule = import("./shared/library-order.mjs");
@@ -990,7 +992,7 @@ async function ensureRememberedPackLoaded() {
   const config = loadRuntimeConfig();
   const session = await getAuthState(config, { deferRemote: true });
   const [library, preferences] = await Promise.all([
-    scanPackLibrary(config),
+    librarySnapshotAuthority.read(config),
     readLibraryPreferences(config, session),
   ]);
   await reconcileLibrarySelection(config, library, preferences);
@@ -1210,7 +1212,7 @@ async function getLauncherContext(options = {}) {
       signal: remoteSignal.signal,
     });
     const [library, accountsStore] = await Promise.all([
-      scanPackLibrary(runtimeConfig),
+      librarySnapshotAuthority.read(runtimeConfig, { refresh: options.refreshLibrary === true }),
       readKnownAccounts(runtimeConfig),
     ]);
     const preferenceScope = preferenceScopeFromAccounts(accountsStore);
@@ -1827,6 +1829,10 @@ function resetAutoSyncStateForTests() {
   };
 }
 
+function resetLibrarySnapshotAuthorityForTests() {
+  librarySnapshotAuthority.invalidate();
+}
+
 async function listPendingFileSnapshot(dir) {
   try {
     const files = await listJsonFiles(dir);
@@ -2143,6 +2149,7 @@ async function getLauncherState(options = {}) {
     connected: options.connected === true,
     config: options.config || null,
     deferRemoteMembership,
+    refreshLibrary: options.refreshLibrary === true,
     signal: options.signal,
   });
 
@@ -2154,6 +2161,7 @@ async function getLauncherState(options = {}) {
         connected: options.connected === true,
         config: options.config || null,
         deferRemoteMembership,
+        refreshLibrary: false,
         signal: options.signal,
       }));
     }
@@ -2901,6 +2909,7 @@ async function choosePackDirectoryFromGui(directoryPath, options = {}) {
 
   if (result.ok) {
     clearActiveLibrarySelection();
+    librarySnapshotAuthority.invalidate(config);
   }
 
   return {
@@ -2913,7 +2922,10 @@ async function choosePackDirectoryFromGui(directoryPath, options = {}) {
     ok: result.ok,
     result,
     summary: result.summary,
-    state: options.includeState === false ? null : await getLauncherState(stateOptionsForAction(options, config)),
+    state: options.includeState === false ? null : await getLauncherState({
+      ...stateOptionsForAction(options, config),
+      refreshLibrary: result.ok,
+    }),
   };
 }
 
@@ -2929,7 +2941,7 @@ async function cancelImportPack() {
 }
 
 async function activateImportedPack(imported, config, options = {}) {
-  const library = await scanPackLibrary(config);
+  const library = await librarySnapshotAuthority.refresh(config);
   const importedPack = library.packs.find((pack) => normalizedPath(pack.packDir) === normalizedPath(imported.packDir));
   const activation = importedPack
     ? await activateLibraryPack(importedPack.id, { config, includeState: false })
@@ -3148,7 +3160,7 @@ async function openConfiguredPackDirectory(options = {}) {
 
 async function rescanPackDirectory(options = {}) {
   const config = options.config || loadRuntimeConfig();
-  const library = await scanPackLibrary(config);
+  const library = await librarySnapshotAuthority.refresh(config);
 
   const unavailable = library.directory?.configured && !library.directory?.available;
   const summary = unavailable
@@ -3222,7 +3234,7 @@ async function toggleLibraryFavoriteFromGui(packKey, options = {}) {
     };
   }
 
-  const library = await scanPackLibrary(config);
+  const library = await librarySnapshotAuthority.read(config);
   const conflicted = library.packs.find((pack) => pack.duplicatePackId && pack.favoriteKey === packKey);
 
   if (conflicted) {
@@ -3257,7 +3269,7 @@ async function toggleLibraryFavoriteFromGui(packKey, options = {}) {
 
 async function activateLibraryPack(packId, options = {}) {
   const config = options.config || loadRuntimeConfig();
-  const library = await scanPackLibrary(config);
+  const library = await librarySnapshotAuthority.read(config);
   const pack = library.packs.find((item) => item.id === packId);
 
   if (!pack) {
@@ -3361,6 +3373,7 @@ module.exports = {
   restoreFailedSubmission,
   resolveRememberedPack,
   resetAutoSyncStateForTests,
+  resetLibrarySnapshotAuthorityForTests,
   selectReplacementAccount,
   setRemoteDiagnosticsProvider,
   setRemoteOperationSignalProvider,

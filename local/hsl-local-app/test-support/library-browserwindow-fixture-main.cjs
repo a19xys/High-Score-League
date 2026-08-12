@@ -20,6 +20,55 @@ const quietOutput = process.env.HSL_LIBRARY_QUIET === "1";
 const TRANSPARENT_TITLE_BAR_OVERLAY = "#00000000";
 let alphaFixtureDirectory = null;
 
+async function annotateLibraryTopology(publications) {
+  const { deriveLibraryPacksRenderModel, libraryPacksTopologyKey } = await import(pathToFileURL(
+    path.join(__dirname, "..", "gui", "renderer", "components", "library-panel.js"),
+  ).href);
+  const renderState = (publication, packs) => ({
+    data: {
+      library: {
+        directory: publication.directory,
+        packs,
+      },
+      selection: null,
+    },
+    libraryFavoriteFilter: "all",
+    libraryQuery: "",
+    librarySeason: "all",
+    librarySortBy: publication.sortBy,
+    librarySortDirection: publication.sortDirection,
+    libraryStatus: "all",
+    libraryView: publication.view,
+  });
+  const description = (model) => model.kind === "cards"
+    ? model.groups.map((group) => ({
+      id: group.id,
+      packs: group.structuralPacks,
+      title: group.title,
+    }))
+    : { key: model.key, kind: model.kind };
+
+  return publications.map((publication) => {
+    const oldModel = deriveLibraryPacksRenderModel(renderState(publication, publication.previousPacks));
+    const newModel = deriveLibraryPacksRenderModel(renderState(publication, publication.packs));
+    const oldKey = libraryPacksTopologyKey(oldModel);
+    const newKey = libraryPacksTopologyKey(newModel);
+    const unchanged = oldKey === newKey;
+    return {
+      ...publication,
+      currentLibraryStructureKey: "ready",
+      libraryPacksTopologyDiff: {
+        after: description(newModel),
+        before: description(oldModel),
+      },
+      newLibraryPacksTopologyKey: newKey,
+      oldLibraryPacksTopologyKey: oldKey,
+      renderPlanMode: unchanged ? "incremental" : "structural",
+      synchronization: unchanged ? { ok: true, reason: null } : null,
+    };
+  });
+}
+
 function prepareAccountFixtureAvatar() {
   const size = 48;
   const bitmap = Buffer.alloc(size * size * 4);
@@ -235,6 +284,16 @@ async function beginFrameTrace(window) {
     scroller.addEventListener('scroll', window.__hslSelectionScrollHandler);
     window.__hslFrameTrace = [measure()];
     window.__hslFrameTraceActive = true;
+    window.__hslLibraryMutationObserver = new MutationObserver((records) => {
+      const structural = records.some((record) => record.type === 'childList' && (record.addedNodes.length || record.removedNodes.length));
+      if (!structural || !window.__hslFrameTraceActive) return;
+      window.__hslFrameTrace.push({
+        ...measure(),
+        source: 'mutation',
+        mutations: records.map((record) => ({ added: record.addedNodes.length, removed: record.removedNodes.length })),
+      });
+    });
+    window.__hslLibraryMutationObserver.observe(scroller, { childList: true, subtree: true });
     const tick = () => {
       if (!window.__hslFrameTraceActive) return;
       window.__hslFrameTrace.push(measure());
@@ -250,6 +309,7 @@ async function endFrameTrace(window) {
       window.__hslFrameTraceActive = false;
       const scroller = document.querySelector('[data-render-region="library-packs"]');
       scroller.removeEventListener('scroll', window.__hslSelectionScrollHandler);
+      window.__hslLibraryMutationObserver?.disconnect();
       resolve(window.__hslFrameTrace);
     })));
   })`);
@@ -564,6 +624,156 @@ async function passiveRefreshReproduction(window) {
     scenarios.push(await passiveLibraryUpdateScenario(window, configuration));
   }
   return { scenarios };
+}
+
+async function passiveTopologyClampDiagnostic(window) {
+  const results = [];
+  const stablePassiveAuthority = process.env.HSL_LIBRARY_PASSIVE_STABLE === "1";
+  for (const sidebarWidth of [560, 330]) {
+    await window.webContents.executeJavaScript(`(() => {
+      const resizer = document.querySelector('[data-sidebar-resizer]');
+      const key = ${sidebarWidth} <= 340 ? 'ArrowLeft' : 'ArrowRight';
+      for (let index = 0; index < 20; index += 1) {
+        resizer.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key }));
+      }
+      window.hslFixture.emitLibraryVariant('stable');
+    })()`);
+    await waitForFrames(window, 4);
+    await waitFor(window, "document.querySelectorAll('.pack-card').length === 5");
+    const geometry = await window.webContents.executeJavaScript(`(() => {
+      const scroller = document.querySelector('[data-render-region="library-packs"]');
+      const cards = [...scroller.querySelectorAll('.pack-card')];
+      const tops = [...new Set(cards.map((card) => Math.round(card.offsetTop * 100) / 100))];
+      const rowPitch = tops.length > 1 ? tops.at(-1) - tops.at(-2) : cards.at(-1).offsetHeight;
+      return {
+        columns: cards.filter((card) => card.offsetTop === cards[0].offsetTop).length,
+        rowPitch,
+        stableMax: scroller.scrollHeight - scroller.clientHeight,
+      };
+    })()`);
+    const transientMax = Math.max(0, geometry.stableMax - geometry.rowPitch);
+    const positions = [...new Set([
+      0,
+      Math.max(0, Math.floor(transientMax - 24)),
+      Math.min(geometry.stableMax, Math.ceil(transientMax + 24)),
+      Math.max(0, geometry.stableMax - 1),
+    ])];
+
+    for (const requestedTop of positions) {
+      await window.webContents.executeJavaScript(`(() => {
+        window.hslFixture.emitLibraryVariant('stable');
+        window.hslFixture.setManualConnectivityPublicationMode('expanded');
+        window.hslFixture.setPassiveLibraryVariants(${JSON.stringify(stablePassiveAuthority
+          ? ["stable", "stable", "stable", "stable"]
+          : ["omit-last", "stable", "stable", "stable"])});
+      })()`);
+      await waitForFrames(window, 3);
+      const setup = await window.webContents.executeJavaScript(`(() => {
+        const scroller = document.querySelector('[data-render-region="library-packs"]');
+        const cards = [...scroller.querySelectorAll('.pack-card')];
+        scroller.scrollTop = ${requestedTop};
+        scroller.dataset.fixtureIdentity ||= 'five-pack-scroller';
+        window.__hslSelectionRefs = {
+          images: cards.map((card) => card.querySelector('.pack-card__art')).filter(Boolean),
+          neighbors: cards.slice(1),
+          scroller,
+          target: cards[0],
+          targetInstanceKey: cards[0].dataset.instanceKey,
+        };
+        return { actualTop: scroller.scrollTop, cardKeys: cards.map((card) => card.dataset.instanceKey) };
+      })()`);
+      await beginFrameTrace(window);
+      await window.webContents.executeJavaScript(`document.querySelector('[data-action="refresh-connectivity"]')?.click()`);
+      await waitFor(window, "window.hslFixture.getLibraryPublicationDiagnostics().length >= 4", 12_000);
+      await waitFor(window, "document.querySelectorAll('.pack-card').length === 5", 12_000);
+      await waitFor(window, "!document.querySelector('.busy-overlay')", 12_000);
+      const frames = await endFrameTrace(window);
+      const publications = await annotateLibraryTopology(
+        await window.webContents.executeJavaScript("window.hslFixture.getLibraryPublicationDiagnostics()"),
+      );
+      results.push({
+        ...geometry,
+        ...setup,
+        requestedTop,
+        sidebarWidth,
+        publications,
+        operation: "connectivity",
+        frames,
+        summary: summarizeFrameTrace(frames),
+      });
+    }
+
+    if (stablePassiveAuthority) {
+      await window.webContents.executeJavaScript(`(() => {
+        window.hslFixture.emitLibraryVariant('stable');
+        window.hslFixture.setPassiveLibraryVariants(['stable', 'stable']);
+        const scroller = document.querySelector('[data-render-region="library-packs"]');
+        scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight - 1;
+        const cards = [...scroller.querySelectorAll('.pack-card')];
+        window.__hslSelectionRefs = {
+          images: cards.map((card) => card.querySelector('.pack-card__art')).filter(Boolean),
+          neighbors: cards.slice(1),
+          scroller,
+          target: cards[0],
+          targetInstanceKey: cards[0].dataset.instanceKey,
+        };
+      })()`);
+      await waitForFrames(window, 3);
+      const membershipTop = await window.webContents.executeJavaScript("document.querySelector('[data-render-region=\"library-packs\"]').scrollTop");
+      await beginFrameTrace(window);
+      await window.webContents.executeJavaScript(`window.hslFixture.runManualMembershipRefresh()`);
+      await waitFor(window, "window.hslFixture.getLibraryPublicationDiagnostics().length >= 2", 12_000);
+      await waitFor(window, "!document.querySelector('.busy-overlay')", 12_000);
+      const frames = await endFrameTrace(window);
+      results.push({
+        ...geometry,
+        actualTop: membershipTop,
+        requestedTop: membershipTop,
+        sidebarWidth,
+        operation: "membership",
+        publications: await annotateLibraryTopology(
+          await window.webContents.executeJavaScript("window.hslFixture.getLibraryPublicationDiagnostics()"),
+        ),
+        frames,
+        summary: summarizeFrameTrace(frames),
+      });
+    }
+  }
+  return { results };
+}
+
+async function localScanVariationDiagnostic(window) {
+  const results = [];
+  for (const variant of ["covers-metadata", "cover-asset"]) {
+    await window.webContents.executeJavaScript(`(() => {
+      const resizer = document.querySelector('[data-sidebar-resizer]');
+      for (let index = 0; index < 20; index += 1) {
+        resizer.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }));
+      }
+      window.hslFixture.emitLibraryVariant('stable');
+    })()`);
+    await waitFor(window, "document.querySelectorAll('.pack-card').length === 5");
+    await waitForFrames(window, 3);
+    const setup = await window.webContents.executeJavaScript(`(() => {
+      const scroller = document.querySelector('[data-render-region="library-packs"]');
+      const cards = [...scroller.querySelectorAll('.pack-card')];
+      scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight - 1;
+      window.__hslSelectionRefs = {
+        images: cards.map((card) => card.querySelector('.pack-card__art')).filter(Boolean),
+        neighbors: cards.slice(1),
+        scroller,
+        target: cards[0],
+        targetInstanceKey: cards[0].dataset.instanceKey,
+      };
+      return { scrollTop: scroller.scrollTop, scrollHeight: scroller.scrollHeight };
+    })()`);
+    await beginFrameTrace(window);
+    await window.webContents.executeJavaScript(`window.hslFixture.emitLibraryVariant(${JSON.stringify(variant)})`);
+    await waitForFrames(window, 5);
+    const frames = await endFrameTrace(window);
+    results.push({ variant, ...setup, frames, summary: summarizeFrameTrace(frames) });
+  }
+  return { results };
 }
 
 async function activationStabilityDiagnostic(window) {
@@ -2298,7 +2508,8 @@ app.whenReady().then(async () => {
 
   try {
     await window.loadURL(pathToFileURL(rendererDocument).href);
-    await waitFor(window, "document.querySelectorAll('.pack-card').length === 40");
+    const expectedPackCount = Math.max(1, Number.parseInt(process.env.HSL_LIBRARY_PACK_COUNT || "40", 10) || 40);
+    await waitFor(window, `document.querySelectorAll('.pack-card').length === ${expectedPackCount}`);
     await waitFor(window, "!document.querySelector('.busy-overlay')", 12_000);
     await window.webContents.executeJavaScript("document.querySelector('[data-render-region=\"library-packs\"]').dataset.fixtureIdentity = 'library-packs-node'");
     if (checkOnly) {
@@ -2318,6 +2529,8 @@ app.whenReady().then(async () => {
         profiles: () => profileAccountSmoke(window),
         "render-invariants-before": () => passiveRefreshReproduction(window),
         "interaction-stability-diagnostic": () => passiveLibraryUpdateScenario(window, { expanded: true, view: "covers" }),
+        "passive-topology-clamp-diagnostic": () => passiveTopologyClampDiagnostic(window),
+        "local-scan-variation-diagnostic": () => localScanVariationDiagnostic(window),
         "activation-stability-diagnostic": () => activationStabilityDiagnostic(window),
         rows: () => iconRows(window),
         signals: async () => ({ hostile: await hostileSignalMetrics(window), shared: await signalMetrics(window) }),

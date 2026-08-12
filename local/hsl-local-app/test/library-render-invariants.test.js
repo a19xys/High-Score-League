@@ -139,7 +139,7 @@ test("favorites and status affect topology only when the active filter changes t
   );
 });
 
-test("real card metadata, media, identity, grouping, order and view invalidate topology", async () => {
+test("visible card content, media, identity, grouping, order and view invalidate topology", async () => {
   const { deriveLibraryPacksRenderModel, libraryPacksTopologyKey } = await import(moduleUrl("components", "library-panel.js"));
   const key = (value) => libraryPacksTopologyKey(deriveLibraryPacksRenderModel(value));
   const initial = state();
@@ -147,9 +147,6 @@ test("real card metadata, media, identity, grouping, order and view invalidate t
   const packChanges = [
     { title: "Renamed" },
     { subtitle: "Another subtitle" },
-    { developer: "Studio B" },
-    { year: "1985" },
-    { genre: ["Puzzle"] },
     { cover: { url: "file:///cover-b.png" } },
     { cover: null },
     { id: "pack-b" },
@@ -165,6 +162,44 @@ test("real card metadata, media, identity, grouping, order and view invalidate t
     key(state({ librarySortBy: "title", librarySortDirection: "asc", packs: twoPacks })),
     key(state({ librarySortBy: "title", librarySortDirection: "desc", packs: twoPacks })),
   );
+});
+
+test("Covers-only hidden metadata is not structural unless it changes filtering, grouping or order", async () => {
+  const { deriveLibraryPacksRenderModel, libraryPacksTopologyKey } = await import(moduleUrl("components", "library-panel.js"));
+  const key = (value) => libraryPacksTopologyKey(deriveLibraryPacksRenderModel(value));
+  const initial = state({ libraryView: "covers" });
+  const initialKey = key(initial);
+
+  for (const change of [{ developer: "Studio B" }, { year: "1985" }, { genre: ["Puzzle"] }]) {
+    assert.equal(key(state({ libraryView: "covers", packs: [pack(change)] })), initialKey, JSON.stringify(change));
+  }
+
+  assert.notEqual(
+    key(state({ librarySortBy: "developer", libraryView: "covers", packs: [pack({ developer: "Studio B" })] })),
+    key(state({ librarySortBy: "developer", libraryView: "covers" })),
+  );
+  assert.notEqual(
+    key(state({ libraryQuery: "Puzzle", libraryView: "covers", packs: [pack({ genre: ["Puzzle"] })] })),
+    key(state({ libraryQuery: "Puzzle", libraryView: "covers" })),
+  );
+});
+
+test("a transient five-to-four catalog is an exact structural topology change", async () => {
+  const { deriveLibraryPacksRenderModel, libraryPacksTopologyKey } = await import(moduleUrl("components", "library-panel.js"));
+  const five = Array.from({ length: 5 }, (_, index) => pack({
+    favoriteKey: `pack-${index}`,
+    id: `pack-${index}`,
+    instanceKey: `instance-${index}`,
+    title: `Game ${index}`,
+  }));
+  const beforeModel = deriveLibraryPacksRenderModel(state({ packs: five }));
+  const afterModel = deriveLibraryPacksRenderModel(state({ packs: five.slice(0, 4) }));
+  const beforeKeys = beforeModel.groups.flatMap((group) => group.packs.map((item) => item.instanceKey));
+  const afterKeys = afterModel.groups.flatMap((group) => group.packs.map((item) => item.instanceKey));
+
+  assert.deepEqual(beforeKeys, ["instance-0", "instance-1", "instance-2", "instance-3", "instance-4"]);
+  assert.deepEqual(afterKeys, ["instance-0", "instance-1", "instance-2", "instance-3"]);
+  assert.notEqual(libraryPacksTopologyKey(beforeModel), libraryPacksTopologyKey(afterModel));
 });
 
 test("shared status authority incrementally synchronizes badges and beacons", async () => {

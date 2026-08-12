@@ -23,6 +23,9 @@ let manualConnectivityWeekStates = ["closed", "active", "inactive"];
 let manualConnectivityPublicationMode = "simple";
 let activationPublicationMode = "simple";
 let manualConnectivityPublications = [];
+let passiveLibraryVariants = [];
+let passiveLibraryVariantIndex = 0;
+const libraryPublicationDiagnostics = [];
 let delayLibraryPreferenceWrites = false;
 let releaseLibraryPreferenceWrite = null;
 const libraryPreferenceWrites = [];
@@ -80,7 +83,8 @@ function weekCapability(publicState, weekId) {
   };
 }
 
-const packs = Array.from({ length: 40 }, (_, index) => ({
+const fixturePackCount = Math.max(1, Number.parseInt(process.env.HSL_LIBRARY_PACK_COUNT || "40", 10) || 40);
+const packs = Array.from({ length: fixturePackCount }, (_, index) => ({
   cover: { url: "./assets/brand/logo-horizontal.png" },
   deprecated: index % 10 === 1,
   favorite: index % 3 === 0,
@@ -98,6 +102,57 @@ const packs = Array.from({ length: 40 }, (_, index) => ({
   weekNumber: index + 1,
   year: String(1980 + index),
 }));
+let lastPublishedLibraryPacks = packs;
+
+function libraryPacksForVariant(variant = "stable") {
+  if (variant === "omit-last") return packs.slice(0, -1);
+  if (variant === "covers-metadata") {
+    return packs.map((pack, index) => index === packs.length - 1
+      ? { ...pack, developer: "Transient Scan Studio" }
+      : pack);
+  }
+  if (variant === "cover-asset") {
+    return packs.map((pack, index) => index === packs.length - 1
+      ? { ...pack, cover: { url: "./assets/brand/logo-mark.png" } }
+      : pack);
+  }
+  return packs;
+}
+
+function nextPassiveLibraryVariant() {
+  const variant = passiveLibraryVariants[passiveLibraryVariantIndex] || "stable";
+  passiveLibraryVariantIndex += 1;
+  return variant;
+}
+
+function recordLibraryPublication(type, variant, state) {
+  libraryPublicationDiagnostics.push({
+    directory: {
+      available: state.library.directory.available,
+      configured: state.library.directory.configured,
+      path: state.library.directory.path,
+    },
+    instanceKeys: state.library.packs.map((pack) => pack.instanceKey),
+    launcherStateRevision: state.launcherStateRevision,
+    length: state.library.packs.length,
+    packs: state.library.packs,
+    previousPacks: lastPublishedLibraryPacks,
+    sortBy: state.library.preferences.librarySortBy,
+    sortDirection: state.library.preferences.librarySortDirection,
+    status: state.library.status,
+    type,
+    variant,
+    view: state.library.preferences.libraryView,
+  });
+  lastPublishedLibraryPacks = state.library.packs;
+}
+
+function publishLauncherFixture(type, payload = {}, variant = nextPassiveLibraryVariant()) {
+  const state = snapshot({ libraryVariant: variant });
+  recordLibraryPublication(type, variant, state);
+  launcherStateListener?.({ ...payload, fixturePhase: type, state });
+  return state;
+}
 
 if (process.env.HSL_LIBRARY_ALPHA_ASSETS) {
   const alphaAssets = JSON.parse(process.env.HSL_LIBRARY_ALPHA_ASSETS);
@@ -117,8 +172,9 @@ if (process.env.HSL_LIBRARY_ALPHA_ASSETS) {
   packs[4].title = "FALLBACK DE PORTADA";
 }
 
-function snapshot({ samePack = false } = {}) {
+function snapshot({ libraryVariant = "stable", samePack = false } = {}) {
   const pack = packs[activeIndex];
+  const visiblePacks = libraryPacksForVariant(libraryVariant);
   const accounts = accountFixtureMode === "empty" ? [] : [
     { avatarLocalUrl: fixtureAvatarUrl, displayName: "Fixture", email: "fixture@example.test", hasLocalSession: true, initials: "FI", isActive: activeUserId === "fixture", userId: "fixture" },
     { displayName: "Cuenta disponible", email: "valid@example.test", hasLocalSession: true, initials: "RAF", isActive: activeUserId === "valid", userId: "valid" },
@@ -228,7 +284,7 @@ function snapshot({ samePack = false } = {}) {
     },
     library: {
       directory: { available: true, configured: true, path: "C:/fixture-packs" },
-      packs: packs.map((libraryPack) => ({
+      packs: visiblePacks.map((libraryPack) => ({
         ...libraryPack,
         weekCapability: libraryPack.id === pack.id ? currentWeekCapability : libraryPack.weekCapability,
       })),
@@ -240,7 +296,7 @@ function snapshot({ samePack = false } = {}) {
         sidebarWidth: preferenceProfile.sidebarWidth,
       },
       status: "available-populated",
-      totals: { packs: packs.length },
+      totals: { packs: visiblePacks.length },
     },
     membership,
     notices: [],
@@ -297,6 +353,20 @@ function subscription(setter) {
     setter(callback);
     return () => setter(null);
   };
+}
+
+async function performManualMembershipCheck({ publishFinal = false } = {}) {
+  membershipFixtureStatus = "checking";
+  launcherStateRevision += 1;
+  publishLauncherFixture("manual-membership-checking", { membershipResolution: { phase: "checking" } });
+  await Promise.resolve();
+  membershipFixtureStatus = "member";
+  launcherStateRevision += 1;
+  const variant = nextPassiveLibraryVariant();
+  const state = snapshot({ libraryVariant: variant });
+  recordLibraryPublication("manual-membership-final", variant, state);
+  if (publishFinal) launcherStateListener?.({ fixturePhase: "manual-membership-final", state });
+  return { action: "check-membership", lines: [], ok: true, state, summary: "Participación actualizada." };
 }
 
 contextBridge.exposeInMainWorld("hslLauncher", {
@@ -366,16 +436,17 @@ contextBridge.exposeInMainWorld("hslLauncher", {
       weekFixtureState = "unknown";
       launcherStateRevision += 1;
       manualConnectivityPublications.push("deployment-context");
-      launcherStateListener?.({ competitionAuthority: true, fixturePhase: "deployment-context", state: snapshot() });
+      publishLauncherFixture("deployment-context", { competitionAuthority: true });
+      await new Promise((resolve) => setTimeout(resolve, 250));
       membershipFixtureStatus = "checking";
       launcherStateRevision += 1;
       manualConnectivityPublications.push("membership-checking");
-      launcherStateListener?.({ membershipResolution: { phase: "checking" }, fixturePhase: "membership-checking", state: snapshot() });
-      await Promise.resolve();
+      publishLauncherFixture("membership-checking", { membershipResolution: { phase: "checking" } });
+      await new Promise((resolve) => setTimeout(resolve, 250));
       membershipFixtureStatus = "member";
       launcherStateRevision += 1;
       manualConnectivityPublications.push("profile-and-membership");
-      launcherStateListener?.({ accountProfiles: true, fixturePhase: "profile-and-membership", state: snapshot() });
+      publishLauncherFixture("profile-and-membership", { accountProfiles: true });
     }
     manualConnectivityPublications.push("ranking-capabilities");
     rankingCapabilitiesStateListener?.({
@@ -400,10 +471,11 @@ contextBridge.exposeInMainWorld("hslLauncher", {
       weekFixtureState = nextWeekState;
       launcherStateRevision += 1;
       manualConnectivityPublications.push("week-final");
-      launcherStateListener?.({ competitionAuthority: true, state: snapshot() });
+      publishLauncherFixture("week-final", { competitionAuthority: true });
     }, 0);
     return { reachability: "connected", reachabilityGeneration: manualConnectivityRefreshCount + 1 };
   },
+  checkMembership: () => performManualMembershipCheck(),
   resolveThemeBootstrap: () => ({ effectiveTheme: "dark", mode: "manual" }),
   setLibraryPreferences: async (patch) => {
     libraryPreferenceWrites.push(JSON.parse(JSON.stringify(patch || {})));
@@ -507,6 +579,26 @@ contextBridge.exposeInMainWorld("hslFixture", {
   },
   getManualConnectivityPublications() {
     return [...manualConnectivityPublications];
+  },
+  getLibraryPublicationDiagnostics() {
+    return JSON.parse(JSON.stringify(libraryPublicationDiagnostics));
+  },
+  clearLibraryPublicationDiagnostics() {
+    libraryPublicationDiagnostics.length = 0;
+  },
+  runManualMembershipRefresh() {
+    return performManualMembershipCheck({ publishFinal: true });
+  },
+  setPassiveLibraryVariants(variants) {
+    passiveLibraryVariants = Array.isArray(variants)
+      ? variants.filter((variant) => ["stable", "omit-last", "covers-metadata", "cover-asset"].includes(variant))
+      : [];
+    passiveLibraryVariantIndex = 0;
+    libraryPublicationDiagnostics.length = 0;
+  },
+  emitLibraryVariant(variant) {
+    launcherStateRevision += 1;
+    return publishLauncherFixture("direct-library-variant", {}, variant);
   },
   setManualConnectivityWeekStates(states) {
     const accepted = Array.isArray(states)

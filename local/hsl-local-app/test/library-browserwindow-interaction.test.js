@@ -8,6 +8,130 @@ const { promisify } = require("node:util");
 const execFileAsync = promisify(execFile);
 const enabled = process.env.HSL_RUN_BROWSERWINDOW_TESTS === "1";
 
+test("BrowserWindow characterizes the five-Covers clamp caused by a transient four-pack scan", { skip: !enabled, timeout: 120_000 }, async () => {
+  const electron = require("electron");
+  const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
+  const { stdout } = await execFileAsync(electron, [fixture], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      HSL_LIBRARY_CHECK_ONLY: "passive-topology-clamp-diagnostic",
+      HSL_LIBRARY_PACK_COUNT: "5",
+      HSL_LIBRARY_QUIET: "1",
+      HSL_LIBRARY_USE_GPU: "1",
+    },
+    maxBuffer: 12 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const result = JSON.parse(stdout.trim());
+  const compact = result.results.map((scenario) => ({
+    actualTop: scenario.actualTop,
+    columns: scenario.columns,
+    finalTop: scenario.frames.at(-1).scrollTop,
+    minCards: Math.min(...scenario.frames.map((frame) => frame.cards.length)),
+    minHeight: Math.min(...scenario.frames.map((frame) => frame.scrollHeight)),
+    requestedTop: scenario.requestedTop,
+    rowPitch: scenario.rowPitch,
+    stableHeight: scenario.frames[0].scrollHeight,
+    stableMax: scenario.stableMax,
+  }));
+  process.stderr.write(`five-cover-clamp:${JSON.stringify(compact)}\n`);
+  assert.deepEqual([...new Set(compact.map((entry) => entry.columns))], [2, 1]);
+  for (const scenario of result.results) {
+    assert.equal(scenario.publications[0].variant, "omit-last");
+    assert.equal(scenario.publications[0].length, 4);
+    assert.equal(scenario.publications[0].currentLibraryStructureKey, "ready");
+    assert.equal(scenario.publications[0].renderPlanMode, "structural");
+    assert.equal(scenario.publications[0].synchronization, null);
+    assert.notEqual(
+      scenario.publications[0].oldLibraryPacksTopologyKey,
+      scenario.publications[0].newLibraryPacksTopologyKey,
+    );
+    assert.equal(scenario.publications.at(-1).length, 5);
+    assert.equal(Math.min(...scenario.frames.map((frame) => frame.cards.length)), 4);
+    assert.ok(Math.min(...scenario.frames.map((frame) => frame.scrollHeight)) < scenario.frames[0].scrollHeight);
+    const transientMax = Math.max(0, scenario.stableMax - scenario.rowPitch);
+    const finalTop = scenario.frames.at(-1).scrollTop;
+    if (scenario.actualTop > transientMax) assert.ok(finalTop <= transientMax + 1);
+    else assert.equal(finalTop, scenario.actualTop);
+  }
+});
+
+test("BrowserWindow keeps five Covers stable across passive Connectivity and Membership publications", { skip: !enabled, timeout: 150_000 }, async () => {
+  const electron = require("electron");
+  const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
+  const { stdout } = await execFileAsync(electron, [fixture], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      HSL_LIBRARY_CHECK_ONLY: "passive-topology-clamp-diagnostic",
+      HSL_LIBRARY_PACK_COUNT: "5",
+      HSL_LIBRARY_PASSIVE_STABLE: "1",
+      HSL_LIBRARY_QUIET: "1",
+      HSL_LIBRARY_USE_GPU: "1",
+    },
+    maxBuffer: 16 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const result = JSON.parse(stdout.trim());
+  assert.deepEqual([...new Set(result.results.map((scenario) => scenario.columns))], [2, 1]);
+  assert.deepEqual([...new Set(result.results.map((scenario) => scenario.operation))].sort(), ["connectivity", "membership"]);
+  for (const scenario of result.results) {
+    assert.ok(scenario.actualTop >= 0);
+    assert.ok(scenario.publications.length >= 2);
+    assert.ok(scenario.publications.every((publication) => publication.length === 5));
+    assert.ok(scenario.publications.every((publication) => publication.variant === "stable"));
+    assert.ok(scenario.publications.every((publication) => publication.currentLibraryStructureKey === "ready"));
+    assert.ok(scenario.publications.every((publication) => publication.renderPlanMode === "incremental"));
+    assert.ok(scenario.publications.every((publication) => publication.synchronization?.ok === true));
+    assert.ok(scenario.publications.every((publication) => (
+      publication.oldLibraryPacksTopologyKey === publication.newLibraryPacksTopologyKey
+    )));
+    assert.ok(scenario.frames.every((frame) => frame.cards.length === 5));
+    assert.ok(scenario.frames.every((frame) => frame.scrollHeight === scenario.frames[0].scrollHeight));
+    assert.ok(scenario.frames.every((frame) => frame.scrollTop === scenario.actualTop));
+    assert.ok(scenario.frames.every((frame) => frame.nodes?.scroller === true));
+    assert.ok(scenario.frames.every((frame) => frame.nodes?.target === true));
+    assert.ok(scenario.frames.every((frame) => frame.nodes?.neighbors === true));
+    assert.ok(scenario.frames.every((frame) => frame.nodes?.images === true));
+    assert.deepEqual(scenario.summary.identityTransitions, []);
+    assert.deepEqual(scenario.summary.geometryTransitions, []);
+  }
+});
+
+test("BrowserWindow distinguishes hidden Covers metadata from a real cover asset change", { skip: !enabled, timeout: 60_000 }, async () => {
+  const electron = require("electron");
+  const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
+  const { stdout } = await execFileAsync(electron, [fixture], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      HSL_LIBRARY_CHECK_ONLY: "local-scan-variation-diagnostic",
+      HSL_LIBRARY_PACK_COUNT: "5",
+      HSL_LIBRARY_QUIET: "1",
+      HSL_LIBRARY_USE_GPU: "1",
+    },
+    maxBuffer: 8 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const { results } = JSON.parse(stdout.trim());
+  const metadata = results.find((result) => result.variant === "covers-metadata");
+  const asset = results.find((result) => result.variant === "cover-asset");
+
+  for (const result of results) {
+    assert.ok(result.frames.every((frame) => frame.cards.length === 5));
+    assert.ok(result.frames.every((frame) => frame.scrollTop === result.scrollTop));
+    assert.ok(result.frames.every((frame) => frame.scrollHeight === result.scrollHeight));
+  }
+  assert.ok(metadata.frames.every((frame) => frame.nodes?.target && frame.nodes?.neighbors && frame.nodes?.images));
+  assert.deepEqual(metadata.summary.identityTransitions, []);
+  assert.ok(asset.frames.some((frame) => frame.nodes?.target === false || frame.nodes?.neighbors === false || frame.nodes?.images === false));
+  assert.ok(asset.summary.identityTransitions.length > 0);
+});
+
 test("BrowserWindow preserves every library frame and keeps the final visual contracts", { skip: !enabled, timeout: 120_000 }, async () => {
   const electron = require("electron");
   const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
@@ -26,7 +150,7 @@ test("BrowserWindow preserves every library frame and keeps the final visual con
   const fixtureSource = fs.readFileSync(fixture, "utf8");
   const preloadSource = fs.readFileSync(path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-preload.cjs"), "utf8");
 
-  assert.doesNotMatch(preloadSource, /REFRESH EXPANSION|visiblePacks|let expanded/);
+  assert.doesNotMatch(preloadSource, /REFRESH EXPANSION|let expanded/);
   assert.match(fixtureSource, /sendInputEvent\(\{ type: "mouseWheel"/);
   assert.match(fixtureSource, /sendInputEvent\(\{ type: "mouseDown"/);
   assert.match(fixtureSource, /sendInputEvent\(\{ type: "mouseUp"/);

@@ -26,6 +26,7 @@ const {
   resolveRememberedPack,
   rescanPackDirectory,
   resetAutoSyncStateForTests,
+  resetLibrarySnapshotAuthorityForTests,
   runAutoSyncIfEligible,
   runDiagnose,
   setLibraryPreferencesFromGui,
@@ -2864,7 +2865,7 @@ test("biblioteca sin configurar y biblioteca vacía nunca materializan un pack",
     const emptyRoot = path.join(dir, "empty-library");
     await fsp.mkdir(emptyRoot, { recursive: true });
     await setPackDirectory(config, emptyRoot);
-    state = await getLauncherState({ config });
+    state = await getLauncherState({ config, refreshLibrary: true });
 
     assert.equal(state.library.status, "available-empty");
     assert.equal(state.activePack, null);
@@ -2888,7 +2889,7 @@ test("biblioteca inaccesible y biblioteca con un único pack respetan el contrat
     const populatedRoot = path.join(dir, "populated");
     await writeValidV2PackDir(path.join(populatedRoot, "Only"), { packId: "only-pack" });
     await setPackDirectory(config, populatedRoot);
-    state = await getLauncherState({ config });
+    state = await getLauncherState({ config, refreshLibrary: true });
 
     assert.equal(state.library.packs.length, 1);
     assert.equal(state.activePack.instanceKey, state.library.packs[0].instanceKey);
@@ -2990,6 +2991,43 @@ test("biblioteca poblada sin recuerdo selecciona el primer pack del orden compar
   });
 });
 
+test("estados pasivos reutilizan el catálogo local estable y un rescan explícito publica cambios reales", async () => {
+  await withTempDir(async (dir) => {
+    resetLibrarySnapshotAuthorityForTests();
+    const config = { userDataDir: path.join(dir, "userData") };
+    const libraryRoot = path.join(dir, "library");
+    const packDirs = [];
+    for (let index = 0; index < 5; index += 1) {
+      const packDir = path.join(libraryRoot, `Pack-${index}`);
+      packDirs.push(packDir);
+      await writeValidV2PackDir(packDir, { packId: `pack-${index}` });
+    }
+    await setPackDirectory(config, libraryRoot);
+
+    const initial = await getLauncherState({ config, refreshLibrary: true });
+    assert.equal(initial.library.packs.length, 5);
+    const stableKeys = initial.library.packs.map((pack) => pack.instanceKey);
+
+    await fsp.rm(packDirs[4], { recursive: true, force: true });
+    for (let index = 0; index < 4; index += 1) {
+      const passive = await getLauncherState({ config, deferRemoteMembership: true });
+      assert.deepEqual(passive.library.packs.map((pack) => pack.instanceKey), stableKeys);
+    }
+
+    const removed = await rescanPackDirectory({ config });
+    assert.equal(removed.state.library.packs.length, 4);
+    assert.deepEqual(
+      removed.state.library.packs.map((pack) => pack.instanceKey),
+      stableKeys.slice(0, 4),
+    );
+
+    await writeValidV2PackDir(packDirs[4], { packId: "pack-4" });
+    assert.equal((await getLauncherState({ config })).library.packs.length, 4);
+    const restored = await rescanPackDirectory({ config });
+    assert.equal(restored.state.library.packs.length, 5);
+  });
+});
+
 test("selección recordada se restaura por raíz y una inválida cae al primer pack", async () => {
   await withTempDir(async (dir) => {
     const config = { userDataDir: path.join(dir, "userData") };
@@ -3008,7 +3046,7 @@ test("selección recordada se restaura por raíz y una inválida cae al primer p
     assert.equal(state.selection.source, "remembered");
 
     await fsp.rm(betaDir, { recursive: true, force: true });
-    state = await getLauncherState({ config });
+    state = (await rescanPackDirectory({ config })).state;
     library = await scanPackLibrary(config);
 
     assert.equal(state.activePack.instanceKey, library.packs[0].instanceKey);
@@ -3044,7 +3082,7 @@ test("cambiar de raíz no hereda la selección activa de la biblioteca anterior"
     assert.equal(rememberedB.selection.instanceKey, stateB.activePack.instanceKey);
 
     await setPackDirectory(config, rootA);
-    const restoredA = await getLauncherState({ config });
+    const restoredA = await getLauncherState({ config, refreshLibrary: true });
     assert.equal(restoredA.activePack.instanceKey, zulu.instanceKey);
     assert.equal(restoredA.selection.source, "remembered");
   });
@@ -3064,20 +3102,20 @@ test("biblioteca missing recupera su instancia recordada o queda vacía sin fall
     await activateLibraryPack(beta.id, { config });
 
     await fsp.rm(libraryRoot, { recursive: true, force: true });
-    let state = await getLauncherState({ config });
+    let state = (await rescanPackDirectory({ config })).state;
     assert.equal(state.library.status, "missing");
     assert.equal(state.activePack, null);
     assert.equal(state.game, null);
 
     await writeValidV2PackDir(alphaDir, { packId: "alpha" });
     await writeValidV2PackDir(betaDir, { packId: "beta" });
-    state = await getLauncherState({ config });
+    state = (await rescanPackDirectory({ config })).state;
     assert.equal(state.activePack.instanceKey, beta.instanceKey);
     assert.equal(state.selection.source, "remembered");
 
     await fsp.rm(libraryRoot, { recursive: true, force: true });
     await fsp.mkdir(libraryRoot, { recursive: true });
-    state = await getLauncherState({ config });
+    state = (await rescanPackDirectory({ config })).state;
     assert.equal(state.library.status, "available-empty");
     assert.equal(state.activePack, null);
     assert.equal(state.game, null);

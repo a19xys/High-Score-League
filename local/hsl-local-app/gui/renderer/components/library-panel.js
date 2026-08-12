@@ -264,9 +264,6 @@ function structuralPackDescriptor(pack, view) {
     favoriteKey: String(pack.favoriteKey || pack.id || ""),
     id: String(pack.id || ""),
     instanceKey: String(pack.instanceKey || ""),
-    metadata: view === "covers"
-      ? [pack.developer || pack.publisher || null, pack.year ? String(pack.year) : null, pack.genre?.[0] || null]
-      : null,
     subtitle: subtitleForPack(pack),
     title: pack.title || "Pack local",
   };
