@@ -83,23 +83,36 @@ async function verifyMameExecutable(runtimeDir, version) {
   return { skipped: false, version };
 }
 
-async function prepareMame(options = {}) {
-  const manifest = readMameRuntimeManifest(options.manifestPath);
+async function ensureVerifiedMameAsset(options = {}) {
+  const manifest = options.manifest || readMameRuntimeManifest(options.manifestPath);
   const cacheDir = options.cacheDir || path.join(APP_DIR, ".cache", "mame", manifest.version);
   const assetPath = path.join(cacheDir, manifest.asset);
-  const runtimeDir = path.join(cacheDir, "runtime");
   await fsp.mkdir(cacheDir, { recursive: true });
 
   if (!fs.existsSync(assetPath)) {
     if (options.offline) throw new Error(`MAME no esta cacheado para modo offline: ${assetPath}`);
     process.stdout.write(`Descargando MAME ${manifest.version} x64 oficial...\n`);
-    await downloadFile(manifest.url, assetPath);
+    await (options.downloadImpl || downloadFile)(manifest.url, assetPath);
   }
 
   const digest = await sha256File(assetPath);
   if (digest !== manifest.sha256) {
     throw new Error(`SHA-256 incorrecto para ${manifest.asset}: esperado ${manifest.sha256}, obtenido ${digest}.`);
   }
+
+  return { assetPath, cacheDir, digest, manifest };
+}
+
+async function extractMameArchive(assetPath, targetDir, workingDir) {
+  await run(path7za, ["x", "-y", `-o${targetDir}`, assetPath], { cwd: workingDir });
+}
+
+async function prepareMame(options = {}) {
+  const verified = await ensureVerifiedMameAsset(options);
+  const { assetPath, cacheDir, digest, manifest } = verified;
+  const runtimeDir = options.runtimeDir || path.join(cacheDir, "runtime");
+  const extractImpl = options.extractImpl || extractMameArchive;
+  const verifyExecutableImpl = options.verifyExecutableImpl || verifyMameExecutable;
 
   let extracted = false;
   try {
@@ -109,7 +122,7 @@ async function prepareMame(options = {}) {
     await fsp.rm(tempDir, { recursive: true, force: true });
     await fsp.mkdir(tempDir, { recursive: true });
     try {
-      await run(path7za, ["x", "-y", `-o${tempDir}`, assetPath], { cwd: cacheDir });
+      await extractImpl(assetPath, tempDir, cacheDir);
       validateRuntimeTree(tempDir);
       await fsp.rm(runtimeDir, { recursive: true, force: true });
       await fsp.rename(tempDir, runtimeDir);
@@ -120,10 +133,39 @@ async function prepareMame(options = {}) {
     }
   }
 
-  const executable = await verifyMameExecutable(runtimeDir, manifest.version);
+  const executable = await verifyExecutableImpl(runtimeDir, manifest.version);
   const result = { assetPath, digest, executable, extracted, manifest, runtimeDir };
   process.stdout.write(`MAME ${manifest.version} listo: ${runtimeDir}\nSHA-256: ${digest}\n`);
   return result;
+}
+
+async function stageProductMame(options = {}) {
+  const verified = await ensureVerifiedMameAsset(options);
+  const { assetPath, cacheDir, digest, manifest } = verified;
+  const runtimeDir = options.runtimeDir || path.join(APP_DIR, ".cache", "product", "mame", manifest.version, "runtime");
+  const extractImpl = options.extractImpl || extractMameArchive;
+  const verifyExecutableImpl = options.verifyExecutableImpl || verifyMameExecutable;
+  const tempDir = path.join(
+    path.dirname(runtimeDir),
+    `.runtime-extract-${process.pid}-${crypto.randomBytes(4).toString("hex")}`,
+  );
+
+  await fsp.mkdir(path.dirname(runtimeDir), { recursive: true });
+  await fsp.rm(tempDir, { recursive: true, force: true });
+  await fsp.mkdir(tempDir, { recursive: true });
+
+  try {
+    await extractImpl(assetPath, tempDir, cacheDir);
+    validateRuntimeTree(tempDir);
+    const executable = await verifyExecutableImpl(tempDir, manifest.version);
+    await fsp.rm(runtimeDir, { recursive: true, force: true });
+    await fsp.rename(tempDir, runtimeDir);
+    process.stdout.write(`MAME de producto ${manifest.version} reconstruido: ${runtimeDir}\nSHA-256: ${digest}\n`);
+    return { assetPath, digest, executable, extracted: true, manifest, runtimeDir };
+  } catch (error) {
+    await fsp.rm(tempDir, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 if (require.main === module) {
@@ -133,4 +175,12 @@ if (require.main === module) {
   });
 }
 
-module.exports = { REQUIRED_RUNTIME_ENTRIES, prepareMame, sha256File, validateRuntimeTree, verifyMameExecutable };
+module.exports = {
+  REQUIRED_RUNTIME_ENTRIES,
+  ensureVerifiedMameAsset,
+  prepareMame,
+  sha256File,
+  stageProductMame,
+  validateRuntimeTree,
+  verifyMameExecutable,
+};

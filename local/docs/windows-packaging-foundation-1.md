@@ -12,7 +12,9 @@ npm run smoke:packaged
 npm run dist:win
 ```
 
-`prepare:mame` lee `mame-runtime-manifest.json`, usa `.cache/mame/0.287`, descarga únicamente el asset oficial si no está cacheado, exige el SHA-256 homologado, extrae el SFX completo y valida recursos críticos y `mame.exe -help`. Un asset cacheado con SHA incorrecto aborta; con un asset correcto el proceso funciona offline (`node scripts/prepare-mame.js --offline`). `.cache` y `dist` están ignorados por Git.
+`prepare:mame` lee `mame-runtime-manifest.json`, usa la caché de desarrollo `.cache/mame/<version>`, descarga únicamente el asset oficial si no está cacheado, exige el SHA-256 homologado, extrae el SFX completo y valida recursos críticos y `mame.exe -help`. Un asset cacheado con SHA incorrecto aborta; con un asset correcto el proceso funciona offline (`node scripts/prepare-mame.js --offline`).
+
+`prepare:package` no reutiliza ese árbol extraído de desarrollo: vuelve a verificar el SFX y crea desde cero `.cache/product/mame/<version>/runtime`. `electron-builder` toma MAME exclusivamente de ese staging de producto, cuya versión se deriva del mismo manifest. Así, una modificación previa de cualquiera de los dos árboles de caché no pasa silenciosamente a la distribución. `.cache` y `dist` están ignorados por Git.
 
 `package:win` genera `dist/win-unpacked`; `dist:win` genera el instalador NSIS x64 per-user y one-click `High Score League Setup <version>.exe`. El código queda en ASAR. MAME y el plugin son `extraResources`.
 
@@ -35,7 +37,7 @@ En una app empaquetada, `process.resourcesPath/mame/0.287/mame.exe` gana y no se
 
 Práctica v2 usa el runtime elegido, ROM y recursos del pack primero, recursos stock después, rutas mutables bajo `userData`, `inipath` controlado y `-noplugins`.
 
-Competición v2 copia por run la allowlist de `hsl-score`, el adapter del pack y un `config.lua` generado. Usa `inipath` propio sin heredar `plugin.ini`, `pluginspath=<run>/plugins;<runtime>/plugins`, `-plugins -plugin hsl-score` y eventos bajo el run.
+Competición v2 copia por run la allowlist de `hsl-score`, el adapter del pack, un `config.lua` generado y únicamente el `plugins/boot.lua` del runtime MAME realmente seleccionado. Usa `inipath` propio sin heredar `plugin.ini`, `pluginspath=<run>/plugins`, `-plugins -plugin hsl-score` y eventos bajo el run. El resto de plugins stock no se copia ni queda visible para el bootstrap.
 
 Los `launchArgs` del pack conservan opciones de emulación/presentación, pero no pueden controlar ROM/art/sample paths, BGFX/HLSL/hash/ctrlr/font/language/INI paths, home/plugin policy ni directorios mutables. Se reconocen mayúsculas, formas inline y aliases documentados.
 

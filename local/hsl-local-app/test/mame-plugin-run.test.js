@@ -7,6 +7,7 @@ const {
   getV2CaptureReadiness,
   prepareV2CompetitionRun,
 } = require("../src/mame-plugin-run");
+const { buildMameArgs } = require("../src/mame-launcher");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-plugin-run-test-"));
@@ -32,8 +33,11 @@ async function createPluginSource(root) {
 async function createV2Config(root, overrides = {}) {
   const packRoot = path.join(root, "pack");
   const adapterPath = path.join(packRoot, "scripts", "invaders.lua");
+  const runtimeRoot = path.join(root, "runtime", "external-mame");
   await fsp.mkdir(path.dirname(adapterPath), { recursive: true });
   await fsp.writeFile(adapterPath, "return { read_memory = function() end, build_event = function() end }", "utf8");
+  await fsp.mkdir(path.join(runtimeRoot, "plugins"), { recursive: true });
+  await fsp.writeFile(path.join(runtimeRoot, "plugins", "boot.lua"), "return { source = 'external/dev' }", "utf8");
 
   return {
     appDir: path.join(root, "app"),
@@ -45,6 +49,10 @@ async function createV2Config(root, overrides = {}) {
       packRoot,
       contract: {
         version: 2,
+        mame: {
+          launchArgs: [],
+          romDir: path.join(packRoot, "roms"),
+        },
         capture: {
           mode: "plugin",
           pluginName: "hsl-score",
@@ -52,6 +60,13 @@ async function createV2Config(root, overrides = {}) {
           adapterPath,
         },
       },
+    },
+    sharedMameRuntime: {
+      available: true,
+      configured: true,
+      mameExecutablePath: path.join(runtimeRoot, "mame.exe"),
+      runtimeRoot,
+      source: "external/dev",
     },
     ...overrides,
   };
@@ -92,6 +107,8 @@ test("prepareV2CompetitionRun copies plugin, adapter and run config", async () =
 
     assert.equal(run.runId, "run_test");
     assert.equal(run.config.v2PluginRun.pluginSearchDir, path.join(run.runRoot, "plugins"));
+    assert.equal(run.config.v2PluginRun.pluginBootstrapPath, path.join(run.runRoot, "plugins", "boot.lua"));
+    assert.equal(await fsp.readFile(run.pluginBootstrapPath, "utf8"), "return { source = 'external/dev' }");
     assert.equal(await fsp.readFile(run.adapterPreparedPath, "utf8"), "return { read_memory = function() end, build_event = function() end }");
     assert.match(configLua, /gameModule = "games\/adapter\.lua"/);
     assert.match(configLua, /outputDir = /);
@@ -101,5 +118,63 @@ test("prepareV2CompetitionRun copies plugin, adapter and run config", async () =
     await fsp.access(run.stagingPendingDir);
     await fsp.access(path.join(run.pluginDir, "init.lua"));
     await fsp.access(path.join(run.pluginDir, "core", "config.lua"));
+  });
+});
+
+for (const runtimeSource of ["bundled", "external/dev"]) {
+  test(`prepareV2CompetitionRun copies only the selected ${runtimeSource} bootstrap beside hsl-score`, async () => {
+    await withTempDir(async (dir) => {
+      const sourceDir = await createPluginSource(dir);
+      const runtimeRoot = path.join(dir, "runtime", runtimeSource.replace(/\W+/g, "-"));
+      const bootstrap = `return { source = ${JSON.stringify(runtimeSource)} }`;
+      await fsp.mkdir(path.join(runtimeRoot, "plugins", "data"), { recursive: true });
+      await fsp.writeFile(path.join(runtimeRoot, "plugins", "boot.lua"), bootstrap, "utf8");
+      await fsp.writeFile(path.join(runtimeRoot, "plugins", "data", "plugin.json"), JSON.stringify({
+        plugin: { name: "data", type: "plugin", start: "true" },
+      }), "utf8");
+      await fsp.writeFile(path.join(runtimeRoot, "plugins", "data", "init.lua"), "return {}", "utf8");
+      const config = await createV2Config(dir, {
+        sharedMameRuntime: {
+          available: true,
+          configured: true,
+          mameExecutablePath: path.join(runtimeRoot, "mame.exe"),
+          runtimeRoot,
+          source: runtimeSource,
+        },
+      });
+      const run = await prepareV2CompetitionRun(config, {
+        packKey: "pack_space-invaders-week-1",
+        playerKey: "user_user-1",
+        scopedQueueRoot: path.join(config.userDataDir, "queue"),
+      }, { runId: `run_${runtimeSource.replace(/\W+/g, "_")}`, sourceDir });
+
+      assert.equal(await fsp.readFile(run.pluginBootstrapPath, "utf8"), bootstrap);
+      assert.equal(run.pluginBootstrapSourcePath, path.join(runtimeRoot, "plugins", "boot.lua"));
+      assert.deepEqual((await fsp.readdir(run.pluginSearchDir)).sort(), ["boot.lua", "hsl-score"]);
+      await assert.rejects(() => fsp.access(path.join(run.pluginSearchDir, "data", "plugin.json")));
+
+      const launch = buildMameArgs(run.config, "invaders", "competition");
+      const pluginSearchIndex = launch.args.indexOf("-pluginspath");
+      assert.equal(launch.args[pluginSearchIndex + 1], run.pluginSearchDir);
+      assert.equal(launch.args[pluginSearchIndex + 1].includes(path.join(runtimeRoot, "plugins")), false);
+      assert.equal(launch.args[launch.args.indexOf("-inipath") + 1], run.iniDir);
+      assert.equal(path.relative(runtimeRoot, launch.cwd).startsWith(".."), true);
+    });
+  });
+}
+
+test("prepareV2CompetitionRun fails before creating a run when the selected runtime has no boot.lua", async () => {
+  await withTempDir(async (dir) => {
+    const sourceDir = await createPluginSource(dir);
+    const config = await createV2Config(dir);
+    await fsp.rm(path.join(config.sharedMameRuntime.runtimeRoot, "plugins", "boot.lua"));
+    const expectedRunRoot = path.join(config.userDataDir, "runtime", "runs", "run_missing_boot");
+
+    await assert.rejects(() => prepareV2CompetitionRun(config, {
+      packKey: "pack_space-invaders-week-1",
+      playerKey: "user_user-1",
+      scopedQueueRoot: path.join(config.userDataDir, "queue"),
+    }, { runId: "run_missing_boot", sourceDir }), /falta plugins\/boot\.lua en el runtime MAME seleccionado/);
+    await assert.rejects(() => fsp.access(expectedRunRoot));
   });
 });

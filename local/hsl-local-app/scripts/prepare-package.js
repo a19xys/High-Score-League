@@ -1,12 +1,12 @@
 const path = require("node:path");
-const { prepareMame } = require("./prepare-mame");
+const { stageProductMame } = require("./prepare-mame");
 const { stageProductPlugin } = require("./stage-product-plugin");
 const { readProductPublicConfig } = require("../src/product-config");
 
 async function preparePackage() {
   const appDir = path.resolve(__dirname, "..");
   readProductPublicConfig(path.join(appDir, "product-public-config.json"), { required: true });
-  await prepareMame();
+  await stageProductMame();
   await stageProductPlugin();
   process.stdout.write("Entradas de packaging validadas.\n");
 }

@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
@@ -11,7 +12,7 @@ const { inspectBundledMameRuntime } = require("../src/shared-mame-runtime");
 const { readMameRuntimeManifest, validateMameRuntimeManifest } = require("../src/mame-runtime-manifest");
 const { compareMameVersions, isMameVersionCompatible, parseMameVersion } = require("../src/mame-version");
 const { findReservedMameArgument, validatePackMameArguments } = require("../src/mame-arguments");
-const { prepareMame } = require("../scripts/prepare-mame");
+const { prepareMame, stageProductMame } = require("../scripts/prepare-mame");
 const { validateProductPublicConfig } = require("../src/product-config");
 const { stageProductPlugin } = require("../scripts/stage-product-plugin");
 const { prepareV2CompetitionRun } = require("../src/mame-plugin-run");
@@ -42,6 +43,19 @@ async function createBundledRuntime(resourcesPath, options = {}) {
   return root;
 }
 
+async function createExtractedRuntime(runtimeRoot, marker = "fixture") {
+  for (const relativePath of ["mame.exe", "plugins/boot.lua", "bgfx/chains/crt-geom.json", "COPYING"]) {
+    const target = path.join(runtimeRoot, ...relativePath.split("/"));
+    await fsp.mkdir(path.dirname(target), { recursive: true });
+    await fsp.writeFile(target, marker, "utf8");
+  }
+  await Promise.all([
+    fsp.mkdir(path.join(runtimeRoot, "bgfx", "effects"), { recursive: true }),
+    fsp.mkdir(path.join(runtimeRoot, "bgfx", "shaders"), { recursive: true }),
+  ]);
+  await fsp.writeFile(path.join(runtimeRoot, "stock-marker.txt"), marker, "utf8");
+}
+
 test("package metadata makes the GUI the product entry point", () => {
   assert.equal(packageMetadata.main, "gui/main.js");
   assert.equal(packageMetadata.scripts.gui, "electron .");
@@ -53,6 +67,9 @@ test("package metadata makes the GUI the product entry point", () => {
   assert.equal(builder.nsis.perMachine, false);
   assert.equal(builder.nsis.deleteAppDataOnUninstall, false);
   assert.match(builder.nsis.artifactName, /High Score League Setup/);
+  const mameRuntime = readMameRuntimeManifest();
+  const mameResource = builder.extraResources.find((entry) => entry.to === path.posix.join("mame", mameRuntime.version));
+  assert.equal(mameResource.from, path.join(".cache", "product", "mame", mameRuntime.version, "runtime"));
 });
 
 test("stable Electron 43 and electron-builder 26 are pinned", () => {
@@ -87,6 +104,50 @@ test("prepare:mame aborts when a cached asset has the wrong SHA", async () => {
       sha256: "0000000000000000000000000000000000000000000000000000000000000000",
     }), "utf8");
     await assert.rejects(() => prepareMame({ cacheDir, manifestPath, offline: true }), /SHA-256 incorrecto/);
+  });
+});
+
+test("product MAME staging ignores tampered caches and always extracts the verified SFX afresh", async () => {
+  await withTempDir(async (root) => {
+    const cacheDir = path.join(root, "cache", "mame", "0.287");
+    const manifestPath = path.join(root, "manifest.json");
+    const runtimeDir = path.join(root, "cache", "product", "mame", "0.287", "runtime");
+    const asset = Buffer.from("verified-mame-sfx-fixture");
+    const digest = crypto.createHash("sha256").update(asset).digest("hex");
+    await fsp.mkdir(cacheDir, { recursive: true });
+    await fsp.writeFile(path.join(cacheDir, "mame0287b_x64.exe"), asset);
+    await fsp.writeFile(manifestPath, JSON.stringify({
+      schemaVersion: 1,
+      version: "0.287",
+      architecture: "x64",
+      asset: "mame0287b_x64.exe",
+      url: "https://github.com/mamedev/mame/releases/download/mame0287/mame0287b_x64.exe",
+      sha256: digest,
+    }), "utf8");
+
+    const tamperedDevRuntime = path.join(cacheDir, "runtime");
+    await createExtractedRuntime(tamperedDevRuntime, "tampered-dev-cache");
+    let extractionCount = 0;
+    const options = {
+      cacheDir,
+      manifestPath,
+      offline: true,
+      runtimeDir,
+      extractImpl: async (_assetPath, targetDir) => {
+        extractionCount += 1;
+        await createExtractedRuntime(targetDir, "verified-sfx");
+      },
+      verifyExecutableImpl: async () => ({ skipped: true, reason: "fixture" }),
+    };
+
+    await stageProductMame(options);
+    assert.equal(await fsp.readFile(path.join(runtimeDir, "stock-marker.txt"), "utf8"), "verified-sfx");
+    assert.equal(await fsp.readFile(path.join(tamperedDevRuntime, "stock-marker.txt"), "utf8"), "tampered-dev-cache");
+
+    await fsp.writeFile(path.join(runtimeDir, "stock-marker.txt"), "tampered-product-cache", "utf8");
+    await stageProductMame(options);
+    assert.equal(extractionCount, 2);
+    assert.equal(await fsp.readFile(path.join(runtimeDir, "stock-marker.txt"), "utf8"), "verified-sfx");
   });
 });
 
@@ -175,6 +236,7 @@ test("product plugin staging reuses the runtime allowlist and excludes mutable d
 test("packaged competition stages hsl-score from resources without checkout-relative access", async () => {
   await withTempDir(async (root) => {
     const resourcesPath = path.join(root, "installed", "resources");
+    const runtimeRoot = await createBundledRuntime(resourcesPath);
     const sourceDir = path.join(resourcesPath, "hsl", "mame-plugin", "hsl-score");
     for (const relativePath of ["init.lua", "plugin.json", "config.example.lua", "core/config.lua", "games/invaders.lua"]) {
       const target = path.join(sourceDir, ...relativePath.split("/"));
@@ -188,6 +250,13 @@ test("packaged competition stages hsl-score from resources without checkout-rela
     const config = {
       appDir: path.join(root, "checkout-does-not-exist", "hsl-local-app"),
       packRoot,
+      sharedMameRuntime: {
+        available: true,
+        configured: true,
+        mameExecutablePath: path.join(runtimeRoot, "mame.exe"),
+        runtimeRoot,
+        source: "bundled",
+      },
       userDataDir: path.join(root, "userData"),
       pack: {
         packVersion: 2,
@@ -211,6 +280,7 @@ test("packaged competition stages hsl-score from resources without checkout-rela
       assert.equal(await fsp.readFile(path.join(run.pluginDir, "init.lua"), "utf8"), "return {}");
       assert.equal(run.adapterSourcePath, adapterPath);
       assert.equal(run.iniDir, path.join(run.runRoot, "ini"));
+      assert.equal(await fsp.readFile(run.pluginBootstrapPath, "utf8"), "fixture");
     } finally {
       resetProductRuntime();
     }

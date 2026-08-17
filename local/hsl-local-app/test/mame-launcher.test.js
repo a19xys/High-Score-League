@@ -143,7 +143,7 @@ test("packVersion 2 competition uses prepared pluginpath and score plugin", () =
   assert.equal(launch.v2PluginRun.pluginName, "hsl-score");
   assert.equal(argumentValue(launch.args, "-inipath"), path.join("C:/HSL/userData/runtime/runs/run-1", "ini"));
   assert.equal(argumentValue(launch.args, "-homepath"), "C:/HSL/userData/runtime/runs/run-1");
-  assert.equal(argumentValue(launch.args, "-pluginspath"), buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins", "C:/HSL/runtime/mame"));
+  assert.equal(argumentValue(launch.args, "-pluginspath"), buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins"));
   assert.equal(argumentValue(launch.args, "-plugin"), "hsl-score");
   assert.equal(launch.args.includes("-plugins"), true);
   assert.equal(launch.args.includes("-noplugins"), false);
@@ -273,10 +273,11 @@ test("packVersion 2 practice ignores competition-only video profile", () => {
   assert.equal(launch.args.includes("-noplugins"), true);
 });
 
-test("packVersion 2 competition pluginpath keeps isolated plugin before MAME base plugins", () => {
-  const pluginSearchPath = buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins", "C:/HSL/runtime/mame");
+test("packVersion 2 competition pluginpath exposes only the isolated run root", () => {
+  const pluginSearchPath = buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins");
 
-  assert.equal(pluginSearchPath, `C:/HSL/userData/runtime/runs/run-1/plugins${path.delimiter}${path.join("C:/HSL/runtime/mame", "plugins")}`);
+  assert.equal(pluginSearchPath, "C:/HSL/userData/runtime/runs/run-1/plugins");
+  assert.equal(pluginSearchPath.includes(path.join("C:/HSL/runtime/mame", "plugins")), false);
 });
 
 test("packVersion 2 keeps every mutable output outside the installed runtime", () => {

@@ -1,7 +1,9 @@
 const path = require("node:path");
+const { readMameRuntimeManifest } = require("./src/mame-runtime-manifest");
 const { readProductPublicConfig } = require("./src/product-config");
 
 const appDir = __dirname;
+const mameRuntime = readMameRuntimeManifest(path.join(appDir, "mame-runtime-manifest.json"));
 const productConfig = readProductPublicConfig(path.join(appDir, "product-public-config.json"), {
   required: true,
 });
@@ -28,8 +30,8 @@ module.exports = {
   },
   extraResources: [
     {
-      from: ".cache/mame/0.287/runtime",
-      to: "mame/0.287",
+      from: path.join(".cache", "product", "mame", mameRuntime.version, "runtime"),
+      to: path.posix.join("mame", mameRuntime.version),
       filter: ["**/*"],
     },
     {

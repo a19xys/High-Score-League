@@ -40,6 +40,25 @@ function resolveAdapterPath(config = {}) {
   return capture.adapterPath || path.resolve(packRoot, adapter);
 }
 
+function resolveSelectedMameRuntimeRoot(config = {}) {
+  const runtime = config.sharedMameRuntime || {};
+
+  if (typeof runtime.runtimeRoot === "string" && runtime.runtimeRoot.trim()) {
+    return runtime.runtimeRoot.trim();
+  }
+
+  if (typeof runtime.mameExecutablePath === "string" && runtime.mameExecutablePath.trim()) {
+    return path.dirname(runtime.mameExecutablePath.trim());
+  }
+
+  return null;
+}
+
+function resolvePluginBootstrapSourcePath(config = {}) {
+  const runtimeRoot = resolveSelectedMameRuntimeRoot(config);
+  return runtimeRoot ? path.join(runtimeRoot, "plugins", "boot.lua") : null;
+}
+
 function getV2CaptureReadiness(config = {}, options = {}) {
   const errors = [];
   const warnings = [];
@@ -155,6 +174,13 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
     throw new Error(`No se puede preparar competicion v2: ${readiness.errors.join(" ")}`);
   }
 
+  const mameRuntimeRoot = resolveSelectedMameRuntimeRoot(config);
+  const pluginBootstrapSourcePath = resolvePluginBootstrapSourcePath(config);
+
+  if (!pluginBootstrapSourcePath || !fs.existsSync(pluginBootstrapSourcePath) || !fs.statSync(pluginBootstrapSourcePath).isFile()) {
+    throw new Error("No se puede preparar competicion v2: falta plugins/boot.lua en el runtime MAME seleccionado.");
+  }
+
   const runId = createRunId(options);
   const runRoot = path.join(config.userDataDir, "runtime", "runs", runId);
   const pluginSearchDir = path.join(runRoot, "plugins");
@@ -166,6 +192,8 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
     createdAt: (options.now || new Date()).toISOString(),
     iniDir: path.join(runRoot, "ini"),
     pluginDir,
+    pluginBootstrapPath: path.join(pluginSearchDir, "boot.lua"),
+    pluginBootstrapSourcePath,
     pluginName: readiness.pluginName,
     pluginSearchDir,
     runId,
@@ -177,6 +205,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
   };
 
   const copiedFiles = await copyPluginSource(readiness.sourceDir, pluginDir);
+  await fsp.copyFile(run.pluginBootstrapSourcePath, run.pluginBootstrapPath);
   await fsp.mkdir(path.dirname(run.adapterPreparedPath), { recursive: true });
   await fsp.copyFile(readiness.adapterPath, run.adapterPreparedPath);
   await Promise.all([
@@ -197,8 +226,11 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
     packKey: scope.packKey,
     playerKey: scope.playerKey,
     pluginDir: run.pluginDir,
+    pluginBootstrapPath: run.pluginBootstrapPath,
+    pluginBootstrapSourcePath: run.pluginBootstrapSourcePath,
     pluginName: run.pluginName,
     runId: run.runId,
+    mameRuntimeRoot,
     scopedQueueRoot: scope.scopedQueueRoot,
     stagingPendingDir: run.stagingPendingDir,
   }, null, 2), "utf8");
@@ -213,6 +245,8 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
         adapterSourcePath: run.adapterSourcePath,
         iniDir: run.iniDir,
         pluginDir: run.pluginDir,
+        pluginBootstrapPath: run.pluginBootstrapPath,
+        pluginBootstrapSourcePath: run.pluginBootstrapSourcePath,
         pluginName: run.pluginName,
         pluginSearchDir: run.pluginSearchDir,
         runId: run.runId,
@@ -229,5 +263,7 @@ module.exports = {
   isSafePluginName,
   pathInside,
   prepareV2CompetitionRun,
+  resolvePluginBootstrapSourcePath,
+  resolveSelectedMameRuntimeRoot,
   toLuaString,
 };

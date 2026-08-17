@@ -167,11 +167,12 @@ function addDefaultLaunchArgs(args) {
   }
 }
 
-function buildPluginSearchPath(runPluginSearchDir, mameCwd) {
-  const stockPluginSearchDir = path.join(mameCwd, "plugins");
-  const entries = [runPluginSearchDir, stockPluginSearchDir].filter(Boolean);
+function buildPluginSearchPath(runPluginSearchDir) {
+  if (typeof runPluginSearchDir !== "string" || !runPluginSearchDir.trim()) {
+    throw new Error("Competicion v2 requiere un pluginspath aislado para el run.");
+  }
 
-  return [...new Set(entries)].join(path.delimiter);
+  return runPluginSearchDir;
 }
 
 function buildPackV2MameArgs(config, rom, mode) {
@@ -199,7 +200,7 @@ function buildPackV2MameArgs(config, rom, mode) {
 
     args.push(
       "-pluginspath",
-      buildPluginSearchPath(run.pluginSearchDir, mameRoot),
+      buildPluginSearchPath(run.pluginSearchDir),
       "-plugins",
       "-plugin",
       pluginName
@@ -296,7 +297,7 @@ function printLaunchSummary(launch) {
 
   if (launch.v2PluginRun) {
     console.log(`Run v2: ${launch.v2PluginRun.runId || launch.v2PluginRun.runRoot}`);
-    console.log(`Pluginpath v2: ${buildPluginSearchPath(launch.v2PluginRun.pluginSearchDir, launch.mameRoot)}`);
+    console.log(`Pluginpath v2: ${buildPluginSearchPath(launch.v2PluginRun.pluginSearchDir)}`);
     console.log(`Staging v2: ${launch.v2PluginRun.stagingPendingDir}`);
   }
 
@@ -330,10 +331,10 @@ function assertLaunchResources(config, launch) {
       throw new Error("No encuentro el plugin preparado para competicion v2.");
     }
 
-    const stockPluginBoot = path.join(launch.mameRoot, "plugins", "boot.lua");
+    const runPluginBoot = run.pluginBootstrapPath || path.join(run.pluginSearchDir, "boot.lua");
 
-    if (!fs.existsSync(stockPluginBoot) || !fs.statSync(stockPluginBoot).isFile()) {
-      throw new Error("No encuentro boot.lua en los plugins base de MAME compartido.");
+    if (!fs.existsSync(runPluginBoot) || !fs.statSync(runPluginBoot).isFile()) {
+      throw new Error("No encuentro boot.lua en el workspace aislado de competicion v2.");
     }
 
     if (!run?.stagingPendingDir || !fs.existsSync(run.stagingPendingDir) || !fs.statSync(run.stagingPendingDir).isDirectory()) {
