@@ -8,7 +8,6 @@
   "supabaseUrl": "https://TU_PROYECTO.supabase.co",
   "supabaseAnonKey": "TU_SUPABASE_ANON_KEY",
 
-  "clientVersion": "0.1.0",
   "defaultComment": "Subida desde app local",
   "confirmBeforeUpload": true
 }

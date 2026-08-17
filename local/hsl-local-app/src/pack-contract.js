@@ -1,4 +1,5 @@
 const path = require("node:path");
+const { validatePackMameArguments } = require("./mame-arguments");
 
 const V1_DEPRECATION_REASON = "packVersion 1 puede declarar MAME dentro del pack y sera sustituido por packVersion 2 con runtime compartido.";
 const V1_DEPRECATION_WARNING = "Este pack usa packVersion 1, un contrato legacy/deprecated. Seguira funcionando temporalmente, pero sera sustituido por packVersion 2 con MAME compartido.";
@@ -124,19 +125,12 @@ function validateLaunchArgsField(pack, field, errors) {
     return [];
   }
 
-  if (!Array.isArray(value)) {
-    errors.push(`pack.json ${field} debe ser un array`);
+  try {
+    return validatePackMameArguments(value, field);
+  } catch (error) {
+    errors.push(error.message);
     return [];
   }
-
-  return value.filter((item) => {
-    if (typeof item !== "string" || item.includes("\0")) {
-      errors.push(`pack.json ${field} solo puede incluir strings seguros`);
-      return false;
-    }
-
-    return true;
-  });
 }
 
 function normalizeMameProfiles(pack, packRoot, errors) {

@@ -57,7 +57,7 @@ import { createEphemeralLoginDraft } from "./login-draft.js";
 
 const root = document.getElementById("app");
 const savedTheme = window.__HSL_INITIAL_THEME__ === "light" ? "light" : "dark";
-const LAUNCHER_VERSION = "v1.0.0";
+const LAUNCHER_VERSION = `v${window.hslLauncher?.productVersion || "0.0.0"}`;
 const DETAIL_ASSET_PRELOAD_TIMEOUT_MS = 1_200;
 const store = createStore({
   accountMenuOpen: false,
@@ -2188,7 +2188,7 @@ function bindActions() {
       if (libraryLocationDialog?.issue === "current-root-unavailable") {
         resetUnavailableDirectoryPrompt(current.data);
       }
-      runAction(action, "Detectando biblioteca", "Detectar biblioteca", () => (
+      runAction(action, "Detectando biblioteca", "Detectar packs", () => (
         window.hslLauncher.detectLibraryLocation(libraryLocationDialog?.candidatePath || null)
       ), {
         libraryLocationDialog,

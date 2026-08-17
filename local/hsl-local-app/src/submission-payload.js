@@ -35,7 +35,7 @@ function buildSubmissionPayload(config, event, storedSession) {
     source: event.source,
     rom: event.rom,
     mameVersion: event.mameVersion || undefined,
-    clientVersion: config.clientVersion || "0.1.0",
+    clientVersion: config.clientVersion || require("../package.json").version,
     comment: config.defaultComment || "Subida desde app local",
     rawEvent: {
       schemaVersion: event.schemaVersion,

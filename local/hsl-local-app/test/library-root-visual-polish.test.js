@@ -59,11 +59,11 @@ test("dialogos de raiz rechazada explican pack e interior y ofrecen sugerencia v
   });
 
   assert.match(packRoot, /Has elegido la carpeta de un pack/);
-  assert.match(packRoot, /Detectar biblioteca/);
+  assert.match(packRoot, /Detectar packs/);
   assert.match(packRoot, /data-action="detect-library-location"/);
   assert.match(packRoot, /data-action="choose-library-location"/);
   assert.match(insidePack, /Esta carpeta forma parte de un pack/);
-  assert.match(insidePack, /Detectar biblioteca/);
+  assert.match(insidePack, /Detectar packs/);
   assert.match(insidePack, /Estás dentro de un pack[\s\S]*La Biblioteca anterior se mantiene/);
 });
 

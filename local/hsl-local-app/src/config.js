@@ -4,6 +4,9 @@ const { loadDefaultPack } = require("./pack");
 const { OFFICIAL_HSL_ORIGIN, resolveHslOrigin } = require("./hsl-origin");
 const { resolveRuntimePaths } = require("./runtime-paths");
 const { readSharedMameRuntime } = require("./shared-mame-runtime");
+const { validateProductPublicConfig } = require("./product-config");
+const { getProductRuntime } = require("./product-runtime");
+const packageMetadata = require("../package.json");
 
 const APP_DIR = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(APP_DIR, "config.json");
@@ -24,9 +27,13 @@ function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR, options = {}) {
   const pack = packResult.pack;
   const sessionFile = config.sessionFile || (configExists ? ".hsl-session.json" : "userData/session.json");
   const environment = options.environment || process.env;
+  const productRuntime = options.productRuntime || getProductRuntime();
+  const productConfig = productRuntime.isPackaged
+    ? validateProductPublicConfig(productRuntime.productConfig)
+    : null;
   const remoteConfiguration = resolveHslOrigin({
-    configuredOrigin: config.hslOrigin,
-    environmentOrigin: environment.HSL_ORIGIN,
+    configuredOrigin: productConfig?.hslOrigin || config.hslOrigin,
+    environmentOrigin: productRuntime.isPackaged ? undefined : environment.HSL_ORIGIN,
     legacyWebBaseUrl: config.webBaseUrl,
     officialOrigin: options.officialOrigin === undefined ? OFFICIAL_HSL_ORIGIN : options.officialOrigin,
   });
@@ -39,14 +46,19 @@ function loadConfig(configPath = CONFIG_PATH, appDir = APP_DIR, options = {}) {
     hslOrigin,
     remoteConfiguration,
     sessionFile,
-    userDataDir: environment.HSL_USER_DATA_DIR || config.userDataDir || "auto",
+    clientVersion: options.clientVersion || productRuntime.version || packageMetadata.version,
+    productConfigSource: productConfig ? "product-metadata" : configExists ? "config.json" : "none",
+    supabaseAnonKey: productConfig?.supabasePublishableKey || config.supabasePublishableKey || config.supabaseAnonKey || null,
+    supabasePublishableKey: productConfig?.supabasePublishableKey || config.supabasePublishableKey || config.supabaseAnonKey || null,
+    supabaseUrl: productConfig?.supabaseUrl || config.supabaseUrl || null,
+    userDataDir: environment.HSL_USER_DATA_DIR || productRuntime.userDataDir || config.userDataDir || "auto",
     webBaseUrl: hslOrigin,
   };
   const runtimePaths = resolveRuntimePaths(mergedConfig, pack, { appDir });
   const sharedMameRuntime = readSharedMameRuntime({
     ...mergedConfig,
     ...runtimePaths,
-  });
+  }, { productRuntime });
 
   return {
     ...mergedConfig,

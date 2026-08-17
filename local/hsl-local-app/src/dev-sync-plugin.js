@@ -1,12 +1,18 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { APP_DIR } = require("./config");
+const { getProductRuntime } = require("./product-runtime");
 
 const SYNC_PLUGIN_CONFIG_ERROR = "No hay pack MAME externo configurado. sync-plugin requiere mame.workingDir y mame.pluginName.";
 const TOP_LEVEL_PLUGIN_FILES = ["init.lua", "plugin.json", "config.example.lua"];
 const PLUGIN_SOURCE_DIRS = ["core", "games"];
 
-function getRepoPluginDir(appDir = APP_DIR) {
+function getRepoPluginDir(appDir = APP_DIR, options = {}) {
+  const productRuntime = options.productRuntime || (options.isPackaged === false ? { isPackaged: false } : getProductRuntime());
+  if (productRuntime.isPackaged) {
+    if (!productRuntime.resourcesPath) throw new Error("No se pudo resolver resourcesPath para hsl-score empaquetado.");
+    return path.join(productRuntime.resourcesPath, "hsl", "mame-plugin", "hsl-score");
+  }
   return path.resolve(appDir, "..", "mame-plugin", "hsl-score");
 }
 

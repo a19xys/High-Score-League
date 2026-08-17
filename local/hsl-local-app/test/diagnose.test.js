@@ -31,6 +31,7 @@ async function createBaseConfig(root) {
   await fsp.writeFile(executablePath, "", "utf8");
 
   return {
+    userDataDir: path.join(root, "userData"),
     eventsPendingDir: pending,
     eventsSentDir: sent,
     eventsFailedDir: failed,

@@ -17,6 +17,5 @@
 
   "sessionFile": "userData/session.json",
   "userDataDir": "auto",
-  "clientVersion": "0.1.0",
   "defaultComment": "Subida desde app local"
 }

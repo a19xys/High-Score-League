@@ -1,6 +1,8 @@
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
+const { readMameRuntimeManifest } = require("./mame-runtime-manifest");
+const { getProductRuntime } = require("./product-runtime");
 
 const RUNTIME_SCHEMA_VERSION = 1;
 const RUNTIME_CONFIG_RELATIVE_PATH = path.join("runtime", "mame-runtime.json");
@@ -43,6 +45,7 @@ function inspectMameExecutable(mameExecutablePath) {
       isFile: false,
       looksLikeMame: false,
       mameExecutablePath: null,
+      source: "missing",
       version: null,
       warnings,
     };
@@ -75,6 +78,7 @@ function inspectMameExecutable(mameExecutablePath) {
     isFile,
     looksLikeMame,
     mameExecutablePath: normalizedPath,
+    source: "external/dev",
     version: null,
     warnings,
   };
@@ -94,6 +98,7 @@ function emptyRuntimeState(config, overrides = {}) {
     runtimeFile,
     schemaVersion: RUNTIME_SCHEMA_VERSION,
     selectedAt: null,
+    source: "missing",
     updatedAt: null,
     version: null,
     warnings: [],
@@ -118,7 +123,62 @@ function serializeRuntimeState(config, parsed, warnings = []) {
   });
 }
 
-function readSharedMameRuntime(config) {
+function inspectBundledMameRuntime(productRuntime = getProductRuntime(), manifest = readMameRuntimeManifest()) {
+  const runtimeRoot = productRuntime.resourcesPath
+    ? path.join(productRuntime.resourcesPath, "mame", manifest.version)
+    : null;
+  const executablePath = runtimeRoot ? path.join(runtimeRoot, "mame.exe") : null;
+  const required = [
+    ["file", "mame.exe"],
+    ["file", path.join("plugins", "boot.lua")],
+    ["file", path.join("bgfx", "chains", "crt-geom.json")],
+    ["directory", path.join("bgfx", "effects")],
+    ["directory", path.join("bgfx", "shaders")],
+    ["file", "COPYING"],
+  ];
+  const missingResources = [];
+
+  for (const [kind, relativePath] of required) {
+    const target = runtimeRoot ? path.join(runtimeRoot, relativePath) : null;
+    try {
+      const stat = fs.statSync(target);
+      if ((kind === "file" && !stat.isFile()) || (kind === "directory" && !stat.isDirectory())) {
+        missingResources.push(relativePath);
+      }
+    } catch {
+      missingResources.push(relativePath);
+    }
+  }
+
+  const available = missingResources.length === 0;
+  return {
+    available,
+    architecture: manifest.architecture,
+    configured: true,
+    errors: available ? [] : [`Runtime MAME bundled incompleto; faltan: ${missingResources.join(", ")}.`],
+    exists: executablePath ? fs.existsSync(executablePath) : false,
+    isFile: executablePath ? (() => { try { return fs.statSync(executablePath).isFile(); } catch { return false; } })() : false,
+    looksLikeMame: looksLikeMameExecutable(executablePath),
+    manifest,
+    mameExecutablePath: executablePath,
+    missingResources,
+    runtimeFile: null,
+    runtimeRoot,
+    schemaVersion: RUNTIME_SCHEMA_VERSION,
+    selectedAt: null,
+    source: "bundled",
+    updatedAt: null,
+    version: manifest.version,
+    warnings: [],
+  };
+}
+
+function readSharedMameRuntime(config, options = {}) {
+  const productRuntime = options.productRuntime || getProductRuntime();
+  if (productRuntime.isPackaged) {
+    return inspectBundledMameRuntime(productRuntime, options.manifest || readMameRuntimeManifest());
+  }
+
   const runtimeFile = getSharedMameRuntimeFile(config);
 
   try {
@@ -172,6 +232,7 @@ module.exports = {
   RUNTIME_SCHEMA_VERSION,
   getSharedMameRuntimeFile,
   inspectMameExecutable,
+  inspectBundledMameRuntime,
   looksLikeMameExecutable,
   normalizeExecutablePath,
   readSharedMameRuntime,

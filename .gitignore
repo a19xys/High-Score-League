@@ -20,6 +20,8 @@ local/pack.json
 local/hsl-local-app/pack.json
 local/hsl-local-app/logs/
 local/hsl-local-app/node_modules/
+local/hsl-local-app/.cache/
+local/hsl-local-app/dist/
 
 # MAME plugin local config
 local/mame-plugin/hsl-score/config.lua

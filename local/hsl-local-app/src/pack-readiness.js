@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { deriveCompetitionAccess } = require("./competition-access");
 const { getV2CaptureReadiness } = require("./mame-plugin-run");
+const { isMameVersionCompatible } = require("./mame-version");
 
 function exists(targetPath) {
   return Boolean(targetPath) && fs.existsSync(targetPath);
@@ -235,7 +236,17 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, wee
 
   if (isPackV2) {
     if (sharedRuntime.available) {
-      checks.push(check("runtime-shared", "ok", "MAME", "Runtime MAME compartido encontrado.", [sharedRuntime.mameExecutablePath]));
+      const minimumVersion = pack?.contract?.runtime?.minVersion || null;
+      const incompatible = Boolean(minimumVersion && sharedRuntime.version) && !isMameVersionCompatible(sharedRuntime.version, minimumVersion);
+      checks.push(check(
+        "runtime-shared",
+        incompatible ? "error" : "ok",
+        "MAME",
+        incompatible
+          ? `MAME ${sharedRuntime.version} no cumple la version minima ${minimumVersion} del pack.`
+          : `Runtime MAME ${sharedRuntime.source === "bundled" ? "bundled" : "compartido"} encontrado.`,
+        [sharedRuntime.mameExecutablePath, sharedRuntime.version ? `version=${sharedRuntime.version}` : null, minimumVersion ? `minVersion=${minimumVersion}` : null],
+      ));
     } else if (sharedRuntime.configured) {
       checks.push(check("runtime-shared", "error", "MAME", "No se encontro mame.exe en el runtime compartido.", [
         sharedRuntime.mameExecutablePath,

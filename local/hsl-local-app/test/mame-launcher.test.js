@@ -61,6 +61,7 @@ test("incomplete MAME config is rejected before launching MAME", () => {
 
 function packV2Config(overrides = {}) {
   return {
+    userDataDir: "C:/HSL/userData",
     pack: {
       packVersion: 2,
       rom: "invaders",
@@ -99,25 +100,25 @@ function packArtworkPath() {
   return `C:/Packs/space-invaders/artwork${path.delimiter}${sharedMameArtworkPath()}`;
 }
 
+function argumentValue(args, option) {
+  const index = args.indexOf(option);
+  return index < 0 ? null : args[index + 1];
+}
+
 test("packVersion 2 practice builds MAME args with shared runtime resources", () => {
   const launch = buildMameArgs(packV2Config(), "invaders", "practice");
 
   assert.equal(launch.command, "C:/HSL/runtime/mame/mame.exe");
-  assert.equal(launch.cwd, "C:/HSL/runtime/mame");
-  assert.equal(launch.runtime, "shared-mame");
-  assert.deepEqual(launch.args, [
-    "invaders",
-    "-skip_gameinfo",
-    "-rompath",
-    "C:/Packs/space-invaders/roms",
-    "-artpath",
-    packArtworkPath(),
-    "-samplepath",
-    "C:/Packs/space-invaders/samples",
-    "-cfg_directory",
-    "C:/Packs/space-invaders/cfg",
-    "-window",
-  ]);
+  assert.equal(launch.cwd, path.join("C:/HSL/userData", "runtime", "mame", "state", "home"));
+  assert.equal(launch.runtime, "external/dev");
+  assert.equal(argumentValue(launch.args, "-rompath"), "C:/Packs/space-invaders/roms");
+  assert.equal(argumentValue(launch.args, "-artpath"), packArtworkPath());
+  assert.equal(argumentValue(launch.args, "-samplepath"), `C:/Packs/space-invaders/samples${path.delimiter}${path.join("C:/HSL/runtime/mame", "samples")}`);
+  assert.equal(argumentValue(launch.args, "-cfg_directory"), "C:/Packs/space-invaders/cfg");
+  assert.equal(argumentValue(launch.args, "-nvram_directory"), path.join("C:/HSL/userData", "runtime", "mame", "state", "nvram"));
+  assert.equal(argumentValue(launch.args, "-bgfx_path"), sharedMameBgfxPath());
+  assert.equal(launch.args.includes("-noplugins"), true);
+  assert.equal(launch.args.includes("-plugin"), false);
 });
 
 test("packVersion 2 competition is blocked until capture adapter loading exists", () => {
@@ -138,28 +139,14 @@ test("packVersion 2 competition uses prepared pluginpath and score plugin", () =
     },
   }), "invaders", "competition");
 
-  assert.equal(launch.runtime, "shared-mame");
+  assert.equal(launch.runtime, "external/dev");
   assert.equal(launch.v2PluginRun.pluginName, "hsl-score");
-  assert.deepEqual(launch.args, [
-    "invaders",
-    "-skip_gameinfo",
-    "-rompath",
-    "C:/Packs/space-invaders/roms",
-    "-artpath",
-    packArtworkPath(),
-    "-samplepath",
-    "C:/Packs/space-invaders/samples",
-    "-cfg_directory",
-    "C:/Packs/space-invaders/cfg",
-    "-window",
-    "-homepath",
-    "C:/HSL/userData/runtime/runs/run-1",
-    "-pluginspath",
-    buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins", "C:/HSL/runtime/mame"),
-    "-plugins",
-    "-plugin",
-    "hsl-score",
-  ]);
+  assert.equal(argumentValue(launch.args, "-inipath"), path.join("C:/HSL/userData/runtime/runs/run-1", "ini"));
+  assert.equal(argumentValue(launch.args, "-homepath"), "C:/HSL/userData/runtime/runs/run-1");
+  assert.equal(argumentValue(launch.args, "-pluginspath"), buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins", "C:/HSL/runtime/mame"));
+  assert.equal(argumentValue(launch.args, "-plugin"), "hsl-score");
+  assert.equal(launch.args.includes("-plugins"), true);
+  assert.equal(launch.args.includes("-noplugins"), false);
 });
 
 test("packVersion 2 launch applies mode-specific MAME profile", () => {
@@ -189,25 +176,10 @@ test("packVersion 2 launch applies mode-specific MAME profile", () => {
   });
   const launch = buildMameArgs(config, "invaders", "competition");
 
-  assert.deepEqual(launch.args.slice(0, 17), [
-    "invaders",
-    "-skip_gameinfo",
-    "-rompath",
-    "C:/Packs/space-invaders/roms",
-    "-artpath",
-    packArtworkPath(),
-    "-samplepath",
-    "C:/Packs/space-invaders/samples",
-    "-cfg_directory",
-    "C:/Packs/space-invaders/cfg-competition",
-    "-window",
-    "-video",
-    "bgfx",
-    "-bgfx_screen_chains",
-    "crt-geom",
-    "-bgfx_path",
-    sharedMameBgfxPath(),
-  ]);
+  assert.equal(argumentValue(launch.args, "-cfg_directory"), "C:/Packs/space-invaders/cfg-competition");
+  assert.equal(argumentValue(launch.args, "-video"), "bgfx");
+  assert.equal(argumentValue(launch.args, "-bgfx_screen_chains"), "crt-geom");
+  assert.equal(argumentValue(launch.args, "-bgfx_path"), sharedMameBgfxPath());
 });
 
 test("packVersion 2 BGFX keeps pack artwork before MAME artwork and adds bgfx_path once", () => {
@@ -241,7 +213,7 @@ test("packVersion 2 BGFX keeps pack artwork before MAME artwork and adds bgfx_pa
   assert.equal(launch.args.filter((item) => item === "-bgfx_path").length, 1);
 });
 
-test("packVersion 2 BGFX respects explicit bgfx_path", () => {
+test("packVersion 2 rejects pack-controlled bgfx_path", () => {
   const explicitBgfxPath = "D:/Custom/bgfx";
   const config = packV2Config({
     pack: {
@@ -266,10 +238,7 @@ test("packVersion 2 BGFX respects explicit bgfx_path", () => {
       stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
     },
   });
-  const launch = buildMameArgs(config, "invaders", "competition");
-
-  assert.equal(launch.args.filter((item) => item === "-bgfx_path").length, 1);
-  assert.equal(launch.args[launch.args.indexOf("-bgfx_path") + 1], explicitBgfxPath);
+  assert.throws(() => buildMameArgs(config, "invaders", "competition"), /opcion reservada -bgfx_path/);
 });
 
 test("packVersion 2 practice ignores competition-only video profile", () => {
@@ -300,13 +269,63 @@ test("packVersion 2 practice ignores competition-only video profile", () => {
   assert.equal(launch.args.includes("-plugin"), false);
   assert.equal(launch.args.includes("-video"), false);
   assert.equal(launch.args.includes("crt-geom"), false);
-  assert.equal(launch.args.includes("-bgfx_path"), false);
+  assert.equal(launch.args.includes("-bgfx_path"), true);
+  assert.equal(launch.args.includes("-noplugins"), true);
 });
 
 test("packVersion 2 competition pluginpath keeps isolated plugin before MAME base plugins", () => {
   const pluginSearchPath = buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins", "C:/HSL/runtime/mame");
 
   assert.equal(pluginSearchPath, `C:/HSL/userData/runtime/runs/run-1/plugins${path.delimiter}${path.join("C:/HSL/runtime/mame", "plugins")}`);
+});
+
+test("packVersion 2 keeps every mutable output outside the installed runtime", () => {
+  const launch = buildMameArgs(packV2Config(), "invaders", "practice");
+  const runtimeRoot = path.resolve("C:/HSL/runtime/mame");
+  for (const option of [
+    "-inipath", "-homepath", "-cfg_directory", "-nvram_directory", "-input_directory",
+    "-state_directory", "-snapshot_directory", "-diff_directory", "-comment_directory", "-share_directory",
+  ]) {
+    const value = argumentValue(launch.args, option);
+    const relative = path.relative(runtimeRoot, path.resolve(value));
+    assert.equal(relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative)), false, `${option}=${value}`);
+  }
+  assert.equal(launch.cwd.startsWith(runtimeRoot), false);
+});
+
+test("competition inipath cannot inherit plugin.ini from the runtime", () => {
+  const runRoot = "C:/HSL/userData/runtime/runs/run-isolated";
+  const launch = buildMameArgs(packV2Config({
+    v2PluginRun: {
+      pluginName: "hsl-score",
+      runId: "run-isolated",
+      runRoot,
+      pluginSearchDir: path.join(runRoot, "plugins"),
+      stagingPendingDir: path.join(runRoot, "events", "pending"),
+    },
+  }), "invaders", "competition");
+  assert.equal(argumentValue(launch.args, "-inipath"), path.join(runRoot, "ini"));
+  assert.notEqual(argumentValue(launch.args, "-inipath"), "C:/HSL/runtime/mame");
+  assert.equal(launch.args.includes("-plugins"), true);
+  assert.equal(argumentValue(launch.args, "-plugin"), "hsl-score");
+});
+
+test("pack minimum MAME version blocks an older runtime", () => {
+  const base = packV2Config();
+  const config = packV2Config({
+    pack: {
+      ...base.pack,
+      contract: {
+        ...base.pack.contract,
+        runtime: { minVersion: "0.288", recommendedVersion: "0.288", type: "mame" },
+      },
+    },
+    sharedMameRuntime: {
+      ...base.sharedMameRuntime,
+      version: "0.287",
+    },
+  });
+  assert.throws(() => buildMameArgs(config, "invaders", "practice"), /no cumple runtime\.minVersion 0\.288/);
 });
 
 test("packVersion 2 practice requires shared runtime", () => {
@@ -407,9 +426,9 @@ test("printLaunchSummary explains competition and practice plugin behavior", () 
   assert.match(output, /Modo: competicion/);
   assert.match(output, /Plugin: hsl-score activado explicitamente/);
   assert.match(output, /Modo: practica/);
-  assert.match(output, /Plugin: hsl-score no se activa explicitamente/);
+  assert.match(output, /Plugins: desactivados explicitamente para practica/);
   assert.match(output, /Args: invaders -skip_gameinfo -plugins -plugin hsl-score/);
-  assert.match(output, /plugin\.ini/);
+  assert.doesNotMatch(output, /podria cargarlo igualmente/);
 });
 
 test("printLaunchSummary shows final competition profile args", () => {

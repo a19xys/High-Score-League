@@ -29,7 +29,7 @@ export function renderLogPanel(state) {
       <div class="panel-heading">
         <div>
           <h2>Mensajes</h2>
-          <p>Resumen claro primero; detalles técnicos solo si los necesitas.</p>
+          <p>Resumen y detalles técnicos de diagnóstico.</p>
         </div>
       </div>
       <div class="log-list">${body}</div>

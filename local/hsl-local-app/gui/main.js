@@ -1,4 +1,5 @@
 const path = require("node:path");
+const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
 const { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, powerMonitor, safeStorage, shell } = require("electron");
 const service = require("./launcher-service");
@@ -35,8 +36,21 @@ const {
   normalizePreferenceScope,
   resolvePlayerPreferenceScope,
 } = require("../src/preference-scope");
+const packageMetadata = require("../package.json");
+const { loadConfig } = require("../src/config");
+const { getRepoPluginDir } = require("../src/dev-sync-plugin");
+const { configureProductRuntime } = require("../src/product-runtime");
 
+app.setName("High Score League");
 if (process.env.HSL_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.HSL_USER_DATA_DIR));
+configureProductRuntime({
+  isPackaged: app.isPackaged,
+  productConfig: packageMetadata.hslProduct || null,
+  productName: app.getName(),
+  resourcesPath: process.resourcesPath,
+  userDataDir: app.getPath("userData"),
+  version: app.getVersion(),
+});
 
 if (process.env.HSL_ELECTRON_VERBOSE_LOGGING === "1") {
   app.commandLine.appendSwitch("enable-logging");
@@ -230,6 +244,38 @@ function applyNativeWindowTheme(window, theme) {
   window.setBackgroundColor?.(themeBackgroundColor(theme));
   if (process.platform !== "darwin") {
     window.setTitleBarOverlay?.(nativeTitleBarOverlay(theme));
+  }
+}
+
+function writePackagedSmokeReport(phase) {
+  const reportPath = process.env.HSL_PACKAGED_SMOKE_FILE;
+  if (!reportPath) return null;
+  try {
+    const config = loadConfig();
+    const pluginSource = getRepoPluginDir(config.appDir);
+    const report = {
+      isPackaged: app.isPackaged,
+      mame: {
+        available: config.sharedMameRuntime?.available === true,
+        path: config.sharedMameRuntime?.mameExecutablePath || null,
+        source: config.sharedMameRuntime?.source || "missing",
+        version: config.sharedMameRuntime?.version || null,
+      },
+      phase,
+      pluginAvailable: fs.existsSync(path.join(pluginSource, "init.lua")),
+      productConfigAvailable: Boolean(config.hslOrigin && config.supabaseUrl && config.supabasePublishableKey),
+      productName: app.getName(),
+      rendererReady: phase === "renderer-ready",
+      resourcesPath: process.resourcesPath,
+      version: app.getVersion(),
+    };
+    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf8");
+    return report;
+  } catch (error) {
+    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+    fs.writeFileSync(reportPath, JSON.stringify({ error: error.message, phase }), "utf8");
+    return null;
   }
 }
 
@@ -746,6 +792,7 @@ function createMainWindow() {
       additionalArguments: [
         `--hsl-startup-theme=${theme.effectiveTheme}`,
         `--hsl-legacy-theme-migration=${themeAuthority?.canMigrateRendererLegacyTheme() ? "1" : "0"}`,
+        `--hsl-product-version=${app.getVersion()}`,
       ],
       developerToolsEnabled,
       preload: path.join(__dirname, "preload.js"),
@@ -758,6 +805,11 @@ function createMainWindow() {
   });
   recordStartupMilestone("window-created");
   mainWindow.webContents.once("dom-ready", () => recordStartupMilestone("document-ready"));
+  mainWindow.webContents.once("dom-ready", () => {
+    if (!process.env.HSL_PACKAGED_SMOKE_FILE) return;
+    writePackagedSmokeReport("renderer-ready");
+    setTimeout(() => app.quit(), 50).unref?.();
+  });
   mainWindow.loadFile(rendererDocumentPath);
 
   mainWindow.once("ready-to-show", () => {
@@ -1247,6 +1299,7 @@ if (!hasSingleInstanceLock) {
 } else {
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
+    writePackagedSmokeReport("main-ready");
     if (process.platform === "win32") app.setAppUserModelId("com.highscoreleague.launcher");
     themeAuthority = createThemeAuthority({
       readSystemTheme,

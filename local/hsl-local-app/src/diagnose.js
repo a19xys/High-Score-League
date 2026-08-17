@@ -279,7 +279,7 @@ async function buildDiagnoseReport(config) {
 
   if (sharedMameRuntime) {
     add(report, "runtime", sharedMameRuntime.configured ? "OK" : "INFO", sharedMameRuntime.configured
-      ? "runtime MAME compartido configurado"
+      ? `runtime MAME ${sharedMameRuntime.source || "compartido"} configurado${sharedMameRuntime.version ? ` (${sharedMameRuntime.version})` : ""}`
       : "runtime MAME compartido no configurado", sharedMameRuntime.runtimeFile);
 
     if (sharedMameRuntime.mameExecutablePath) {
@@ -287,7 +287,7 @@ async function buildDiagnoseReport(config) {
     }
 
     if (sharedMameRuntime.available) {
-      add(report, "runtime", "OK", "mame.exe compartido encontrado", sharedMameRuntime.mameExecutablePath);
+      add(report, "runtime", "OK", `mame.exe ${sharedMameRuntime.source || "compartido"} encontrado`, sharedMameRuntime.mameExecutablePath);
     } else if (sharedMameRuntime.configured) {
       add(report, "runtime", "ERROR", "mame.exe compartido no disponible", [
         sharedMameRuntime.mameExecutablePath,

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "High Score League local event reader",
-  "main": "app.js",
+  "main": "gui/main.js",
   "scripts": {
     "start": "node app.js scan",
     "scan": "node app.js scan",
@@ -16,11 +16,17 @@
     "logout": "node app.js logout",
     "diagnose": "node app.js diagnose",
     "sync-plugin": "node app.js sync-plugin",
-    "gui": "electron gui/main.js",
+    "gui": "electron .",
     "play": "node app.js play",
     "practice": "node app.js practice",
     "submit": "node app.js submit",
     "submit-all": "node app.js submit-all",
+    "prepare:mame": "node scripts/prepare-mame.js",
+    "prepare:plugin": "node scripts/stage-product-plugin.js",
+    "prepare:package": "node scripts/prepare-package.js",
+    "package:win": "npm run prepare:package && electron-builder --config electron-builder.config.cjs --win --x64 --dir",
+    "dist:win": "npm run prepare:package && electron-builder --config electron-builder.config.cjs --win nsis --x64",
+    "smoke:packaged": "node scripts/smoke-packaged.js",
     "test": "node --test"
   },
   "dependencies": {
@@ -28,7 +34,9 @@
     "yauzl": "^3.4.0"
   },
   "devDependencies": {
-    "electron": "^42.4.1",
+    "7zip-bin": "^5.2.0",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.7",
     "yazl": "^3.3.1"
   }
 }

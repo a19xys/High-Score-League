@@ -111,7 +111,7 @@ function renderLibraryLocationDialog(dialog) {
     }
     : rejectedLocationCopy(dialog.classification);
   const buttons = [
-    { action: "detect-library-location", autofocus: true, icon: "refresh", label: "Detectar biblioteca", variant: "primary" },
+    { action: "detect-library-location", autofocus: true, icon: "refresh", label: "Detectar packs", variant: "primary" },
     { action: "choose-library-location", icon: "folder", label: "Cambiar carpeta", variant: "secondary" },
   ];
 

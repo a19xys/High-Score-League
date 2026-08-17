@@ -1,0 +1,254 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fsp = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+const packageMetadata = require("../package.json");
+const builder = require("../electron-builder.config.cjs");
+const { loadConfig } = require("../src/config");
+const { getRepoPluginDir } = require("../src/dev-sync-plugin");
+const { inspectBundledMameRuntime } = require("../src/shared-mame-runtime");
+const { readMameRuntimeManifest, validateMameRuntimeManifest } = require("../src/mame-runtime-manifest");
+const { compareMameVersions, isMameVersionCompatible, parseMameVersion } = require("../src/mame-version");
+const { findReservedMameArgument, validatePackMameArguments } = require("../src/mame-arguments");
+const { prepareMame } = require("../scripts/prepare-mame");
+const { validateProductPublicConfig } = require("../src/product-config");
+const { stageProductPlugin } = require("../scripts/stage-product-plugin");
+const { prepareV2CompetitionRun } = require("../src/mame-plugin-run");
+const { configureProductRuntime, resetProductRuntime } = require("../src/product-runtime");
+
+async function withTempDir(fn) {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-packaging-foundation-"));
+  try { return await fn(root); } finally { await fsp.rm(root, { recursive: true, force: true }); }
+}
+
+async function createBundledRuntime(resourcesPath, options = {}) {
+  const root = path.join(resourcesPath, "mame", "0.287");
+  const files = [
+    "mame.exe",
+    "plugins/boot.lua",
+    "bgfx/chains/crt-geom.json",
+    "COPYING",
+  ];
+  for (const relativePath of files) {
+    if (relativePath === options.omit) continue;
+    const target = path.join(root, ...relativePath.split("/"));
+    await fsp.mkdir(path.dirname(target), { recursive: true });
+    await fsp.writeFile(target, "fixture", "utf8");
+  }
+  for (const relativePath of ["bgfx/effects", "bgfx/shaders"]) {
+    if (relativePath !== options.omit) await fsp.mkdir(path.join(root, ...relativePath.split("/")), { recursive: true });
+  }
+  return root;
+}
+
+test("package metadata makes the GUI the product entry point", () => {
+  assert.equal(packageMetadata.main, "gui/main.js");
+  assert.equal(packageMetadata.scripts.gui, "electron .");
+  assert.equal(builder.appId, "com.highscoreleague.launcher");
+  assert.equal(builder.productName, "High Score League");
+  assert.equal(builder.asar, true);
+  assert.deepEqual(builder.win.target, [{ target: "nsis", arch: ["x64"] }]);
+  assert.equal(builder.nsis.oneClick, true);
+  assert.equal(builder.nsis.perMachine, false);
+  assert.equal(builder.nsis.deleteAppDataOnUninstall, false);
+  assert.match(builder.nsis.artifactName, /High Score League Setup/);
+});
+
+test("stable Electron 43 and electron-builder 26 are pinned", () => {
+  assert.equal(packageMetadata.devDependencies.electron, "^43.4.0");
+  assert.equal(packageMetadata.devDependencies["electron-builder"], "^26.15.7");
+  assert.doesNotMatch(packageMetadata.devDependencies["electron-builder"], /alpha|beta/i);
+});
+
+test("MAME manifest is explicit and validated", () => {
+  const manifest = readMameRuntimeManifest();
+  assert.deepEqual({ version: manifest.version, architecture: manifest.architecture, asset: manifest.asset, sha256: manifest.sha256 }, {
+    version: "0.287",
+    architecture: "x64",
+    asset: "mame0287b_x64.exe",
+    sha256: "68cdaf6d48213c6f3d0f7fa7f2733db46f74e400ad66db2d8a8d777430a42fb9",
+  });
+  assert.throws(() => validateMameRuntimeManifest({ ...manifest, sha256: "bad" }), /sha256/);
+});
+
+test("prepare:mame aborts when a cached asset has the wrong SHA", async () => {
+  await withTempDir(async (root) => {
+    const cacheDir = path.join(root, "cache");
+    const manifestPath = path.join(root, "manifest.json");
+    await fsp.mkdir(cacheDir, { recursive: true });
+    await fsp.writeFile(path.join(cacheDir, "mame0287b_x64.exe"), "not-mame", "utf8");
+    await fsp.writeFile(manifestPath, JSON.stringify({
+      schemaVersion: 1,
+      version: "0.287",
+      architecture: "x64",
+      asset: "mame0287b_x64.exe",
+      url: "https://github.com/mamedev/mame/releases/download/mame0287/mame0287b_x64.exe",
+      sha256: "0000000000000000000000000000000000000000000000000000000000000000",
+    }), "utf8");
+    await assert.rejects(() => prepareMame({ cacheDir, manifestPath, offline: true }), /SHA-256 incorrecto/);
+  });
+});
+
+test("bundled runtime requires executable, stock plugin bootstrap and BGFX", async () => {
+  await withTempDir(async (resourcesPath) => {
+    await createBundledRuntime(resourcesPath);
+    const complete = inspectBundledMameRuntime({ isPackaged: true, resourcesPath });
+    assert.equal(complete.source, "bundled");
+    assert.equal(complete.version, "0.287");
+    assert.equal(complete.available, true);
+
+    await fsp.rm(path.join(complete.runtimeRoot, "plugins", "boot.lua"));
+    const withoutBoot = inspectBundledMameRuntime({ isPackaged: true, resourcesPath });
+    assert.equal(withoutBoot.available, false);
+    assert.ok(withoutBoot.missingResources.some((item) => /boot\.lua/.test(item)));
+
+    await fsp.writeFile(path.join(complete.runtimeRoot, "plugins", "boot.lua"), "fixture", "utf8");
+    await fsp.rm(path.join(complete.runtimeRoot, "bgfx", "chains", "crt-geom.json"));
+    const withoutBgfx = inspectBundledMameRuntime({ isPackaged: true, resourcesPath });
+    assert.equal(withoutBgfx.available, false);
+    assert.ok(withoutBgfx.missingResources.some((item) => /crt-geom/.test(item)));
+
+    await fsp.rm(path.join(complete.runtimeRoot, "mame.exe"));
+    const withoutExe = inspectBundledMameRuntime({ isPackaged: true, resourcesPath });
+    assert.equal(withoutExe.available, false);
+    assert.ok(withoutExe.missingResources.includes("mame.exe"));
+  });
+});
+
+test("packaged config uses product metadata and bundled MAME without config.json", async () => {
+  await withTempDir(async (root) => {
+    const resourcesPath = path.join(root, "resources");
+    const userDataDir = path.join(root, "userData");
+    await createBundledRuntime(resourcesPath);
+    const config = loadConfig(path.join(root, "missing-config.json"), root, {
+      environment: {},
+      productRuntime: {
+        isPackaged: true,
+        productConfig: builder.extraMetadata.hslProduct,
+        resourcesPath,
+        userDataDir,
+        version: packageMetadata.version,
+      },
+    });
+    assert.equal(config.configExists, false);
+    assert.equal(config.productConfigSource, "product-metadata");
+    assert.equal(config.clientVersion, packageMetadata.version);
+    assert.equal(config.supabasePublishableKey.startsWith("sb_publishable_"), true);
+    assert.equal(config.sharedMameRuntime.source, "bundled");
+    assert.equal(config.sharedMameRuntime.available, true);
+    assert.equal(config.sharedMameRuntime.runtimeFile, null);
+  });
+});
+
+test("product config rejects Supabase secrets and service_role JWTs", () => {
+  const base = {
+    schemaVersion: 1,
+    hslOrigin: "https://high-score-league.vercel.app",
+    supabaseUrl: "https://project.supabase.co",
+  };
+  assert.throws(() => validateProductPublicConfig({ ...base, supabasePublishableKey: "sb_secret_forbidden" }), /secret\/service_role/);
+  const serviceRole = `${Buffer.from("{}").toString("base64url")}.${Buffer.from(JSON.stringify({ role: "service_role" })).toString("base64url")}.signature`;
+  assert.throws(() => validateProductPublicConfig({ ...base, supabasePublishableKey: serviceRole }), /role=anon/);
+});
+
+test("hsl-score source resolves from repo in dev and resources when packaged", () => {
+  const appDir = path.resolve(__dirname, "..");
+  assert.equal(getRepoPluginDir(appDir, { isPackaged: false }), path.resolve(appDir, "..", "mame-plugin", "hsl-score"));
+  assert.equal(
+    getRepoPluginDir(appDir, { productRuntime: { isPackaged: true, resourcesPath: "C:/Program/HSL/resources" } }),
+    path.join("C:/Program/HSL/resources", "hsl", "mame-plugin", "hsl-score"),
+  );
+});
+
+test("product plugin staging reuses the runtime allowlist and excludes mutable data", async () => {
+  await withTempDir(async (root) => {
+    const result = await stageProductPlugin({ targetDir: path.join(root, "hsl-score") });
+    assert.ok(result.files.includes("init.lua"));
+    assert.ok(result.files.includes("plugin.json"));
+    assert.ok(result.files.some((file) => /core[\\/]config\.lua$/.test(file)));
+    assert.equal(result.files.some((file) => /(^|[\\/])events([\\/]|$)/.test(file)), false);
+    assert.equal(result.files.includes("config.lua"), false);
+  });
+});
+
+test("packaged competition stages hsl-score from resources without checkout-relative access", async () => {
+  await withTempDir(async (root) => {
+    const resourcesPath = path.join(root, "installed", "resources");
+    const sourceDir = path.join(resourcesPath, "hsl", "mame-plugin", "hsl-score");
+    for (const relativePath of ["init.lua", "plugin.json", "config.example.lua", "core/config.lua", "games/invaders.lua"]) {
+      const target = path.join(sourceDir, ...relativePath.split("/"));
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.writeFile(target, "return {}", "utf8");
+    }
+    const packRoot = path.join(root, "pack");
+    const adapterPath = path.join(packRoot, "scripts", "capture.lua");
+    await fsp.mkdir(path.dirname(adapterPath), { recursive: true });
+    await fsp.writeFile(adapterPath, "return {}", "utf8");
+    const config = {
+      appDir: path.join(root, "checkout-does-not-exist", "hsl-local-app"),
+      packRoot,
+      userDataDir: path.join(root, "userData"),
+      pack: {
+        packVersion: 2,
+        packId: "packaged-pack",
+        packRoot,
+        contract: {
+          version: 2,
+          capture: { adapter: "scripts/capture.lua", adapterPath, mode: "plugin", pluginName: "hsl-score" },
+        },
+      },
+    };
+    configureProductRuntime({ isPackaged: true, resourcesPath });
+    try {
+      const run = await prepareV2CompetitionRun(config, {
+        packKey: "pack_packaged",
+        playerKey: "user_player",
+        scopedQueueRoot: path.join(root, "queue"),
+      }, { runId: "run_packaged" });
+      assert.equal(run.copiedFiles.includes("init.lua"), true);
+      assert.equal(run.config.v2PluginRun.pluginDir.startsWith(config.userDataDir), true);
+      assert.equal(await fsp.readFile(path.join(run.pluginDir, "init.lua"), "utf8"), "return {}");
+      assert.equal(run.adapterSourcePath, adapterPath);
+      assert.equal(run.iniDir, path.join(run.runRoot, "ini"));
+    } finally {
+      resetProductRuntime();
+    }
+  });
+});
+
+test("MAME version parsing and minimum comparison are numeric", () => {
+  assert.deepEqual(parseMameVersion("MAME v0.287"), [0, 287, 0]);
+  assert.equal(compareMameVersions("0.287", "0.287"), 0);
+  assert.equal(compareMameVersions("0.287", "0.288"), -1);
+  assert.equal(compareMameVersions("0.288", "0.287"), 1);
+  assert.equal(isMameVersionCompatible("0.287", "0.287"), true);
+  assert.equal(isMameVersionCompatible("0.287", "0.288"), false);
+  assert.equal(isMameVersionCompatible("0.288", "0.287"), true);
+});
+
+test("reserved infrastructure arguments reject case, aliases and inline forms", () => {
+  for (const args of [
+    ["-ROMPATH", "D:/roms"],
+    ["--bgfx_path=D:/bgfx"],
+    ["/pluginspath:D:/plugins"],
+    ["-rp", "D:/roms"],
+    ["-NO_PLUGINS"],
+    ["-cfg-directory", "D:/cfg"],
+  ]) {
+    assert.ok(findReservedMameArgument(args));
+    assert.throws(() => validatePackMameArguments(args), /opcion reservada/);
+  }
+  assert.deepEqual(validatePackMameArguments(["-video", "bgfx", "-bgfx_screen_chains", "crt-geom", "-window"]), [
+    "-video", "bgfx", "-bgfx_screen_chains", "crt-geom", "-window",
+  ]);
+});
+
+test("renderer version comes through the narrow preload bridge", async () => {
+  const appSource = await fsp.readFile(path.join(__dirname, "..", "gui", "renderer", "app.js"), "utf8");
+  const preloadSource = await fsp.readFile(path.join(__dirname, "..", "gui", "preload.js"), "utf8");
+  assert.doesNotMatch(appSource, /const LAUNCHER_VERSION = "v1\.0\.0"/);
+  assert.match(appSource, /window\.hslLauncher\?\.productVersion/);
+  assert.match(preloadSource, /hsl-product-version/);
+  assert.match(preloadSource, /productVersion/);
+});

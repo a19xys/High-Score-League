@@ -8,6 +8,7 @@ const argumentValue = (name) => {
 };
 const startupTheme = argumentValue("hsl-startup-theme") === "light" ? "light" : "dark";
 const legacyThemeMigrationAllowed = argumentValue("hsl-legacy-theme-migration") === "1";
+const productVersion = argumentValue("hsl-product-version") || "0.0.0";
 const onEvent = (channel, callback) => {
   if (typeof callback !== "function") {
     return () => {};
@@ -45,6 +46,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   onRankingCapabilitiesState: (callback) => onEvent("launcher:ranking-capabilities-state", callback),
   playCompetition: invoke("launcher:play-competition"),
   platform: process.platform,
+  productVersion,
   practice: invoke("launcher:practice"),
   openRanking: invoke("launcher:open-ranking"),
   removeKnownAccount: (userId) => ipcRenderer.invoke("launcher:remove-known-account", userId),

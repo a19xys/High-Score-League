@@ -2,6 +2,14 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const { getGameByRom } = require("./games");
+const { validatePackMameArguments } = require("./mame-arguments");
+const {
+  buildMameMutableArgs,
+  ensureMameStateDirectories,
+  pathIsInside,
+  resolveMameState,
+} = require("./mame-runtime-state");
+const { isMameVersionCompatible } = require("./mame-version");
 
 const DEFAULT_PLUGIN_NAME = "hsl-score";
 const DEFAULT_LAUNCH_ARGS = ["-skip_gameinfo"];
@@ -47,6 +55,11 @@ function assertSharedMameRuntimeConfig(config) {
   if (typeof runtime.mameExecutablePath !== "string" || runtime.mameExecutablePath.trim() === "") {
     throw new Error("Runtime MAME compartido no configurado.");
   }
+
+  const minimumVersion = config.pack?.contract?.runtime?.minVersion;
+  if (minimumVersion && runtime.version && !isMameVersionCompatible(runtime.version, minimumVersion)) {
+    throw new Error(`MAME ${runtime.version} no cumple runtime.minVersion ${minimumVersion}.`);
+  }
 }
 
 function resolveLaunchRom(rom) {
@@ -63,21 +76,7 @@ function resolveLaunchRom(rom) {
 }
 
 function validateLaunchArgs(launchArgs, label = "mame.launchArgs") {
-  if (launchArgs === undefined || launchArgs === null) {
-    return [];
-  }
-
-  if (!Array.isArray(launchArgs)) {
-    throw new Error(`pack.json ${label} debe ser un array`);
-  }
-
-  return launchArgs.map((value) => {
-    if (typeof value !== "string" || value.includes("\0")) {
-      throw new Error(`pack.json ${label} solo puede incluir strings seguros`);
-    }
-
-    return value;
-  });
+  return validatePackMameArguments(launchArgs, label);
 }
 
 function getPackV2ModeProfile(config, mode) {
@@ -135,25 +134,28 @@ function addPackV2ResourceArgs(args, config, mode, mameRoot) {
 
   args.push("-rompath", mame.romDir);
 
-  if (mame.artworkDir) {
-    const mameArtworkDir = mameRoot ? path.join(mameRoot, "artwork") : null;
-    const artpath = uniquePathList([mame.artworkDir, mameArtworkDir]).join(path.delimiter);
+  if (mame.artworkDir || mameRoot) {
+    const artpath = uniquePathList([mame.artworkDir, mameRoot ? path.join(mameRoot, "artwork") : null]).join(path.delimiter);
     args.push("-artpath", artpath);
   }
 
-  if (mame.sampleDir) {
-    args.push("-samplepath", mame.sampleDir);
-  }
-
-  if (profile.cfgDir || mame.cfgDir) {
-    args.push("-cfg_directory", profile.cfgDir || mame.cfgDir);
+  if (mame.sampleDir || mameRoot) {
+    const samplepath = uniquePathList([mame.sampleDir, mameRoot ? path.join(mameRoot, "samples") : null]).join(path.delimiter);
+    args.push("-samplepath", samplepath);
   }
 
   args.push(...validateLaunchArgs(mame.launchArgs));
   args.push(...validateLaunchArgs(profile.launchArgs, `mame.profiles.${mode}.launchArgs`));
 
-  if (mameRoot && usesBgfx(args) && !hasArg(args, "-bgfx_path")) {
-    args.push("-bgfx_path", path.join(mameRoot, "bgfx"));
+  if (mameRoot) {
+    args.push(
+      "-bgfx_path", path.join(mameRoot, "bgfx"),
+      "-hlslpath", path.join(mameRoot, "hlsl"),
+      "-hashpath", path.join(mameRoot, "hash"),
+      "-ctrlrpath", path.join(mameRoot, "ctrlr"),
+      "-languagepath", path.join(mameRoot, "language"),
+      "-fontpath", mameRoot,
+    );
   }
 }
 
@@ -179,38 +181,51 @@ function buildPackV2MameArgs(config, rom, mode) {
   const args = [launch.rom];
   const pluginName = config.pack?.contract?.capture?.pluginName || DEFAULT_PLUGIN_NAME;
   const command = config.sharedMameRuntime.mameExecutablePath.trim();
-  const cwd = path.dirname(command);
+  const mameRoot = config.sharedMameRuntime.runtimeRoot || path.dirname(command);
+  const run = mode === "competition" ? config.v2PluginRun : null;
+  const mutableDirectories = resolveMameState(config, { runRoot: run?.runRoot || null });
+  const mame = config.pack?.contract?.mame || {};
+  const profile = getPackV2ModeProfile(config, mode);
+  const cfgDirectory = profile.cfgDir || mame.cfgDir || mutableDirectories.cfg;
 
   addDefaultLaunchArgs(args);
-  addPackV2ResourceArgs(args, config, mode, cwd);
+  addPackV2ResourceArgs(args, config, mode, mameRoot);
+  args.push(...buildMameMutableArgs(mutableDirectories, cfgDirectory));
 
   if (mode === "competition") {
-    const run = config.v2PluginRun;
-
     if (!run?.runRoot || !run?.pluginSearchDir || !run?.stagingPendingDir || run.pluginName !== pluginName) {
       throw new Error("Competicion v2 requiere preparar plugin/adaptador aislado antes de lanzar MAME.");
     }
 
     args.push(
-      "-homepath",
-      run.runRoot,
       "-pluginspath",
-      buildPluginSearchPath(run.pluginSearchDir, cwd),
+      buildPluginSearchPath(run.pluginSearchDir, mameRoot),
       "-plugins",
       "-plugin",
       pluginName
     );
+  } else {
+    args.push("-noplugins");
+  }
+
+  const effectiveMutableDirectories = { ...mutableDirectories, cfg: cfgDirectory };
+  for (const [name, directory] of Object.entries(effectiveMutableDirectories)) {
+    if (pathIsInside(directory, mameRoot)) {
+      throw new Error(`La ruta mutable MAME ${name} no puede estar dentro del runtime instalado.`);
+    }
   }
 
   return {
     args,
     command,
-    cwd,
+    cwd: mutableDirectories.home,
     game: launch.game,
+    mameRoot,
     mode,
+    mutableDirectories: effectiveMutableDirectories,
     pluginName,
     rom: launch.rom,
-    runtime: "shared-mame",
+    runtime: config.sharedMameRuntime.source || "external/dev",
     v2PluginRun: config.v2PluginRun || null,
   };
 }
@@ -257,8 +272,7 @@ function printLaunchSummary(launch) {
   if (launch.mode === "competition") {
     console.log(`Plugin: ${launch.pluginName} activado explicitamente`);
   } else {
-    console.log(`Plugin: ${launch.pluginName} no se activa explicitamente`);
-    console.log("Nota: si esta activado globalmente en plugin.ini, MAME podria cargarlo igualmente.");
+    console.log("Plugins: desactivados explicitamente para practica");
   }
 
   console.log(`Ejecutable: ${launch.command}`);
@@ -276,13 +290,13 @@ function printLaunchSummary(launch) {
     console.log(`BGFX path: ${bgfxPath}`);
   }
 
-  if (launch.runtime === "shared-mame") {
-    console.log("Runtime: MAME compartido");
+  if (["bundled", "external/dev"].includes(launch.runtime)) {
+    console.log(`Runtime: ${launch.runtime === "bundled" ? "MAME bundled" : "MAME externo de desarrollo"}`);
   }
 
   if (launch.v2PluginRun) {
     console.log(`Run v2: ${launch.v2PluginRun.runId || launch.v2PluginRun.runRoot}`);
-    console.log(`Pluginpath v2: ${buildPluginSearchPath(launch.v2PluginRun.pluginSearchDir, launch.cwd)}`);
+    console.log(`Pluginpath v2: ${buildPluginSearchPath(launch.v2PluginRun.pluginSearchDir, launch.mameRoot)}`);
     console.log(`Staging v2: ${launch.v2PluginRun.stagingPendingDir}`);
   }
 
@@ -290,7 +304,7 @@ function printLaunchSummary(launch) {
 }
 
 function assertLaunchResources(config, launch) {
-  if (launch.runtime !== "shared-mame") {
+  if (!["bundled", "external/dev"].includes(launch.runtime)) {
     return;
   }
 
@@ -316,7 +330,7 @@ function assertLaunchResources(config, launch) {
       throw new Error("No encuentro el plugin preparado para competicion v2.");
     }
 
-    const stockPluginBoot = path.join(launch.cwd, "plugins", "boot.lua");
+    const stockPluginBoot = path.join(launch.mameRoot, "plugins", "boot.lua");
 
     if (!fs.existsSync(stockPluginBoot) || !fs.statSync(stockPluginBoot).isFile()) {
       throw new Error("No encuentro boot.lua en los plugins base de MAME compartido.");
@@ -358,6 +372,7 @@ function attachProcessLifecycle(child, lifecycle, resolve, reject, resultFactory
 function launchMame(config, rom, mode, spawnImpl = spawn, lifecycle = null) {
   const launch = buildMameArgs(config, rom, mode);
   assertLaunchResources(config, launch);
+  ensureMameStateDirectories(launch.mutableDirectories);
   printLaunchSummary(launch);
 
   return new Promise((resolve, reject) => {
@@ -384,6 +399,7 @@ function trimOutputLines(lines) {
 function launchMameDetailed(config, rom, mode, spawnImpl = spawn, lifecycle = null) {
   const launch = buildMameArgs(config, rom, mode);
   assertLaunchResources(config, launch);
+  ensureMameStateDirectories(launch.mutableDirectories);
   printLaunchSummary(launch);
 
   return new Promise((resolve, reject) => {

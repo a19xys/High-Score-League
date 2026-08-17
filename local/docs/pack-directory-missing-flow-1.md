@@ -2,13 +2,13 @@
 
 El launcher distingue entre una biblioteca sin configurar, una carpeta existente y vacía, packs individuales con errores y una carpeta configurada que ha desaparecido o no es accesible.
 
-Si la biblioteca estaba en un disco extraíble, una unidad de red o una carpeta movida, el launcher muestra la variante `current-root-unavailable` del diálogo unificado de ubicación. **Detectar biblioteca** vuelve a comprobar exactamente la misma raíz y **Cambiar carpeta** abre el selector nativo. Escape o el backdrop cierran el aviso sin borrar la ruta configurada, favoritos, colas ni otros datos locales.
+Si la biblioteca estaba en un disco extraíble, una unidad de red o una carpeta movida, el launcher muestra la variante `current-root-unavailable` del diálogo unificado de ubicación. **Detectar packs** vuelve a comprobar exactamente la misma raíz y **Cambiar carpeta** abre el selector nativo. Escape o el backdrop cierran el aviso sin borrar la ruta configurada, favoritos, colas ni otros datos locales.
 
 ## Jerarquía de acciones
 
 Mientras la carpeta no está disponible, las acciones de recuperación viven únicamente en dos lugares:
 
-- el diálogo inicial, con **Detectar biblioteca** y **Cambiar carpeta**;
+- el diálogo inicial, con **Detectar packs** y **Cambiar carpeta**;
 - la cabecera de Biblioteca, donde `Biblioteca` es un encabezado real y **Abrir carpeta** y **Reescanear** son controles explícitos; **Cambiar ubicación** permanece en la toolbar.
 
 La tarjeta informativa y el detalle derecho no duplican estas acciones. El botón **Filtros** queda cerrado y deshabilitado (aria-expanded=false y aria-disabled=true) para los estados missing e inaccessible. Al recuperar la biblioteca vuelve a estar disponible, pero no se abre automáticamente.

@@ -120,7 +120,10 @@ function summarizeMame(config = {}) {
           available: Boolean(config.sharedMameRuntime.available),
           configured: Boolean(config.sharedMameRuntime.configured),
           mameExecutablePath: config.sharedMameRuntime.mameExecutablePath || null,
+          missingResources: config.sharedMameRuntime.missingResources || [],
           runtimeFile: config.sharedMameRuntime.runtimeFile || null,
+          source: config.sharedMameRuntime.source || "missing",
+          version: config.sharedMameRuntime.version || null,
           warnings: config.sharedMameRuntime.warnings || [],
         }
       : null,

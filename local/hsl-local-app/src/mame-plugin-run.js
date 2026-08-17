@@ -164,6 +164,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
     adapterPreparedPath: path.join(pluginDir, "games", "adapter.lua"),
     adapterSourcePath: readiness.adapterPath,
     createdAt: (options.now || new Date()).toISOString(),
+    iniDir: path.join(runRoot, "ini"),
     pluginDir,
     pluginName: readiness.pluginName,
     pluginSearchDir,
@@ -179,6 +180,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
   await fsp.mkdir(path.dirname(run.adapterPreparedPath), { recursive: true });
   await fsp.copyFile(readiness.adapterPath, run.adapterPreparedPath);
   await Promise.all([
+    fsp.mkdir(run.iniDir, { recursive: true }),
     fsp.mkdir(run.stagingPendingDir, { recursive: true }),
     fsp.mkdir(run.stagingFailedDir, { recursive: true }),
     fsp.mkdir(run.stagingSentDir, { recursive: true }),
@@ -190,6 +192,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
     adapterPreparedPath: run.adapterPreparedPath,
     adapterSourcePath: run.adapterSourcePath,
     createdAt: run.createdAt,
+    iniDir: run.iniDir,
     packId: config.pack?.packId || null,
     packKey: scope.packKey,
     playerKey: scope.playerKey,
@@ -208,6 +211,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
       v2PluginRun: {
         adapterPreparedPath: run.adapterPreparedPath,
         adapterSourcePath: run.adapterSourcePath,
+        iniDir: run.iniDir,
         pluginDir: run.pluginDir,
         pluginName: run.pluginName,
         pluginSearchDir: run.pluginSearchDir,

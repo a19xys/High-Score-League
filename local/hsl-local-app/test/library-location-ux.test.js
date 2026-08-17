@@ -260,7 +260,7 @@ test("el diálogo unificado cubre candidatas y raíces recordadas no disponibles
       activeDialog: { classification, issue: "rejected-candidate", type: "library-location" },
     });
     assert.match(html, copy);
-    assert.match(html, /data-action="detect-library-location"[\s\S]*Detectar biblioteca/);
+    assert.match(html, /data-action="detect-library-location"[\s\S]*Detectar packs/);
     assert.match(html, /data-action="choose-library-location"[\s\S]*Cambiar carpeta/);
     assert.doesNotMatch(html, /data-action="close-dialog"|>Cancelar</);
   }
@@ -273,13 +273,13 @@ test("el diálogo unificado cubre candidatas y raíces recordadas no disponibles
       type: "library-location",
     },
   });
-  assert.match(suggested, /data-action="detect-library-location"[\s\S]*Detectar biblioteca/);
+  assert.match(suggested, /data-action="detect-library-location"[\s\S]*Detectar packs/);
 
   for (const classification of ["missing", "inaccessible"]) {
     const html = renderAppDialog({
       activeDialog: { classification, issue: "current-root-unavailable", type: "library-location" },
     });
-    assert.match(html, /data-action="detect-library-location"[\s\S]*Detectar biblioteca/);
+    assert.match(html, /data-action="detect-library-location"[\s\S]*Detectar packs/);
     assert.match(html, /data-action="choose-library-location"[\s\S]*Cambiar carpeta/);
     assert.doesNotMatch(html, /data-action="close-dialog"|>Cancelar</);
   }
