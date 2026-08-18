@@ -11,6 +11,10 @@ import {
   validLauncherWeekDatabaseId,
 } from "../lib/launcher-week-capabilities.ts";
 import { deriveCurrentCompetitionWeekState } from "../lib/current-competition-week.ts";
+import {
+  deriveCanonicalWeekAuthority,
+  getDerivedWeekStatus,
+} from "../lib/week-status.ts";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const baseWeek = {
@@ -46,13 +50,64 @@ test("endpoint y vista web comparten la misma autoridad competitiva actual", () 
   const web = deriveCurrentCompetitionWeekState({ now, season, week: baseWeek });
   assert.equal(endpoint.publicState, "active");
   assert.equal(endpoint.publicState, web.publicState);
-  assert.equal(resolvePublicWeekCapability({ ...baseWeek, status: "closed", final_deadline_at: "2027-01-01T00:00:00Z" }, season, { now }).publicState, "closed");
+  assert.equal(resolvePublicWeekCapability({ ...baseWeek, status: "closed", final_deadline_at: "2027-01-01T00:00:00Z" }, season, { now }).publicState, "active");
   assert.equal(resolvePublicWeekCapability({ ...baseWeek, status: "published" }, season, { now }).publicState, "closed");
   assert.equal(resolvePublicWeekCapability(baseWeek, season, { hasOfficialResults: true, now }).publicState, "closed");
   assert.equal(resolvePublicWeekCapability(null, null).publicState, "unlinked");
   assert.equal(resolvePublicWeekCapability({ ...baseWeek, game_id: null }, { id: "season-a", status: "active" }).publicState, "unlinked");
   assert.equal(resolvePublicWeekCapability(baseWeek, { id: "season-a", status: "draft" }, { now }).publicState, "inactive");
   assert.equal(resolvePublicWeekCapability(baseWeek, { id: "season-a", status: "completed" }, { now }).publicState, "closed");
+});
+
+test("matriz canónica impide drift entre autoridad, web y launcher", async (t) => {
+  const cases = [
+    { name: "scheduled", week: { ...baseWeek, public_start_at: "2026-08-05T00:00:00Z" }, expected: ["scheduled", "inactive", "week-inactive"] },
+    { name: "active", week: baseWeek, expected: ["active", "active", "week-active"] },
+    { name: "final-stretch", week: baseWeek, caseNow: new Date("2026-08-06T00:00:00Z"), expected: ["final_stretch", "active", "week-active"] },
+    { name: "closed-deadline", week: baseWeek, caseNow: new Date("2026-08-07T00:00:00Z"), expected: ["closed", "closed", "week-closed"] },
+    { name: "published", week: { ...baseWeek, status: "published" }, expected: ["published", "closed", "week-published"] },
+    { name: "official-results", week: baseWeek, hasOfficialResults: true, expected: ["published", "closed", "official-results"] },
+    { name: "season-draft", week: baseWeek, season: { id: "season-a", status: "draft" }, expected: ["draft", "inactive", "season-inactive"] },
+    { name: "season-completed", week: baseWeek, season: { id: "season-a", status: "completed" }, expected: ["closed", "closed", "season-completed"] },
+    { name: "calendar-incomplete", week: { ...baseWeek, final_deadline_at: null }, expected: ["scheduled", "inactive", "calendar-incomplete"] },
+    { name: "raw-closed-open-calendar", week: { ...baseWeek, status: "closed" }, expected: ["active", "active", "week-active"] },
+    { name: "raw-active-expired", week: baseWeek, caseNow: new Date("2026-08-08T00:00:00Z"), expected: ["closed", "closed", "week-closed"] },
+  ];
+
+  for (const fixture of cases) {
+    await t.test(fixture.name, () => {
+      const season = fixture.season || { id: "season-a", status: "active" };
+      const caseNow = fixture.caseNow || now;
+      const canonical = deriveCanonicalWeekAuthority({
+        hasOfficialResults: fixture.hasOfficialResults,
+        now: caseNow,
+        season,
+        week: fixture.week,
+      });
+      const web = deriveCurrentCompetitionWeekState({
+        hasOfficialResults: fixture.hasOfficialResults,
+        now: caseNow,
+        season,
+        week: fixture.week,
+      });
+      const launcher = resolvePublicWeekCapability(fixture.week, season, {
+        hasOfficialResults: fixture.hasOfficialResults,
+        now: caseNow,
+      });
+      assert.deepEqual(
+        [canonical.derivedStatus, canonical.publicState, canonical.reason],
+        fixture.expected,
+      );
+      assert.deepEqual(web, canonical);
+      assert.deepEqual(launcher, canonical);
+      if (season.status === "active") {
+        assert.equal(
+          getDerivedWeekStatus(fixture.week, caseNow, fixture.hasOfficialResults),
+          canonical.derivedStatus,
+        );
+      }
+    });
+  }
 });
 
 test("batch conserva correlacion, fechas publicas y no contiene informacion personal", () => {
@@ -86,6 +141,20 @@ test("endpoint usa autoridad compartida y weekly_results batch, es publico y no-
   assert.match(route, /validateLauncherWeekRequest/);
   assert.match(route, /createSupabaseAdminClient/);
   assert.doesNotMatch(route, /Authorization|request\.cookies|getUser|season_memberships|scores/);
+});
+
+test("la escritura directa de status está deprecada y PATCH/cron usan reconciliación canónica", async () => {
+  const [directStatusRoute, canonicalWeekRoute, scheduleRoute] = await Promise.all([
+    readFile(join(root, "app", "api", "admin", "weeks", "[weekId]", "status", "route.ts"), "utf8"),
+    readFile(join(root, "app", "api", "admin", "weeks", "[weekId]", "route.ts"), "utf8"),
+    readFile(join(root, "app", "api", "cron", "process-schedule", "route.ts"), "utf8"),
+  ]);
+  assert.match(directStatusRoute, /WEEK_STATUS_DIRECT_WRITE_DEPRECATED/);
+  assert.match(directStatusRoute, /status:\s*410/);
+  assert.doesNotMatch(directStatusRoute, /\.from\("weeks"\)|\.update\(/);
+  assert.match(canonicalWeekRoute, /existingWeek\.status === "published"[\s\S]*?\? "published"/);
+  assert.match(canonicalWeekRoute, /reconcileWeek\(auth\.supabase, data\.id\)/);
+  assert.match(scheduleRoute, /reconcileWeek\(supabase, week\.id, now\)/);
 });
 
 test("batch cierra solo las weeks con resultados oficiales", () => {

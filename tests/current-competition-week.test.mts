@@ -19,10 +19,10 @@ function derive(overrides = {}, options = {}) {
   });
 }
 
-test("la autoridad actual aplica primero cierres terminales", () => {
+test("resultados y publicación son terminales, raw CLOSED no reemplaza el calendario", () => {
   assert.equal(derive({}, { hasOfficialResults: true }).publicState, "closed");
   assert.equal(derive({ status: "published" }).publicState, "closed");
-  assert.equal(derive({ status: "closed", final_deadline_at: "2027-01-01T00:00:00Z" }).publicState, "closed");
+  assert.equal(derive({ status: "closed", final_deadline_at: "2027-01-01T00:00:00Z" }).publicState, "active");
   assert.equal(derive({}, { season: { status: "completed" } }).publicState, "closed");
 });
 

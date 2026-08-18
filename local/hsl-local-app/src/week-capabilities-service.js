@@ -13,6 +13,8 @@ const DEFAULT_WEEK_CAPABILITIES_OPTIONS = Object.freeze({
   batchLimit: 100,
   maxAgeMs: 60 * 1000,
   requestTimeoutMs: 4 * 1000,
+  retryBaseMs: 5 * 1000,
+  retryMaxMs: 5 * 60 * 1000,
 });
 const identifierPattern = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -58,6 +60,7 @@ function createWeekCapabilitiesService(options = {}) {
   };
   let initialized = false;
   let stopped = false;
+  let suspended = false;
   let inFlight = null;
   let activeRun = null;
   let controller = null;
@@ -68,6 +71,14 @@ function createWeekCapabilitiesService(options = {}) {
   let requestSequence = 0;
   let lastRequest = null;
   let lastPreflight = null;
+  let lastAttemptAt = null;
+  let lastAttemptTrigger = null;
+  let lastAttemptResult = null;
+  let lastSuccessAt = null;
+  let lastFailureAt = null;
+  let lastFailureReason = null;
+  let retryAttempt = 0;
+  let retryScheduledAt = null;
   const lastResults = new Map();
 
   function connection() {
@@ -79,22 +90,29 @@ function createWeekCapabilitiesService(options = {}) {
   }
 
   function fallback(weekId) {
+    const checking = pendingIds.has(weekId);
     return {
       ageMs: null,
+      authorityState: checking ? "refreshing" : "unknown",
       canPlayCompetition: false,
       checkedAt: null,
       conclusive: false,
+      currentAuthority: false,
+      currentConclusive: false,
       derivedStatus: null,
       finalDeadlineAt: null,
       fresh: false,
+      lastKnownPublicState: null,
+      lastKnownReason: null,
       publicFreezeAt: null,
       publicStartAt: null,
-      publicState: pendingIds.has(weekId) ? "checking" : "unknown",
+      publicState: checking ? "checking" : "unknown",
       rawStatus: null,
-      reason: pendingIds.has(weekId) ? "checking" : "not-checked",
+      reason: checking ? "checking" : "not-checked",
       seasonId: null,
       source: "none",
       usable: false,
+      usableForCompetition: false,
       weekId,
     };
   }
@@ -103,11 +121,57 @@ function createWeekCapabilitiesService(options = {}) {
     if (!capability) return null;
     const checkedAtMs = Date.parse(capability.checkedAt || "");
     const ageMs = Number.isFinite(checkedAtMs) ? Math.max(0, now() - checkedAtMs) : null;
+    const fresh = ageMs !== null && ageMs <= config.maxAgeMs;
+    const connectivity = connection();
+    const connected = isCommittedConnected(connectivity);
+    const offline = connectivity.reachability === "offline";
+    const refreshing = inFlightIds.has(capability.weekId);
+    const lastAttempt = lastResults.get(capability.weekId);
+    const lastAttemptMs = Date.parse(lastAttempt?.checkedAt || "");
+    const failedAfterKnown = lastAttempt?.status === "failed"
+      && Number.isFinite(lastAttemptMs)
+      && (!Number.isFinite(checkedAtMs) || lastAttemptMs >= checkedAtMs);
+    const lastKnownPublicState = capability.lastKnownPublicState || capability.publicState;
+    let authorityState = "stale";
+    let currentAuthority = false;
+    let publicState = "unknown";
+
+    if (offline) {
+      authorityState = "offline-durable";
+      publicState = lastKnownPublicState;
+    } else if (!connected) {
+      authorityState = "awaiting-connectivity";
+    } else if (fresh) {
+      authorityState = "fresh-confirmed";
+      currentAuthority = true;
+      publicState = lastKnownPublicState;
+    } else if (refreshing) {
+      authorityState = "refreshing";
+      currentAuthority = true;
+      publicState = lastKnownPublicState;
+    } else if (failedAfterKnown) {
+      authorityState = "stale-error";
+    }
+
+    const usableForCompetition = capability.conclusive === true
+      && publicState === "active"
+      && (currentAuthority || authorityState === "offline-durable");
     return {
       ...capability,
       ageMs,
-      fresh: ageMs !== null && ageMs <= config.maxAgeMs,
+      authorityState,
+      canPlayCompetition: usableForCompetition,
+      currentAuthority,
+      currentConclusive: capability.conclusive === true && currentAuthority,
+      fresh,
+      lastKnownPublicState,
+      lastKnownReason: capability.reason || null,
+      publicState,
+      reason: publicState === "unknown" && capability.conclusive === true
+        ? "stale-no-current-confirmation"
+        : capability.reason,
       usable: capability.conclusive === true,
+      usableForCompetition,
     };
   }
 
@@ -137,18 +201,61 @@ function createWeekCapabilitiesService(options = {}) {
 
   function scheduleBoundary() {
     clearBoundaryTimer();
-    if (stopped) return;
-    const next = context.weekIds
-      .map((weekId) => getCapability(weekId).nextBoundaryAt)
-      .filter(Number.isFinite)
-      .sort((left, right) => left - right)[0];
-    if (!Number.isFinite(next)) return;
+    if (stopped || suspended || activeRun) return;
+    const connected = isCommittedConnected(connection());
+    const endpoint = weekCapabilitiesEndpoint(context.webBaseUrl);
+    const candidates = [];
+
+    for (const weekId of context.weekIds) {
+      const capability = getCapability(weekId);
+      if (Number.isFinite(capability.nextBoundaryAt)) {
+        candidates.push({ at: capability.nextBoundaryAt, kind: "calendar-boundary", weekIds: [weekId] });
+      }
+      if (connected && endpoint && retryScheduledAt === null) {
+        const checkedAt = Date.parse(capability.checkedAt || "");
+        candidates.push({
+          at: Number.isFinite(checkedAt) ? checkedAt + config.maxAgeMs + 1 : now(),
+          kind: "freshness-expired",
+          weekIds: [weekId],
+        });
+      }
+    }
+
+    if (connected && endpoint && Number.isFinite(retryScheduledAt)) {
+      candidates.push({ at: retryScheduledAt, kind: "freshness-retry", weekIds: [...context.weekIds] });
+    }
+
+    const next = candidates.sort((left, right) => left.at - right.at)[0];
+    if (!next || !Number.isFinite(next.at)) return;
+    const dueWeekIds = [...new Set(candidates
+      .filter((candidate) => candidate.kind === next.kind && candidate.at === next.at)
+      .flatMap((candidate) => candidate.weekIds))];
     boundaryTimer = scheduleTimeout(() => {
       boundaryTimer = null;
-      emit("local-time-boundary");
+      if (stopped || suspended) return;
+      if (isCommittedConnected(connection())) {
+        runRefresh(next.kind, {
+          force: next.kind !== "freshness-expired",
+          weekIds: dueWeekIds,
+        }).catch(() => {});
+        return;
+      }
+      emit(next.kind);
       scheduleBoundary();
-    }, Math.min(2_147_483_647, Math.max(0, next - now()) + 1));
+    }, Math.min(2_147_483_647, Math.max(0, next.at - now())));
     boundaryTimer?.unref?.();
+  }
+
+  function resetRetry() {
+    retryAttempt = 0;
+    retryScheduledAt = null;
+  }
+
+  function scheduleRetry(failure) {
+    if (stopped || suspended || ["cancelled", "stale-context"].includes(failure)) return;
+    retryAttempt += 1;
+    const delay = Math.min(config.retryMaxMs, config.retryBaseMs * (2 ** Math.max(0, retryAttempt - 1)));
+    retryScheduledAt = now() + delay;
   }
 
   function emit(reason) {
@@ -168,6 +275,7 @@ function createWeekCapabilitiesService(options = {}) {
   }
 
   function replaceContext(next) {
+    clearBoundaryTimer();
     context = { ...next, generation: context.generation + 1 };
     controller?.abort("context-change");
     controller = null;
@@ -175,6 +283,8 @@ function createWeekCapabilitiesService(options = {}) {
     activeRun = null;
     pendingIds = new Set();
     inFlightIds = new Set();
+    lastResults.clear();
+    resetRetry();
     emit("context-change");
     scheduleBoundary();
     return snapshot();
@@ -224,7 +334,7 @@ function createWeekCapabilitiesService(options = {}) {
       }
       return {
         canPlayCompetition: result.publicState === "active",
-        checkedAt: payload.generatedAt || new Date(now()).toISOString(),
+        checkedAt: new Date(now()).toISOString(),
         conclusive: true,
         derivedStatus: result.derivedStatus || null,
         finalDeadlineAt: result.finalDeadlineAt || null,
@@ -242,7 +352,7 @@ function createWeekCapabilitiesService(options = {}) {
   }
 
   function runRefresh(reason = "context", refreshOptions = {}) {
-    if (stopped || !isCommittedConnected(connection())) {
+    if (stopped || suspended || !isCommittedConnected(connection())) {
       return Promise.resolve({ requestedIds: [], results: new Map(), runId: null, state: snapshot() });
     }
     if (activeRun) return activeRun.promise;
@@ -269,6 +379,7 @@ function createWeekCapabilitiesService(options = {}) {
     const runId = ++requestSequence;
     const run = { ids: new Set(requestedIds), promise: null, runId };
     controller = new AbortController();
+    clearBoundaryTimer();
     const activeController = controller;
     pendingIds = new Set(requestedIds);
     inFlightIds = new Set(requestedIds);
@@ -291,6 +402,9 @@ function createWeekCapabilitiesService(options = {}) {
       result: "pending",
       runId,
     };
+    lastAttemptAt = requestDiagnostic.checkedAt;
+    lastAttemptTrigger = reason;
+    lastAttemptResult = "pending";
     const updateRequestDiagnostic = (patch) => {
       requestDiagnostic = { ...requestDiagnostic, ...patch };
       if (!lastRequest || Number(lastRequest.runId) <= runId) lastRequest = requestDiagnostic;
@@ -368,6 +482,9 @@ function createWeekCapabilitiesService(options = {}) {
             runResults.set(result.weekId, outcome);
           }
           updateRequestDiagnostic({ reason: null, result: "updated" });
+          lastAttemptResult = "updated";
+          lastSuccessAt = new Date(now()).toISOString();
+          resetRetry();
         } else {
           for (const weekId of requestedIds) {
             const outcome = { checkedAt: new Date(now()).toISOString(), reason: "stale-context", runId, status: "stale" };
@@ -375,6 +492,7 @@ function createWeekCapabilitiesService(options = {}) {
             runResults.set(weekId, outcome);
           }
           updateRequestDiagnostic({ reason: "stale-context", result: "stale" });
+          lastAttemptResult = "stale";
         }
       } catch (error) {
         const failure = abortedRequestReason(activeController.signal) || String(error?.reason || "temporary-failure");
@@ -389,6 +507,12 @@ function createWeekCapabilitiesService(options = {}) {
           const outcome = { checkedAt, reason: failure, runId, status: failure === "stale-context" ? "stale" : "failed" };
           lastResults.set(weekId, outcome);
           runResults.set(weekId, outcome);
+        }
+        lastAttemptResult = failure === "stale-context" ? "stale" : "failed";
+        if (lastAttemptResult === "failed") {
+          lastFailureAt = checkedAt;
+          lastFailureReason = failure;
+          scheduleRetry(failure);
         }
         if (failure === "timeout" || failure === "temporary-failure" || failure.startsWith("http-")) options.onTransportFailure?.("week-capabilities");
       } finally {
@@ -469,6 +593,19 @@ function createWeekCapabilitiesService(options = {}) {
     listeners.clear();
   }
 
+  function setSuspended(value) {
+    const next = value === true;
+    if (next === suspended) return snapshot();
+    suspended = next;
+    if (suspended) {
+      clearBoundaryTimer();
+      controller?.abort("suspend");
+    } else {
+      scheduleBoundary();
+    }
+    return snapshot();
+  }
+
   return {
     getAuthorityContext: () => ({ deploymentKey: context.deploymentKey, origin: context.webBaseUrl }),
     getCapability,
@@ -477,14 +614,24 @@ function createWeekCapabilitiesService(options = {}) {
       capabilities: Object.fromEntries(context.weekIds.map((weekId) => [weekId, getCapability(weekId)])),
       context: { deploymentKey: context.deploymentKey, generation: context.generation, webBaseUrl: context.webBaseUrl, weekCount: context.weekIds.length },
       inFlight: Boolean(inFlight),
+      lastAttemptAt,
+      lastAttemptResult,
+      lastAttemptTrigger,
+      lastFailureAt,
+      lastFailureReason,
       lastRequest,
       lastPreflight,
+      lastSuccessAt,
+      retryAttempt,
+      retryScheduledAt: Number.isFinite(retryScheduledAt) ? new Date(retryScheduledAt).toISOString() : null,
+      suspended,
       timerActive: boundaryTimer !== null,
     }),
     getState: snapshot,
     initialize,
     ensureFreshCapability,
     refresh,
+    setSuspended,
     stop,
     subscribe(listener) {
       if (typeof listener !== "function") return () => {};

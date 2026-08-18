@@ -94,3 +94,26 @@ test("el reloj local nunca abre una semana de una temporada aun inactiva", async
     assert.equal(cache.read(context, "week-draft", Date.parse("2026-08-03T00:00:00Z")).publicState, "inactive");
   });
 });
+
+test("raw CLOSED no invalida una autoridad canónica ACTIVE con calendario abierto", async () => {
+  await withTempDir(async (userDataDir) => {
+    const cache = createWeekCapabilityCache({ userDataDir });
+    await cache.initialize();
+    await cache.remember(context, {
+      checkedAt: "2026-08-02T00:00:00Z",
+      conclusive: true,
+      derivedStatus: "active",
+      finalDeadlineAt: "2026-08-03T00:00:00Z",
+      publicStartAt: "2026-08-01T00:00:00Z",
+      publicState: "active",
+      rawStatus: "closed",
+      reason: "week-active",
+      seasonId: "season-a",
+      seasonStatus: "active",
+      weekId: "week-raw-closed",
+    });
+    const capability = cache.read(context, "week-raw-closed", Date.parse("2026-08-02T12:00:00Z"));
+    assert.equal(capability.publicState, "active");
+    assert.equal(capability.rawStatus, "closed");
+  });
+});

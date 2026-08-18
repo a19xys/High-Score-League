@@ -50,6 +50,8 @@ test("main integra cache durable, freshness, triggers y preflight sin polling", 
   assert.match(main, /weekCapabilities\.refresh/);
   assert.match(main, /force: becameConnected \|\| manual/);
   assert.match(main, /weekCapabilities\?\.refresh\("focus"\)/);
+  assert.match(main, /weekCapabilities\?\.setSuspended\(true\)/);
+  assert.match(main, /weekCapabilities\?\.setSuspended\(false\)/);
   assert.match(main, /runCompetitionPlayPreflight/);
   assert.match(main, /ensureFreshCapability/);
   assert.match(main, /refreshWeekCapabilities: false/);

@@ -59,3 +59,32 @@ test("un pack local roto bloquea tambien PRACTICAR", () => {
   assert.equal(access.canPlayCompetition, false);
   assert.equal(access.reasonCategory, "local");
 });
+
+test("freshness distingue autoridad online caducada de conocimiento durable offline", () => {
+  for (const publicState of ["active", "closed"]) {
+    const stale = deriveCompetitionAccess(ready({
+      week: {
+        authorityState: "stale-error",
+        fresh: false,
+        lastKnownPublicState: publicState,
+        publicState,
+      },
+    }));
+    assert.equal(stale.canPlayCompetition, false);
+    assert.equal(stale.reason, "week-unknown");
+    assert.equal(stale.lastKnownWeekStatus, publicState);
+  }
+
+  const offline = deriveCompetitionAccess(ready({
+    session: { hasSession: true, remoteUsable: false, requiresLogin: false, userId: "user-a" },
+    week: {
+      authorityState: "offline-durable",
+      fresh: false,
+      lastKnownPublicState: "active",
+      publicState: "active",
+    },
+  }));
+  assert.equal(offline.canPlayCompetition, true);
+  assert.equal(offline.canSubmitNow, false);
+  assert.equal(offline.weekAuthorityState, "offline-durable");
+});

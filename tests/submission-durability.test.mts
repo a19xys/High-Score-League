@@ -33,6 +33,20 @@ test("detectedAt alone selects active, final stretch, before-open and closed", (
   );
 });
 
+test("una puntuación detectada durante ACTIVE sigue siendo válida al enviarse después del cierre", () => {
+  const historical = deriveSubmissionWindowAt(
+    window,
+    "2026-08-11T21:30:00.000Z",
+    { now: "2026-08-11T23:30:00.000Z" },
+  );
+  assert.deepEqual(historical, {
+    accepted: true,
+    code: null,
+    forceHidden: false,
+    state: "active",
+  });
+});
+
 test("freeze is optional, required dates are strict and there is no maximum event age", () => {
   const withoutFreeze = { ...window, public_freeze_at: null };
   assert.equal(

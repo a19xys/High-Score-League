@@ -281,6 +281,7 @@ function writePackagedSmokeReport(phase) {
 
 function handlePowerSuspend() {
   productOperationsController.abort("suspend");
+  weekCapabilities?.setSuspended(true);
   service.pausePlayTime();
   service.cancelPlayTimeSync("suspend");
   presence?.setSuspended(true);
@@ -300,6 +301,7 @@ function handlePowerSuspend() {
 function handlePowerResume() {
   suspendDrainPromise = null;
   productOperationsController = new AbortController();
+  weekCapabilities?.setSuspended(false);
   service.resumePlayTime();
   presence?.setSuspended(false).catch(() => {});
   connectivity?.setActivity("active", "resume");

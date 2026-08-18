@@ -165,9 +165,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   const { data: existingWeek, error: existingWeekError } = await auth.supabase
     .from("weeks")
-    .select("id,season_id,week_number")
+    .select("id,season_id,week_number,status")
     .eq("id", weekId)
-    .maybeSingle<Pick<WeekRow, "id" | "season_id" | "week_number">>();
+    .maybeSingle<Pick<WeekRow, "id" | "season_id" | "week_number" | "status">>();
 
   if (existingWeekError) {
     return jsonError("No se pudo comprobar la semana existente.", 500);
@@ -197,16 +197,19 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     .update({
       ...weekData,
       week_number: weekNumber,
-      status: getSynchronizedWeekStatus(
-        {
-          status: "draft",
-          public_start_at: weekData.public_start_at,
-          public_freeze_at: weekData.public_freeze_at,
-          final_deadline_at: weekData.final_deadline_at,
-        },
-        new Date(),
-        (existingResults ?? []).length > 0,
-      ),
+      status:
+        existingWeek.status === "published" || (existingResults ?? []).length > 0
+          ? "published"
+          : getSynchronizedWeekStatus(
+              {
+                status: "draft",
+                public_start_at: weekData.public_start_at,
+                public_freeze_at: weekData.public_freeze_at,
+                final_deadline_at: weekData.final_deadline_at,
+              },
+              new Date(),
+              false,
+            ),
     })
     .eq("id", weekId)
     .select(adminWeekColumns)

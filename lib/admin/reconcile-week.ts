@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSynchronizedSeasonStatus, getSynchronizedWeekStatus } from "@/lib/week-status";
+import { getSynchronizedSeasonStatus, getSynchronizedWeekStatus } from "../week-status.ts";
 import type { WeekStatus } from "@/types";
 import type { SeasonRow, WeekRow } from "@/types/supabase";
 
@@ -49,7 +49,7 @@ function isCompletedSeason(season: SeasonRow) {
   );
 }
 
-function resolveDateDrivenStatus(week: WeekRow, now: Date) {
+function resolveDateDrivenStatus(week: WeekRow, season: SeasonRow, now: Date) {
   return getSynchronizedWeekStatus(
     {
       ...week,
@@ -57,6 +57,7 @@ function resolveDateDrivenStatus(week: WeekRow, now: Date) {
     },
     now,
     false,
+    season.status,
   );
 }
 
@@ -290,7 +291,7 @@ export async function reconcileWeek(
   }
 
   const officialResultCount = (officialResults ?? []).length;
-  const dateDrivenStatus = resolveDateDrivenStatus(week, now);
+  const dateDrivenStatus = resolveDateDrivenStatus(week, season, now);
 
   if (!week.game_id && dateDrivenStatus !== "draft") {
     return {
@@ -302,6 +303,7 @@ export async function reconcileWeek(
   }
 
   const reopened =
+    season.status === "active" &&
     (officialResultCount > 0 || week.status === "published") &&
     dateDrivenStatus !== "closed";
   let weeklyResultsDeleted = 0;
@@ -325,10 +327,8 @@ export async function reconcileWeek(
 
   const hasOfficialAfterReopen = !reopened && officialResultCount > 0;
   const nextStatus: WeekStatus =
-    dateDrivenStatus === "closed"
-      ? hasOfficialAfterReopen || week.status === "published"
-        ? "published"
-        : "closed"
+    hasOfficialAfterReopen || (!reopened && week.status === "published")
+      ? "published"
       : dateDrivenStatus;
 
   const visibility = await updateSubmissionVisibility(

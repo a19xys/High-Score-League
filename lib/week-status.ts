@@ -11,10 +11,31 @@ export type DerivedWeekStatus =
   | "published";
 
 type WeekTiming = {
-  status: WeekStatus;
+  status: string;
   public_start_at?: string | null;
   public_freeze_at?: string | null;
   final_deadline_at?: string | null;
+};
+
+type WeekSeason = {
+  status: string;
+};
+
+export type CanonicalWeekPublicState = "inactive" | "active" | "closed";
+
+export type CanonicalWeekAuthority = {
+  canPlayCompetition: boolean;
+  derivedStatus: DerivedWeekStatus;
+  publicState: CanonicalWeekPublicState;
+  reason:
+    | "official-results"
+    | "week-published"
+    | "season-completed"
+    | "season-inactive"
+    | "calendar-incomplete"
+    | "week-inactive"
+    | "week-active"
+    | "week-closed";
 };
 
 function timestamp(value?: string | null) {
@@ -26,57 +47,108 @@ function timestamp(value?: string | null) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+export function deriveCanonicalWeekAuthority(options: {
+  week: WeekTiming;
+  season: WeekSeason;
+  hasOfficialResults?: boolean;
+  now?: Date;
+}): CanonicalWeekAuthority {
+  const { week, season } = options;
+  const rawStatus = String(week.status || "").toLowerCase();
+
+  if (options.hasOfficialResults === true) {
+    return {
+      canPlayCompetition: false,
+      derivedStatus: "published",
+      publicState: "closed",
+      reason: "official-results",
+    };
+  }
+
+  if (rawStatus === "published") {
+    return {
+      canPlayCompetition: false,
+      derivedStatus: "published",
+      publicState: "closed",
+      reason: "week-published",
+    };
+  }
+
+  if (season.status === "completed") {
+    return {
+      canPlayCompetition: false,
+      derivedStatus: "closed",
+      publicState: "closed",
+      reason: "season-completed",
+    };
+  }
+
+  if (season.status !== "active") {
+    return {
+      canPlayCompetition: false,
+      derivedStatus: "draft",
+      publicState: "inactive",
+      reason: "season-inactive",
+    };
+  }
+
+  const nowTime = (options.now || new Date()).getTime();
+  const opensAt = timestamp(week.public_start_at);
+  const finalStretchAt = timestamp(week.public_freeze_at);
+  const closesAt = timestamp(week.final_deadline_at);
+  const hasInvalidFinalStretch = week.public_freeze_at != null && (
+    finalStretchAt === null
+    || (opensAt !== null && finalStretchAt < opensAt)
+    || (closesAt !== null && finalStretchAt > closesAt)
+  );
+
+  if (opensAt === null || closesAt === null || opensAt >= closesAt || hasInvalidFinalStretch) {
+    return {
+      canPlayCompetition: false,
+      derivedStatus: rawStatus === "draft" ? "draft" : "scheduled",
+      publicState: "inactive",
+      reason: "calendar-incomplete",
+    };
+  }
+
+  if (nowTime < opensAt) {
+    return {
+      canPlayCompetition: false,
+      derivedStatus: "scheduled",
+      publicState: "inactive",
+      reason: "week-inactive",
+    };
+  }
+
+  if (nowTime >= closesAt) {
+    return {
+      canPlayCompetition: false,
+      derivedStatus: "closed",
+      publicState: "closed",
+      reason: "week-closed",
+    };
+  }
+
+  const finalStretch = finalStretchAt !== null && nowTime >= finalStretchAt;
+  return {
+    canPlayCompetition: true,
+    derivedStatus: finalStretch ? "final_stretch" : "active",
+    publicState: "active",
+    reason: "week-active",
+  };
+}
+
 export function getDerivedWeekStatus(
   week: WeekTiming,
   now = new Date(),
   hasOfficialResults = false,
 ): DerivedWeekStatus {
-  if (hasOfficialResults || week.status === "published") {
-    return "published";
-  }
-
-  const nowTime = now.getTime();
-  const opensAt = timestamp(week.public_start_at);
-  const finalStretchAt = timestamp(week.public_freeze_at);
-  const closesAt = timestamp(week.final_deadline_at);
-
-  if (opensAt !== null && nowTime < opensAt) {
-    return "scheduled";
-  }
-
-  if (closesAt !== null && nowTime >= closesAt) {
-    return "closed";
-  }
-
-  if (
-    finalStretchAt !== null &&
-    nowTime >= finalStretchAt &&
-    (closesAt === null || nowTime < closesAt)
-  ) {
-    return "final_stretch";
-  }
-
-  if (opensAt !== null && nowTime >= opensAt) {
-    return "active";
-  }
-
-  if (week.status === "draft") {
-    return "draft";
-  }
-
-  if (week.status === "closed") {
-    return "closed";
-  }
-
-  if (week.status === "frozen") {
-    return "final_stretch";
-  }
-
-  if (week.status === "active") {
-    return "active";
-  }
-
-  return "scheduled";
+  return deriveCanonicalWeekAuthority({
+    hasOfficialResults,
+    now,
+    season: { status: "active" },
+    week,
+  }).derivedStatus;
 }
 
 export function getDerivedWeekStatusFromRow(
@@ -149,36 +221,19 @@ export function getSynchronizedWeekStatus(
   >,
   now = new Date(),
   hasOfficialResults = false,
+  seasonStatus = "active",
 ): WeekStatus {
-  if (hasOfficialResults || week.status === "published") {
-    return "published";
-  }
+  const authority = deriveCanonicalWeekAuthority({
+    hasOfficialResults,
+    now,
+    season: { status: seasonStatus },
+    week,
+  });
 
-  const nowTime = now.getTime();
-  const opensAt = timestamp(week.public_start_at);
-  const finalStretchAt = timestamp(week.public_freeze_at);
-  const closesAt = timestamp(week.final_deadline_at);
-
-  if (opensAt !== null && nowTime < opensAt) {
-    return "draft";
-  }
-
-  if (closesAt !== null && nowTime >= closesAt) {
-    return "closed";
-  }
-
-  if (
-    finalStretchAt !== null &&
-    nowTime >= finalStretchAt &&
-    (closesAt === null || nowTime < closesAt)
-  ) {
-    return "frozen";
-  }
-
-  if (opensAt !== null && nowTime >= opensAt) {
-    return "active";
-  }
-
+  if (authority.derivedStatus === "published") return "published";
+  if (authority.derivedStatus === "closed") return "closed";
+  if (authority.derivedStatus === "final_stretch") return "frozen";
+  if (authority.derivedStatus === "active") return "active";
   return "draft";
 }
 

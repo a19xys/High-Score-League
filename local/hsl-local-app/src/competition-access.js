@@ -26,7 +26,10 @@ function deriveCompetitionAccess({
   const hasStableIdentity = session.hasSession === true && Boolean(session.userId);
   const requiresLogin = session.requiresLogin === true;
   const membershipStatus = membership.effectiveStatus || membership.status || "unknown";
-  const weekStatus = week.publicState || "unknown";
+  const weekAuthorityState = week.authorityState || null;
+  const weekStatus = week.fresh === false && weekAuthorityState !== "offline-durable" && weekAuthorityState !== "refreshing"
+    ? "unknown"
+    : week.publicState || "unknown";
 
   let reason = ACCESS_REASONS.READY;
   let reasonCategory = "ready";
@@ -77,6 +80,8 @@ function deriveCompetitionAccess({
     reason,
     reasonCategory,
     requiresLogin,
+    weekAuthorityState,
+    lastKnownWeekStatus: week.lastKnownPublicState || week.publicState || "unknown",
     weekStatus,
   };
 }

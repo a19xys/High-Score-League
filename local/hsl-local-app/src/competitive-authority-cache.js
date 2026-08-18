@@ -29,7 +29,7 @@ function safeIso(value) {
 function publicWeekStateAt(entry = {}, nowMs = Date.now()) {
   if (!entry || entry.conclusive !== true) return "unknown";
   if (entry.publicState === "unlinked" || ["not-found", "not-linked"].includes(entry.reason)) return "unlinked";
-  if (entry.seasonStatus === "completed" || entry.publicState === "closed" || ["closed", "published"].includes(entry.derivedStatus) || ["closed", "published"].includes(entry.rawStatus)) {
+  if (entry.seasonStatus === "completed" || entry.publicState === "closed" || ["closed", "published"].includes(entry.derivedStatus)) {
     return "closed";
   }
   if (entry.seasonStatus && entry.seasonStatus !== "active") return "inactive";
@@ -136,6 +136,8 @@ function createWeekCapabilityCache(config = {}, options = {}) {
       return {
         ...entry,
         canPlayCompetition: publicState === "active",
+        confirmedPublicState: entry.publicState,
+        lastKnownPublicState: publicState,
         nextBoundaryAt: nextWeekBoundaryAt(entry, nowMs),
         publicState,
         source: "durable-cache",
