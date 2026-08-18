@@ -14,10 +14,35 @@ const {
   stageWindowsRelease,
   validateBuildIdentity,
   validateLatestReleaseContract,
+  validatePrivilegedWorkflowIdentity,
 } = require("../scripts/lib/windows-release-github");
 const { SOURCE_COMMIT, SOURCE_REF, withReleaseBundle } = require("./windows-release-fixture");
 
 const ARTIFACT_DIGEST = `sha256:${"b".repeat(64)}`;
+
+test("privileged workflow identity accepts the canonical repository on master", () => {
+  assert.deepEqual(validatePrivilegedWorkflowIdentity({
+    workflowRepository: FULL_REPOSITORY,
+    workflowRef: SOURCE_REF,
+  }), {
+    workflowRepository: FULL_REPOSITORY,
+    workflowRef: SOURCE_REF,
+  });
+});
+
+test("privileged workflow identity rejects a feature branch", () => {
+  assert.throws(() => validatePrivilegedWorkflowIdentity({
+    workflowRepository: FULL_REPOSITORY,
+    workflowRef: "refs/heads/feature/release-test",
+  }), /refs\/heads\/master/);
+});
+
+test("privileged workflow identity rejects a different repository", () => {
+  assert.throws(() => validatePrivilegedWorkflowIdentity({
+    workflowRepository: "fork/High-Score-League",
+    workflowRef: SOURCE_REF,
+  }), /a19xys\/High-Score-League/);
+});
 
 function makeFakeGitHub(options = {}) {
   const state = {

@@ -7,6 +7,7 @@ const {
   publishWindowsRelease,
   remotePreflight,
   stageWindowsRelease,
+  validatePrivilegedWorkflowIdentity,
 } = require("./lib/windows-release-github");
 
 function readOption(name, fallback) {
@@ -27,12 +28,18 @@ async function writeSummary(markdown) {
 
 async function main() {
   const command = process.argv[2];
-  const client = createGitHubClient({ token: process.env.GITHUB_TOKEN });
   const version = readOption("version", process.env.HSL_RELEASE_VERSION);
   const sourceCommit = readOption("source-commit", process.env.GITHUB_SHA);
-  const sourceRef = readOption("source-ref", process.env.GITHUB_REF);
+  const workflowRef = process.env.GITHUB_REF;
+  const sourceRef = readOption("source-ref", workflowRef);
   const workflowRepository = process.env.GITHUB_REPOSITORY;
   const bundleDir = path.resolve(readOption("bundle-dir", path.join(__dirname, "..", "release-bundle")));
+
+  if (command === "locate" || command === "publish") {
+    validatePrivilegedWorkflowIdentity({ workflowRepository, workflowRef });
+  }
+
+  const client = createGitHubClient({ token: process.env.GITHUB_TOKEN });
 
   if (command === "preflight") {
     await remotePreflight(client, {

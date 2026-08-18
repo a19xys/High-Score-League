@@ -81,6 +81,8 @@ No se reintentan automáticamente POST/PATCH/uploads: una respuesta perdida tras
 
 Publish exige exactamente `PUBLICAR v<version>` antes de hacer consultas publicables y otra vez antes del PATCH final. El job declara `environment: windows-release`; además es una segunda ejecución `workflow_dispatch`, de modo que un error de configuración del Environment no convierte un Stage en publicación automática.
 
+La autoridad de publicación tiene tres barreras independientes: el job exige en YAML `github.ref == 'refs/heads/master'`; los comandos Node `locate` y `publish` validan directamente `GITHUB_REPOSITORY=a19xys/High-Score-League` y `GITHUB_REF=refs/heads/master` antes de cualquier operación publicable; y el Environment restringe qué ramas pueden desplegar. Así, el código privilegiado procede del `github.sha` de una ejecución lanzada sobre `master`, mientras que la provenance del draft conserva por separado su `sourceCommit` histórico. No se exige que ese `sourceCommit` coincida con el HEAD actual de `master` ni con el `github.sha` de Publish: `master` puede haber avanzado desde Stage.
+
 Antes de publicar vuelve a comprobar draft, release ID, tag, target, provenance, artifact no expirado, Stage run/master/SHA, pertenencia histórica del commit, package version, latest estable y todos los hashes locales/remotos. Solo entonces envía:
 
 ```text
@@ -114,7 +116,7 @@ Build usa `windows-2025`, Node 22 y el flujo existente `prepare:package`; el man
 
 ## Configuración de GitHub requerida antes de la primera Release
 
-1. En `Settings → Environments`, crear `windows-release` y añadir un required reviewer. Si la misma persona debe disparar y aprobar, no activar `Prevent self-review`, pues impediría ese flujo; si existe un segundo revisor, activarlo aporta separación adicional.
+1. En `Settings → Environments`, crear `windows-release` y añadir un required reviewer. Restringir el despliegue mediante `Deployment branches and tags → Selected branches and tags → Branch → master`. Esta es la tercera barrera independiente, además del `if` del job y la validación Node. Si la misma persona debe disparar y aprobar, no activar `Prevent self-review`, pues impediría ese flujo; si existe un segundo revisor, activarlo aporta separación adicional.
 2. En `Settings → Releases`, activar `Enable release immutability` **antes** de publicar `0.2.0`. La política solo protege Releases futuras. Con ella, assets y tag quedan bloqueados tras publicar; por eso todo se completa y verifica en draft.
 3. En `Settings → Actions`, confirmar que Actions está habilitado y que el `GITHUB_TOKEN` puede usar los permisos declarados por workflow. No configurar un PAT ni secretos de cliente.
 
@@ -133,8 +135,9 @@ Publicar `0.2.0` no actualiza un cliente que ya tiene `0.2.0`. La primera auto-u
 
 ## Recuperación y limitaciones
 
-- Si falla antes de Stage, solo queda el Actions Artifact; relanzar cuando se resuelva la causa.
-- Si falla durante uploads, el draft parcial queda visible. Relanzar Stage completa únicamente assets ausentes y conserva los idénticos.
+- Si Build y la subida del Actions Artifact terminaron correctamente y falla solo el job Stage, abrir esa misma ejecución en GitHub Actions y elegir `Re-run jobs → Re-run failed jobs`. Se reutilizan el `github.sha`, el `github.ref`, el build y el artifact originales; si había un draft parcial, Stage completa únicamente assets ausentes y conserva los idénticos.
+- Iniciar una ejecución completa nueva solo si Build falló o el artifact es inválido o ha expirado. En esos casos se repiten Build y las validaciones antes de intentar Stage.
+- No automatizar reintentos REST de POST, PATCH o uploads después de una respuesta ambigua. Reejecutar el job desde GitHub Actions permite que la reconciliación por tag, commit, nombre y hash determine el estado remoto antes de mutarlo.
 - Si aparece un hash distinto o estado remoto ambiguo, no borrar automáticamente. Auditar el draft/tag/asset en GitHub y resolverlo manualmente; nunca ocultar un conflicto.
 - Si el Artifact expira a los 30 días, Publish falla. Debe repetirse Stage y el QA humano, no reconstruir silenciosamente durante Publish.
 - Las pruebas locales usan un GitHub fake. No demuestran todavía ejecución real en GitHub-hosted `windows-2025`, permisos efectivos del repositorio, creación real del draft, upload de ~200 MB, protección del Environment, immutability ni una actualización N→N+1. Esos puntos se validan en la primera operación posterior al commit.

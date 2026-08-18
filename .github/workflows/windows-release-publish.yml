@@ -21,6 +21,7 @@ concurrency:
 jobs:
   publish:
     name: Revalidate original bytes and publish stable/latest
+    if: ${{ github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-24.04
     environment: windows-release
     permissions:

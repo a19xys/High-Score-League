@@ -23,6 +23,21 @@ function invariant(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function validatePrivilegedWorkflowIdentity(options) {
+  invariant(
+    options.workflowRepository === FULL_REPOSITORY,
+    `La operacion privilegiada solo puede ejecutarse en ${FULL_REPOSITORY}.`,
+  );
+  invariant(
+    options.workflowRef === SOURCE_REF,
+    `La operacion privilegiada solo puede ejecutarse desde ${SOURCE_REF}.`,
+  );
+  return {
+    workflowRepository: options.workflowRepository,
+    workflowRef: options.workflowRef,
+  };
+}
+
 function sanitizeErrorText(value, token) {
   let text = String(value || "Error GitHub desconocido");
   if (token) text = text.split(token).join("[REDACTED]");
@@ -514,6 +529,7 @@ module.exports = {
   stageWindowsRelease,
   validateBuildIdentity,
   validateLatestReleaseContract,
+  validatePrivilegedWorkflowIdentity,
   validateProvenance,
   verifyRemoteAssets,
 };

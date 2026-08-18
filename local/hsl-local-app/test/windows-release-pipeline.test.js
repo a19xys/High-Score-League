@@ -26,6 +26,7 @@ test("Windows release workflows are separate manual-only gates with shared non-c
   assert.match(stage, /default: dry-run/);
   assert.match(publish, /confirmation:/);
   assert.match(publish, /environment: windows-release/);
+  assert.match(publish, /^\s+if: \$\{\{ github\.ref == 'refs\/heads\/master' \}\}$/m);
 });
 
 test("build is Windows 2025 + Node 22 read-only and privileged jobs never install/build", async () => {
