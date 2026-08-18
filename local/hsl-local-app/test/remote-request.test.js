@@ -1,5 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { spawn } = require("node:child_process");
+const fsp = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 const { executeRemoteRequest } = require("../src/remote-request");
 
 function waitForAbort(signal) {
@@ -23,6 +27,38 @@ test("remote request timeout covers delayed headers", async () => {
   assert.equal(result.ok, false);
   assert.equal(result.failureType, "timeout");
   assert.equal(result.reason, "deadline-exceeded");
+});
+
+test("remote request deadline keeps an isolated pending operation alive", async () => {
+  const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-remote-request-deadline-"));
+  const markerPath = path.join(directory, "result.json");
+  const modulePath = path.resolve(__dirname, "..", "src", "remote-request.js");
+  const script = [
+    `const fs = require("node:fs");`,
+    `const { executeRemoteRequest } = require(${JSON.stringify(modulePath)});`,
+    `const waitForAbort = (signal) => new Promise((_, reject) => {`,
+    `  const fail = () => reject(Object.assign(new Error("aborted"), { name: "AbortError" }));`,
+    `  if (signal.aborted) fail(); else signal.addEventListener("abort", fail, { once: true });`,
+    `});`,
+    `executeRemoteRequest({`,
+    `  fetchImpl: async (_url, init) => waitForAbort(init.signal),`,
+    `  timeoutMs: 20,`,
+    `  url: "https://hsl.example/api",`,
+    `}).then((result) => fs.writeFileSync(${JSON.stringify(markerPath)}, JSON.stringify(result)));`,
+  ].join("\n");
+
+  try {
+    const child = spawn(process.execPath, ["-e", script], { stdio: "ignore" });
+    await new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`Child exit ${code}.`)));
+    });
+    const result = JSON.parse(await fsp.readFile(markerPath, "utf8"));
+    assert.equal(result.failureType, "timeout");
+    assert.equal(result.reason, "deadline-exceeded");
+  } finally {
+    await fsp.rm(directory, { force: true, recursive: true });
+  }
 });
 
 test("remote request timeout also covers body consumption", async () => {

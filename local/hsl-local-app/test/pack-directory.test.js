@@ -4,6 +4,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { addLibraryLocation, getLibraryLocationsFile } = require("../src/library-locations");
+const { canonicalPath } = require("../test-support/canonical-path.cjs");
 const {
   classifyLibraryRootCandidate,
   getPackDirectoryFile,
@@ -160,7 +161,11 @@ test("clasifica raices vacias y pobladas sin escaneo recursivo", async () => {
     assert.equal(empty.ok, true);
     assert.equal(populated.classification, "valid-populated-root");
     assert.equal(populated.ok, true);
-    assert.deepEqual(populated.directPackPaths, [path.join(populatedRoot, "Galaga")]);
+    assert.equal(populated.directPackPaths.length, 1);
+    assert.equal(
+      await canonicalPath(populated.directPackPaths[0]),
+      await canonicalPath(path.join(populatedRoot, "Galaga")),
+    );
   });
 });
 
@@ -176,10 +181,10 @@ test("clasifica carpeta de pack e interior con raiz superior sugerida", async ()
     const inside = await classifyLibraryRootCandidate(internal);
 
     assert.equal(pack.classification, "pack-root");
-    assert.equal(pack.suggestedRootPath, path.resolve(libraryRoot));
+    assert.equal(await canonicalPath(pack.suggestedRootPath), await canonicalPath(libraryRoot));
     assert.equal(inside.classification, "inside-pack");
-    assert.equal(inside.packRootPath, path.resolve(packRoot));
-    assert.equal(inside.suggestedRootPath, path.resolve(libraryRoot));
+    assert.equal(await canonicalPath(inside.packRootPath), await canonicalPath(packRoot));
+    assert.equal(await canonicalPath(inside.suggestedRootPath), await canonicalPath(libraryRoot));
   });
 });
 
@@ -206,7 +211,10 @@ test("clasifica missing, archivo, inaccesible y layout profundo", async () => {
     assert.equal(invalidFile.classification, "invalid-file");
     assert.equal(denied.classification, "inaccessible");
     assert.equal(deep.classification, "unsupported-layout");
-    assert.equal(deep.nestedPackPath, path.join(unsupported, "Arcade", "Pac-Man"));
+    assert.equal(
+      await canonicalPath(deep.nestedPackPath),
+      await canonicalPath(path.join(unsupported, "Arcade", "Pac-Man")),
+    );
   });
 });
 

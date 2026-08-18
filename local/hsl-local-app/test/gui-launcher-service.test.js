@@ -39,6 +39,7 @@ const { createPlayTimeStore } = require("../src/playtime-store");
 const { scanPackLibrary } = require("../src/pack-library");
 const { readLibrarySelection, writeLibrarySelection } = require("../src/library-selection");
 const { writeLastOpenedPack } = require("../src/recent-packs");
+const { canonicalPath } = require("../test-support/canonical-path.cjs");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-gui-pack-test-"));
@@ -2949,7 +2950,7 @@ test("selector rechaza pack e interior, conserva A y permite usar la raiz sugeri
     const rejectedPack = await choosePackDirectoryFromGui(packB, { config });
     assert.equal(rejectedPack.ok, false);
     assert.equal(rejectedPack.result.classification, "pack-root");
-    assert.equal(rejectedPack.result.suggestedRootPath, path.resolve(rootB));
+    assert.equal(await canonicalPath(rejectedPack.result.suggestedRootPath), await canonicalPath(rootB));
     assert.equal(rejectedPack.result.previousLibraryRoot, path.resolve(rootA));
     assert.equal(rejectedPack.state.library.directory.path, path.resolve(rootA));
     assert.equal(rejectedPack.state.activePack.instanceKey, stateA.activePack.instanceKey);
@@ -2958,15 +2959,15 @@ test("selector rechaza pack e interior, conserva A y permite usar la raiz sugeri
     const rejectedInside = await choosePackDirectoryFromGui(packAssets, { config });
     assert.equal(rejectedInside.ok, false);
     assert.equal(rejectedInside.result.classification, "inside-pack");
-    assert.equal(rejectedInside.result.suggestedRootPath, path.resolve(rootB));
+    assert.equal(await canonicalPath(rejectedInside.result.suggestedRootPath), await canonicalPath(rootB));
     assert.equal(rejectedInside.state.library.directory.path, path.resolve(rootA));
     assert.equal(rejectedInside.state.activePack.instanceKey, stateA.activePack.instanceKey);
 
     const acceptedParent = await choosePackDirectoryFromGui(rejectedPack.result.suggestedRootPath, { config });
     assert.equal(acceptedParent.ok, true);
     assert.equal(acceptedParent.result.classification, "valid-populated-root");
-    assert.equal(acceptedParent.state.library.directory.path, path.resolve(rootB));
-    assert.equal(acceptedParent.state.activePack.packDir, packB);
+    assert.equal(await canonicalPath(acceptedParent.state.library.directory.path), await canonicalPath(rootB));
+    assert.equal(await canonicalPath(acceptedParent.state.activePack.packDir), await canonicalPath(packB));
   });
 });
 

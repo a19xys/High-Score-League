@@ -17,6 +17,7 @@ const {
 } = require("../gui/launcher-service");
 const { writeLibraryLocations } = require("../src/library-locations");
 const { readPackDirectory, setPackDirectory } = require("../src/pack-directory");
+const { canonicalPath } = require("../test-support/canonical-path.cjs");
 
 async function withTempDir(run) {
   const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-library-location-"));
@@ -49,7 +50,7 @@ test("el contexto del selector procede solo de la raíz canónica y conserva mis
       config,
       selection: { activePackDir: externalPack },
     });
-    assert.equal(stable.defaultPath, path.resolve(rootA));
+    assert.equal(await canonicalPath(stable.defaultPath), await canonicalPath(rootA));
 
     const rejected = await choosePackDirectoryFromGui(path.join(rootB, "Galaga"), {
       config,
@@ -57,21 +58,25 @@ test("el contexto del selector procede solo de la raíz canónica y conserva mis
     });
     assert.equal(rejected.ok, false);
     assert.equal(rejected.result.classification, "pack-root");
-    assert.equal((await getLibraryLocationSelectionContext({ config })).defaultPath, path.resolve(rootA));
+    assert.equal(
+      await canonicalPath((await getLibraryLocationSelectionContext({ config })).defaultPath),
+      await canonicalPath(rootA),
+    );
 
     const accepted = await choosePackDirectoryFromGui(rejected.result.suggestedRootPath, {
       config,
       includeState: false,
     });
     assert.equal(accepted.ok, true);
-    assert.equal((await getLibraryLocationSelectionContext({ config })).defaultPath, path.resolve(rootB));
+    const acceptedContext = await getLibraryLocationSelectionContext({ config });
+    assert.equal(await canonicalPath(acceptedContext.defaultPath), await canonicalPath(rootB));
 
     await fsp.rm(rootB, { force: true, recursive: true });
     const missing = await getLibraryLocationSelectionContext({ config });
     assert.equal(missing.classification, "missing");
-    assert.equal(missing.defaultPath, path.resolve(rootB));
+    assert.equal(missing.defaultPath, acceptedContext.defaultPath);
     const retried = await rescanPackDirectory({ config });
-    assert.equal(retried.state.library.directory.path, path.resolve(rootB));
+    assert.equal(retried.state.library.directory.path, acceptedContext.defaultPath);
     assert.equal(retried.state.library.directory.available, false);
   });
 });
@@ -160,7 +165,7 @@ test("Detectar reclasifica pack-root e inside-pack, revalida la sugerencia y no 
     for (const candidate of [pack, inside]) {
       const detection = await detectLibraryLocationCandidate(candidate);
       assert.equal(detection.ok, true);
-      assert.equal(detection.detectedRootPath, path.resolve(root));
+      assert.equal(await canonicalPath(detection.detectedRootPath), await canonicalPath(root));
       assert.match(detection.result.classification, /^(pack-root|inside-pack)$/);
       assert.match(detection.validation.classification, /^valid-(empty|populated)-root$/);
     }
@@ -174,7 +179,7 @@ test("Detectar reclasifica pack-root e inside-pack, revalida la sugerencia y no 
     const staleSuggestion = await detectLibraryLocationCandidate(pack, {
       classifierOptions: {
         readdirImpl: async (target, options) => {
-          if (path.resolve(target) === path.resolve(root) && ++parentReads > 1) {
+          if (await canonicalPath(target) === await canonicalPath(root) && ++parentReads > 1) {
             const error = new Error("unidad retirada");
             error.code = "EACCES";
             throw error;

@@ -84,7 +84,6 @@ async function executeRemoteRequest(options = {}) {
   }
 
   timer = setTimeout(() => cancel("timeout", "remote-request-timeout"), timeoutMs);
-  timer.unref?.();
 
   const operation = (async () => {
     const response = await fetchImpl(options.url, {

@@ -60,6 +60,15 @@ async function flushMicrotasks() {
   for (let index = 0; index < 6; index += 1) await Promise.resolve();
 }
 
+function extractSimpleFunctionBlock(source, functionName) {
+  const normalized = source.replace(/\r\n/g, "\n");
+  const start = normalized.indexOf(`function ${functionName}`);
+  const end = normalized.indexOf("}\n", start);
+  assert.notEqual(start, -1, `No se encontro ${functionName}.`);
+  assert.notEqual(end, -1, `No se encontro el cierre de ${functionName}.`);
+  return normalized.slice(start, end + 2);
+}
+
 function deferred() {
   let reject;
   let resolve;
@@ -341,15 +350,17 @@ test("manual connectivity uses one guarded IPC call and the common overlay lifec
 
 test("automatic connectivity signals stay silent and outside operation feedback", async () => {
   const app = await fsp.readFile(path.join(rendererRoot, "app.js"), "utf8");
-  for (const [handler, reason] of [
-    ["handleRendererOffline", "renderer-offline"],
-    ["handleRendererOnline", "renderer-online"],
-    ["handleConnectionChange", "connection-change"],
-  ]) {
-    const start = app.indexOf(`function ${handler}`);
-    const block = app.slice(start, app.indexOf("}\n", start) + 2);
-    assert.match(block, new RegExp(`requestConnectivityRefresh\\?\\.\\(\"${reason}\"\\)`));
-    assert.doesNotMatch(block, /runAction|runWithOperationFeedback|busyLabel|setTimeout/);
+  const lfApp = app.replace(/\r\n/g, "\n");
+  for (const source of [lfApp, lfApp.replace(/\n/g, "\r\n")]) {
+    for (const [handler, reason] of [
+      ["handleRendererOffline", "renderer-offline"],
+      ["handleRendererOnline", "renderer-online"],
+      ["handleConnectionChange", "connection-change"],
+    ]) {
+      const block = extractSimpleFunctionBlock(source, handler);
+      assert.match(block, new RegExp(`requestConnectivityRefresh\\?\\.\\(\"${reason}\"\\)`));
+      assert.doesNotMatch(block, /runAction|runWithOperationFeedback|busyLabel|setTimeout/);
+    }
   }
 });
 
