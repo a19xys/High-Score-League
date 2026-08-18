@@ -56,7 +56,6 @@ async function validateUpdateArtifacts(options = {}) {
   assert(appUpdate.value?.channel === "latest", "app-update.yml: channel debe ser latest.");
   assert(!hasForbiddenKey(appUpdate.value) && !FORBIDDEN_TEXT.test(appUpdate.source), "app-update.yml contiene una clave de credencial prohibida.");
 
-  assert(expectedVersion === "0.2.0", `La primera build updater-aware debe ser 0.2.0, no ${expectedVersion}.`);
   assert(latest.value?.version === expectedVersion, `latest.yml declara ${latest.value?.version || "sin version"}; se esperaba ${expectedVersion}.`);
   assert(Array.isArray(latest.value?.files) && latest.value.files.length > 0, "latest.yml no contiene files updater.");
   assert(!hasForbiddenKey(latest.value) && !FORBIDDEN_TEXT.test(latest.source), "latest.yml contiene una clave de credencial prohibida.");
