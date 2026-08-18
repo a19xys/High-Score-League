@@ -45,7 +45,7 @@ Los `launchArgs` del pack conservan opciones de emulación/presentación, pero n
 
 `package.json.version` es la única autoridad de versión. Electron la entrega con `app.getVersion()` al preload mediante un argumento estrecho; renderer, Playtime y submissions reciben esa versión sin exponer Node.
 
-Desde `0.2.0`, la instalación NSIS incorpora `electron-updater` 6.8.9 y metadata para futuras GitHub Releases estables. Comprueba una vez después del milestone `interactive`, nunca descarga sin consentimiento y conserva todo `userData`. La arquitectura, lifecycle, validador y contrato de Release están documentados en [Windows auto-update 1](windows-autoupdate-1.md). Esta base no publica Releases: la autoridad de publicación pertenecerá a `LOCAL-WINDOWS-RELEASE-PIPELINE-1`.
+Desde `0.2.0`, la instalación NSIS incorpora `electron-updater` 6.8.9 y metadata para futuras GitHub Releases estables. Comprueba una vez después del milestone `interactive`, nunca descarga sin consentimiento y conserva todo `userData`. La arquitectura, lifecycle y contrato del updater están documentados en [Windows auto-update 1](windows-autoupdate-1.md). La autoridad manual Build → Stage → Publish, separada de electron-builder, está documentada en [Pipeline de Releases Windows 1](windows-release-pipeline-1.md).
 
 ## Checklist manual Windows
 

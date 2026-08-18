@@ -122,9 +122,9 @@ No debe publicarse una Release estable «solo web» que desplace `/releases/late
 
 La transición `0.1.0 → 0.2.0` es manual porque `0.1.0` no contiene updater. La primera actualización automática real será una futura `0.2.0 → 0.2.1` o `0.2.0 → 0.3.0`; no se fabrica una Release de igual versión para probar.
 
-## Pipeline futura (no implementada)
+## Pipeline de Release implementada
 
-`LOCAL-WINDOWS-RELEASE-PIPELINE-1` deberá ejecutar:
+`LOCAL-WINDOWS-RELEASE-PIPELINE-1` implementa dos workflows manuales separados y ejecuta:
 
 ```text
 build de una versión superior
@@ -132,12 +132,15 @@ build de una versión superior
 → Release draft
 → subida de esos artefactos, incluidos safe artifact names
 → validación de assets/metadata
-→ publicación estable
+→ QA humano
+→ segunda ejecución manual protegida para publicación estable
 → GitHub la convierte en latest
 → clientes instalados pueden verla
 ```
 
-Esta implementación no crea tags ni Releases y no requiere `GH_TOKEN` en el cliente.
+El build no posee permisos de escritura y `dist:win` conserva `--publish never`. Stage solo deja un draft con provenance del Actions Artifact exacto; Publish recupera esos mismos bytes, revalida hashes y publica con `make_latest` explícito. La operación completa, configuración requerida de Environment/immutability y recuperación ante fallos están documentadas en [Pipeline de Releases Windows 1](windows-release-pipeline-1.md).
+
+El cliente instalado continúa sin `GH_TOKEN`, PAT ni secretos. Solo los jobs manuales usan el `GITHUB_TOKEN` efímero de Actions.
 
 ## QA manual posterior
 
@@ -156,4 +159,4 @@ El instalador conserva `appId`, instalación per-user y `deleteAppDataOnUninstal
 
 ### Primera N → N+1 real
 
-Se hará tras `LOCAL-WINDOWS-RELEASE-PIPELINE-1`, con una Release estable realmente superior. Debe comprobar descarga, fallback completo/diferencial, drain, reemplazo, relanzamiento y preservación de userData. No pertenece a esta tarea.
+Se hará con una Release estable realmente superior después de validar operativamente la pipeline. Debe comprobar descarga, fallback completo/diferencial, drain, reemplazo, relanzamiento y preservación de userData. No pertenece a esta tarea.

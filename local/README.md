@@ -43,6 +43,8 @@ Windows packaging foundation:
 [`docs/windows-packaging-foundation-1.md`](docs/windows-packaging-foundation-1.md).
 Windows auto-update architecture and release contract:
 [`docs/windows-autoupdate-1.md`](docs/windows-autoupdate-1.md).
+Manual Windows Build → Stage → Publish pipeline and operator checklist:
+[`docs/windows-release-pipeline-1.md`](docs/windows-release-pipeline-1.md).
 
 ### App instalada
 

@@ -27,6 +27,8 @@
     "package:win": "npm run prepare:package && electron-builder --config electron-builder.config.cjs --win --x64 --dir --publish never",
     "dist:win": "npm run prepare:package && electron-builder --config electron-builder.config.cjs --win nsis --x64 --publish never && npm run validate:update-artifacts",
     "validate:update-artifacts": "node scripts/validate-update-artifacts.js",
+    "prepare:release-bundle": "node scripts/prepare-windows-release-bundle.js",
+    "validate:release-bundle": "node scripts/validate-windows-release-bundle.js",
     "smoke:packaged": "node scripts/smoke-packaged.js",
     "test": "node --test"
   },

@@ -22,6 +22,7 @@ local/hsl-local-app/logs/
 local/hsl-local-app/node_modules/
 local/hsl-local-app/.cache/
 local/hsl-local-app/dist/
+local/hsl-local-app/release-bundle/
 
 # MAME plugin local config
 local/mame-plugin/hsl-score/config.lua
