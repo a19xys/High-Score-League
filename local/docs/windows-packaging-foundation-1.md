@@ -16,7 +16,7 @@ npm run dist:win
 
 `prepare:package` no reutiliza ese árbol extraído de desarrollo: vuelve a verificar el SFX y crea desde cero `.cache/product/mame/<version>/runtime`. `electron-builder` toma MAME exclusivamente de ese staging de producto, cuya versión se deriva del mismo manifest. Así, una modificación previa de cualquiera de los dos árboles de caché no pasa silenciosamente a la distribución. `.cache` y `dist` están ignorados por Git.
 
-`package:win` genera `dist/win-unpacked`; `dist:win` genera el instalador NSIS x64 per-user y one-click `High Score League Setup <version>.exe`. El código queda en ASAR. MAME y el plugin son `extraResources`.
+`package:win` genera `dist/win-unpacked` como build rápido de smoke y no exige configuración updater. `dist:win` genera el instalador NSIS x64 per-user y one-click `High Score League Setup <version>.exe`, su blockmap, `latest.yml` y `win-unpacked/resources/app-update.yml`; después valida offline hashes y contrato GitHub. Ambos scripts usan `--publish never`. El código queda en ASAR. MAME y el plugin son `extraResources`.
 
 La configuración pública inmutable vive en `product-public-config.json` y se valida al cargar la configuración de electron-builder. Solo contiene HSL origin, Supabase URL y publishable key. El build rechaza `sb_secret_*` y JWT `service_role`.
 
@@ -41,11 +41,11 @@ Competición v2 copia por run la allowlist de `hsl-score`, el adapter del pack, 
 
 Los `launchArgs` del pack conservan opciones de emulación/presentación, pero no pueden controlar ROM/art/sample paths, BGFX/HLSL/hash/ctrlr/font/language/INI paths, home/plugin policy ni directorios mutables. Se reconocen mayúsculas, formas inline y aliases documentados.
 
-## Versión y actualización futura
+## Versión y actualización
 
 `package.json.version` es la única autoridad de versión. Electron la entrega con `app.getVersion()` al preload mediante un argumento estrecho; renderer, Playtime y submissions reciben esa versión sin exponer Node.
 
-Una futura actualización debe poder reemplazar `app.asar`, MAME y los recursos HSL. Debe conservar todo `userData`. Esta base no incorpora `electron-updater`, feed, Releases ni `latest.yml` como infraestructura de publicación.
+Desde `0.2.0`, la instalación NSIS incorpora `electron-updater` 6.8.9 y metadata para futuras GitHub Releases estables. Comprueba una vez después del milestone `interactive`, nunca descarga sin consentimiento y conserva todo `userData`. La arquitectura, lifecycle, validador y contrato de Release están documentados en [Windows auto-update 1](windows-autoupdate-1.md). Esta base no publica Releases: la autoridad de publicación pertenecerá a `LOCAL-WINDOWS-RELEASE-PIPELINE-1`.
 
 ## Checklist manual Windows
 

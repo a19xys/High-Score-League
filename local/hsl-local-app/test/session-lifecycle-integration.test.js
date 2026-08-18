@@ -6,9 +6,12 @@ const path = require("node:path");
 test("Electron quit and suspend use bounded session drains without a quit loop", async () => {
   const main = await fsp.readFile(path.join(__dirname, "..", "gui", "main.js"), "utf8");
   const service = await fsp.readFile(path.join(__dirname, "..", "gui", "launcher-service.js"), "utf8");
-  assert.match(main, /event\.preventDefault\(\)/);
-  assert.match(main, /if \(quitAfterSessionDrain\) return/);
-  assert.match(main, /if \(quitDrainPromise\) return/);
+  const coordinator = await fsp.readFile(path.join(__dirname, "..", "src", "exit-coordinator.js"), "utf8");
+  assert.match(main, /createExitCoordinator\(\{/);
+  assert.match(main, /app\.on\("before-quit", \(event\) => \{[\s\S]*exitCoordinator\.handleBeforeQuit\(event\)/);
+  assert.match(coordinator, /event\?\.preventDefault\?\.\(\)/);
+  assert.match(coordinator, /if \(phase === "armed"\) return false/);
+  assert.match(coordinator, /if \(drainPromise\) return drainPromise/);
   assert.match(main, /shutdownAccountSessions\(\{ reason: "shutdown", timeoutMs: 3000 \}\)/);
   assert.match(main, /drainAccountSessionOperations\?\.\(\{[\s\S]*reason: "suspend"[\s\S]*timeoutMs: 2000/);
   assert.match(service, /async function drainAccountSessionOperations/);

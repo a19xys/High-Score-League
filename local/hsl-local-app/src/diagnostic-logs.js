@@ -198,6 +198,7 @@ function buildDiagnosticPayload(config, report, context = {}, options = {}) {
     rankingCapabilities: context.remoteDiagnostics?.ranking || state?.rankingCapabilities || null,
     accountSessions: context.remoteDiagnostics?.sessions || null,
     securityPolicy: context.remoteDiagnostics?.securityPolicy || null,
+    windowsUpdate: context.remoteDiagnostics?.windowsUpdate || null,
     diagnose: {
       counts: countReportLevels(report),
       errors: report?.errors || [],

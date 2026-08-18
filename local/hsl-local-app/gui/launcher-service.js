@@ -2281,6 +2281,11 @@ async function runDiagnose(options = {}) {
       message: "autoenvio de puntuaciones pendientes",
       detail: remoteDiagnostics.autoSubmit || null,
     }];
+    report.sections.windowsUpdate = [{
+      level: remoteDiagnostics.windowsUpdate?.state === "error" ? "INFO" : "OK",
+      message: `actualizaciones Windows: ${remoteDiagnostics.windowsUpdate?.state || "disabled"}`,
+      detail: remoteDiagnostics.windowsUpdate || null,
+    }];
 
     if (connectivityEntry.level === "WARN") {
       report.warnings.push(connectivityEntry);

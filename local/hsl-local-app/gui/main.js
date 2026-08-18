@@ -40,6 +40,8 @@ const packageMetadata = require("../package.json");
 const { loadConfig } = require("../src/config");
 const { getRepoPluginDir } = require("../src/dev-sync-plugin");
 const { configureProductRuntime } = require("../src/product-runtime");
+const { createExitCoordinator } = require("../src/exit-coordinator");
+const { createWindowsUpdateService } = require("../src/windows-update-service");
 
 app.setName("High Score League");
 if (process.env.HSL_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.HSL_USER_DATA_DIR));
@@ -93,9 +95,20 @@ const launcherStateAuthority = createLauncherStateAuthority();
 let connectivityRendererTiming = { appliedAt: null, emittedAt: null, receivedAt: null };
 let rankingRendererTiming = { appliedAt: null, receivedAt: null, stateSequence: 0 };
 let sessionMaintenanceTimer = null;
-let quitAfterSessionDrain = false;
-let quitDrainPromise = null;
+let windowsUpdate = null;
 let suspendDrainPromise = null;
+
+const exitCoordinator = createExitCoordinator({
+  async drain(intent) {
+    windowsUpdate?.shutdown(intent === "update" ? "update-quit" : "normal-quit");
+    powerMonitor.removeListener("suspend", handlePowerSuspend);
+    powerMonitor.removeListener("resume", handlePowerResume);
+    await stopRemoteServices();
+  },
+  finalQuit() {
+    app.quit();
+  },
+});
 
 function cancelManualMembershipRun(reason = "context-change") {
   manualMembershipRunSequence += 1;
@@ -247,6 +260,24 @@ function applyNativeWindowTheme(window, theme) {
   }
 }
 
+function initializeWindowsUpdateService() {
+  if (windowsUpdate) return windowsUpdate.getState();
+  windowsUpdate = createWindowsUpdateService({
+    canInstall: () => exitCoordinator.getState().phase === "idle",
+    currentVersion: app.getVersion(),
+    existsSync: fs.existsSync,
+    loadUpdater: () => require("electron-updater").autoUpdater,
+    onBeforeInstall: () => exitCoordinator.setIntent("update"),
+    onInstallFailed: () => exitCoordinator.clearIntent("update"),
+    onStateChange: (state) => sendRendererEvent("launcher:windows-update-state", state),
+    packaged: app.isPackaged,
+    packagedSmoke: Boolean(process.env.HSL_PACKAGED_SMOKE_FILE),
+    platform: process.platform,
+    resourcesPath: process.resourcesPath,
+  });
+  return windowsUpdate.initialize();
+}
+
 function writePackagedSmokeReport(phase) {
   const reportPath = process.env.HSL_PACKAGED_SMOKE_FILE;
   if (!reportPath) return null;
@@ -267,6 +298,7 @@ function writePackagedSmokeReport(phase) {
       productName: app.getName(),
       rendererReady: phase === "renderer-ready",
       resourcesPath: process.resourcesPath,
+      windowsUpdate: windowsUpdate?.getState() || null,
       version: app.getVersion(),
     };
     fs.mkdirSync(path.dirname(reportPath), { recursive: true });
@@ -637,6 +669,7 @@ function initializeRemoteServices() {
     membershipResolution: membershipStartupCoordinator.getDiagnostics(),
     sessionStorage: getSessionStorageDiagnostics(),
     startup: { milestones: { ...startupTimings } },
+    windowsUpdate: windowsUpdate?.getState() || null,
     connectivity: {
       ...connectivity.getDiagnostics(),
       committedReachability: connectivity.getState().reachability,
@@ -931,7 +964,15 @@ function registerIpc() {
   ipcMain.on("launcher:startup-milestone", (_event, milestone) => {
     const name = String(milestone?.name || "");
     recordStartupMilestone(name, { status: milestone?.status });
+    if (name === "interactive") windowsUpdate?.checkOnce().catch(() => {});
   });
+  ipcMain.handle("launcher:get-windows-update-state", () => windowsUpdate?.getState() || null);
+  ipcMain.handle("launcher:accept-windows-update", () => windowsUpdate?.accept() || {
+    errorCode: "UPDATE_DISABLED",
+    ok: false,
+    state: null,
+  });
+  ipcMain.handle("launcher:decline-windows-update", () => windowsUpdate?.decline() || null);
   ipcMain.handle("launcher:get-connectivity-state", () => connectivity.getState());
   ipcMain.on("launcher:connectivity-applied", (_event, timing) => {
     connectivityRendererTiming = {
@@ -1301,6 +1342,7 @@ if (!hasSingleInstanceLock) {
 } else {
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
+    initializeWindowsUpdateService();
     writePackagedSmokeReport("main-ready");
     if (process.platform === "win32") app.setAppUserModelId("com.highscoreleague.launcher");
     themeAuthority = createThemeAuthority({
@@ -1338,17 +1380,7 @@ if (!hasSingleInstanceLock) {
   });
 
   app.on("before-quit", (event) => {
-    if (quitAfterSessionDrain) return;
-    event.preventDefault();
-    if (quitDrainPromise) return;
-    powerMonitor.removeListener("suspend", handlePowerSuspend);
-    powerMonitor.removeListener("resume", handlePowerResume);
-    quitDrainPromise = Promise.resolve(stopRemoteServices())
-      .catch(() => null)
-      .finally(() => {
-        quitAfterSessionDrain = true;
-        app.quit();
-      });
+    exitCoordinator.handleBeforeQuit(event);
   });
 
   app.on("window-all-closed", () => {

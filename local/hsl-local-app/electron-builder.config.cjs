@@ -57,4 +57,13 @@ module.exports = {
     deleteAppDataOnUninstall: false,
     artifactName: "High Score League Setup ${version}.${ext}",
   },
+  publish: [
+    {
+      provider: "github",
+      owner: "a19xys",
+      repo: "High-Score-League",
+      channel: "latest",
+      private: false,
+    },
+  ],
 };

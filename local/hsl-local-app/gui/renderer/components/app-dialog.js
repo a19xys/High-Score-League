@@ -132,7 +132,58 @@ function renderLibraryLocationDialog(dialog) {
   `;
 }
 
+function renderWindowsUpdateDialog() {
+  const titleId = "app-dialog-windows-update-title";
+  const descriptionId = "app-dialog-windows-update-description";
+  const buttons = [
+    { action: "decline-windows-update", autofocus: true, label: "Ahora no", variant: "secondary" },
+    { action: "accept-windows-update", label: "Actualizar", variant: "primary" },
+  ];
+
+  return `
+    <div class="app-dialog-layer" data-dialog-backdrop>
+      <section class="app-dialog app-dialog--windows-update" role="dialog" aria-modal="true" aria-labelledby="${titleId}" aria-describedby="${descriptionId}" data-dialog>
+        <div class="app-dialog__header">
+          <p class="eyebrow">Actualización disponible</p>
+          <h2 id="${titleId}">Actualizar High Score League</h2>
+          <p id="${descriptionId}">Hay una nueva versión de High Score League. ¿Quieres actualizar ahora?</p>
+        </div>
+        <div class="app-dialog__actions app-dialog__actions--windows-update">
+          ${buttons.map(renderDialogButton).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderWindowsUpdateErrorDialog() {
+  const titleId = "app-dialog-windows-update-error-title";
+  const descriptionId = "app-dialog-windows-update-error-description";
+  return `
+    <div class="app-dialog-layer" data-dialog-backdrop>
+      <section class="app-dialog app-dialog--windows-update" role="dialog" aria-modal="true" aria-labelledby="${titleId}" aria-describedby="${descriptionId}" data-dialog>
+        <div class="app-dialog__header">
+          <p class="eyebrow">Actualización</p>
+          <h2 id="${titleId}">No se pudo descargar la actualización</h2>
+          <p id="${descriptionId}">No se pudo descargar la actualización. Puedes seguir usando High Score League y se volverá a comprobar la próxima vez que abras la aplicación.</p>
+        </div>
+        <div class="app-dialog__actions app-dialog__actions--windows-update">
+          ${renderDialogButton({ action: "close-dialog", autofocus: true, label: "Cerrar", variant: "secondary" })}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 export function renderAppDialog(state) {
+  if (state?.activeDialog?.type === "windows-update") {
+    return renderWindowsUpdateDialog();
+  }
+
+  if (state?.activeDialog?.type === "windows-update-error") {
+    return renderWindowsUpdateErrorDialog();
+  }
+
   if (state?.activeDialog?.type === "forget-account") {
     return renderForgetAccountDialog(state.activeDialog);
   }

@@ -1,6 +1,6 @@
 {
   "name": "hsl-local-app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "High Score League local event reader",
   "main": "gui/main.js",
@@ -24,13 +24,15 @@
     "prepare:mame": "node scripts/prepare-mame.js",
     "prepare:plugin": "node scripts/stage-product-plugin.js",
     "prepare:package": "node scripts/prepare-package.js",
-    "package:win": "npm run prepare:package && electron-builder --config electron-builder.config.cjs --win --x64 --dir",
-    "dist:win": "npm run prepare:package && electron-builder --config electron-builder.config.cjs --win nsis --x64",
+    "package:win": "npm run prepare:package && electron-builder --config electron-builder.config.cjs --win --x64 --dir --publish never",
+    "dist:win": "npm run prepare:package && electron-builder --config electron-builder.config.cjs --win nsis --x64 --publish never && npm run validate:update-artifacts",
+    "validate:update-artifacts": "node scripts/validate-update-artifacts.js",
     "smoke:packaged": "node scripts/smoke-packaged.js",
     "test": "node --test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.0.0",
+    "electron-updater": "6.8.9",
     "yauzl": "^3.4.0"
   },
   "devDependencies": {

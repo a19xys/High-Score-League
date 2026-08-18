@@ -1419,7 +1419,8 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(styles, /\.game-detail-card \.activity-summary-card/);
   assert.match(styles, /\.game-detail-card \.ready-copy[\s\S]*font-size: 16px[\s\S]*line-height: 1\.6/);
   assert.match(styles, /\.pack-card--covers \.pack-card__media[\s\S]*aspect-ratio: 2 \/ 3/);
-  assert.match(app, /Launcher actualizado/);
+  assert.match(app, /Launcher listo/);
+  assert.doesNotMatch(app, /Launcher actualizado/);
   assert.match(app, /LAUNCHER_VERSION = `v\$\{window\.hslLauncher\?\.productVersion/);
   assert.match(app, /renderStatusFooter/);
   assert.match(styles, /\.theme-icon\.ui-icon--moon[\s\S]*color: currentColor/);

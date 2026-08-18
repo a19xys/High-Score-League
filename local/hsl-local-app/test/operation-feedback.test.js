@@ -263,7 +263,13 @@ test("every automatic busy overlay entry point uses the common lifecycle", async
     const block = app.slice(app.indexOf(startMarker), app.indexOf(endMarker));
     assert.match(block, /runWithOperationFeedback\(\{/, label);
   }
-  assert.equal((app.match(/busy:\s*true/g) || []).length, blocks.length);
+  assert.equal((app.match(/busy:\s*true/g) || []).length, blocks.length + 1);
+  const updaterBlock = app.slice(
+    app.indexOf("async function acceptWindowsUpdate"),
+    app.indexOf("async function toggleLibraryFavorite"),
+  );
+  assert.match(updaterBlock, /prepareAndAcceptWindowsUpdate\(\{/);
+  assert.match(updaterBlock, /beginBusy: \(\) => store\.setState\(\{ activeDialog: null, busy: true/);
   assert.doesNotMatch(app, /waitForMinimumVisibleDuration|DEFAULT_OPERATION_MIN_VISIBLE_MS|busyStartedAt|activationStartedAt/);
   assert.match(app, /cleanupRendererLifecycle[\s\S]*cancelActiveOperationFeedback\(\)/);
 

@@ -45,6 +45,9 @@ async function smokePackaged(options = {}) {
     if (!report.mame?.available || report.mame.version !== manifest.version || !report.productConfigAvailable || !report.pluginAvailable) {
       throw new Error(`Recursos empaquetados incompletos: ${JSON.stringify(report)}`);
     }
+    if (report.windowsUpdate?.enabled !== false || report.windowsUpdate?.enableReason !== "packaged-smoke") {
+      throw new Error(`El updater no quedo aislado durante smoke: ${JSON.stringify(report.windowsUpdate)}`);
+    }
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
     return report;
   } finally {

@@ -39,6 +39,10 @@ Final shared MAME runtime blueprint:
 [`docs/shared-mame-runtime-blueprint-1.md`](docs/shared-mame-runtime-blueprint-1.md).
 Implemented shared MAME runtime notes:
 [`docs/shared-mame-runtime-1.md`](docs/shared-mame-runtime-1.md).
+Windows packaging foundation:
+[`docs/windows-packaging-foundation-1.md`](docs/windows-packaging-foundation-1.md).
+Windows auto-update architecture and release contract:
+[`docs/windows-autoupdate-1.md`](docs/windows-autoupdate-1.md).
 
 ### App instalada
 
@@ -291,13 +295,16 @@ metadata:
   "sessionFile": "userData/session.json",
   "supabaseUrl": "https://TU_PROYECTO.supabase.co",
   "supabaseAnonKey": "TU_SUPABASE_ANON_KEY",
-  "clientVersion": "0.1.0",
   "defaultComment": "Subida desde app local"
 }
 ```
 
 Set `supabaseUrl` and `supabaseAnonKey` for your environment. Use the Supabase
 anon key, never a `service_role` key.
+
+Do not configure `clientVersion` manually. `package.json.version` is the single
+product-version authority and the runtime derives submissions and diagnostics
+from it.
 
 `hslOrigin` belongs to the launcher and defaults to the compiled official
 origin. `HSL_ORIGIN` is the explicit development override. A global

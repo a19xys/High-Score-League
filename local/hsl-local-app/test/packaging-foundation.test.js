@@ -78,6 +78,27 @@ test("stable Electron 43 and electron-builder 26 are pinned", () => {
   assert.doesNotMatch(packageMetadata.devDependencies["electron-builder"], /alpha|beta/i);
 });
 
+test("Windows updater packaging contract is explicit, stable and never publishes locally", () => {
+  assert.equal(packageMetadata.version, "0.2.0");
+  assert.equal(packageMetadata.dependencies["electron-updater"], "6.8.9");
+  assert.equal(packageMetadata.devDependencies["electron-updater"], undefined);
+  assert.deepEqual(builder.publish, [{
+    provider: "github",
+    owner: "a19xys",
+    repo: "High-Score-League",
+    channel: "latest",
+    private: false,
+  }]);
+  assert.match(packageMetadata.scripts["package:win"], /--dir --publish never$/);
+  assert.match(packageMetadata.scripts["dist:win"], /--publish never && npm run validate:update-artifacts$/);
+  assert.equal(packageMetadata.scripts["validate:update-artifacts"], "node scripts/validate-update-artifacts.js");
+  assert.doesNotMatch(JSON.stringify(builder.publish), /token|authorization|requestHeaders|GH_TOKEN|GITHUB_TOKEN/i);
+  assert.equal(builder.appId, "com.highscoreleague.launcher");
+  assert.equal(builder.productName, "High Score League");
+  assert.equal(builder.nsis.perMachine, false);
+  assert.equal(builder.nsis.deleteAppDataOnUninstall, false);
+});
+
 test("MAME manifest is explicit and validated", () => {
   const manifest = readMameRuntimeManifest();
   assert.deepEqual({ version: manifest.version, architecture: manifest.architecture, asset: manifest.asset, sha256: manifest.sha256 }, {

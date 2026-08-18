@@ -54,6 +54,7 @@ import {
   shouldSurfaceAccountSwitchResult,
 } from "./product-presentation.js";
 import { createEphemeralLoginDraft } from "./login-draft.js";
+import { prepareAndAcceptWindowsUpdate, windowsUpdateDialogPatch } from "./windows-update-ui.js";
 
 const root = document.getElementById("app");
 const savedTheme = window.__HSL_INITIAL_THEME__ === "light" ? "light" : "dark";
@@ -102,12 +103,15 @@ const store = createStore({
     visible: true,
   },
   theme: savedTheme,
+  windowsUpdate: { declinedThisRun: false, enabled: false, state: "disabled" },
 });
 
 let accountMenuPointerStartedInside = false;
 let libraryPreferencesPersistTimer = null;
 let pendingLibraryPreferencesPatch = {};
 let libraryPreferencesPersistSequence = 0;
+let libraryPreferencesPersistenceQueue = Promise.resolve();
+let libraryPreferenceWrites = 0;
 let libraryPreferenceUserRevision = 0;
 let hydratedLibraryPreferencesScopeKey = null;
 let libraryPackSelectionSequence = 0;
@@ -136,6 +140,8 @@ let detailAssetIdentity = null;
 let startupAssetSequence = 0;
 let startupCompletionLogged = false;
 let themeToggleQueue = Promise.resolve();
+let themeWrites = 0;
+let windowsUpdatePresentationQueued = false;
 const assetPreloader = createAssetPreloader({ timeoutMs: DETAIL_ASSET_PRELOAD_TIMEOUT_MS });
 const favoriteSyncByKey = new Map();
 const unavailableDirectoryPrompts = new Set();
@@ -704,7 +710,7 @@ function renderStatusFooter() {
     <footer class="launcher-footer" aria-label="Estado del launcher">
       <span class="launcher-footer__status">
         ${renderIcon("check", { className: "footer-status-icon", size: "sm" })}
-        <span>Launcher actualizado</span>
+        <span>Launcher listo</span>
       </span>
       <span class="launcher-footer__version">${LAUNCHER_VERSION}</span>
     </footer>
@@ -1195,23 +1201,27 @@ async function toggleManualThemeAfterAccountClose(accountMenuWasOpen) {
 
 async function persistLibraryPreferences(patch) {
   const requestId = ++libraryPreferencesPersistSequence;
-
-  try {
-    await window.hslLauncher.setLibraryPreferences(patch.scopeKey ? patch : currentLibraryPreferencesPatch(patch));
-  } catch (error) {
-    if (requestId !== libraryPreferencesPersistSequence) {
-      return;
+  libraryPreferenceWrites += 1;
+  const operation = async () => {
+    try {
+      await window.hslLauncher.setLibraryPreferences(patch.scopeKey ? patch : currentLibraryPreferencesPatch(patch));
+    } catch (error) {
+      if (requestId !== libraryPreferencesPersistSequence) return;
+      store.setState({
+        logs: appendLog(store.getState().logs, {
+          details: [error.message || String(error)],
+          ok: false,
+          summary: "No se pudieron guardar las preferencias de biblioteca.",
+          title: "Biblioteca",
+        }),
+      });
+    } finally {
+      libraryPreferenceWrites = Math.max(0, libraryPreferenceWrites - 1);
+      queueWindowsUpdatePresentation();
     }
-
-    store.setState({
-      logs: appendLog(store.getState().logs, {
-        details: [error.message || String(error)],
-        ok: false,
-        summary: "No se pudieron guardar las preferencias de biblioteca.",
-        title: "Biblioteca",
-      }),
-    });
-  }
+  };
+  libraryPreferencesPersistenceQueue = libraryPreferencesPersistenceQueue.then(operation, operation);
+  return libraryPreferencesPersistenceQueue;
 }
 
 function persistLibraryPreferencesSoon(patch) {
@@ -1236,12 +1246,117 @@ function persistLibraryPreferencesSoon(patch) {
 }
 
 async function flushPendingLibraryPreferences() {
-  if (!libraryPreferencesPersistTimer) return;
-  window.clearTimeout(libraryPreferencesPersistTimer);
-  libraryPreferencesPersistTimer = null;
-  const nextPatch = pendingLibraryPreferencesPatch;
-  pendingLibraryPreferencesPatch = {};
-  if (nextPatch.scopeKey) await persistLibraryPreferences(nextPatch);
+  if (libraryPreferencesPersistTimer) {
+    window.clearTimeout(libraryPreferencesPersistTimer);
+    libraryPreferencesPersistTimer = null;
+    const nextPatch = pendingLibraryPreferencesPatch;
+    pendingLibraryPreferencesPatch = {};
+    if (nextPatch.scopeKey) await persistLibraryPreferences(nextPatch);
+  }
+  await libraryPreferencesPersistenceQueue;
+}
+
+function normalizeWindowsUpdateState(value = {}) {
+  const allowedStates = new Set(["disabled", "idle", "checking", "available", "downloading", "downloaded", "installing", "error"]);
+  const safeText = (input, pattern, maxLength = 80) => {
+    const text = typeof input === "string" ? input.slice(0, maxLength) : null;
+    return text && pattern.test(text) ? text : null;
+  };
+  const percent = Number(value.progress?.percent);
+  return {
+    checkAttempted: value.checkAttempted === true,
+    currentVersion: safeText(value.currentVersion, /^[0-9A-Za-z.+-]+$/, 64),
+    declinedThisRun: value.declinedThisRun === true,
+    downloadStartedAt: safeText(value.downloadStartedAt, /^[0-9T:.Z+-]+$/, 40),
+    downloadedAt: safeText(value.downloadedAt, /^[0-9T:.Z+-]+$/, 40),
+    enabled: value.enabled === true,
+    enableReason: safeText(value.enableReason, /^[a-z0-9-]+$/, 64),
+    installRequestedAt: safeText(value.installRequestedAt, /^[0-9T:.Z+-]+$/, 40),
+    lastCheckAt: safeText(value.lastCheckAt, /^[0-9T:.Z+-]+$/, 40),
+    lastErrorCode: safeText(value.lastErrorCode, /^[A-Z0-9_]+$/, 80),
+    packaged: value.packaged === true,
+    platform: safeText(value.platform, /^[a-z0-9-]+$/, 24),
+    progress: Number.isFinite(percent) ? { percent: Math.max(0, Math.min(100, percent)) } : null,
+    state: allowedStates.has(value.state) ? value.state : "disabled",
+    updateVersion: safeText(value.updateVersion, /^[0-9A-Za-z.+-]+$/, 64),
+  };
+}
+
+function windowsUpdatePendingWrites() {
+  return {
+    libraryPreferenceWrites: libraryPreferenceWrites > 0
+      || Boolean(libraryPreferencesPersistTimer)
+      || Object.keys(pendingLibraryPreferencesPatch).length > 0,
+    themeWrites: themeWrites > 0,
+  };
+}
+
+function presentWindowsUpdateIfStable() {
+  windowsUpdatePresentationQueued = false;
+  const patch = windowsUpdateDialogPatch(store.getState(), windowsUpdatePendingWrites());
+  if (patch) store.setState(patch);
+}
+
+function queueWindowsUpdatePresentation() {
+  if (windowsUpdatePresentationQueued) return;
+  windowsUpdatePresentationQueued = true;
+  window.queueMicrotask(presentWindowsUpdateIfStable);
+}
+
+function applyWindowsUpdateState(value) {
+  if (!value || typeof value !== "object") return;
+  store.setState({ windowsUpdate: normalizeWindowsUpdateState(value) });
+}
+
+function declineWindowsUpdate() {
+  const current = store.getState();
+  if (current.activeDialog?.type !== "windows-update") return;
+  store.setState({
+    activeDialog: null,
+    windowsUpdate: {
+      ...current.windowsUpdate,
+      declinedThisRun: true,
+      state: "idle",
+    },
+  });
+  window.hslLauncher.declineWindowsUpdate?.().then(applyWindowsUpdateState).catch(() => {});
+}
+
+async function acceptWindowsUpdate() {
+  const current = store.getState();
+  if (current.busy || current.activeDialog?.type !== "windows-update") return;
+
+  try {
+    const response = await prepareAndAcceptWindowsUpdate({
+      accept: () => window.hslLauncher.acceptWindowsUpdate(),
+      beginBusy: () => store.setState({ activeDialog: null, busy: true, busyLabel: "Descargando actualización..." }),
+      flushLibraryPreferences: flushPendingLibraryPreferences,
+      waitForTheme: () => themeToggleQueue,
+    });
+    if (response?.state) applyWindowsUpdateState(response.state);
+    if (!response?.ok) {
+      const error = new Error("UPDATE_DOWNLOAD_FAILED");
+      error.code = /^[A-Z0-9_]{3,80}$/.test(response?.errorCode || "")
+        ? response.errorCode
+        : "UPDATE_DOWNLOAD_FAILED";
+      throw error;
+    }
+  } catch (error) {
+    const errorCode = /^[A-Z0-9_]{3,80}$/.test(error?.code || "")
+      ? error.code
+      : "UPDATE_DOWNLOAD_FAILED";
+    store.setState({
+      activeDialog: { type: "windows-update-error" },
+      busy: false,
+      busyLabel: null,
+      logs: appendLog(store.getState().logs, {
+        details: [errorCode],
+        ok: false,
+        summary: "No se pudo descargar la actualización. Puedes seguir usando High Score League.",
+        title: "Actualización",
+      }),
+    });
+  }
 }
 
 async function toggleLibraryFavorite(packKey) {
@@ -2025,7 +2140,8 @@ function bindActions() {
     accountMenuPointerStartedInside = false;
 
     if (target?.matches("[data-dialog-backdrop]")) {
-      store.setState({ activeDialog: null });
+      if (current.activeDialog?.type === "windows-update") declineWindowsUpdate();
+      else store.setState({ activeDialog: null });
       return;
     }
 
@@ -2039,9 +2155,13 @@ function bindActions() {
 
     if (action === "toggle-theme") {
       const accountMenuWasOpen = current.accountMenuOpen;
+      themeWrites += 1;
       themeToggleQueue = themeToggleQueue.then(() => (
         toggleManualThemeAfterAccountClose(accountMenuWasOpen)
-      ));
+      )).finally(() => {
+        themeWrites = Math.max(0, themeWrites - 1);
+        queueWindowsUpdatePresentation();
+      });
       return;
     }
 
@@ -2096,6 +2216,14 @@ function bindActions() {
 
     if (action === "close-overlay") {
       store.setState({ activeOverlay: null });
+    }
+
+    if (action === "decline-windows-update") {
+      declineWindowsUpdate();
+    }
+
+    if (action === "accept-windows-update") {
+      acceptWindowsUpdate();
     }
 
     if (action === "close-dialog") {
@@ -2340,7 +2468,10 @@ function bindActions() {
   });
 }
 
-store.subscribe(render);
+store.subscribe((state, changedKeys) => {
+  render(state, changedKeys);
+  queueWindowsUpdatePresentation();
+});
 render();
 bindActions();
 startupReadiness.mark("shell", "ready");
@@ -2357,7 +2488,8 @@ window.addEventListener("keydown", (event) => {
   const state = store.getState();
 
   if (state.activeDialog || state.activeOverlay || state.accountMenuOpen) {
-    store.setState({ ...closeAccountMenuState(), activeDialog: null, activeOverlay: null });
+    if (state.activeDialog?.type === "windows-update") declineWindowsUpdate();
+    else store.setState({ ...closeAccountMenuState(), activeDialog: null, activeOverlay: null });
   }
 });
 function handleRendererOffline() {
@@ -2406,6 +2538,7 @@ const removeRendererSubscriptions = [
   window.hslLauncher.onConnectivityState?.(applyConnectivityState),
   window.hslLauncher.onLauncherState?.(applyBackgroundLauncherState),
   window.hslLauncher.onRankingCapabilitiesState?.(applyRankingCapabilitiesState),
+  window.hslLauncher.onWindowsUpdateState?.(applyWindowsUpdateState),
   window.hslLauncher.onBusyPhase?.((phase) => {
     const label = String(phase?.label || "").trim();
     if (label && store.getState().busy) store.setState({ busyLabel: label });
@@ -2413,6 +2546,7 @@ const removeRendererSubscriptions = [
 ].filter(Boolean);
 window.hslLauncher.getConnectivityState?.().then(applyConnectivityState).catch(() => {});
 window.hslLauncher.getRankingCapabilitiesState?.().then(applyRankingCapabilitiesState).catch(() => {});
+window.hslLauncher.getWindowsUpdateState?.().then(applyWindowsUpdateState).catch(() => {});
 refreshState().catch((error) => {
   store.setState({
     initialLoadError: "No se pudo leer el estado local inicial. Puedes reintentar desde Biblioteca.",
