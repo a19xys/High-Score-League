@@ -142,9 +142,10 @@ test("server read checks privacy before sessions and public DTOs omit internal i
 });
 
 test("profile uses the fourth Estado block with a shared status indicator, polling and privacy preference", async () => {
-  const [stats, presenceStat, indicator, editor, layout, ownerPage, publicPage] = await Promise.all([
+  const [stats, liveStats, lifecycle, indicator, editor, layout, ownerPage, publicPage] = await Promise.all([
     readFile(join(process.cwd(), "components/profile/profile-stats.tsx"), "utf8"),
-    readFile(join(process.cwd(), "components/profile/profile-presence-stat.tsx"), "utf8"),
+    readFile(join(process.cwd(), "components/profile/profile-live-stats.tsx"), "utf8"),
+    readFile(join(process.cwd(), "lib/profile-live-refresh.ts"), "utf8"),
     readFile(join(process.cwd(), "components/player-presence-indicator.tsx"), "utf8"),
     readFile(join(process.cwd(), "components/profile/profile-editor.tsx"), "utf8"),
     readFile(join(process.cwd(), "app/layout.tsx"), "utf8"),
@@ -152,14 +153,16 @@ test("profile uses the fourth Estado block with a shared status indicator, polli
     readFile(join(process.cwd(), "app/players/[username]/page.tsx"), "utf8"),
   ]);
   assert.match(stats, /lg:grid-cols-4/);
-  assert.match(stats, /ProfilePresenceStat/);
-  assert.match(presenceStat, /PlayerPresenceIndicator/);
-  assert.doesNotMatch(presenceStat, /col-span-2|lg:col-span-1/);
+  assert.match(stats, /ProfileLiveStats/);
+  assert.match(liveStats, /PlayerPresenceIndicator/);
+  assert.doesNotMatch(liveStats, /col-span-2|lg:col-span-1/);
   assert.match(indicator, /whitespace-nowrap/);
-  assert.doesNotMatch(presenceStat, /Web y launcher|· Launcher/);
-  assert.match(presenceStat, /POLL_INTERVAL_MS = 15_000/);
-  assert.match(presenceStat, /visibilityState === "hidden"/);
-  assert.match(presenceStat, /Keep the last valid state/);
+  assert.doesNotMatch(liveStats, /Web y launcher|· Launcher/);
+  assert.match(lifecycle, /PROFILE_LIVE_POLL_INTERVAL_MS = 15_000/);
+  assert.match(lifecycle, /getVisibilityState\(\) === "hidden"/);
+  assert.match(lifecycle, /Promise\.allSettled/);
+  assert.match(liveStats, /\/presence/);
+  assert.match(liveStats, /\/playtime/);
   assert.match(editor, /presence_public: !hidePresence/);
   assert.match(editor, /profile\?\.presence_public === false/);
   assert.match(editor, /Ocultar mi estado en línea y juego actual/);
@@ -170,10 +173,11 @@ test("profile uses the fourth Estado block with a shared status indicator, polli
 });
 
 test("heartbeat and read routes authenticate canonically, are no-store and never accept player authority", async () => {
-  const [webRoute, launcherRoute, readRoute, webHeartbeat] = await Promise.all([
+  const [webRoute, launcherRoute, readRoute, playTimeRoute, webHeartbeat] = await Promise.all([
     readFile(join(process.cwd(), "app/api/presence/web/route.ts"), "utf8"),
     readFile(join(process.cwd(), "app/api/launcher/presence/route.ts"), "utf8"),
     readFile(join(process.cwd(), "app/api/players/[username]/presence/route.ts"), "utf8"),
+    readFile(join(process.cwd(), "app/api/players/[username]/playtime/route.ts"), "utf8"),
     readFile(join(process.cwd(), "components/presence/web-presence-heartbeat.tsx"), "utf8"),
   ]);
   assert.match(webRoute, /createCookieAuthenticatedClient/);
@@ -190,6 +194,8 @@ test("heartbeat and read routes authenticate canonically, are no-store and never
   assert.match(readRoute, /usernamePattern/);
   assert.match(readRoute, /getPlayerPresence/);
   assert.match(readRoute, /Cache-Control[\s\S]*no-store/);
+  assert.match(playTimeRoute, /Cache-Control[\s\S]*no-store/);
+  assert.doesNotMatch(playTimeRoute, /createSupabaseAdminClient/);
   assert.match(webHeartbeat, /hsl\.presence\.web\.clientId/);
   assert.match(webHeartbeat, /PRESENCE_HEARTBEAT_INTERVAL_MS/);
   assert.match(webHeartbeat, /window\.addEventListener\("focus"/);

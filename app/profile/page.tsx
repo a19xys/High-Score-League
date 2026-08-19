@@ -98,7 +98,7 @@ export default async function ProfilePage() {
   }
 
   const profile = profileResult.status === "ok" ? profileResult.profile : null;
-  const [adminCenter, competitive, playTime, presence] = await Promise.all([
+  const [adminCenter, competitive, playTimeResult, presence] = await Promise.all([
     getAdminCenterData(supabase, profile),
     profile
       ? getPlayerCompetitiveProfile(profile.id, "owner")
@@ -108,7 +108,10 @@ export default async function ProfilePage() {
           isOwner: true,
           playTimePublic: profile.play_time_public === true,
         })
-      : Promise.resolve({ visibility: "private" } as const),
+      : Promise.resolve({
+          ok: true,
+          playTime: { visibility: "private" },
+        } as const),
     profile
       ? getPlayerPresence(profile.id)
       : Promise.resolve({ visibility: "unavailable" } as const),
@@ -128,7 +131,11 @@ export default async function ProfilePage() {
       adminCenter={adminCenter}
       auth={auth}
       competitive={competitive}
-      playTime={playTime}
+      playTime={
+        playTimeResult.ok
+          ? playTimeResult.playTime
+          : { visibility: "unavailable" }
+      }
       presence={presence}
     />
   );

@@ -135,12 +135,12 @@ test("submissions use fixed columns, container queries and one row-height contra
 });
 
 test("the profile workspace is accessible, mounted and free of the old anchor navigation", async () => {
-  const [dashboard, switcher, hero, stats, presenceStat, historyExists] = await Promise.all([
+  const [dashboard, switcher, hero, stats, liveStats, historyExists] = await Promise.all([
     read("components", "profile-dashboard.tsx"),
     read("components", "profile", "profile-section-switcher.tsx"),
     read("components", "profile", "profile-hero.tsx"),
     read("components", "profile", "profile-stats.tsx"),
-    read("components", "profile", "profile-presence-stat.tsx"),
+    read("components", "profile", "profile-live-stats.tsx"),
     read("components", "profile", "profile-history.tsx").then(
       () => true,
       () => false,
@@ -163,9 +163,9 @@ test("the profile workspace is accessible, mounted and free of the old anchor na
   assert.match(stats, />\s*Medallas\s*</);
   assert.match(stats, />\s*—\s*</);
   assert.doesNotMatch(stats, /stats\.participations|>\s*Participaciones\s*</);
-  assert.match(stats, /ProfilePresenceStat/);
-  assert.match(presenceStat, /PlayerPresenceIndicator/);
-  assert.doesNotMatch(presenceStat, /col-span-2|lg:col-span-1/);
+  assert.match(stats, /ProfileLiveStats/);
+  assert.match(liveStats, /PlayerPresenceIndicator/);
+  assert.doesNotMatch(liveStats, /col-span-2|lg:col-span-1/);
   assert.equal(historyExists, false);
 });
 

@@ -22,7 +22,7 @@ const validEvent = {
 test("web formatter matches the launcher Playtime contract", () => {
   assert.deepEqual(
     [0, 30, 60, 480, 6600, 7199, 7200, 12240, 46080].map(formatPlayTime),
-    ["0 min", "0 min", "1 min", "8 min", "110 min", "119 min", "2,0 h", "3,4 h", "12,8 h"],
+    ["No jugado", "30 s", "1 min", "8 min", "110 min", "119 min", "2,0 h", "3,4 h", "12,8 h"],
   );
 });
 
@@ -38,12 +38,18 @@ test("launcher payload validation rejects authority and malformed fields", () =>
   ]) assert.equal(validatePlayTimePayload({ ...validEvent, ...patch }).ok, false);
 });
 
-function supabaseTotal(total: number | string | null) {
+function supabaseTotal(total: number | string | null, error: unknown = null) {
   let queries = 0;
   const query = {
     select() { return this; },
     eq() { return this; },
-    async maybeSingle() { queries += 1; return { data: total === null ? null : { total_seconds: total } }; },
+    async maybeSingle() {
+      queries += 1;
+      return {
+        data: total === null ? null : { total_seconds: total },
+        error,
+      };
+    },
   };
   return { client: { from: () => query }, get queries() { return queries; } };
 }
@@ -51,27 +57,39 @@ function supabaseTotal(total: number | string | null) {
 test("Playtime privacy never queries or returns a private value to another player", async () => {
   const hidden = supabaseTotal(46080);
   const result = await getPlayerPlayTime(hidden.client as never, "player", { isOwner: false, playTimePublic: false });
-  assert.deepEqual(result, { visibility: "private" });
+  assert.deepEqual(result, { ok: true, playTime: { visibility: "private" } });
   assert.equal(hidden.queries, 0);
-  assert.equal("totalSeconds" in result, false);
+  assert.equal(result.ok && "totalSeconds" in result.playTime, false);
 
   const legacyTrue = await getPlayerPlayTime(hidden.client as never, "player", { isOwner: false, playTimePublic: false });
-  assert.deepEqual(legacyTrue, { visibility: "private" }, "legacy track_play_time=true is intentionally irrelevant");
+  assert.deepEqual(legacyTrue, { ok: true, playTime: { visibility: "private" } }, "legacy track_play_time=true is intentionally irrelevant");
 });
 
 test("owner and public readers see RLS-backed totals; absent aggregate is zero", async () => {
   const owner = supabaseTotal("12240");
   assert.deepEqual(await getPlayerPlayTime(owner.client as never, "player", { isOwner: true, playTimePublic: false }), {
-    visibility: "visible", totalSeconds: 12240,
+    ok: true, playTime: { visibility: "visible", totalSeconds: 12240 },
   });
   const visible = supabaseTotal(7200);
   assert.deepEqual(await getPlayerPlayTime(visible.client as never, "player", { isOwner: false, playTimePublic: true }), {
-    visibility: "visible", totalSeconds: 7200,
+    ok: true, playTime: { visibility: "visible", totalSeconds: 7200 },
   });
   const empty = supabaseTotal(null);
   assert.deepEqual(await getPlayerPlayTime(empty.client as never, "player", { isOwner: true, playTimePublic: false }), {
-    visibility: "visible", totalSeconds: 0,
+    ok: true, playTime: { visibility: "visible", totalSeconds: 0 },
   });
+});
+
+test("Playtime read errors stay unavailable instead of becoming a false zero", async () => {
+  const failed = supabaseTotal(null, { message: "database unavailable" });
+  assert.deepEqual(
+    await getPlayerPlayTime(failed.client as never, "player", {
+      isOwner: true,
+      playTimePublic: false,
+    }),
+    { ok: false, error: "read-failed" },
+  );
+  assert.equal(failed.queries, 1);
 });
 
 test("migrations keep Playtime transactional and idempotent while changing only the new-profile default", async () => {
@@ -95,13 +113,15 @@ test("migrations keep Playtime transactional and idempotent while changing only 
 });
 
 test("profile UI keeps Playtime in the four-block summary and persists only its visibility preference", async () => {
-  const [stats, editor, route] = await Promise.all([
+  const [stats, liveStats, editor, route] = await Promise.all([
     readFile(join(process.cwd(), "components/profile/profile-stats.tsx"), "utf8"),
+    readFile(join(process.cwd(), "components/profile/profile-live-stats.tsx"), "utf8"),
     readFile(join(process.cwd(), "components/profile/profile-editor.tsx"), "utf8"),
     readFile(join(process.cwd(), "app/api/launcher/playtime/ingest/route.ts"), "utf8"),
   ]);
   assert.match(stats, /lg:grid-cols-4/);
-  assert.match(stats, /Esta información no se muestra al resto/);
+  assert.match(stats, /ProfileLiveStats/);
+  assert.match(liveStats, /Esta información no se muestra al resto/);
   assert.match(editor, /play_time_public: !hidePlayTime/);
   assert.match(editor, /profile\?\.play_time_public === false/);
   assert.match(editor, /Ocultar mi tiempo de juego/);

@@ -68,7 +68,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
   const { data: visitor } = await supabase.auth.getUser();
   const isOwner = visitor.user?.id === profileResult.profile.id;
-  const [competitive, playTime, presence] = await Promise.all([
+  const [competitive, playTimeResult, presence] = await Promise.all([
     getPlayerCompetitiveProfile(profileResult.profile.id, "public"),
     getPlayerPlayTime(supabase, profileResult.profile.id, {
       isOwner,
@@ -80,7 +80,11 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   return (
     <PublicProfileView
       competitive={competitive}
-      playTime={playTime}
+      playTime={
+        playTimeResult.ok
+          ? playTimeResult.playTime
+          : { visibility: "unavailable" }
+      }
       presence={presence}
       profile={profileResult.profile}
     />
