@@ -1213,7 +1213,7 @@ test("renderer product hierarchy includes connection, player actions, activity a
   assert.match(gamePanel, /renderIcon\(icon, \{ className: "game-metadata-icon" \}/);
   assert.match(gamePanel, /"developer", "developer", "Desarrollador"/);
   assert.match(gamePanel, /"year", "year", "Año"/);
-  assert.match(gamePanel, /"genre", "genre", "Género"/);
+  assert.match(gamePanel, /"genre", "genre", "Géneros"/);
   assert.match(gamePanel, /"playtime", "playtime", "Tiempo jugado"/);
   assert.match(service, /playTime:\s*formatPlayTime\(totalSeconds\)/);
   assert.equal(/"Empresa"|"Tiempo"/.test(gamePanel), false);
@@ -1896,7 +1896,7 @@ test("game detail metadata renders four normalized fields", async () => {
   assert.match(html, /game-metadata-item--playtime/);
   assert.match(html, /aria-label="Desarrollador: Taito · Midway"/);
   assert.match(html, /aria-label="Año: Sin datos"/);
-  assert.match(html, /aria-label="Género: Disparos · Arcade"/);
+  assert.match(html, /aria-label="Géneros: Disparos · Arcade"/);
   assert.match(html, /aria-label="Tiempo jugado: Sin datos"/);
   assert.match(html, /game-metadata-label sr-only/);
   assert.equal(/Empresa|>Tiempo</.test(html), false);
@@ -3045,7 +3045,12 @@ test("Playtime acumulado llega por stateFromContext a game.playTime y al panel",
       userDataDir: path.join(dir, "userData"),
     };
     const libraryRoot = path.join(dir, "library");
-    await writeValidV2PackDir(path.join(libraryRoot, "Pack"));
+    await writeValidV2PackDir(path.join(libraryRoot, "Pack A"), { packId: "space-invaders-week-1" });
+    await writeValidV2PackDir(path.join(libraryRoot, "Pack B"), {
+      packId: "space-invaders-week-2",
+      weekId: "week-2",
+      weekNumber: 2,
+    });
     await setPackDirectory(config, libraryRoot);
     const repository = createAccountSessionRepository({ config });
     await repository.saveLogin({
@@ -3072,7 +3077,11 @@ test("Playtime acumulado llega por stateFromContext a game.playTime y al panel",
     });
 
     const state = await getLauncherState({ config, deferRemoteMembership: true, refreshLibrary: true });
-    assert.equal(state.game.playTime, "2,0 horas");
+    assert.equal(state.game.playTime, "2,0 h");
+    const otherPack = state.library.packs.find((pack) => pack.instanceKey !== state.selection.activeInstanceKey);
+    const otherState = await activateLibraryPack(otherPack.id, { config });
+    assert.equal(otherState.state.game.gameId, "space-invaders");
+    assert.equal(otherState.state.game.playTime, "2,0 h");
     const { renderGamePanel } = await import(pathToFileURL(path.join(
       __dirname,
       "..",
@@ -3081,11 +3090,17 @@ test("Playtime acumulado llega por stateFromContext a game.playTime y al panel",
       "components",
       "game-panel.js",
     )).href);
-    assert.match(renderGamePanel({
+    const html = renderGamePanel({
       busy: false,
       data: state,
       pendingFavoriteKeys: {},
-    }), /aria-label="Tiempo jugado: 2,0 horas"/);
+    });
+    assert.match(html, /aria-label="Tiempo jugado: 2,0 h"/);
+    assert.equal((html.match(/class="game-metadata-item /g) || []).length, 4);
+    for (const label of ["Desarrollador", "Año", "Géneros", "Tiempo jugado"]) {
+      assert.match(html, new RegExp(`aria-label="${label}:`));
+    }
+    assert.doesNotMatch(html, /aria-label="(?:Esta semana|Este pack|Última sesión|Última vez jugado|Horas):/i);
   });
 });
 

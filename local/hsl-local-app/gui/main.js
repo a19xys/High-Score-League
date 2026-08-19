@@ -17,6 +17,7 @@ const {
 } = require("../src/competition-play-preflight");
 const { runAccountMutationWithProfileRefresh } = require("../src/account-profile-orchestration");
 const { createLauncherStateAuthority, isLauncherSnapshot } = require("../src/launcher-state-authority");
+const { publishPostMameConvergence } = require("../src/post-operation-convergence");
 const { safeMembershipJoinUrl } = require("../src/season-membership");
 const { configureSessionProtection, getSessionStorageDiagnostics } = require("../src/secure-session-storage");
 const { deriveDeveloperToolsEnabled, runDeveloperOnlyOperation } = require("../src/developer-tools");
@@ -431,17 +432,22 @@ function syncRemoteContext(state, options = {}) {
   state = service.applyCompetitionAuthorityState(state);
 
   if (isCommittedConnected(connectivity.getState())) {
-    rankingCapabilities.refresh("launcher-state").catch(() => {});
+    if (options.refreshRankingCapabilities !== false) {
+      rankingCapabilities.refresh("launcher-state").catch(() => {});
+    }
     if (options.refreshWeekCapabilities !== false) {
       const forceWeekRefresh = forceWeekRefreshOnNextContext && (state.library?.packs || []).some((pack) => pack?.weekId);
       if (forceWeekRefresh) forceWeekRefreshOnNextContext = false;
       weekCapabilities.refresh("launcher-state", { force: forceWeekRefresh }).catch(() => {});
     }
-    if (accountChanged) service.requestPlayTimeSync("account-change").catch(() => {});
+    if (accountChanged && options.requestPlayTimeSync !== false) {
+      service.requestPlayTimeSync("account-change").catch(() => {});
+    }
   }
 
   const membership = state.membership;
-  if (["transport-failure", "timeout"].includes(membership?.remoteFailure)) {
+  if (options.confirmConnectivity !== false
+    && ["transport-failure", "timeout"].includes(membership?.remoteFailure)) {
     requestConnectivityConfirmation("membership-product-signal");
   }
 
@@ -503,6 +509,30 @@ async function coordinatePreferenceResult(value, revision) {
   if (!state) return value;
   if (!launcherStateAuthority.isEffectRevisionCurrent(Number(revision))) return value;
   return nestedState ? { ...value, state } : state;
+}
+
+async function publishCompletedMameState(result, source) {
+  return publishPostMameConvergence(result, {
+    authority: launcherStateAuthority,
+    async prepareState(state, { isCurrent }) {
+      const syncedState = syncRemoteContext(state, {
+        confirmConnectivity: false,
+        coordinateMembership: false,
+        refreshRankingCapabilities: false,
+        refreshWeekCapabilities: false,
+        requestPlayTimeSync: false,
+        scheduleAutoSubmit: false,
+      });
+      return enrichPreferenceState(syncedState, { isCurrent });
+    },
+    publishSnapshot(state) {
+      sendRendererEvent("launcher:state", {
+        postMameConvergence: true,
+        source,
+        state,
+      });
+    },
+  });
 }
 
 function registerLauncherStateHandler(channel, handler) {
@@ -1277,7 +1307,7 @@ function registerIpc() {
       await service.getLauncherState({ deferRemoteMembership: true }),
       { coordinateMembership: false, refreshWeekCapabilities: false, scheduleAutoSubmit: false },
     );
-    return runCompetitionPlayPreflight({
+    const result = await runCompetitionPlayPreflight({
       ensureFreshCapability: (weekId) => weekCapabilities.ensureFreshCapability(weekId, "play-preflight"),
       getAuthorityContext: () => ({
         connected: isCommittedConnected(connectivity.getState()),
@@ -1294,14 +1324,20 @@ function registerIpc() {
         ),
       })),
     });
+    await publishCompletedMameState(result, "competition");
+    return result;
   });
-  registerLauncherStateHandler("launcher:practice", (event) => service.playPractice({
-    onMamePhase: (phase) => sendBusyPhase(
-      event,
-      phase === "mame-spawned" ? "Práctica en curso" : "Cerrando práctica",
-      phase,
-    ),
-  }));
+  registerLauncherStateHandler("launcher:practice", async (event) => {
+    const result = await service.playPractice({
+      onMamePhase: (phase) => sendBusyPhase(
+        event,
+        phase === "mame-spawned" ? "Práctica en curso" : "Cerrando práctica",
+        phase,
+      ),
+    });
+    await publishCompletedMameState(result, "practice");
+    return result;
+  });
   registerLauncherStateHandler("launcher:force-account-sync", async () => {
     const guarded = await runDeveloperOnlyOperation(developerToolsEnabled, async () => {
       pendingAutoSubmitCoordinator.cancelCurrentRun("development-force");

@@ -87,6 +87,21 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
           },
           cache: { available: 1, entries: 1, expired: 0, unavailable: 0, unknown: 0 },
         },
+        playTime: {
+          activeSessions: 0,
+          sync: {
+            Authorization: "Bearer secret-playtime-token",
+            acknowledged: 4,
+            email: "player@example.test",
+            followUpQueued: false,
+            inFlight: false,
+            lastRemoteGameKey: "space-invaders",
+            lastRemoteGameTotalSeconds: 3180,
+            lastRemoteTotalSeconds: 9000,
+            lastSuccessfulAckAt: "2026-07-03T21:14:21.500Z",
+            refresh_token: "must-not-persist",
+          },
+        },
         weekCapabilities: {
           context: {
             deploymentKey: "build-a:production:1",
@@ -177,6 +192,14 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.connectivity.probe.inFlight, false);
     assert.equal(saved.rankingCapabilities.active.status, "available");
     assert.equal(saved.rankingCapabilities.cache.entries, 1);
+    assert.equal(saved.playTime.activeSessions, 0);
+    assert.equal(saved.playTime.sync.acknowledged, 4);
+    assert.equal(saved.playTime.sync.lastRemoteGameKey, "space-invaders");
+    assert.equal(saved.playTime.sync.lastRemoteGameTotalSeconds, 3180);
+    assert.equal(saved.playTime.sync.lastRemoteTotalSeconds, 9000);
+    assert.equal(saved.playTime.sync.Authorization, undefined);
+    assert.equal(saved.playTime.sync.email, undefined);
+    assert.equal(saved.playTime.sync.refresh_token, undefined);
     assert.equal(saved.weekCapabilities.context.deploymentKey, "build-a:production:1");
     assert.equal(saved.weekCapabilities.context.generation, 4);
     assert.equal(saved.weekCapabilities.lastAttemptResult, "failed");
@@ -191,7 +214,7 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.securityPolicy.rendererConnectAllowed, false);
     assert.equal(saved.session.hasSession, true);
     assert.match(saved.session.userId, /^user-1\.\.\./);
-    assert.equal(/"(?:access_token|refresh_token|Authorization)"\s*:|secret-token|secret-access-token|secret-refresh-token|secret-week-token|must-not-persist/.test(raw), false);
+    assert.equal(/"(?:access_token|refresh_token|Authorization|email)"\s*:|secret-token|secret-access-token|secret-refresh-token|secret-week-token|secret-playtime-token|player@example\.test|must-not-persist/.test(raw), false);
     assert.deepEqual(await listDiagnosticReports(config), [result.filePath]);
   });
 });
@@ -199,6 +222,7 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
 test("sanitizeDiagnosticReport removes sensitive keys and scrubs sensitive text", () => {
   const sanitized = sanitizeDiagnosticReport({
     Authorization: "Bearer secret",
+    email: "player@example.test",
     nested: {
       access_token: "secret",
       message: "refresh_token should be hidden",
@@ -209,5 +233,6 @@ test("sanitizeDiagnosticReport removes sensitive keys and scrubs sensitive text"
   assert.equal(raw.includes("Authorization"), false);
   assert.equal(raw.includes("access_token"), false);
   assert.equal(raw.includes("refresh_token"), false);
+  assert.equal(raw.includes("player@example.test"), false);
   assert.equal(raw.includes("secret"), false);
 });

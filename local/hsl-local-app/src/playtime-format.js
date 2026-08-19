@@ -2,7 +2,7 @@ function formatPlayTime(totalSeconds) {
   const seconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
 
   if (seconds === 0) return "No jugado";
-  if (seconds < 60) return "0 min";
+  if (seconds < 60) return `${seconds} s`;
   if (seconds < 7200) {
     const minutes = Math.floor(seconds / 60);
     return `${minutes} min`;
@@ -12,7 +12,7 @@ function formatPlayTime(totalSeconds) {
     maximumFractionDigits: 1,
     minimumFractionDigits: 1,
     useGrouping: false,
-  })} horas`;
+  })} h`;
 }
 
 module.exports = { formatPlayTime };

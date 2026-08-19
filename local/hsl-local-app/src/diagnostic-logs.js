@@ -2,7 +2,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const SENSITIVE_KEY_PATTERN = /^(access_token|refresh_token|authorization|password|passwd|cookie|set-cookie)$/i;
+const SENSITIVE_KEY_PATTERN = /^(access_token|refresh_token|authorization|password|passwd|cookie|set-cookie|email)$/i;
 const SENSITIVE_TEXT_PATTERN = /\b(access_token|refresh_token|Authorization|password|cookie)\b/g;
 const BEARER_PATTERN = /Bearer\s+[A-Za-z0-9._~+/=-]+/g;
 
@@ -194,6 +194,7 @@ function buildDiagnosticPayload(config, report, context = {}, options = {}) {
     },
     bridge: state?.bridge || null,
     autoSubmit: context.remoteDiagnostics?.autoSubmit || state?.autoSubmitDiagnostics || null,
+    playTime: context.remoteDiagnostics?.playTime || state?.playTimeDiagnostics || null,
     connectivity: context.remoteDiagnostics?.connectivity || state?.connectivity || null,
     rankingCapabilities: context.remoteDiagnostics?.ranking || state?.rankingCapabilities || null,
     weekCapabilities: context.remoteDiagnostics?.weekCapabilities || state?.weekCapabilities || null,

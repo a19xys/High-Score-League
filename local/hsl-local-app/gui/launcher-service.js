@@ -272,8 +272,8 @@ function configurePlayTimeSync(options = {}) {
   return playTimeSync;
 }
 
-function requestPlayTimeSync(trigger) {
-  return playTimeSync?.request(trigger) || Promise.resolve({ attempted: false, reason: "not-configured" });
+function requestPlayTimeSync(trigger, options = {}) {
+  return playTimeSync?.request(trigger, options) || Promise.resolve({ attempted: false, reason: "not-configured" });
 }
 
 function cancelPlayTimeSync(reason = "external-abort") {
@@ -2281,6 +2281,11 @@ async function runDiagnose(options = {}) {
       message: "autoenvio de puntuaciones pendientes",
       detail: remoteDiagnostics.autoSubmit || null,
     }];
+    report.sections.playTime = [{
+      level: remoteDiagnostics.playTime?.sync?.failedTerminal > 0 ? "WARN" : "INFO",
+      message: "registro y sincronizacion de tiempo jugado",
+      detail: remoteDiagnostics.playTime || null,
+    }];
     report.sections.windowsUpdate = [{
       level: remoteDiagnostics.windowsUpdate?.state === "error" ? "INFO" : "OK",
       message: `actualizaciones Windows: ${remoteDiagnostics.windowsUpdate?.state || "disabled"}`,
@@ -2326,6 +2331,7 @@ async function runDiagnose(options = {}) {
             ...state,
             autoSubmitDiagnostics: remoteDiagnostics.autoSubmit,
             connectivity: remoteDiagnostics.connectivity,
+            playTimeDiagnostics: remoteDiagnostics.playTime,
             rankingCapabilities: remoteDiagnostics.ranking,
           }
         : state,
@@ -2474,7 +2480,7 @@ async function playCompetitionAction(options = {}) {
       ? launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
       : launchMame(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
   ));
-  requestPlayTimeSync("mame-close").catch(() => {});
+  requestPlayTimeSync("mame-close", { ensureFollowUp: mameSpawned }).catch(() => {});
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.result?.exitCode ?? captured.exitCode;
   const mameOutputLines = summarizeMameOutput(captured.result);
   const adoption = await adoptNewStagingEvents(
@@ -2577,7 +2583,7 @@ async function playPractice(options = {}) {
     undefined,
     mameLifecycle,
   ));
-  requestPlayTimeSync("mame-close").catch(() => {});
+  requestPlayTimeSync("mame-close", { ensureFollowUp: mameSpawned }).catch(() => {});
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
 
   return {

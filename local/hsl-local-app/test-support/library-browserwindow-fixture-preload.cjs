@@ -308,7 +308,7 @@ function snapshot({ libraryVariant = activeLibraryVariant, samePack = false } = 
       instanceKey: pack.instanceKey,
       manual: { available: true },
       packId: pack.id,
-      playTime: "12 h 34 min",
+      playTime: "12,6 h",
       shortDescription: "Fixture representativa con metadatos, acciones y actividad para verificar el final real del scroll.",
       weekId: pack.weekId,
       weekNumber: pack.weekNumber,

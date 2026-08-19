@@ -89,7 +89,7 @@ function renderPackMetadata(game) {
   const items = [
     ["developer", "developer", "Desarrollador", metadataText(game?.developer || game?.publisher)],
     ["year", "year", "Año", metadataText(game?.year)],
-    ["genre", "genre", "Género", normalizeMetadataValue(game?.genre) || "Sin datos"],
+    ["genre", "genre", "Géneros", normalizeMetadataValue(game?.genre) || "Sin datos"],
     ["playtime", "playtime", "Tiempo jugado", metadataText(game?.playTime)],
   ];
 

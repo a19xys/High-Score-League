@@ -5,6 +5,20 @@ const { createPlayTimeStore } = require("./playtime-store");
 const { derivePlayerKey } = require("./scoped-queue");
 const { isSessionRemoteUsable } = require("./session-result");
 
+function diagnosticText(value, fallback = "unknown") {
+  const text = String(value || fallback).replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return text.slice(0, 128) || fallback;
+}
+
+function diagnosticGameKey(value) {
+  return diagnosticText(value, "unknown-game").replace(/[^a-zA-Z0-9._:-]/g, "_");
+}
+
+function diagnosticCount(value) {
+  const count = Number(value);
+  return Number.isSafeInteger(count) && count >= 0 ? count : null;
+}
+
 function createPlayTimeSyncService(options = {}) {
   const configProvider = options.configProvider || (() => options.config || {});
   const readAccounts = options.readKnownAccountsImpl || readKnownAccounts;
@@ -17,7 +31,14 @@ function createPlayTimeSyncService(options = {}) {
     acknowledged: 0,
     cancelled: 0,
     failedTerminal: 0,
+    followUpCoalesced: 0,
+    followUpRequests: 0,
+    followUpRuns: 0,
+    lastRemoteGameKey: null,
+    lastRemoteGameTotalSeconds: null,
+    lastRemoteTotalSeconds: null,
     lastRunAt: null,
+    lastSuccessfulAckAt: null,
     lastTrigger: null,
     pendingVisited: 0,
     preserved: 0,
@@ -27,7 +48,8 @@ function createPlayTimeSyncService(options = {}) {
   };
   let active = null;
   let epoch = 0;
-  let queuedTrigger = null;
+  let followUpRequest = null;
+  let queuedRequest = null;
   let retryNotBefore = 0;
 
   async function run(trigger, owner) {
@@ -81,6 +103,10 @@ function createPlayTimeSyncService(options = {}) {
         if (remote.ok) {
           await store.acknowledge(event.eventId);
           diagnostics.acknowledged += 1;
+          diagnostics.lastSuccessfulAckAt = new Date(now()).toISOString();
+          diagnostics.lastRemoteGameKey = diagnosticGameKey(event.gameKey);
+          diagnostics.lastRemoteGameTotalSeconds = diagnosticCount(remote.body?.gameTotalSeconds);
+          diagnostics.lastRemoteTotalSeconds = diagnosticCount(remote.body?.totalSeconds);
           result.acknowledged += 1;
           continue;
         }
@@ -105,14 +131,26 @@ function createPlayTimeSyncService(options = {}) {
     return result;
   }
 
-  function request(trigger = "unknown") {
+  function request(trigger = "unknown", requestOptions = {}) {
+    const safeTrigger = diagnosticText(trigger);
+    const ensureFollowUp = requestOptions.ensureFollowUp === true || requestOptions.followUpRun === true;
     if (active?.promise) {
-      if (active.controller.signal.aborted) queuedTrigger = trigger;
+      if (active.controller.signal.aborted) {
+        queuedRequest = {
+          followUpRun: requestOptions.followUpRun === true,
+          trigger: safeTrigger,
+        };
+      } else if (ensureFollowUp) {
+        if (requestOptions.ensureFollowUp === true) diagnostics.followUpRequests += 1;
+        if (followUpRequest) diagnostics.followUpCoalesced += 1;
+        followUpRequest = { followUpRun: true, trigger: safeTrigger };
+      }
       return active.promise;
     }
+    if (requestOptions.followUpRun === true) diagnostics.followUpRuns += 1;
     const owner = { controller: new AbortController(), promise: null, runId: ++epoch };
     active = owner;
-    owner.promise = Promise.resolve().then(() => run(trigger, owner)).catch((error) => {
+    owner.promise = Promise.resolve().then(() => run(safeTrigger, owner)).catch((error) => {
       if (owner.controller.signal.aborted || error?.name === "AbortError") {
         diagnostics.cancelled += 1;
         return { attempted: true, cancelled: true };
@@ -121,10 +159,13 @@ function createPlayTimeSyncService(options = {}) {
       return { attempted: true, failed: true, reason: error?.code || "sync-failed" };
     }).finally(() => {
       if (active === owner) active = null;
-      if (queuedTrigger) {
-        const nextTrigger = queuedTrigger;
-        queuedTrigger = null;
-        queueMicrotask(() => request(nextTrigger));
+      const nextRequest = queuedRequest || followUpRequest;
+      queuedRequest = null;
+      followUpRequest = null;
+      if (nextRequest) {
+        queueMicrotask(() => request(nextRequest.trigger, {
+          followUpRun: nextRequest.followUpRun,
+        }));
       }
     });
     return owner.promise;
@@ -132,15 +173,22 @@ function createPlayTimeSyncService(options = {}) {
 
   function cancel(reason = "external-abort") {
     epoch += 1;
+    followUpRequest = null;
+    queuedRequest = null;
     active?.controller.abort(reason);
   }
 
   return {
     cancel,
-    getDiagnostics: () => ({ ...diagnostics, inFlight: Boolean(active), retryNotBefore: retryNotBefore || null }),
+    getDiagnostics: () => ({
+      ...diagnostics,
+      followUpQueued: Boolean(followUpRequest),
+      inFlight: Boolean(active),
+      queued: Boolean(queuedRequest),
+      retryNotBefore: retryNotBefore || null,
+    }),
     request,
     shutdown: () => {
-      queuedTrigger = null;
       cancel("shutdown");
     },
   };
