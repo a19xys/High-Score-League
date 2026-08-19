@@ -2,6 +2,7 @@
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LeagueChat } from "@/components/league-chat";
 import { HomePollCard } from "@/components/home-poll-card";
+import { LauncherDownloadOptions } from "@/components/launcher-download-options";
 import { LinkButton } from "@/components/link-button";
 import { PublicLanding } from "@/components/public-landing";
 import { SeasonTable } from "@/components/season-table";
@@ -75,7 +76,6 @@ export default async function HomePage() {
   const data = await getHomePageData(session.userId);
   const { season, week, game, leaderboard, benchmarks } = data;
   const topThree = leaderboard.slice(0, 3);
-  const weekHref = week ? `/weeks/${week.id}` : null;
   const seasonHref = season ? `/seasons/${season.slug || season.id}` : null;
 
   return (
@@ -91,16 +91,7 @@ export default async function HomePage() {
 			  Liga arcades con clasificación por temporadas y
 			  semanas temáticas
 			</p>
-			<div className="mt-6 flex flex-wrap gap-3">
-			  {weekHref ? (
-				<LinkButton href={weekHref} variant="primary">
-				  Leaderboard
-				</LinkButton>
-			  ) : null}
-			  {seasonHref ? (
-				<LinkButton href={seasonHref}>Clasificación</LinkButton>
-			  ) : null}
-			</div>
+			<LauncherDownloadOptions />
 		  </div>
 		  {data.warning ? (
 			<div className="mt-5 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-text)]">
