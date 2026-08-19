@@ -13,9 +13,10 @@ import {
 const SHA_256 = "a".repeat(64);
 const SHA_512 = `${"A".repeat(86)}==`;
 
-function manifest(version = "0.2.0") {
-  const installerName = `High-Score-League-Setup-${version}.exe`;
-
+function manifest(
+  version = "0.2.0",
+  installerName = `High-Score-League-Setup-${version}.exe`,
+) {
   return {
     schemaVersion: 1,
     version,
@@ -46,38 +47,49 @@ function upstreamJson(value: unknown, status = 200) {
   });
 }
 
-test("schema 1 accepts the current stable release and a future stable version", () => {
-  for (const version of ["0.2.0", "0.3.0"]) {
-    const parsed = parseWindowsLauncherManifest(manifest(version));
+test("schema 1 accepts the current stable release", () => {
+  const parsed = parseWindowsLauncherManifest(manifest());
 
-    assert.deepEqual(parsed, {
-      installerName: `High-Score-League-Setup-${version}.exe`,
-      tag: `v${version}`,
-      version,
-    });
+  assert.deepEqual(parsed, {
+    installerName: "High-Score-League-Setup-0.2.0.exe",
+    tag: "v0.2.0",
+    version: "0.2.0",
+  });
+});
+
+test("future releases preserve any safe exe basename without inferring version from it", () => {
+  const installerNames = [
+    "High-Score-League-Setup-0.3.0.exe",
+    "hsl-local-app-setup-0.3.0.exe",
+    "High-Score-League-Windows-x64.exe",
+  ];
+
+  for (const installerName of installerNames) {
+    const parsed = parseWindowsLauncherManifest(manifest("0.3.0", installerName));
+
+    assert.deepEqual(parsed, { installerName, tag: "v0.3.0", version: "0.3.0" });
     assert.equal(
       buildWindowsLauncherInstallerUrl(parsed!),
-      `https://github.com/a19xys/High-Score-League/releases/download/v${version}/High-Score-League-Setup-${version}.exe`,
+      `https://github.com/a19xys/High-Score-League/releases/download/v0.3.0/${installerName}`,
     );
   }
 });
 
-test("manifest rejects traversal, URL syntax and names outside the release contract", () => {
+test("manifest rejects traversal, URL syntax and non-exe names", () => {
   const maliciousNames = [
     "../payload.exe",
     "../../evil.exe",
     "foo/bar.exe",
-    "folder\\payload.exe",
+    "foo\\bar.exe",
     "//evil.example/a.exe",
-    "https://evil.example/payload.exe",
+    "https://evil.example/a.exe",
     "a.exe?x=1",
-    "a.exe#foo",
-    "High-Score-League-Setup-0.2.0.exe?token=secret",
-    "High-Score-League-Setup-0.2.0.exe#fragment",
-    "High-Score-League-Setup-0.2.0%2f.exe",
-    "High..Score-League-Setup-0.2.0.exe",
-    "Other-Product-0.2.0.exe",
-    "High-Score-League-Setup-0.2.0.zip",
+    "a.exe#fragment",
+    "foo%2fbar.exe",
+    "foo.exe/other",
+    "foo..bar.exe",
+    "foo.msi",
+    "foo.zip",
   ];
 
   for (const name of maliciousNames) {
@@ -92,11 +104,6 @@ test("manifest rejects version and tag mismatch", () => {
   const wrongTag = manifest();
   wrongTag.tag = "v0.3.0";
   assert.equal(parseWindowsLauncherManifest(wrongTag), null);
-
-  const wrongInstallerVersion = manifest();
-  wrongInstallerVersion.assets.installer.name = "High-Score-League-Setup-0.3.0.exe";
-  wrongInstallerVersion.assets.blockmap.name = `${wrongInstallerVersion.assets.installer.name}.blockmap`;
-  assert.equal(parseWindowsLauncherManifest(wrongInstallerVersion), null);
 });
 
 test("manifest rejects unsupported, unstable, incomplete and non-exe inputs", () => {
@@ -186,6 +193,12 @@ test("route and authenticated Home retain the public, semantic UI contract", asy
   assert.match(options, /<a[\s\S]*?href="\/download\/launcher\/windows"/);
   assert.match(options, /Windows 64 bits/);
   assert.match(options, /aria-disabled="true"[\s\S]*GNU\/Linux[\s\S]*Próximamente/);
+  assert.match(options, /src="\/icons\/platform-windows\.png"/);
+  assert.match(options, /src="\/icons\/platform-gnu-linux\.png"/);
+  assert.equal((options.match(/alt=""/g) || []).length, 2);
+  assert.equal((options.match(/aria-hidden="true"/g) || []).length, 2);
+  assert.equal((options.match(/shrink-0 object-contain/g) || []).length, 2);
+  assert.equal((options.match(/min-w-0 flex-1/g) || []).length, 2);
   assert.doesNotMatch(options, /next\/link|<Link|<button|onClick|navigator|userAgent|href="#/i);
   const linuxOption = options.slice(options.indexOf("aria-disabled"));
   assert.doesNotMatch(linuxOption, /href=|tabIndex=|role="button"/);

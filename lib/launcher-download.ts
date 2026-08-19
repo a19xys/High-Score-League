@@ -12,8 +12,6 @@ const MAX_MANIFEST_BYTES = 64 * 1024;
 const MANIFEST_FETCH_TIMEOUT_MS = 10_000;
 const STABLE_SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const SAFE_REMOTE_BASENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-const WINDOWS_INSTALLER_NAME =
-  /^High-Score-League-Setup-((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))\.exe$/;
 const SHA_256 = /^[0-9a-f]{64}$/;
 const SHA_512_BASE64 = /^[A-Za-z0-9+/]{86}==$/;
 
@@ -85,17 +83,12 @@ export function parseWindowsLauncherManifest(
   if (!metadata
     || metadata.name !== "latest.yml"
     || !installer
+    || !installer.name.toLowerCase().endsWith(".exe")
     || !blockmap
     || blockmap.name !== `${installer.name}.blockmap`
     || !isRecord(value.assets.installer)
     || typeof value.assets.installer.sha512 !== "string"
     || !SHA_512_BASE64.test(value.assets.installer.sha512)) {
-    return null;
-  }
-
-  const installerMatch = WINDOWS_INSTALLER_NAME.exec(installer.name);
-
-  if (!installerMatch || installerMatch[1] !== value.version) {
     return null;
   }
 

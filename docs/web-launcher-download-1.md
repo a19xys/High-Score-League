@@ -1,4 +1,4 @@
-# WEB-LAUNCHER-DOWNLOAD-1
+# WEB-LAUNCHER-DOWNLOAD-1 + WEB-LAUNCHER-DOWNLOAD-2
 
 ## Resultado
 
@@ -43,14 +43,43 @@ El parser admite exclusivamente:
 - provenance con SHA Git completo y `refs/heads/master`;
 - los assets completos `latest.yml`, installer y blockmap, con tamaños y hashes
   del formato publicado por el pipeline;
-- installer con basename ASCII exacto
-  `High-Score-League-Setup-<version>.exe`, cuya versión coincide con el manifest.
+- installer con basename ASCII seguro, de longitud limitada y terminado en `.exe`.
 
 Se rechazan rutas, barras, `..`, protocolos, query strings, fragments, escapes,
-extensiones distintas de `.exe`, otros productos y nombres cuya versión no
-coincide. La URL final se construye solo con host, owner y repositorio definidos en
-código, y codifica por separado el tag y el basename ya validados. El manifest no
-puede seleccionar otro host ni proporcionar una URL completa.
+extensiones distintas de `.exe` y caracteres fuera del contrato seguro. La URL
+final se construye solo con host, owner y repositorio definidos en código, y
+codifica por separado el tag y el basename ya validados. El manifest no puede
+seleccionar otro host ni proporcionar una URL completa.
+
+La corrección `WEB-LAUNCHER-DOWNLOAD-2` separa explícitamente las autoridades:
+
+```text
+manifest.version             = autoridad de versión
+manifest.tag                 = autoridad del tag
+manifest.assets.installer.name = autoridad del nombre remoto
+```
+
+La web no infiere la versión desde `installer.name` ni exige que el nombre incluya
+producto, `Setup` o SemVer. Nombres como `hsl-local-app-setup-0.3.0.exe` y
+`High-Score-League-Windows-x64.exe` son válidos si el resto del manifest es
+coherente. El bundle y la web conservan literalmente el basename publicado por
+`latest.yml`.
+
+## Iconos de plataforma
+
+Los controles reservan un slot decorativo a la izquierda del bloque completo de
+texto. Las rutas públicas fijadas son:
+
+```text
+public/icons/platform-windows.png   → /icons/platform-windows.png
+public/icons/platform-gnu-linux.png → /icons/platform-gnu-linux.png
+```
+
+Los PNG no forman parte de esta implementación: el usuario los añadirá antes del
+QA visual y del despliegue definitivo. Su ausencia temporal no afecta a tests,
+TypeScript ni build, aunque el navegador mostrará un recurso roto hasta que estén
+presentes. Los iconos usan texto alternativo vacío porque los títulos contiguos ya
+comunican cada plataforma.
 
 ## Errores y caché
 
@@ -70,8 +99,9 @@ no envía token ni cabecera de autorización.
 
 ## Cobertura y QA manual
 
-`tests/web-launcher-download.test.mts` cubre releases `0.2.0` y futura `0.3.0`,
-nombres maliciosos, inconsistencias versión/tag, schema incompleto, JSON inválido,
+`tests/web-launcher-download.test.mts` cubre la release `0.2.0`, una futura `0.3.0`
+con tres nombres remotos seguros distintos, nombres maliciosos, inconsistencias
+versión/tag, schema incompleto, JSON inválido,
 404/500/red, redirect exacto y cabeceras no-store en éxito y error. También fija la
 regresión del Home: desaparecen las dos acciones antiguas de su hero, Windows usa
 un `<a>` real a la ruta pública y GNU/Linux permanece fuera del foco y sin `href`.
