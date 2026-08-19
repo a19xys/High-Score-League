@@ -87,6 +87,7 @@ const NATIVE_ICON_PATHS = Object.freeze({
 });
 let activeUserId = null;
 let pendingAutoSubmitCoordinator = null;
+let scoreAdoptedSubmitQueued = false;
 let membershipStartupCoordinator = null;
 let activeManualMembershipRun = null;
 let manualMembershipRunSequence = 0;
@@ -139,6 +140,7 @@ async function withMembershipContextMutation(reason, operation) {
     return await operation();
   } finally {
     activeMembershipContextMutations.delete(runId);
+    drainQueuedScoreAdoptedSubmit();
   }
 }
 
@@ -397,8 +399,21 @@ async function publishWeekCapabilityState() {
   });
 }
 
+function drainQueuedScoreAdoptedSubmit() {
+  if (!scoreAdoptedSubmitQueued || membershipCoordinationPaused() || !pendingAutoSubmitCoordinator) return;
+  scoreAdoptedSubmitQueued = false;
+  pendingAutoSubmitCoordinator.request("score-adopted").catch(() => {});
+}
+
 function schedulePendingAutoSubmit(trigger) {
-  if (membershipCoordinationPaused()) return;
+  if (membershipCoordinationPaused()) {
+    if (trigger === "score-adopted") scoreAdoptedSubmitQueued = true;
+    return;
+  }
+  if (scoreAdoptedSubmitQueued) {
+    scoreAdoptedSubmitQueued = false;
+    trigger = "score-adopted";
+  }
   pendingAutoSubmitCoordinator?.request(trigger).catch(() => {});
 }
 
@@ -692,6 +707,7 @@ function initializeRemoteServices() {
       ...service.getPendingAutoSubmitDiagnostics(),
       coordinator: pendingAutoSubmitCoordinator.getDiagnostics(),
     },
+    scoreCapture: service.getScoreCaptureConvergenceDiagnostics(),
     sessions: service.getAccountSessionDiagnostics(),
     accountProfiles: service.getAccountProfileSyncDiagnostics(),
     playTime: service.getPlayTimeDiagnostics(),
@@ -1280,6 +1296,7 @@ function registerIpc() {
       return result;
     } finally {
       if (activeManualMembershipRun?.runId === runId) activeManualMembershipRun = null;
+      drainQueuedScoreAdoptedSubmit();
     }
   });
   registerLauncherStateHandler("launcher:diagnose", () => service.runDiagnose());
@@ -1317,6 +1334,7 @@ function registerIpc() {
       getState: readPreflightState,
       launch: (playOptions) => withRemoteContext(service.playCompetition({
         ...playOptions,
+        onScoreAdopted: () => schedulePendingAutoSubmit("score-adopted"),
         onMamePhase: (phase) => sendBusyPhase(
           event,
           phase === "mame-spawned" ? "Competición en curso" : "Cerrando competición",

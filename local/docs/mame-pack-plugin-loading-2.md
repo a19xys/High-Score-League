@@ -93,16 +93,29 @@ preparacion de staging.
 1. La GUI valida sesion, membership y scope como antes.
 2. Prepara el plugin y adapter en `userData/runtime/runs/<runId>`.
 3. Lanza MAME compartido con recursos del pack y pluginpath del run.
-4. El plugin escribe JSON en `<run>/events/pending`.
-5. Al cerrar MAME, la GUI adopta solo archivos de ese staging al scope:
+4. El plugin publica cada evento de forma atomica: escribe y cierra
+   `<nombre>.json.tmp`, y despues lo renombra a `<nombre>.json`.
+5. Un monitor ligado al run usa las notificaciones del filesystem como hints,
+   reenumera el staging y adopta los `.json` completos al scope mientras MAME
+   sigue abierto:
 
 ```text
 userData/players/<playerKey>/packs/<packKey>/events/pending
 ```
 
+6. Cada adopcion durable no vacia solicita autoenvio con el trigger causal
+   `score-adopted`.
+7. Al cerrar MAME, la GUI detiene el watcher y ejecuta un rescan final completo
+   que recupera cualquier notificacion perdida antes de finalizar el run.
+
 El staging por run empieza vacio, por lo que no hay capturas antiguas que
-adoptar. Si MAME falla o se cierra mal, el run queda en `userData/runtime/runs`
-para soporte; no se borran capturas automaticamente.
+adoptar. El contexto de player y pack queda congelado al preparar el run. Si
+MAME falla o se cierra mal, el run queda en `userData/runtime/runs` para
+soporte; no se borran capturas automaticamente. El watcher reduce latencia y
+el rescan al cierre es la garantia de convergencia.
+
+Detalles de publicacion, coalescencia, autoenvio y estados de producto:
+[`score-submit-convergence-1.md`](score-submit-convergence-1.md).
 
 ## Practica v2
 
@@ -143,7 +156,9 @@ regla competitiva.
 ## Legacy v1
 
 `packVersion: 1`, dev bridge y `sync-plugin` se conservan. El flujo v1 puede
-seguir usando staging pack-local y adopcion al scope de la GUI.
+seguir usando staging pack-local y adopcion al scope de la GUI al cerrar MAME.
+Una adopcion no vacia solicita autoenvio inmediatamente, pero v1 no incorpora
+observacion en vivo.
 
 ## Limites conocidos
 

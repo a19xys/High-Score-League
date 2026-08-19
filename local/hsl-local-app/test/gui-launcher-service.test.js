@@ -17,6 +17,7 @@ const {
   importPackFromFolderForGui,
   importPackFromZipForGui,
   listPendingFileSnapshot,
+  notifyScoreAdopted,
   openConfiguredPackDirectory,
   openPackManual,
   openPackRanking,
@@ -2410,6 +2411,18 @@ test("adoptNewStagingEvents moves new staging files safely", async () => {
     assert.equal(await fsp.readFile(path.join(scoped, "new__2.json"), "utf8"), "new-score");
     await assert.rejects(() => fsp.access(path.join(staging, "new.json")));
   });
+});
+
+test("legacy close adoption emits one immediate causal submit intent only for new files", () => {
+  const requests = [];
+  const options = { onScoreAdopted(event) { requests.push(event); } };
+  assert.equal(notifyScoreAdopted(options, { adopted: [] }, "close"), false);
+  assert.equal(notifyScoreAdopted(options, { adopted: [{ filename: "legacy.json" }] }, "close"), true);
+  assert.deepEqual(requests, [{
+    adopted: [{ filename: "legacy.json" }],
+    phase: "close",
+    trigger: "score-adopted",
+  }]);
 });
 
 test("readPackForGui loads a valid external pack from a folder", async () => {

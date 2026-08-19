@@ -177,6 +177,9 @@ function applyScopedQueue(config, scope) {
     eventsRejectedDirAbs: scope.scopedRejectedDir,
     eventsSentDirAbs: scope.scopedSentDir,
     eventsSource: "scoped-user-pack",
+    // Scoped pending is populated only by whole-file move/rename adoption (or
+    // restore), never by a writer holding an open final JSON handle.
+    recentEventThresholdMs: 0,
     scopedQueue: scope,
     legacyEventsBaseDirAbs: config.legacyEventsBaseDirAbs || (isPluginStaging ? null : config.eventsBaseDirAbs),
     legacyEventsFailedDirAbs: config.legacyEventsFailedDirAbs || (isPluginStaging ? null : config.eventsFailedDirAbs),
@@ -220,6 +223,8 @@ function buildScopedSubmitConfig(baseConfig, scopeRecord, options = {}) {
     eventsRejectedDirAbs: scope.scopedRejectedDir,
     eventsSentDirAbs: scope.scopedSentDir,
     eventsSource: "scoped-user-pack",
+    // Discovery has already crossed the same whole-file scoped queue boundary.
+    recentEventThresholdMs: 0,
     pack: {
       gameId: meta.pack.gameId || null,
       packId: meta.pack.packId || null,

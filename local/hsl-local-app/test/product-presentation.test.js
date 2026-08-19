@@ -149,7 +149,7 @@ test("queue copy distinguishes pending, deferral, failure and success while stat
   const session = { hasSession: true };
   const pendingQueue = { totals: { failed: 0, pending: 2, sent: 0 } };
   const pending = deriveQueuePresentation(pendingQueue, { status: "idle" }, session);
-  const deferred = deriveQueuePresentation(pendingQueue, { status: "blocked", reason: "no_session" }, session);
+  const deferred = deriveQueuePresentation(pendingQueue, { status: "failed", reason: "transport" }, session);
   const failed = deriveQueuePresentation({ totals: { failed: 1, pending: 0, sent: 0 } }, { status: "partial_failed" }, session);
   const synced = deriveQueuePresentation({ totals: { failed: 0, pending: 0, sent: 1 } }, { status: "synced", sentCount: 1 }, session);
   assert.equal(pending.status, "pending");
@@ -160,6 +160,30 @@ test("queue copy distinguishes pending, deferral, failure and success while stat
   assert.match(failed.description, /Siguen guardadas localmente/);
   assert.equal(synced.status, "synced");
   assert.match(synced.description, /enviado 1 puntuación/);
+});
+
+test("queue product semantics separate healthy work, temporary deferral and actionable blocks", async () => {
+  const { deriveQueuePresentation } = await presentationApi();
+  const queue = { totals: { failed: 0, pending: 1, sent: 0 } };
+  const session = { hasSession: true, requiresLogin: false };
+
+  const syncing = deriveQueuePresentation(queue, { status: "syncing" }, session, { reachability: "connected" });
+  const healthy = deriveQueuePresentation(queue, { status: "idle" }, session, { reachability: "connected" });
+  const offline = deriveQueuePresentation(queue, { status: "idle" }, session, { reachability: "offline" });
+  const cooldown = deriveQueuePresentation(queue, { status: "failed", reason: "retryable_http" }, session, { reachability: "connected" });
+  const login = deriveQueuePresentation(queue, { status: "failed", reason: "auth_required" }, { ...session, requiresLogin: true }, { reachability: "connected" });
+  const structural = deriveQueuePresentation(queue, { status: "blocked", reason: "missing_scope" }, session, { reachability: "connected" });
+
+  assert.equal(syncing.title, "Sincronizando");
+  assert.equal(healthy.status, "pending");
+  assert.equal(healthy.severity, "info");
+  assert.equal(offline.status, "deferred");
+  assert.match(offline.title, /conexión/);
+  assert.equal(cooldown.status, "deferred");
+  assert.equal(login.title, "Requiere atención");
+  assert.match(login.description, /iniciar sesión/);
+  assert.equal(structural.status, "blocked");
+  assert.equal(structural.title, "Envío bloqueado");
 });
 
 test("ranking distinguishes missing week, offline, checking, unpublished, error and opening", async () => {

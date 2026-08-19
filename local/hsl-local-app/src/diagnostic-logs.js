@@ -194,6 +194,7 @@ function buildDiagnosticPayload(config, report, context = {}, options = {}) {
     },
     bridge: state?.bridge || null,
     autoSubmit: context.remoteDiagnostics?.autoSubmit || state?.autoSubmitDiagnostics || null,
+    scoreCapture: context.remoteDiagnostics?.scoreCapture || state?.scoreCaptureDiagnostics || null,
     playTime: context.remoteDiagnostics?.playTime || state?.playTimeDiagnostics || null,
     connectivity: context.remoteDiagnostics?.connectivity || state?.connectivity || null,
     rankingCapabilities: context.remoteDiagnostics?.ranking || state?.rankingCapabilities || null,

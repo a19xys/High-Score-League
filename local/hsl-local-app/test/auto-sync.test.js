@@ -129,3 +129,26 @@ test("display state bloquea unknown/error aunque competicion pueda jugarse", () 
   assert.equal(result.reason, "unknown");
   assert.match(result.message, /no se pudo comprobar/i);
 });
+
+test("display state preserves a real retryable runtime reason while pending remains", () => {
+  const runtime = {
+    lastAttemptAt: "2026-08-19T10:00:00.000Z",
+    message: "Las puntuaciones pendientes se conservan para el proximo intento.",
+    reason: "retryable_http",
+    status: "failed",
+  };
+  const result = getAutoSyncDisplayState(context(), runtime);
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.reason, "retryable_http");
+  assert.equal(result.pendingAfter, 1);
+});
+
+test("requiresLogin is an actionable block rather than an eligible automatic submit", () => {
+  const blocked = getAutoSyncBlockReason(context({
+    session: { hasSession: true, requiresLogin: true },
+  }));
+  assert.equal(blocked.status, "blocked");
+  assert.equal(blocked.reason, "requires_login");
+  assert.equal(shouldAutoSync(context({ session: { hasSession: true, requiresLogin: true } })), false);
+});

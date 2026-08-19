@@ -50,6 +50,14 @@ function getAutoSyncBlockReason(context = {}) {
     };
   }
 
+  if (context.session?.requiresLogin) {
+    return {
+      message: "No se puede sincronizar: vuelve a iniciar sesion.",
+      reason: "requires_login",
+      status: "blocked",
+    };
+  }
+
   if (!context.scope) {
     return {
       message: "No se puede sincronizar: no hay cola de cuenta y pack.",
@@ -168,6 +176,13 @@ function getAutoSyncDisplayState(context = {}, runtimeState = emptyAutoSyncState
         reason: block.reason,
         status: block.status,
       });
+    }
+
+    if (runtimeState.status === "failed" && runtimeState.reason) {
+      return {
+        ...runtimeState,
+        pendingAfter: pending,
+      };
     }
 
     return emptyAutoSyncState({

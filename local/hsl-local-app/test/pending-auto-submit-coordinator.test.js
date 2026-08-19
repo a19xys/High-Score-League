@@ -70,6 +70,40 @@ test("deferred startup does not consume the opportunity and new revision retrigg
   assert.equal(runs, 2);
 });
 
+test("a score adopted during an active submit receives one serialized follow-up pass", async () => {
+  let context = ready("score-a");
+  let releaseFirst;
+  let signalFirstStarted;
+  const firstStarted = new Promise((resolve) => { signalFirstStarted = resolve; });
+  let activeRuns = 0;
+  let maxActiveRuns = 0;
+  const revisions = [];
+  const coordinator = createPendingAutoSubmitCoordinator({
+    inspect: async () => context,
+    run: async (runContext) => {
+      activeRuns += 1;
+      maxActiveRuns = Math.max(maxActiveRuns, activeRuns);
+      revisions.push(runContext.index.revision);
+      if (revisions.length === 1) {
+        signalFirstStarted();
+        await new Promise((resolve) => { releaseFirst = resolve; });
+      }
+      activeRuns -= 1;
+      return { attempted: true, sent: 1, status: "completed", terminal: true };
+    },
+  });
+
+  const first = coordinator.request("score-adopted");
+  await firstStarted;
+  context = ready("score-a-and-b");
+  const followUp = coordinator.request("score-adopted");
+  releaseFirst();
+  await Promise.all([first, followUp]);
+
+  assert.deepEqual(revisions, ["score-a", "score-a-and-b"]);
+  assert.equal(maxActiveRuns, 1);
+});
+
 test("transport and lock deferrals remain retryable", async () => {
   let result = { attempted: false, reason: "sync-in-progress" };
   let runs = 0;

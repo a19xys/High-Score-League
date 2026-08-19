@@ -288,7 +288,7 @@ export function selectMembershipForPresentation(currentState = {}, previousState
     : current;
 }
 
-export function deriveQueuePresentation(queue = {}, autoSync = {}, session = {}) {
+export function deriveQueuePresentation(queue = {}, autoSync = {}, session = {}, connectivity = {}) {
   queue = queue || {};
   autoSync = autoSync || {};
   session = session || {};
@@ -296,21 +296,58 @@ export function deriveQueuePresentation(queue = {}, autoSync = {}, session = {})
   const pending = Number(totals.pending) || 0;
   const failed = Number(totals.failed) || 0;
   const status = autoSync.status || "idle";
+  const reason = autoSync.reason || null;
+  const actionRequiredReasons = new Set(["attention_required", "failed_items"]);
+  const loginRequiredReasons = new Set(["auth_required", "auth-required", "no_session", "requires_login", "unauthenticated"]);
+  const structuralReasons = new Set(["invalid_week", "missing_scope", "missing_week", "not_member"]);
+  const temporaryReasons = new Set([
+    "cancelled",
+    "cooldown",
+    "error",
+    "offline",
+    "provider-unavailable",
+    "rate-limited",
+    "retryable",
+    "retryable_http",
+    "server",
+    "session-deferred",
+    "session-refresh-wait",
+    "session_deferred",
+    "submit_failed",
+    "throttled",
+    "timeout",
+    "transport",
+    "transport-failure",
+    "unknown",
+  ]);
+  const connectionUnavailable = ["offline", "reconnecting"].includes(connectivity?.reachability)
+    || ["offline", "reconnecting"].includes(connectivity?.displayStatus);
 
   if (!session.hasSession) {
     return presentation("queue", "locked", "neutral", "Inicia sesión", "Inicia sesión para ver la actividad local de esta cuenta.", { icon: "user" });
   }
-  if (failed > 0 || ["failed", "partial_failed"].includes(status)) {
-    return presentation("queue", "failed", "error", "Requiere atención", "Hay puntuaciones que no se enviaron. Siguen guardadas localmente y puedes restaurarlas a pendientes.", { icon: "sync-error" });
-  }
-  if (status === "syncing") {
+  if (status === "syncing" || reason === "sync_in_progress") {
     return presentation("queue", "syncing", "progress", "Sincronizando", "Las puntuaciones siguen guardadas localmente mientras se envían.", { icon: "sync-pending" });
   }
-  if (pending > 0 && status === "blocked") {
-    const blockedBySession = ["no_session", "unauthenticated"].includes(autoSync.reason);
-    const blockedByConnection = ["offline", "transport", "submit_failed"].includes(autoSync.reason);
-    const title = blockedBySession ? "Envío aplazado por sesión" : blockedByConnection ? "Envío aplazado por conexión" : "Envío aplazado";
+  if (failed > 0 || status === "partial_failed") {
+    return presentation("queue", "failed", "error", "Requiere atención", "Hay puntuaciones que no se enviaron. Siguen guardadas localmente y puedes restaurarlas a pendientes.", { icon: "sync-error" });
+  }
+  if (pending > 0 && (session.requiresLogin || loginRequiredReasons.has(reason))) {
+    return presentation("queue", "failed", "error", "Requiere atención", `Hay ${pending} ${pending === 1 ? "puntuación guardada" : "puntuaciones guardadas"} localmente. Vuelve a iniciar sesión para poder enviarlas.`, { icon: "sync-error" });
+  }
+  if (pending > 0 && actionRequiredReasons.has(reason)) {
+    return presentation("queue", "failed", "error", "Requiere atención", `Hay ${pending} ${pending === 1 ? "puntuación guardada" : "puntuaciones guardadas"} localmente. Revisa Diagnostics para resolver el envío.`, { icon: "sync-error" });
+  }
+  if (pending > 0 && structuralReasons.has(reason)) {
+    return presentation("queue", "blocked", "blocked", "Envío bloqueado", `Hay ${pending} ${pending === 1 ? "puntuación guardada" : "puntuaciones guardadas"} localmente. El scope competitivo requiere atención antes de enviarlas.`, { icon: "sync-error" });
+  }
+  if (pending > 0 && (connectionUnavailable || temporaryReasons.has(reason))) {
+    const deferredByConnection = connectionUnavailable || ["offline", "timeout", "transport", "transport-failure"].includes(reason);
+    const title = deferredByConnection ? "Envío aplazado por conexión" : "Envío aplazado";
     return presentation("queue", "deferred", "warning", title, `Hay ${pending} ${pending === 1 ? "puntuación" : "puntuaciones"} guardadas localmente. Se enviarán cuando vuelva a ser posible.`, { icon: "sync-pending" });
+  }
+  if (pending > 0 && ["blocked", "failed"].includes(status)) {
+    return presentation("queue", "blocked", "blocked", "Envío bloqueado", `Hay ${pending} ${pending === 1 ? "puntuación guardada" : "puntuaciones guardadas"} localmente. Revisa Diagnostics para resolver el bloqueo.`, { icon: "sync-error" });
   }
   if (pending > 0) {
     return presentation("queue", "pending", "info", "Pendiente de sincronizar", `Hay ${pending} ${pending === 1 ? "puntuación guardada" : "puntuaciones guardadas"} localmente. Cerrar la app no las elimina.`, { icon: "sync-pending" });
@@ -531,7 +568,7 @@ export function deriveLauncherPresentation(state = {}) {
     library: deriveLibraryPresentation(data.library, data.selection),
     membership: deriveMembershipPresentation(data.membership, data.session, membershipContext(state)),
     pack: derivePackPresentation({ game: data.game, readiness: data.readiness, bridge: data.bridge }),
-    queue: deriveQueuePresentation(data.queue, data.autoSync, data.session),
+    queue: deriveQueuePresentation(data.queue, data.autoSync, data.session, state.connectivity),
     ranking: deriveRankingPresentation(state, data.game || {}),
     session: deriveSessionPresentation(data.session, data.accounts, state),
   };
@@ -551,8 +588,8 @@ export function deriveLiveAnnouncement(previousState, nextState, changedKeys = [
     if (!manualFeedbackVisible && current.committed && (!previous.committed || current.status !== previous.status)) return current.title;
   }
   if (changedKeys.includes("data")) {
-    const current = deriveQueuePresentation(nextState.data?.queue, nextState.data?.autoSync, nextState.data?.session);
-    const previous = deriveQueuePresentation(previousState.data?.queue, previousState.data?.autoSync, previousState.data?.session);
+    const current = deriveQueuePresentation(nextState.data?.queue, nextState.data?.autoSync, nextState.data?.session, nextState.connectivity);
+    const previous = deriveQueuePresentation(previousState.data?.queue, previousState.data?.autoSync, previousState.data?.session, previousState.connectivity);
     if (current.status !== previous.status && ["failed", "synced"].includes(current.status)) return `${current.title}. ${current.description}`;
   }
   return null;

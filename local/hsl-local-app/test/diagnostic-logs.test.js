@@ -102,6 +102,17 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
             refresh_token: "must-not-persist",
           },
         },
+        scoreCapture: {
+          activeRun: null,
+          closeAdopted: 1,
+          closed: true,
+          liveAdopted: 2,
+          lastRun: "run_0d17ca0fd122",
+          scanRuns: 4,
+          submitRequests: 2,
+          watching: false,
+          watchSignals: 3,
+        },
         weekCapabilities: {
           context: {
             deploymentKey: "build-a:production:1",
@@ -200,6 +211,11 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.playTime.sync.Authorization, undefined);
     assert.equal(saved.playTime.sync.email, undefined);
     assert.equal(saved.playTime.sync.refresh_token, undefined);
+    assert.equal(saved.scoreCapture.activeRun, null);
+    assert.equal(saved.scoreCapture.lastRun, "run_0d17ca0fd122");
+    assert.equal(saved.scoreCapture.liveAdopted, 2);
+    assert.equal(saved.scoreCapture.closeAdopted, 1);
+    assert.equal(saved.scoreCapture.watching, false);
     assert.equal(saved.weekCapabilities.context.deploymentKey, "build-a:production:1");
     assert.equal(saved.weekCapabilities.context.generation, 4);
     assert.equal(saved.weekCapabilities.lastAttemptResult, "failed");

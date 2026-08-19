@@ -29,6 +29,11 @@ const {
 const { buildDiagnoseReport } = require("../src/diagnose");
 const { writeDiagnosticReport } = require("../src/diagnostic-logs");
 const { listJsonFiles, readEventFile } = require("../src/event-files");
+const {
+  adoptNewStagingEvents,
+  listPendingFileSnapshot,
+} = require("../src/staging-event-adoption");
+const { createScoreCaptureConvergence } = require("../src/score-capture-convergence");
 const { launchMame, launchMameDetailed } = require("../src/mame-launcher");
 const { formatPlayTime } = require("../src/playtime-format");
 const { createPlayTimeRecorder } = require("../src/playtime-recorder");
@@ -118,6 +123,26 @@ let pendingAutoSubmitState = {
   user: null,
 };
 let remoteDiagnosticsProvider = null;
+let scoreCaptureConvergenceDiagnostics = {
+  activeRun: null,
+  closeAdopted: 0,
+  closed: true,
+  lastAdoptedAt: null,
+  lastRun: null,
+  lastScanErrorCode: null,
+  lastSubmitTrigger: null,
+  lastWatchErrorCode: null,
+  liveAdopted: 0,
+  rescanQueued: false,
+  scanErrors: 0,
+  scanInFlight: false,
+  scanRuns: 0,
+  scope: null,
+  submitRequests: 0,
+  watchErrors: 0,
+  watching: false,
+  watchSignals: 0,
+};
 let remoteOperationSignalProvider = null;
 let competitionAuthorityProvider = null;
 let accountProfileSync = null;
@@ -200,6 +225,10 @@ function getPackPluginName(pack) {
 
 function setRemoteDiagnosticsProvider(provider) {
   remoteDiagnosticsProvider = typeof provider === "function" ? provider : null;
+}
+
+function getScoreCaptureConvergenceDiagnostics() {
+  return { ...scoreCaptureConvergenceDiagnostics };
 }
 
 function setRemoteOperationSignalProvider(provider) {
@@ -1473,8 +1502,9 @@ async function runAutoSyncIfEligible(context, options = {}) {
       message: "No se pudo sincronizar automaticamente. Las puntuaciones siguen guardadas localmente.",
       pendingAfter: afterQueue?.totals?.pending ?? null,
       pendingBefore: context.queue?.totals?.pending || 0,
-      reason: normalizeMessage(error),
+      reason: "submit_failed",
       status: "failed",
+      technicalReason: normalizeMessage(error),
     });
 
     return {
@@ -1839,57 +1869,15 @@ function resetLibrarySnapshotAuthorityForTests() {
   librarySnapshotAuthority.invalidate();
 }
 
-async function listPendingFileSnapshot(dir) {
-  try {
-    const files = await listJsonFiles(dir);
-    const snapshot = new Map();
-
-    for (const filename of files) {
-      const fullPath = path.join(dir, filename);
-      const stat = await fsp.stat(fullPath);
-      snapshot.set(filename, {
-        filename,
-        mtimeMs: stat.mtimeMs,
-      });
-    }
-
-    return snapshot;
-  } catch {
-    return new Map();
-  }
-}
-
-async function adoptNewStagingEvents(stagingPendingDir, scopedPendingDir, snapshot, startedAtMs) {
-  const files = await listJsonFiles(stagingPendingDir).catch(() => []);
-  const adopted = [];
-  const skippedLegacy = [];
-
-  await fsp.mkdir(scopedPendingDir, { recursive: true });
-
-  for (const filename of files) {
-    const sourcePath = path.join(stagingPendingDir, filename);
-    const stat = await fsp.stat(sourcePath);
-    const previous = snapshot.get(filename);
-    const isNew = !previous;
-    const isUpdatedDuringRun = Boolean(previous && stat.mtimeMs > previous.mtimeMs && stat.mtimeMs >= startedAtMs);
-
-    if (!isNew && !isUpdatedDuringRun) {
-      skippedLegacy.push(filename);
-      continue;
-    }
-
-    const finalPath = await moveFileSafe(sourcePath, path.join(scopedPendingDir, filename));
-    adopted.push({
-      filename,
-      finalPath,
-      restoredFilename: path.basename(finalPath),
-    });
-  }
-
-  return {
-    adopted,
-    skippedLegacy,
-  };
+function notifyScoreAdopted(options = {}, adoption = {}, phase = "close") {
+  const adopted = Array.isArray(adoption.adopted) ? adoption.adopted : [];
+  if (adopted.length === 0) return false;
+  options.onScoreAdopted?.({
+    adopted: [...adopted],
+    phase,
+    trigger: "score-adopted",
+  });
+  return true;
 }
 
 async function getSessionState(config) {
@@ -2281,6 +2269,11 @@ async function runDiagnose(options = {}) {
       message: "autoenvio de puntuaciones pendientes",
       detail: remoteDiagnostics.autoSubmit || null,
     }];
+    report.sections.scoreCapture = [{
+      level: remoteDiagnostics.scoreCapture?.scanErrors > 0 || remoteDiagnostics.scoreCapture?.watchErrors > 0 ? "WARN" : "INFO",
+      message: "convergencia de capturas competitivas",
+      detail: remoteDiagnostics.scoreCapture || null,
+    }];
     report.sections.playTime = [{
       level: remoteDiagnostics.playTime?.sync?.failedTerminal > 0 ? "WARN" : "INFO",
       message: "registro y sincronizacion de tiempo jugado",
@@ -2333,6 +2326,7 @@ async function runDiagnose(options = {}) {
             connectivity: remoteDiagnostics.connectivity,
             playTimeDiagnostics: remoteDiagnostics.playTime,
             rankingCapabilities: remoteDiagnostics.ranking,
+            scoreCaptureDiagnostics: remoteDiagnostics.scoreCapture,
           }
         : state,
       summary,
@@ -2443,6 +2437,7 @@ async function playCompetitionAction(options = {}) {
   let stagingPendingDir = baseConfig.eventsPendingDirAbs;
   let snapshot = await listPendingFileSnapshot(stagingPendingDir);
   let preparedRun = null;
+  let scoreCaptureMonitor = null;
 
   if (isPackV2) {
     try {
@@ -2450,7 +2445,23 @@ async function playCompetitionAction(options = {}) {
       launchConfig = preparedRun.config;
       stagingPendingDir = preparedRun.stagingPendingDir;
       snapshot = new Map();
+      const createMonitor = options.createScoreCaptureConvergenceImpl || createScoreCaptureConvergence;
+      scoreCaptureMonitor = createMonitor({
+        packKey: scoped.scope.packKey,
+        playerKey: scoped.scope.playerKey,
+        runId: preparedRun.runId,
+        scopedPendingDir: scoped.config.eventsPendingDirAbs,
+        stagingPendingDir,
+        onAdopted(event) {
+          options.onScoreAdopted?.(event);
+        },
+        onDiagnostics(next) {
+          scoreCaptureConvergenceDiagnostics = { ...next };
+        },
+      });
+      scoreCaptureMonitor.start();
     } catch (error) {
+      await scoreCaptureMonitor?.close({ finalRescan: false }).catch(() => {});
       return {
         action: "play-competition",
         lines: [normalizeMessage(error)],
@@ -2475,20 +2486,29 @@ async function playCompetitionAction(options = {}) {
       },
     },
   ]);
-  const captured = await captureConsoleAsync(() => (
-    isPackV2
-      ? launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
-      : launchMame(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
-  ));
+  let captured;
+  let v2Adoption = null;
+  try {
+    captured = await captureConsoleAsync(() => (
+      isPackV2
+        ? launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
+        : launchMame(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
+    ));
+  } finally {
+    if (scoreCaptureMonitor) {
+      v2Adoption = await scoreCaptureMonitor.close({ finalRescan: mameSpawned });
+    }
+  }
   requestPlayTimeSync("mame-close", { ensureFollowUp: mameSpawned }).catch(() => {});
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.result?.exitCode ?? captured.exitCode;
   const mameOutputLines = summarizeMameOutput(captured.result);
-  const adoption = await adoptNewStagingEvents(
+  const adoption = v2Adoption || await adoptNewStagingEvents(
     stagingPendingDir,
     scoped.config.eventsPendingDirAbs,
     snapshot,
     startedAtMs
   );
+  if (!isPackV2) notifyScoreAdopted(options, adoption, "close");
   const legacyLine = !isPackV2 && snapshot.size > 0
     ? `Hay ${snapshot.size} capturas antiguas sin asignar en staging; no se importaron automaticamente.`
     : null;
@@ -3413,6 +3433,7 @@ module.exports = {
   getPendingAutoSubmitDiagnostics,
   getPendingAutoSubmitContext,
   getPendingAutoSubmitContexts,
+  getScoreCaptureConvergenceDiagnostics,
   getAccountSessionDiagnostics,
   getAccountProfileSyncDiagnostics,
   getPlayTimeDiagnostics,
@@ -3428,6 +3449,7 @@ module.exports = {
   listPendingFileSnapshot,
   logoutSession,
   migrateRememberedSessionsForGui,
+  notifyScoreAdopted,
   initializePlayTime,
   openPackDirectory,
   openPackManual,

@@ -217,6 +217,8 @@ Shared MAME runtime implementation notes:
 [`docs/shared-mame-runtime-1.md`](docs/shared-mame-runtime-1.md).
 MAME plugin/adapter loading v2 notes:
 [`docs/mame-pack-plugin-loading-2.md`](docs/mame-pack-plugin-loading-2.md).
+Live score adoption and submit convergence notes:
+[`docs/score-submit-convergence-1.md`](docs/score-submit-convergence-1.md).
 Space Invaders pack v2 reference:
 [`docs/space-invaders-pack-v2-real-1.md`](docs/space-invaders-pack-v2-real-1.md).
 Pack distribution MVP notes:
