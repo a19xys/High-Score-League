@@ -537,7 +537,7 @@ function relativeDisplayPath(relativePath) {
   return String(relativePath || "").replace(/\\/g, "/");
 }
 
-async function validateTemporaryPackInstall(packDir) {
+async function validateTemporaryPackInstall(packDir, options = {}) {
   await readRequiredJson(
     path.join(packDir, "pack.json"),
     "invalid_pack_json",
@@ -572,6 +572,13 @@ async function validateTemporaryPackInstall(packDir) {
 
   if (result.errors.length > 0) {
     throw importError("invalid_pack", "El pack no parece valido para High Score League.", result.errors);
+  }
+
+  if (options.expectedPackId !== undefined && pack?.packId !== options.expectedPackId) {
+    throw importError(
+      "unexpected_pack_id",
+      "El archivo recibido no corresponde al pack solicitado.",
+    );
   }
 
   const romPath = pack?.contract?.mame?.romPath;
@@ -782,7 +789,7 @@ async function importPackFromZip(zipPath, config, options = {}) {
   try {
     tempDir = await createTemporaryInstallDir(packDirectoryPath);
     await extractZipRootToDirectory(sourcePath, tempDir, zipRoot, options);
-    const validated = await validateTemporaryPackInstall(tempDir);
+    const validated = await validateTemporaryPackInstall(tempDir, options);
     const finalized = await finalizeImport(tempDir, packDirectoryPath, validated.pack, sourcePath);
     tempDir = null;
 
@@ -812,7 +819,7 @@ async function importPackFromFolder(folderPath, config, options = {}) {
   const alreadyInstalled = isDirectChildOf(packDirectoryPath, sourcePackDir);
 
   if (alreadyInstalled) {
-    const validated = await validateTemporaryPackInstall(sourcePackDir);
+    const validated = await validateTemporaryPackInstall(sourcePackDir, options);
     const duplicate = await findInstalledPackById(packDirectoryPath, validated.pack.packId, {
       excludeDir: sourcePackDir,
     });
@@ -838,7 +845,7 @@ async function importPackFromFolder(folderPath, config, options = {}) {
   try {
     tempDir = await createTemporaryInstallDir(packDirectoryPath);
     await copyFolderContentsSafe(sourcePackDir, tempDir);
-    const validated = await validateTemporaryPackInstall(tempDir);
+    const validated = await validateTemporaryPackInstall(tempDir, options);
     const finalized = await finalizeImport(tempDir, packDirectoryPath, validated.pack, sourcePath);
     tempDir = null;
 

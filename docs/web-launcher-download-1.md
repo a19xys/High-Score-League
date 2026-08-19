@@ -75,11 +75,11 @@ public/icons/platform-windows.png   → /icons/platform-windows.png
 public/icons/platform-gnu-linux.png → /icons/platform-gnu-linux.png
 ```
 
-Los PNG no forman parte de esta implementación: el usuario los añadirá antes del
-QA visual y del despliegue definitivo. Su ausencia temporal no afecta a tests,
-TypeScript ni build, aunque el navegador mostrará un recurso roto hasta que estén
-presentes. Los iconos usan texto alternativo vacío porque los títulos contiguos ya
-comunican cada plataforma.
+Los PNG se renderizan como máscaras alfa CSS y se rellenan mediante
+`background-color: currentColor`: Windows hereda el tono `ink` de su acción
+primaria y GNU/Linux hereda `--text-muted`, que responde a los temas claro y
+oscuro. Los slots son decorativos (`aria-hidden="true"`) porque los títulos
+contiguos ya comunican cada plataforma.
 
 ## Errores y caché
 

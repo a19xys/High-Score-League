@@ -183,6 +183,41 @@ test("importa ZIP valido con pack.json en raiz", async () => {
   });
 });
 
+test("expectedPackId remoto coincide antes de la instalación final", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = await setupLibrary(dir);
+    const sourcePack = path.join(dir, "source-expected");
+    const zipPath = path.join(dir, "expected.zip");
+    await writePackFixture(sourcePack, { title: "Expected Pack" });
+    await createZipFromDir(sourcePack, zipPath);
+
+    const result = await importPackFromZip(zipPath, config(dir), {
+      expectedPackId: "space-invaders-season-1-week-1",
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.pack.packId, "space-invaders-season-1-week-1");
+    assert.equal(await fsp.stat(path.join(libraryRoot, "Expected Pack")).then((stat) => stat.isDirectory()), true);
+  });
+});
+
+test("expectedPackId remoto distinto falla antes del rename y limpia .hsl-import", async () => {
+  await withTempDir(async (dir) => {
+    const libraryRoot = await setupLibrary(dir);
+    const sourcePack = path.join(dir, "source-mismatch");
+    const zipPath = path.join(dir, "mismatch.zip");
+    await writePackFixture(sourcePack, { title: "Mismatched Pack" });
+    await createZipFromDir(sourcePack, zipPath);
+
+    await assert.rejects(
+      () => importPackFromZip(zipPath, config(dir), { expectedPackId: "another-pack" }),
+      (error) => error.code === "unexpected_pack_id",
+    );
+    await assert.rejects(fsp.stat(path.join(libraryRoot, "Mismatched Pack")), /ENOENT/);
+    assert.deepEqual(await tempNames(libraryRoot), []);
+  });
+});
+
 test("importa carpeta que ya es pack root", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = await setupLibrary(dir);

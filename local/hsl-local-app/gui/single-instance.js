@@ -6,11 +6,15 @@ function focusPrimaryWindow(window) {
   return true;
 }
 
-function installSingleInstancePolicy(app, getWindow) {
-  const acquired = app.requestSingleInstanceLock();
+const { parsePackDeepLinkAdditionalData } = require("../src/pack-deeplink");
+
+function installSingleInstancePolicy(app, getWindow, options = {}) {
+  const acquired = app.requestSingleInstanceLock(options.additionalData || {});
   if (!acquired) return false;
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, _commandLine, _workingDirectory, additionalData) => {
     focusPrimaryWindow(getWindow?.());
+    const intent = parsePackDeepLinkAdditionalData(additionalData);
+    if (intent) options.onPackDeepLink?.(intent);
   });
   return true;
 }

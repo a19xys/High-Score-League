@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
@@ -14,8 +15,10 @@ const {
   deriveOpenedPackConfig,
   eventResultToQueueItem,
   getLauncherState,
+  importPackFromDeepLinkForGui,
   importPackFromFolderForGui,
   importPackFromZipForGui,
+  inspectPackDeepLinkLocalState,
   listPendingFileSnapshot,
   notifyScoreAdopted,
   openConfiguredPackDirectory,
@@ -40,6 +43,7 @@ const { createPlayTimeStore } = require("../src/playtime-store");
 const { scanPackLibrary } = require("../src/pack-library");
 const { readLibrarySelection, writeLibrarySelection } = require("../src/library-selection");
 const { writeLastOpenedPack } = require("../src/recent-packs");
+const { createSessionResult } = require("../src/session-result");
 const { canonicalPath } = require("../test-support/canonical-path.cjs");
 
 async function withTempDir(fn) {
@@ -3364,6 +3368,101 @@ test("importPackFromZipForGui importa, reescanea y activa por ruta final", async
     assert.equal(result.state.bridge.mode, "opened-pack");
     assert.equal(result.state.bridge.packRoot, result.packDir);
     assert.ok(result.state.library.packs.some((pack) => pack.packDir === result.packDir));
+  });
+});
+
+test("deep link ya instalado se resuelve por librarySnapshotAuthority y hace cero fetches", async () => {
+  await withTempDir(async (dir) => {
+    const config = { hslOrigin: "https://high-score-league.example", userDataDir: path.join(dir, "userData") };
+    const libraryRoot = path.join(dir, "library");
+    await writeValidV2PackDir(path.join(libraryRoot, "Installed"), { packId: "remote-pack" });
+    await setPackDirectory(config, libraryRoot);
+    const local = await inspectPackDeepLinkLocalState("remote-pack", { config });
+    let fetches = 0;
+    const result = await importPackFromDeepLinkForGui("remote-pack", {
+      config,
+      fetchImpl: async () => { fetches += 1; throw new Error("network must not run"); },
+    });
+    assert.deepEqual(local, { alreadyInstalled: true, libraryReady: true });
+    assert.equal(result.status, "already-installed");
+    assert.equal(fetches, 0);
+  });
+});
+
+test("deep link sin Biblioteca disponible falla antes de sesión, red y temporales", async () => {
+  await withTempDir(async (dir) => {
+    const config = { hslOrigin: "https://high-score-league.example", userDataDir: path.join(dir, "userData") };
+    let fetches = 0;
+    let sessions = 0;
+    const result = await importPackFromDeepLinkForGui("remote-pack", {
+      config,
+      fetchImpl: async () => { fetches += 1; throw new Error("network must not run"); },
+      resolveSessionResultImpl: async () => { sessions += 1; return createSessionResult({ status: "missing" }); },
+    });
+    assert.equal(result.status, "library-unavailable");
+    assert.equal(fetches, 0);
+    assert.equal(sessions, 0);
+  });
+});
+
+test("product path deep link descarga, verifica, importa, refresca y activa el pack", async () => {
+  await withTempDir(async (dir) => {
+    const config = {
+      hslOrigin: "https://high-score-league.example",
+      supabaseUrl: "https://example.supabase.co",
+      userDataDir: path.join(dir, "userData"),
+    };
+    const libraryRoot = path.join(dir, "library");
+    const sourcePack = path.join(dir, "source-remote-pack");
+    const zipPath = path.join(dir, "remote-pack.zip");
+    const tempBaseDir = path.join(dir, "remote-temp");
+    await fsp.mkdir(libraryRoot, { recursive: true });
+    await fsp.mkdir(tempBaseDir, { recursive: true });
+    await setPackDirectory(config, libraryRoot);
+    await writeValidV2PackDir(sourcePack, { packId: "remote-pack" });
+    await createZipFromDir(sourcePack, zipPath, "Remote Pack");
+    const zipBytes = await fsp.readFile(zipPath);
+    const digest = crypto.createHash("sha256").update(zipBytes).digest("hex");
+    const calls = [];
+    const result = await importPackFromDeepLinkForGui("remote-pack", {
+      config,
+      fetchImpl: async (url, init) => {
+        calls.push({ headers: init.headers, url: String(url) });
+        if (calls.length === 1) {
+          return new Response(JSON.stringify({
+            artifact: {
+              downloadUrl: "https://objects.example/remote-pack.zip?signature=secret",
+              sha256: digest,
+              sizeBytes: zipBytes.length,
+            },
+            packId: "remote-pack",
+            version: 1,
+          }), { status: 200 });
+        }
+        return new Response(zipBytes, { status: 200 });
+      },
+      resolveSessionResultImpl: async () => createSessionResult({
+        sessionRevision: 1,
+        status: "valid",
+        storedSession: {
+          providerFingerprint: null,
+          schemaVersion: 1,
+          session: { access_token: "secret-token", expires_at: 2_000_000_000, refresh_token: "refresh-token" },
+          supabaseUrl: config.supabaseUrl,
+          user: { id: "user-1" },
+        },
+      }),
+      tempBaseDir,
+    });
+
+    assert.equal(result.status, "imported");
+    assert.equal(result.state.selection.activeInstanceKey, result.state.activePack.instanceKey);
+    assert.equal(result.state.activePack.packId, "remote-pack");
+    assert.equal(result.state.bridge.packRoot, path.join(libraryRoot, "remote-pack"));
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].headers.Authorization, "Bearer secret-token");
+    assert.equal(calls[1].headers.Authorization, undefined);
+    assert.deepEqual(await fsp.readdir(tempBaseDir), []);
   });
 });
 

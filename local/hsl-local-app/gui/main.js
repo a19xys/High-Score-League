@@ -29,6 +29,11 @@ const {
 } = require("./security-policy");
 const { installSingleInstancePolicy } = require("./single-instance");
 const {
+  createPackDeepLinkAdditionalData,
+  parsePackDeepLinkArgv,
+} = require("../src/pack-deeplink");
+const { createPackDeepLinkCoordinator } = require("../src/pack-deeplink-coordinator");
+const {
   createThemeAuthority,
   themeBackgroundColor,
   themePersistenceErrorCode,
@@ -99,6 +104,13 @@ let rankingRendererTiming = { appliedAt: null, receivedAt: null, stateSequence: 
 let sessionMaintenanceTimer = null;
 let windowsUpdate = null;
 let suspendDrainPromise = null;
+let activePackImportIntentId = null;
+const startupPackDeepLink = parsePackDeepLinkArgv(process.argv);
+const packDeepLinkCoordinator = createPackDeepLinkCoordinator({
+  onAvailable() {
+    sendRendererEvent("launcher:pack-import-intent-available", { available: true });
+  },
+});
 
 const exitCoordinator = createExitCoordinator({
   async drain(intent) {
@@ -596,6 +608,7 @@ function initializeRemoteServices() {
   });
   presence.start().catch(() => {});
   service.setRemoteOperationSignalProvider(() => productOperationsController.signal);
+  service.configureRemotePackImport({ fetchImpl: (url, init) => net.fetch(url, init) });
   rankingCapabilities = createRankingCapabilitiesService({
     fetchImpl: (url, init) => net.fetch(url, init),
     getConnectivityState: () => connectivity.getState(),
@@ -836,6 +849,7 @@ async function stopRemoteServices() {
   connectivity?.stop();
   service.setRemoteDiagnosticsProvider(null);
   service.setRemoteOperationSignalProvider(null);
+  service.configureRemotePackImport({ fetchImpl: null });
   service.setCompetitionAuthorityProvider(null);
   service.setPresenceLifecycleProvider(null);
   service.setPresenceAccountLifecycleProvider(null);
@@ -885,6 +899,7 @@ function createMainWindow() {
     expectedDocumentUrl: pathToFileURL(rendererDocumentPath).href,
   });
   recordStartupMilestone("window-created");
+  mainWindow.webContents.on("did-start-loading", () => packDeepLinkCoordinator.markRendererUnavailable());
   mainWindow.webContents.once("dom-ready", () => recordStartupMilestone("document-ready"));
   mainWindow.webContents.once("dom-ready", () => {
     if (!process.env.HSL_PACKAGED_SMOKE_FILE) return;
@@ -914,6 +929,7 @@ function createMainWindow() {
   });
 
   mainWindow.on("closed", () => {
+    packDeepLinkCoordinator.markRendererUnavailable();
     mainWindow = null;
   });
 }
@@ -963,6 +979,67 @@ async function showImportFolderDialog(event) {
   );
 }
 
+async function getPendingPackImportIntent() {
+  const intent = packDeepLinkCoordinator.peek();
+  if (!intent) return null;
+  const local = await service.inspectPackDeepLinkLocalState(intent.packId);
+  const current = packDeepLinkCoordinator.peek();
+  if (!current || current.intentId !== intent.intentId) return null;
+  return {
+    alreadyInstalled: local.alreadyInstalled === true,
+    intentId: intent.intentId,
+    libraryReady: local.libraryReady === true,
+    packId: intent.packId,
+  };
+}
+
+async function acceptPendingPackImportIntent(event, intentId) {
+  const current = packDeepLinkCoordinator.peek();
+  if (!current || current.intentId !== intentId || activePackImportIntentId) {
+    return {
+      action: "import-pack-deeplink",
+      lines: ["La solicitud de importación ya no está disponible."],
+      ok: false,
+      status: "cancelled",
+      summary: "La solicitud de importación ya no está disponible.",
+    };
+  }
+
+  activePackImportIntentId = current.intentId;
+  try {
+    const result = await withMembershipContextMutation(
+      "import-pack",
+      () => service.importPackFromDeepLinkForGui(current.packId, {
+        onPhase: (label) => sendBusyPhase(event, label, "pack-deeplink"),
+      }),
+    );
+    if (result.status !== "library-unavailable") {
+      packDeepLinkCoordinator.complete(current.intentId);
+    }
+    return result;
+  } catch {
+    packDeepLinkCoordinator.complete(current.intentId);
+    return {
+      action: "import-pack-deeplink",
+      lines: ["No se pudo preparar este pack para importarlo ahora."],
+      ok: false,
+      status: "remote-error",
+      summary: "No se pudo preparar este pack para importarlo ahora.",
+    };
+  } finally {
+    activePackImportIntentId = null;
+  }
+}
+
+function cancelPendingPackImportIntent(intentId) {
+  const cancelled = packDeepLinkCoordinator.cancel(intentId);
+  return {
+    cancelled,
+    ok: cancelled,
+    status: "cancelled",
+  };
+}
+
 function registerIpc() {
   registerLauncherStateHandler("launcher:get-state", () => withRemoteContext(service.getLauncherState({ deferRemoteMembership: true })));
   registerLauncherStateHandler("launcher:get-initial-state", async () => {
@@ -1010,8 +1087,18 @@ function registerIpc() {
   ipcMain.on("launcher:startup-milestone", (_event, milestone) => {
     const name = String(milestone?.name || "");
     recordStartupMilestone(name, { status: milestone?.status });
-    if (name === "interactive") windowsUpdate?.checkOnce().catch(() => {});
+    if (name === "interactive") {
+      packDeepLinkCoordinator.markRendererReady();
+      windowsUpdate?.checkOnce().catch(() => {});
+    }
   });
+  ipcMain.handle("launcher:get-pending-pack-import-intent", () => getPendingPackImportIntent());
+  registerLauncherStateHandler("launcher:accept-pack-import-intent", (event, intentId) => (
+    acceptPendingPackImportIntent(event, intentId)
+  ));
+  ipcMain.handle("launcher:cancel-pack-import-intent", (_event, intentId) => (
+    cancelPendingPackImportIntent(intentId)
+  ));
   ipcMain.handle("launcher:get-windows-update-state", () => windowsUpdate?.getState() || null);
   ipcMain.handle("launcher:accept-windows-update", () => windowsUpdate?.accept() || {
     errorCode: "UPDATE_DISABLED",
@@ -1389,11 +1476,15 @@ function registerIpc() {
   }));
 }
 
-const hasSingleInstanceLock = installSingleInstancePolicy(app, () => mainWindow);
+const hasSingleInstanceLock = installSingleInstancePolicy(app, () => mainWindow, {
+  additionalData: createPackDeepLinkAdditionalData(startupPackDeepLink.intent),
+  onPackDeepLink: (intent) => packDeepLinkCoordinator.enqueue(intent),
+});
 
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
+  if (startupPackDeepLink.intent) packDeepLinkCoordinator.enqueue(startupPackDeepLink.intent);
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
     initializeWindowsUpdateService();

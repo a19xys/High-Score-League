@@ -85,6 +85,8 @@ const { writeSharedMameRuntime } = require("../src/shared-mame-runtime");
 const { printSyncPluginResult, syncPluginToPack } = require("../src/dev-sync-plugin");
 const { submitAll } = require("../src/submission-service");
 const { combineAbortSignals } = require("../src/remote-request");
+const { isRemotePackId } = require("../src/pack-deeplink");
+const { executeRemotePackImport } = require("../src/remote-pack-import");
 const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
 const {
   applyScopedQueue,
@@ -144,6 +146,7 @@ let scoreCaptureConvergenceDiagnostics = {
   watchSignals: 0,
 };
 let remoteOperationSignalProvider = null;
+let remotePackImportFetchImpl = null;
 let competitionAuthorityProvider = null;
 let accountProfileSync = null;
 let playTimeSync = null;
@@ -233,6 +236,10 @@ function getScoreCaptureConvergenceDiagnostics() {
 
 function setRemoteOperationSignalProvider(provider) {
   remoteOperationSignalProvider = typeof provider === "function" ? provider : null;
+}
+
+function configureRemotePackImport(options = {}) {
+  remotePackImportFetchImpl = typeof options.fetchImpl === "function" ? options.fetchImpl : null;
 }
 
 function setCompetitionAuthorityProvider(provider) {
@@ -3132,6 +3139,91 @@ async function importPackFromFolderForGui(folderPath, options = {}) {
   }
 }
 
+const PACK_DEEP_LINK_PRODUCT_COPY = Object.freeze({
+  "already-installed": "Este pack ya está en tu biblioteca.",
+  cancelled: "La importación del pack se ha cancelado.",
+  "download-integrity-failed": "No se pudo verificar el pack descargado. No se ha instalado nada.",
+  imported: "El pack se ha añadido a tu biblioteca.",
+  "invalid-pack": "El archivo descargado no es un pack válido. No se ha instalado nada.",
+  "library-unavailable": "Elige dónde quieres guardar los packs antes de continuar.",
+  offline: "Necesitas conexión a Internet para importar este pack.",
+  "pack-unavailable": "Este pack no está disponible para importar ahora.",
+  "remote-error": "No se pudo preparar este pack para importarlo ahora.",
+  "requires-login": "Inicia sesión en el launcher para importar este pack.",
+  "unexpected-pack-id": "El archivo recibido no corresponde al pack solicitado. No se ha instalado nada.",
+});
+
+async function inspectPackDeepLinkLocalState(packId, options = {}) {
+  if (!isRemotePackId(packId)) {
+    return { alreadyInstalled: false, libraryReady: false };
+  }
+  const config = options.config || loadRuntimeConfig();
+  const library = await librarySnapshotAuthority.refresh(config);
+  return {
+    alreadyInstalled: library.packs.some((pack) => pack.packId === packId),
+    libraryReady: library.directory?.available === true,
+  };
+}
+
+async function packDeepLinkProductResponse(status, options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  return {
+    action: "import-pack-deeplink",
+    lines: [PACK_DEEP_LINK_PRODUCT_COPY[status] || PACK_DEEP_LINK_PRODUCT_COPY["remote-error"]],
+    ok: ["already-installed", "imported"].includes(status),
+    state: options.state === undefined
+      ? await getLauncherState(stateOptionsForAction(options, config))
+      : options.state,
+    status,
+    summary: PACK_DEEP_LINK_PRODUCT_COPY[status] || PACK_DEEP_LINK_PRODUCT_COPY["remote-error"],
+  };
+}
+
+async function importPackFromDeepLinkForGui(packId, options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  const local = await inspectPackDeepLinkLocalState(packId, { config });
+  if (local.alreadyInstalled) return packDeepLinkProductResponse("already-installed", { ...options, config });
+  if (!local.libraryReady) return packDeepLinkProductResponse("library-unavailable", { ...options, config });
+
+  const fetchImpl = options.fetchImpl || remotePackImportFetchImpl;
+  if (typeof fetchImpl !== "function" || !config.hslOrigin) {
+    return packDeepLinkProductResponse("pack-unavailable", { ...options, config });
+  }
+
+  const combined = combineAbortSignals([getRemoteOperationSignal(), options.signal]);
+  try {
+    const result = await executeRemotePackImport({
+      config,
+      downloadTimeoutMs: options.downloadTimeoutMs,
+      fetchImpl,
+      hslOrigin: config.hslOrigin,
+      importZip: (zipPath, importOptions) => importPackFromZipForGui(zipPath, {
+        config,
+        importOptions,
+      }),
+      maxPackBytes: options.maxPackBytes,
+      nowMs: options.nowMs,
+      onPhase: options.onPhase,
+      packId,
+      resolveSession: ({ force }) => (options.resolveSessionResultImpl || resolveCanonicalSessionResult)(config, {
+        connected: true,
+        force,
+      }),
+      signal: combined.signal,
+      tempBaseDir: options.tempBaseDir,
+      timeoutMs: options.descriptorTimeoutMs,
+    });
+    const status = PACK_DEEP_LINK_PRODUCT_COPY[result.status] ? result.status : "remote-error";
+    return packDeepLinkProductResponse(status, {
+      ...options,
+      config,
+      state: result.importResult?.state,
+    });
+  } finally {
+    combined.dispose();
+  }
+}
+
 async function chooseSharedMameRuntimeFromGui(mameExecutablePath, options = {}) {
   const config = options.config || loadRuntimeConfig();
 
@@ -3445,6 +3537,7 @@ module.exports = {
   cancelOpenPack,
   chooseSharedMameRuntimeFromGui,
   choosePackDirectoryFromGui,
+  configureRemotePackImport,
   configureAccountProfileSync,
   configurePlayTimeSync,
   detectLibraryLocationCandidate,
@@ -3464,8 +3557,10 @@ module.exports = {
   resolveCanonicalSessionForRemote,
   getLauncherState,
   getLibraryLocationSelectionContext,
+  importPackFromDeepLinkForGui,
   importPackFromFolderForGui,
   importPackFromZipForGui,
+  inspectPackDeepLinkLocalState,
   invalidateInteractiveRemoteOperations,
   cancelPendingAutoSubmit,
   loginWithPassword,

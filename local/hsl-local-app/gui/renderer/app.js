@@ -55,6 +55,11 @@ import {
 } from "./product-presentation.js";
 import { createEphemeralLoginDraft } from "./login-draft.js";
 import { prepareAndAcceptWindowsUpdate, windowsUpdateDialogPatch } from "./windows-update-ui.js";
+import {
+  isPackImportUiStable,
+  packImportIntentDialog,
+  packImportResultDialog,
+} from "./pack-deeplink-ui.js";
 
 const root = document.getElementById("app");
 const savedTheme = window.__HSL_INITIAL_THEME__ === "light" ? "light" : "dark";
@@ -142,6 +147,9 @@ let startupCompletionLogged = false;
 let themeToggleQueue = Promise.resolve();
 let themeWrites = 0;
 let windowsUpdatePresentationQueued = false;
+let packImportIntentAvailable = false;
+let packImportIntentLookupInFlight = false;
+let packImportIntentPresentationQueued = false;
 const assetPreloader = createAssetPreloader({ timeoutMs: DETAIL_ASSET_PRELOAD_TIMEOUT_MS });
 const favoriteSyncByKey = new Map();
 const unavailableDirectoryPrompts = new Set();
@@ -162,6 +170,8 @@ const startupReadiness = createStartupReadiness({
         status: startup.status,
       });
       window.hslLauncher.reportStartupMilestone?.({ name: "interactive", status: startup.status });
+      packImportIntentAvailable = true;
+      queuePackImportIntentPresentation();
     }
     store.setState(patch);
   },
@@ -1303,6 +1313,103 @@ function queueWindowsUpdatePresentation() {
   window.queueMicrotask(presentWindowsUpdateIfStable);
 }
 
+async function presentPackImportIntentIfStable() {
+  packImportIntentPresentationQueued = false;
+  if (
+    !packImportIntentAvailable
+    || packImportIntentLookupInFlight
+    || !isPackImportUiStable(store.getState(), windowsUpdatePendingWrites())
+  ) return;
+
+  packImportIntentLookupInFlight = true;
+  try {
+    const value = await window.hslLauncher.getPendingPackImportIntent?.();
+    const dialog = packImportIntentDialog(value);
+    if (!dialog) {
+      packImportIntentAvailable = false;
+      return;
+    }
+    if (!isPackImportUiStable(store.getState(), windowsUpdatePendingWrites())) return;
+    packImportIntentAvailable = false;
+    store.setState({ activeDialog: dialog });
+  } catch {
+    // El intent sigue en main; una nueva señal o transición visual permitirá reintentarlo.
+  } finally {
+    packImportIntentLookupInFlight = false;
+  }
+}
+
+function queuePackImportIntentPresentation() {
+  if (packImportIntentPresentationQueued || !packImportIntentAvailable) return;
+  packImportIntentPresentationQueued = true;
+  window.queueMicrotask(presentPackImportIntentIfStable);
+}
+
+async function cancelPresentedPackImportIntent() {
+  const dialog = store.getState().activeDialog;
+  if (dialog?.type !== "pack-deeplink") return;
+  store.setState({ activeDialog: null });
+  try {
+    const result = await window.hslLauncher.cancelPackImportIntent(dialog.intentId);
+    if (result?.ok !== true) packImportIntentAvailable = true;
+  } catch {
+    packImportIntentAvailable = true;
+  }
+  queuePackImportIntentPresentation();
+}
+
+async function acceptPresentedPackImportIntent() {
+  const dialog = store.getState().activeDialog;
+  if (dialog?.type !== "pack-deeplink" || dialog.alreadyInstalled || !dialog.libraryReady) return;
+  store.setState({ activeDialog: null });
+  const response = await runAction(
+    "accept-pack-deeplink",
+    "Preparando pack",
+    "Importar pack",
+    () => window.hslLauncher.acceptPackImportIntent(dialog.intentId),
+    {
+      phaseDriven: true,
+      responsePatch(result) {
+        if (result?.status === "library-unavailable") {
+          return {
+            activeDialog: packImportIntentDialog({
+              alreadyInstalled: false,
+              intentId: dialog.intentId,
+              libraryReady: false,
+              packId: dialog.packId,
+            }),
+          };
+        }
+        return { activeDialog: packImportResultDialog(result?.status) };
+      },
+      scope: "interactive",
+    },
+  );
+  if (!response) packImportIntentAvailable = true;
+  queuePackImportIntentPresentation();
+}
+
+function choosePackImportLibrary() {
+  const dialog = store.getState().activeDialog;
+  if (dialog?.type !== "pack-deeplink" || dialog.libraryReady) return;
+  packImportIntentAvailable = false;
+  store.setState({ activeDialog: null });
+  runAction(
+    "choose-pack-directory",
+    "Eligiendo directorio",
+    "Elegir directorio",
+    () => window.hslLauncher.choosePackDirectory(),
+    {
+      promptForRejectedLibraryRoot: true,
+      restoreTriggerFocus: true,
+      scope: "interactive",
+    },
+  ).finally(() => {
+    packImportIntentAvailable = true;
+    queuePackImportIntentPresentation();
+  });
+}
+
 function applyWindowsUpdateState(value) {
   if (!value || typeof value !== "object") return;
   store.setState({ windowsUpdate: normalizeWindowsUpdateState(value) });
@@ -1721,6 +1828,7 @@ function resultToLog(title, response) {
       ? "Cuenta cambiada. La cola visible corresponde a esta cuenta y pack."
       : "No se pudo cambiar de cuenta."),
     "switch-account-login-required": response.summary || "Inicia sesión de nuevo para esta cuenta.",
+    "import-pack-deeplink": response.summary || "No se pudo completar la importación del pack.",
   };
 
   return {
@@ -1806,11 +1914,16 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
       Object.assign(statePatch, detectedLibraryLocationDialogPatch(response, options.libraryLocationDialog));
     }
 
+    if (typeof options.responsePatch === "function") {
+      Object.assign(statePatch, options.responsePatch(response) || {});
+    }
+
     store.setState(statePatch);
     restoreTriggerFocus();
     if (action === "choose-pack-directory" && !store.getState().activeDialog) {
       dialogReturnFocusIdentity = null;
     }
+    return response;
   } catch (error) {
     if (activeBusyPhaseTimer !== null) window.clearTimeout(activeBusyPhaseTimer);
     activeBusyPhaseTimer = null;
@@ -1831,6 +1944,7 @@ async function runAction(action, busyLabel, title, fn, options = {}) {
     if (action === "choose-pack-directory" && !store.getState().activeDialog) {
       dialogReturnFocusIdentity = null;
     }
+    return null;
   }
 }
 
@@ -2141,6 +2255,7 @@ function bindActions() {
 
     if (target?.matches("[data-dialog-backdrop]")) {
       if (current.activeDialog?.type === "windows-update") declineWindowsUpdate();
+      else if (current.activeDialog?.type === "pack-deeplink") cancelPresentedPackImportIntent();
       else store.setState({ activeDialog: null });
       return;
     }
@@ -2228,6 +2343,18 @@ function bindActions() {
 
     if (action === "close-dialog") {
       store.setState({ activeDialog: null });
+    }
+
+    if (action === "cancel-pack-deeplink") {
+      cancelPresentedPackImportIntent();
+    }
+
+    if (action === "accept-pack-deeplink") {
+      acceptPresentedPackImportIntent();
+    }
+
+    if (action === "choose-pack-deeplink-library") {
+      choosePackImportLibrary();
     }
 
     if (action === "set-library-view") {
@@ -2471,6 +2598,7 @@ function bindActions() {
 store.subscribe((state, changedKeys) => {
   render(state, changedKeys);
   queueWindowsUpdatePresentation();
+  queuePackImportIntentPresentation();
 });
 render();
 bindActions();
@@ -2489,6 +2617,7 @@ window.addEventListener("keydown", (event) => {
 
   if (state.activeDialog || state.activeOverlay || state.accountMenuOpen) {
     if (state.activeDialog?.type === "windows-update") declineWindowsUpdate();
+    else if (state.activeDialog?.type === "pack-deeplink") cancelPresentedPackImportIntent();
     else store.setState({ ...closeAccountMenuState(), activeDialog: null, activeOverlay: null });
   }
 });
@@ -2537,6 +2666,10 @@ window.addEventListener("beforeunload", cleanupRendererLifecycle, { once: true }
 const removeRendererSubscriptions = [
   window.hslLauncher.onConnectivityState?.(applyConnectivityState),
   window.hslLauncher.onLauncherState?.(applyBackgroundLauncherState),
+  window.hslLauncher.onPackImportIntentAvailable?.(() => {
+    packImportIntentAvailable = true;
+    queuePackImportIntentPresentation();
+  }),
   window.hslLauncher.onRankingCapabilitiesState?.(applyRankingCapabilitiesState),
   window.hslLauncher.onWindowsUpdateState?.(applyWindowsUpdateState),
   window.hslLauncher.onBusyPhase?.((phase) => {

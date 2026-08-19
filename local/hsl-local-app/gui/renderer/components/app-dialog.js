@@ -175,7 +175,89 @@ function renderWindowsUpdateErrorDialog() {
   `;
 }
 
+function renderPackDeepLinkDialog(dialog) {
+  const titleId = "app-dialog-pack-deeplink-title";
+  const descriptionId = "app-dialog-pack-deeplink-description";
+  let eyebrow = "Importar pack";
+  let title = "Importar pack";
+  let description = "¿Quieres añadir este pack a tu biblioteca?";
+  let buttons = [
+    { action: "cancel-pack-deeplink", autofocus: true, label: "Cancelar", variant: "secondary" },
+    { action: "accept-pack-deeplink", label: "Añadir pack", variant: "primary" },
+  ];
+
+  if (dialog.alreadyInstalled) {
+    eyebrow = "Biblioteca";
+    title = "Pack ya instalado";
+    description = "Este pack ya está en tu biblioteca.";
+    buttons = [{ action: "cancel-pack-deeplink", autofocus: true, label: "Aceptar", variant: "primary" }];
+  } else if (!dialog.libraryReady) {
+    eyebrow = "Biblioteca";
+    title = "Configura tu biblioteca";
+    description = "Elige dónde quieres guardar los packs antes de continuar.";
+    buttons = [
+      { action: "cancel-pack-deeplink", autofocus: true, label: "Cancelar", variant: "secondary" },
+      { action: "choose-pack-deeplink-library", icon: "folder", label: "Elegir carpeta", variant: "primary" },
+    ];
+  }
+
+  return `
+    <div class="app-dialog-layer" data-dialog-backdrop>
+      <section class="app-dialog app-dialog--pack-deeplink" role="dialog" aria-modal="true" aria-labelledby="${titleId}" aria-describedby="${descriptionId}" data-dialog>
+        <div class="app-dialog__header">
+          <p class="eyebrow">${escapeHtml(eyebrow)}</p>
+          <h2 id="${titleId}">${escapeHtml(title)}</h2>
+          <p id="${descriptionId}">${escapeHtml(description)}</p>
+        </div>
+        <div class="app-dialog__actions app-dialog__actions--pack-deeplink">
+          ${buttons.map(renderDialogButton).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderPackDeepLinkResultDialog(dialog) {
+  const copies = {
+    "already-installed": ["Pack ya instalado", "Este pack ya está en tu biblioteca."],
+    cancelled: ["Importación cancelada", "No se ha instalado nada."],
+    "download-integrity-failed": ["No se pudo verificar el pack", "No se pudo verificar el pack descargado. No se ha instalado nada."],
+    imported: ["Pack añadido", "El pack se ha añadido a tu biblioteca."],
+    "invalid-pack": ["Pack no válido", "El archivo descargado no es un pack válido. No se ha instalado nada."],
+    offline: ["Sin conexión", "Necesitas conexión a Internet para importar este pack."],
+    "pack-unavailable": ["Pack no disponible", "Este pack no está disponible para importar ahora."],
+    "remote-error": ["No se pudo importar", "No se pudo preparar este pack para importarlo ahora."],
+    "requires-login": ["Inicia sesión", "Inicia sesión en el launcher para importar este pack."],
+    "unexpected-pack-id": ["Pack incorrecto", "El archivo recibido no corresponde al pack solicitado. No se ha instalado nada."],
+  };
+  const [title, description] = copies[dialog.status] || copies["remote-error"];
+  const titleId = "app-dialog-pack-deeplink-result-title";
+  const descriptionId = "app-dialog-pack-deeplink-result-description";
+  return `
+    <div class="app-dialog-layer" data-dialog-backdrop>
+      <section class="app-dialog app-dialog--pack-deeplink-result" role="dialog" aria-modal="true" aria-labelledby="${titleId}" aria-describedby="${descriptionId}" data-dialog>
+        <div class="app-dialog__header">
+          <p class="eyebrow">Importar pack</p>
+          <h2 id="${titleId}">${escapeHtml(title)}</h2>
+          <p id="${descriptionId}">${escapeHtml(description)}</p>
+        </div>
+        <div class="app-dialog__actions app-dialog__actions--pack-deeplink-result">
+          ${renderDialogButton({ action: "close-dialog", autofocus: true, label: "Aceptar", variant: "primary" })}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 export function renderAppDialog(state) {
+  if (state?.activeDialog?.type === "pack-deeplink") {
+    return renderPackDeepLinkDialog(state.activeDialog);
+  }
+
+  if (state?.activeDialog?.type === "pack-deeplink-result") {
+    return renderPackDeepLinkResultDialog(state.activeDialog);
+  }
+
   if (state?.activeDialog?.type === "windows-update") {
     return renderWindowsUpdateDialog();
   }

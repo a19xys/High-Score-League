@@ -175,10 +175,11 @@ test("upstream failures, invalid JSON and invalid schema return the same no-stor
 
 test("route and authenticated Home retain the public, semantic UI contract", async () => {
   const root = process.cwd();
-  const [route, home, options] = await Promise.all([
+  const [route, home, options, styles] = await Promise.all([
     readFile(join(root, "app/download/launcher/windows/route.ts"), "utf8"),
     readFile(join(root, "app/page.tsx"), "utf8"),
     readFile(join(root, "components/launcher-download-options.tsx"), "utf8"),
+    readFile(join(root, "app/globals.css"), "utf8"),
   ]);
 
   assert.match(route, /dynamic = "force-dynamic"/);
@@ -193,13 +194,15 @@ test("route and authenticated Home retain the public, semantic UI contract", asy
   assert.match(options, /<a[\s\S]*?href="\/download\/launcher\/windows"/);
   assert.match(options, /Windows 64 bits/);
   assert.match(options, /aria-disabled="true"[\s\S]*GNU\/Linux[\s\S]*Próximamente/);
-  assert.match(options, /src="\/icons\/platform-windows\.png"/);
-  assert.match(options, /src="\/icons\/platform-gnu-linux\.png"/);
-  assert.equal((options.match(/alt=""/g) || []).length, 2);
+  assert.match(options, /platform-icon platform-icon-windows text-ink/);
+  assert.match(options, /platform-icon platform-icon-gnu-linux theme-text-muted/);
   assert.equal((options.match(/aria-hidden="true"/g) || []).length, 2);
-  assert.equal((options.match(/shrink-0 object-contain/g) || []).length, 2);
   assert.equal((options.match(/min-w-0 flex-1/g) || []).length, 2);
-  assert.doesNotMatch(options, /next\/link|<Link|<button|onClick|navigator|userAgent|href="#/i);
+  assert.doesNotMatch(options, /next\/link|<Link|<button|<img|onClick|navigator|userAgent|href="#/i);
+  assert.match(styles, /\.platform-icon\s*\{[\s\S]*background-color:\s*currentColor/);
+  assert.match(styles, /mask-size:\s*contain/);
+  assert.match(styles, /mask-image:\s*url\("\/icons\/platform-windows\.png"\)/);
+  assert.match(styles, /mask-image:\s*url\("\/icons\/platform-gnu-linux\.png"\)/);
   const linuxOption = options.slice(options.indexOf("aria-disabled"));
   assert.doesNotMatch(linuxOption, /href=|tabIndex=|role="button"/);
 });

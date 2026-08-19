@@ -65,11 +65,22 @@ test("package metadata makes the GUI the product entry point", () => {
   assert.deepEqual(builder.win.target, [{ target: "nsis", arch: ["x64"] }]);
   assert.equal(builder.nsis.oneClick, true);
   assert.equal(builder.nsis.perMachine, false);
+  assert.equal(builder.nsis.include, "build/installer.nsh");
   assert.equal(builder.nsis.deleteAppDataOnUninstall, false);
   assert.match(builder.nsis.artifactName, /High Score League Setup/);
   const mameRuntime = readMameRuntimeManifest();
   const mameResource = builder.extraResources.find((entry) => entry.to === path.posix.join("mame", mameRuntime.version));
   assert.equal(mameResource.from, path.join(".cache", "product", "mame", mameRuntime.version, "runtime"));
+});
+
+test("NSIS registra y elimina el protocolo deep-link por usuario con quoting seguro", async () => {
+  const include = await fsp.readFile(path.join(__dirname, "..", builder.nsis.include), "utf8");
+  assert.match(include, /!macro customInstall/);
+  assert.match(include, /!macro customUnInstall/);
+  assert.match(include, /HKCU "Software\\Classes\\highscoreleague" "URL Protocol" ""/);
+  assert.match(include, /'"\$INSTDIR\\High Score League\.exe" "%1"'/);
+  assert.match(include, /DeleteRegKey HKCU "Software\\Classes\\highscoreleague"/);
+  assert.doesNotMatch(include, /HKLM|requestSingleInstanceLock|electron \.|npm run gui/i);
 });
 
 test("stable Electron 43 and electron-builder 26 are pinned", () => {

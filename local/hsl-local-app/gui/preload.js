@@ -21,6 +21,8 @@ const onEvent = (channel, callback) => {
 
 contextBridge.exposeInMainWorld("hslLauncher", {
   choosePackDirectory: invoke("launcher:choose-pack-directory"),
+  acceptPackImportIntent: (intentId) => ipcRenderer.invoke("launcher:accept-pack-import-intent", intentId),
+  cancelPackImportIntent: (intentId) => ipcRenderer.invoke("launcher:cancel-pack-import-intent", intentId),
   chooseSharedMameRuntime: invoke("launcher:choose-shared-mame-runtime"),
   checkMembership: invoke("launcher:check-membership"),
   acceptWindowsUpdate: invoke("launcher:accept-windows-update"),
@@ -32,6 +34,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   getRankingCapabilitiesState: invoke("launcher:get-ranking-capabilities-state"),
   getState: invoke("launcher:get-state"),
   getInitialState: invoke("launcher:get-initial-state"),
+  getPendingPackImportIntent: invoke("launcher:get-pending-pack-import-intent"),
   getWindowsUpdateState: invoke("launcher:get-windows-update-state"),
   forceAccountSync: invoke("launcher:force-account-sync"),
   importPackFolder: invoke("launcher:import-pack-folder"),
@@ -46,6 +49,7 @@ contextBridge.exposeInMainWorld("hslLauncher", {
   onBusyPhase: (callback) => onEvent("launcher:busy-phase", callback),
   onConnectivityState: (callback) => onEvent("launcher:connectivity-state", callback),
   onLauncherState: (callback) => onEvent("launcher:state", callback),
+  onPackImportIntentAvailable: (callback) => onEvent("launcher:pack-import-intent-available", callback),
   onRankingCapabilitiesState: (callback) => onEvent("launcher:ranking-capabilities-state", callback),
   onWindowsUpdateState: (callback) => onEvent("launcher:windows-update-state", callback),
   playCompetition: invoke("launcher:play-competition"),

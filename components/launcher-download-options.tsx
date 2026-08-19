@@ -9,13 +9,9 @@ export function LauncherDownloadOptions() {
         className="inline-flex min-h-16 items-center gap-3 rounded-lg bg-circuit px-5 py-3 text-left text-ink shadow-panel transition hover:bg-circuit/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit focus-visible:ring-offset-2"
         href="/download/launcher/windows"
       >
-        <img
-          alt=""
+        <span
           aria-hidden="true"
-          className="h-8 w-8 shrink-0 object-contain"
-          height="32"
-          src="/icons/platform-windows.png"
-          width="32"
+          className="platform-icon platform-icon-windows text-ink"
         />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold">Descargar para Windows</span>
@@ -27,13 +23,9 @@ export function LauncherDownloadOptions() {
         aria-disabled="true"
         className="inline-flex min-h-16 items-center gap-3 rounded-lg border px-5 py-3 theme-border theme-surface-muted"
       >
-        <img
-          alt=""
+        <span
           aria-hidden="true"
-          className="h-8 w-8 shrink-0 object-contain"
-          height="32"
-          src="/icons/platform-gnu-linux.png"
-          width="32"
+          className="platform-icon platform-icon-gnu-linux theme-text-muted"
         />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold theme-text">GNU/Linux</span>

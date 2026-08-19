@@ -347,6 +347,30 @@ textarea {
     color: var(--text-muted);
   }
 
+  .platform-icon {
+    display: block;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 auto;
+    background-color: currentColor;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+
+  .platform-icon-windows {
+    -webkit-mask-image: url("/icons/platform-windows.png");
+    mask-image: url("/icons/platform-windows.png");
+  }
+
+  .platform-icon-gnu-linux {
+    -webkit-mask-image: url("/icons/platform-gnu-linux.png");
+    mask-image: url("/icons/platform-gnu-linux.png");
+  }
+
   .theme-table-head {
     background: var(--table-head);
     color: var(--text-muted);

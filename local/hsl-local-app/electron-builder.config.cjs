@@ -46,6 +46,7 @@ module.exports = {
     executableName: "High Score League",
   },
   nsis: {
+    include: "build/installer.nsh",
     oneClick: true,
     perMachine: false,
     allowElevation: false,
