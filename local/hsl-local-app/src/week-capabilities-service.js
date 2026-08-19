@@ -17,6 +17,7 @@ const DEFAULT_WEEK_CAPABILITIES_OPTIONS = Object.freeze({
   retryMaxMs: 5 * 60 * 1000,
 });
 const identifierPattern = /^[A-Za-z0-9_-]{1,128}$/;
+const UNKNOWN_DEPLOYMENT_KEY = deploymentKey({});
 
 function validWeekId(value) {
   return typeof value === "string" && identifierPattern.test(value);
@@ -290,31 +291,65 @@ function createWeekCapabilitiesService(options = {}) {
     return snapshot();
   }
 
-  function updateContext(input = {}) {
-    const webBaseUrl = normalizeWebBaseUrl(input.webBaseUrl);
-    const deployment = { ...(connection().deployment || {}) };
-    const observedDeploymentKey = deploymentKey(deployment);
-    const nextDeploymentKey = observedDeploymentKey === "unknown:unknown:0"
+  function deploymentIsConfirmedForKey(deployment, logicalKey) {
+    return logicalKey !== UNKNOWN_DEPLOYMENT_KEY && deploymentKey(deployment) === logicalKey;
+  }
+
+  function observedDeploymentContext(webBaseUrl) {
+    const observedDeployment = { ...(connection().deployment || {}) };
+    const observedDeploymentKey = deploymentKey(observedDeployment);
+    const logicalDeploymentKey = observedDeploymentKey === UNKNOWN_DEPLOYMENT_KEY
       ? cache.resolveDeploymentKey(webBaseUrl) || observedDeploymentKey
       : observedDeploymentKey;
+    const preserveConfirmedDeployment = observedDeploymentKey === UNKNOWN_DEPLOYMENT_KEY
+      && webBaseUrl === context.webBaseUrl
+      && logicalDeploymentKey === context.deploymentKey
+      && deploymentIsConfirmedForKey(context.deployment, logicalDeploymentKey);
+    return {
+      deployment: preserveConfirmedDeployment ? { ...context.deployment } : observedDeployment,
+      deploymentKey: logicalDeploymentKey,
+      observedDeployment,
+      observedDeploymentKey,
+    };
+  }
+
+  function hydrateEquivalentDeployment(nextDeployment, nextDeploymentKey) {
+    if (nextDeploymentKey !== context.deploymentKey) return false;
+    if (!deploymentIsConfirmedForKey(nextDeployment, nextDeploymentKey)) return false;
+    if (deploymentIsConfirmedForKey(context.deployment, context.deploymentKey)) return false;
+    context = { ...context, deployment: { ...nextDeployment } };
+    return true;
+  }
+
+  function updateContext(input = {}) {
+    const webBaseUrl = normalizeWebBaseUrl(input.webBaseUrl);
+    const observed = observedDeploymentContext(webBaseUrl);
     const weekIds = [...new Set((input.packs || []).map((pack) => pack?.weekId).filter(validWeekId))].sort();
-    const fingerprint = `${webBaseUrl || "missing"}|${nextDeploymentKey}|${weekIds.join("|")}`;
-    if (fingerprint === context.fingerprint) return snapshot();
-    return replaceContext({ deployment, deploymentKey: nextDeploymentKey, fingerprint, webBaseUrl, weekIds });
+    const fingerprint = `${webBaseUrl || "missing"}|${observed.deploymentKey}|${weekIds.join("|")}`;
+    if (fingerprint === context.fingerprint) {
+      hydrateEquivalentDeployment(observed.observedDeployment, observed.deploymentKey);
+      return snapshot();
+    }
+    return replaceContext({
+      deployment: observed.deployment,
+      deploymentKey: observed.deploymentKey,
+      fingerprint,
+      webBaseUrl,
+      weekIds,
+    });
   }
 
   function updateDeployment() {
-    const deployment = { ...(connection().deployment || {}) };
-    const observedDeploymentKey = deploymentKey(deployment);
-    const nextDeploymentKey = observedDeploymentKey === "unknown:unknown:0"
-      ? cache.resolveDeploymentKey(context.webBaseUrl) || observedDeploymentKey
-      : observedDeploymentKey;
-    if (nextDeploymentKey === context.deploymentKey) return snapshot();
+    const observed = observedDeploymentContext(context.webBaseUrl);
+    if (observed.deploymentKey === context.deploymentKey) {
+      hydrateEquivalentDeployment(observed.observedDeployment, observed.deploymentKey);
+      return snapshot();
+    }
     return replaceContext({
       ...context,
-      deployment,
-      deploymentKey: nextDeploymentKey,
-      fingerprint: `${context.webBaseUrl || "missing"}|${nextDeploymentKey}|${context.weekIds.join("|")}`,
+      deployment: observed.deployment,
+      deploymentKey: observed.deploymentKey,
+      fingerprint: `${context.webBaseUrl || "missing"}|${observed.deploymentKey}|${context.weekIds.join("|")}`,
     });
   }
 
@@ -355,6 +390,7 @@ function createWeekCapabilitiesService(options = {}) {
     if (stopped || suspended || !isCommittedConnected(connection())) {
       return Promise.resolve({ requestedIds: [], results: new Map(), runId: null, state: snapshot() });
     }
+    updateDeployment();
     if (activeRun) return activeRun.promise;
     const endpoint = weekCapabilitiesEndpoint(context.webBaseUrl);
     const requestedIds = (refreshOptions.weekIds || context.weekIds)
@@ -368,6 +404,46 @@ function createWeekCapabilitiesService(options = {}) {
         runId: null,
         status: "failed",
       }]));
+      return Promise.resolve({ requestedIds, results, runId: null, state: snapshot() });
+    }
+
+    const connectivityDeployment = { ...(connection().deployment || {}) };
+    const connectivityDeploymentKey = deploymentKey(connectivityDeployment);
+    const deploymentConfirmed = deploymentIsConfirmedForKey(context.deployment, context.deploymentKey)
+      && connectivityDeploymentKey === context.deploymentKey;
+    if (!deploymentConfirmed) {
+      const checkedAt = new Date(now()).toISOString();
+      const failure = "deployment-unconfirmed";
+      const results = new Map(requestedIds.map((weekId) => [weekId, {
+        checkedAt,
+        reason: failure,
+        runId: null,
+        status: "failed",
+      }]));
+      for (const [weekId, result] of results) lastResults.set(weekId, result);
+      lastAttemptAt = checkedAt;
+      lastAttemptTrigger = reason;
+      lastAttemptResult = "failed";
+      lastFailureAt = checkedAt;
+      lastFailureReason = failure;
+      lastRequest = {
+        checkedAt,
+        contractVersion: WEEK_CAPABILITIES_CONTRACT_VERSION,
+        contractValidation: "not-started",
+        deploymentMatch: false,
+        endpoint,
+        expectedDeployment: publicDeployment(context.deployment),
+        receivedConnectivityDeployment: publicDeployment(connectivityDeployment),
+        reason: failure,
+        requestReason: reason,
+        requestKeys: requestedIds.map((_weekId, index) => `week-${index}`),
+        requestedIds: [...requestedIds],
+        result: "failed",
+        runId: null,
+      };
+      scheduleRetry(failure);
+      emit(`${reason}:blocked`);
+      scheduleBoundary();
       return Promise.resolve({ requestedIds, results, runId: null, state: snapshot() });
     }
 
@@ -612,7 +688,14 @@ function createWeekCapabilitiesService(options = {}) {
     getDiagnostics: () => ({
       cachePath: cache.path,
       capabilities: Object.fromEntries(context.weekIds.map((weekId) => [weekId, getCapability(weekId)])),
-      context: { deploymentKey: context.deploymentKey, generation: context.generation, webBaseUrl: context.webBaseUrl, weekCount: context.weekIds.length },
+      context: {
+        deployment: publicDeployment(context.deployment),
+        deploymentConfirmed: deploymentIsConfirmedForKey(context.deployment, context.deploymentKey),
+        deploymentKey: context.deploymentKey,
+        generation: context.generation,
+        webBaseUrl: context.webBaseUrl,
+        weekCount: context.weekIds.length,
+      },
       inFlight: Boolean(inFlight),
       lastAttemptAt,
       lastAttemptResult,

@@ -4,6 +4,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { createWeekCapabilitiesService } = require("../src/week-capabilities-service");
+const { createWeekCapabilityCache } = require("../src/competitive-authority-cache");
 const { deriveCompetitionAccess } = require("../src/competition-access");
 
 async function withTempDir(run) {
@@ -97,6 +98,202 @@ function createMemoryWeekCache(initialCapability) {
   };
 }
 
+async function seedWeekCache(cache, weekId, publicState, checkedAt = "2026-08-01T00:00:00.000Z") {
+  await cache.remember({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, {
+    checkedAt,
+    conclusive: true,
+    derivedStatus: publicState,
+    publicState,
+    rawStatus: publicState,
+    reason: `week-${publicState}`,
+    seasonId: "season-a",
+    seasonStatus: "active",
+    weekId,
+  });
+}
+
+test("cache-first hidrata el mismo deployment y conserva ACTIVE/UNLINKED tras refresh", async () => {
+  await withTempDir(async (userDataDir) => {
+    const now = Date.parse("2026-08-01T00:02:00.000Z");
+    const cache = createWeekCapabilityCache({ userDataDir });
+    await cache.initialize();
+    await seedWeekCache(cache, "week-a", "active");
+    await seedWeekCache(cache, "week-unlinked", "unlinked");
+    const originalKeys = cache.snapshot().entries.map((entry) => entry.key).sort();
+    const connection = {
+      deployment: {},
+      reachability: "connecting",
+      reachabilityGeneration: 0,
+    };
+    const transitions = [];
+    const service = createWeekCapabilitiesService({
+      cache,
+      fetchImpl: async (_url, init) => {
+        const payload = JSON.parse(init.body);
+        return response(payload.requests.map((request) => resultFor(
+          request,
+          request.weekId === "week-unlinked" ? "unlinked" : "active",
+        )), new Date(now).toISOString());
+      },
+      getConnectivityState: () => connection,
+      now: () => now,
+      userDataDir,
+    });
+    await service.initialize();
+    service.updateContext({
+      packs: [{ weekId: "week-a" }, { weekId: "week-unlinked" }],
+      webBaseUrl: "https://hsl.example",
+    });
+    const startupGeneration = service.getState().generation;
+    const cacheFirst = service.getDiagnostics();
+    assert.equal(cacheFirst.context.deploymentKey, "build-a:production:1");
+    assert.equal(cacheFirst.context.deploymentConfirmed, false);
+    assert.equal(cacheFirst.context.deployment.build, "unknown");
+    assert.equal(service.getCapability("week-a").publicState, "unknown");
+    assert.equal(service.getCapability("week-a").lastKnownPublicState, "active");
+    service.subscribe((_state, reason) => transitions.push(reason));
+
+    connection.deployment = { ...deployment };
+    connection.reachability = "connected";
+    connection.reachabilityGeneration = 1;
+    service.updateDeployment();
+    const hydrated = service.getDiagnostics();
+    assert.equal(service.getState().generation, startupGeneration);
+    assert.equal(hydrated.context.deploymentConfirmed, true);
+    assert.deepEqual(hydrated.context.deployment, deployment);
+    assert.deepEqual(cache.snapshot().entries.map((entry) => entry.key).sort(), originalKeys);
+    assert.equal(transitions.includes("context-change"), false);
+
+    await service.refresh("startup", { force: true });
+    assert.equal(service.getCapability("week-a").publicState, "active");
+    assert.equal(service.getCapability("week-a").currentAuthority, true);
+    assert.equal(service.getCapability("week-unlinked").publicState, "unlinked");
+    assert.equal(service.getCapability("week-unlinked").currentAuthority, true);
+    assert.equal(cache.read({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, "week-a", now).checkedAt, "2026-08-01T00:02:00.000Z");
+    assert.deepEqual(cache.snapshot().entries.map((entry) => entry.key).sort(), originalKeys);
+    assert.equal(service.getDiagnostics().lastRequest.deploymentMatch, true);
+    assert.deepEqual(service.getDiagnostics().lastRequest.expectedDeployment, deployment);
+
+    connection.activity = "blurred";
+    service.updateDeployment();
+    connection.activity = "focused";
+    service.updateContext({
+      packs: [{ weekId: "week-a" }, { weekId: "week-unlinked" }],
+      webBaseUrl: "https://hsl.example",
+    });
+    assert.equal(service.getState().generation, startupGeneration);
+    assert.equal(service.getCapability("week-a").publicState, "active");
+    service.stop();
+  });
+});
+
+test("health-first converge directamente al mismo deployment confirmado", async () => {
+  await withTempDir(async (userDataDir) => {
+    const connection = { deployment: { ...deployment }, reachability: "connected", reachabilityGeneration: 1 };
+    const service = createWeekCapabilitiesService({
+      fetchImpl: async (_url, init) => {
+        const payload = JSON.parse(init.body);
+        return response(payload.requests.map((request) => resultFor(request, "active")));
+      },
+      getConnectivityState: () => connection,
+      now: () => Date.parse("2026-08-01T00:02:00.000Z"),
+      userDataDir,
+    });
+    await service.initialize();
+    service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+    const generation = service.getState().generation;
+    assert.equal(service.getDiagnostics().context.deploymentConfirmed, true);
+    await service.refresh("startup", { force: true });
+    assert.equal(service.getState().generation, generation);
+    assert.equal(service.getDiagnostics().context.deploymentKey, "build-a:production:1");
+    assert.deepEqual(service.getDiagnostics().lastRequest.expectedDeployment, deployment);
+    assert.equal(service.getCapability("week-a").publicState, "active");
+    assert.equal(service.getCapability("week-a").currentAuthority, true);
+    service.stop();
+  });
+});
+
+test("una segunda apertura reutiliza cache, hidrata health same-key y renueva checkedAt", async () => {
+  await withTempDir(async (userDataDir) => {
+    const firstConnection = { deployment: { ...deployment }, reachability: "connected", reachabilityGeneration: 1 };
+    const fetchImpl = async (_url, init) => {
+      const payload = JSON.parse(init.body);
+      return response(payload.requests.map((request) => resultFor(request, "active")));
+    };
+    const first = createWeekCapabilitiesService({
+      fetchImpl,
+      getConnectivityState: () => firstConnection,
+      now: () => Date.parse("2026-08-01T00:00:00.000Z"),
+      userDataDir,
+    });
+    await first.initialize();
+    first.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+    await first.refresh("first-open", { force: true });
+    first.stop();
+
+    const secondConnection = { deployment: {}, reachability: "connecting", reachabilityGeneration: 0 };
+    const second = createWeekCapabilitiesService({
+      fetchImpl,
+      getConnectivityState: () => secondConnection,
+      now: () => Date.parse("2026-08-01T00:02:00.000Z"),
+      userDataDir,
+    });
+    await second.initialize();
+    second.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+    const generation = second.getState().generation;
+    assert.equal(second.getDiagnostics().context.deploymentKey, "build-a:production:1");
+    assert.equal(second.getDiagnostics().context.deploymentConfirmed, false);
+    secondConnection.deployment = { ...deployment };
+    secondConnection.reachability = "connected";
+    secondConnection.reachabilityGeneration = 1;
+    second.updateDeployment();
+    const refreshed = await second.ensureFreshCapability("week-a");
+    assert.equal(refreshed.ok, true);
+    assert.equal(second.getState().generation, generation);
+    assert.equal(refreshed.capability.checkedAt, "2026-08-01T00:02:00.000Z");
+    assert.equal(refreshed.capability.publicState, "active");
+    second.stop();
+  });
+});
+
+test("runRefresh no consulta con key durable y metadata de Connectivity sin confirmar", async () => {
+  await withTempDir(async (userDataDir) => {
+    let requests = 0;
+    const cache = createWeekCapabilityCache({ userDataDir });
+    await cache.initialize();
+    await seedWeekCache(cache, "week-a", "active");
+    const connection = { deployment: {}, reachability: "connected", reachabilityGeneration: 1 };
+    const service = createWeekCapabilitiesService({
+      cache,
+      fetchImpl: async (_url, init) => {
+        requests += 1;
+        const payload = JSON.parse(init.body);
+        return response(payload.requests.map((request) => resultFor(request, "active")));
+      },
+      getConnectivityState: () => connection,
+      now: () => Date.parse("2026-08-01T00:02:00.000Z"),
+      userDataDir,
+    });
+    await service.initialize();
+    service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+    const blocked = await service.ensureFreshCapability("week-a");
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.reason, "deployment-unconfirmed");
+    assert.equal(requests, 0);
+
+    const generation = service.getState().generation;
+    connection.deployment = { ...deployment };
+    service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+    assert.equal(service.getDiagnostics().context.deploymentConfirmed, true);
+    const recovered = await service.ensureFreshCapability("week-a");
+    assert.equal(recovered.ok, true);
+    assert.equal(requests, 1);
+    assert.equal(service.getState().generation, generation);
+    assert.equal(recovered.capability.publicState, "active");
+    service.stop();
+  });
+});
+
 test("batch remoto queda durable y un fallo posterior no destruye la verdad", async () => {
   await withTempDir(async (userDataDir) => {
     let fail = false;
@@ -138,22 +335,46 @@ test("batch remoto queda durable y un fallo posterior no destruye la verdad", as
 test("una respuesta stale de week/deployment no adquiere autoridad", async () => {
   await withTempDir(async (userDataDir) => {
     let resolveFetch;
+    let aborted = 0;
     const connection = { deployment, deploymentGeneration: 1, reachability: "connected", reachabilityGeneration: 1 };
     const service = createWeekCapabilitiesService({
-      fetchImpl: () => new Promise((resolve) => { resolveFetch = resolve; }),
+      fetchImpl: (_url, init) => new Promise((resolve) => {
+        init.signal.addEventListener("abort", () => { aborted += 1; }, { once: true });
+        resolveFetch = resolve;
+      }),
       getConnectivityState: () => connection,
       userDataDir,
     });
     await service.initialize();
     service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+    const generationA = service.getState().generation;
     const pending = service.refresh("stale");
-    connection.deployment = { apiVersion: 1, build: "build-b", environment: "production" };
+    const deploymentB = { apiVersion: 1, build: "build-b", environment: "production" };
+    connection.deployment = deploymentB;
     connection.deploymentGeneration = 2;
     service.updateDeployment();
+    assert.equal(service.getState().generation, generationA + 1);
+    assert.equal(aborted, 1);
     service.updateContext({ packs: [{ weekId: "week-b" }], webBaseUrl: "https://hsl.example" });
     resolveFetch(response([{ requestKey: "week-0", weekId: "week-a", seasonId: "season-a", derivedStatus: "active", publicState: "active", reason: "week-active" }]));
     await pending;
     assert.equal(service.getCapability("week-b").publicState, "unknown");
+    assert.equal(service.getDiagnostics().lastAttemptResult, "stale");
+
+    const refreshedB = service.ensureFreshCapability("week-b");
+    resolveFetch(response([{
+      requestKey: "week-0",
+      weekId: "week-b",
+      seasonId: "season-a",
+      derivedStatus: "active",
+      publicState: "active",
+      reason: "week-active",
+    }], undefined, deploymentB));
+    const acceptedB = await refreshedB;
+    assert.equal(acceptedB.ok, true);
+    assert.equal(acceptedB.capability.publicState, "active");
+    assert.deepEqual(service.getDiagnostics().lastRequest.expectedDeployment, deploymentB);
+    assert.equal(service.getDiagnostics().lastRequest.deploymentMatch, true);
     service.stop();
   });
 });

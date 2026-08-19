@@ -5,6 +5,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { runCompetitionPlayPreflight } = require("../src/competition-play-preflight");
+const { createWeekCapabilityCache } = require("../src/competitive-authority-cache");
 const { createWeekCapabilitiesService } = require("../src/week-capabilities-service");
 const { launchMameDetailed } = require("../src/mame-launcher");
 const { prepareV2CompetitionRun } = require("../src/mame-plugin-run");
@@ -37,8 +38,22 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
     ]);
 
     const deployment = { apiVersion: 1, build: "build-a", environment: "production" };
-    const connection = { deployment, reachability: "connected", reachabilityGeneration: 8 };
+    const connection = { deployment: {}, reachability: "connecting", reachabilityGeneration: 0 };
+    const weekCache = createWeekCapabilityCache({ userDataDir });
+    await weekCache.initialize();
+    await weekCache.remember({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, {
+      checkedAt: "2026-07-31T00:00:00.000Z",
+      conclusive: true,
+      derivedStatus: "active",
+      publicState: "active",
+      rawStatus: "active",
+      reason: "week-active",
+      seasonId: "season-space-invaders",
+      seasonStatus: "active",
+      weekId: "week-space-invaders",
+    });
     const weekService = createWeekCapabilitiesService({
+      cache: weekCache,
       fetchImpl: async (_url, init) => {
         const payload = JSON.parse(init.body);
         return new Response(JSON.stringify({
@@ -72,6 +87,16 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
     });
     await weekService.initialize();
     weekService.updateContext({ packs: [{ weekId: "week-space-invaders" }], webBaseUrl: "https://hsl.example" });
+    const startupGeneration = weekService.getState().generation;
+    assert.equal(weekService.getDiagnostics().context.deploymentKey, "build-a:production:1");
+    assert.equal(weekService.getDiagnostics().context.deploymentConfirmed, false);
+    assert.equal(weekService.getCapability("week-space-invaders").publicState, "unknown");
+    connection.deployment = { ...deployment };
+    connection.reachability = "connected";
+    connection.reachabilityGeneration = 8;
+    weekService.updateDeployment();
+    assert.equal(weekService.getState().generation, startupGeneration);
+    assert.equal(weekService.getDiagnostics().context.deploymentConfirmed, true);
 
     const config = {
       pack: {
@@ -107,17 +132,19 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
     let spawnCount = 0;
     let prepareCount = 0;
     const phases = [];
-    const launcherState = () => ({
-      competitionAccess: { canPlayCompetition: true },
-      game: { weekId: "week-space-invaders" },
-      membership: { effectiveStatus: "member", status: "member" },
-      readiness: { canPlayCompetition: true, canPractice: true },
-      selection: { activeInstanceKey: "space-invaders-dev-pack-v2" },
-      session: { hasSession: true, userId: "player-a" },
-      weekCapability: weekService.getCapability("week-space-invaders").publicState === "unknown"
-        ? { publicState: "active", weekId: "week-space-invaders" }
-        : weekService.getCapability("week-space-invaders"),
-    });
+    const launcherState = () => {
+      const weekCapability = weekService.getCapability("week-space-invaders");
+      const competitionReady = weekCapability.publicState === "active" && weekCapability.currentAuthority === true;
+      return {
+        competitionAccess: { canPlayCompetition: competitionReady },
+        game: { weekId: "week-space-invaders" },
+        membership: { effectiveStatus: "member", status: "member" },
+        readiness: { canPlayCompetition: competitionReady, canPractice: true },
+        selection: { activeInstanceKey: "space-invaders-dev-pack-v2" },
+        session: { hasSession: true, userId: "player-a" },
+        weekCapability,
+      };
+    };
 
     const result = await runCompetitionPlayPreflight({
       ensureFreshCapability: (weekId) => weekService.ensureFreshCapability(weekId),
@@ -156,6 +183,8 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
 
     assert.equal(result.ok, true);
     assert.equal(weekService.getDiagnostics().lastRequest.httpStatus, 200);
+    assert.equal(weekService.getDiagnostics().lastRequest.deploymentMatch, true);
+    assert.deepEqual(weekService.getDiagnostics().lastRequest.expectedDeployment, deployment);
     assert.equal(weekService.getCapability("week-space-invaders").publicState, "active");
     assert.equal(prepareCount, 1);
     assert.equal(spawnCount, 1);

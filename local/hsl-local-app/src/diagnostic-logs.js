@@ -196,6 +196,7 @@ function buildDiagnosticPayload(config, report, context = {}, options = {}) {
     autoSubmit: context.remoteDiagnostics?.autoSubmit || state?.autoSubmitDiagnostics || null,
     connectivity: context.remoteDiagnostics?.connectivity || state?.connectivity || null,
     rankingCapabilities: context.remoteDiagnostics?.ranking || state?.rankingCapabilities || null,
+    weekCapabilities: context.remoteDiagnostics?.weekCapabilities || state?.weekCapabilities || null,
     accountSessions: context.remoteDiagnostics?.sessions || null,
     securityPolicy: context.remoteDiagnostics?.securityPolicy || null,
     windowsUpdate: context.remoteDiagnostics?.windowsUpdate || null,

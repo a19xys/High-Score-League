@@ -87,6 +87,23 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
           },
           cache: { available: 1, entries: 1, expired: 0, unavailable: 0, unknown: 0 },
         },
+        weekCapabilities: {
+          context: {
+            deploymentKey: "build-a:production:1",
+            generation: 4,
+            webBaseUrl: "https://hsl.example",
+          },
+          lastAttemptResult: "failed",
+          lastFailureReason: "deployment-mismatch",
+          lastRequest: {
+            Authorization: "Bearer secret-week-token",
+            deploymentMatch: false,
+            expectedDeployment: { apiVersion: 1, build: "build-a", environment: "production" },
+            receivedBodyDeployment: { apiVersion: 1, build: "build-b", environment: "production" },
+            receivedHeaderDeployment: { apiVersion: 1, build: "build-b", environment: "production" },
+            responseBody: { access_token: "must-not-persist" },
+          },
+        },
         securityPolicy: {
           browserSandbox: true,
           delivery: "meta",
@@ -160,11 +177,21 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.connectivity.probe.inFlight, false);
     assert.equal(saved.rankingCapabilities.active.status, "available");
     assert.equal(saved.rankingCapabilities.cache.entries, 1);
+    assert.equal(saved.weekCapabilities.context.deploymentKey, "build-a:production:1");
+    assert.equal(saved.weekCapabilities.context.generation, 4);
+    assert.equal(saved.weekCapabilities.lastAttemptResult, "failed");
+    assert.equal(saved.weekCapabilities.lastFailureReason, "deployment-mismatch");
+    assert.equal(saved.weekCapabilities.lastRequest.deploymentMatch, false);
+    assert.deepEqual(saved.weekCapabilities.lastRequest.expectedDeployment, { apiVersion: 1, build: "build-a", environment: "production" });
+    assert.deepEqual(saved.weekCapabilities.lastRequest.receivedHeaderDeployment, { apiVersion: 1, build: "build-b", environment: "production" });
+    assert.deepEqual(saved.weekCapabilities.lastRequest.receivedBodyDeployment, { apiVersion: 1, build: "build-b", environment: "production" });
+    assert.equal(saved.weekCapabilities.lastRequest.Authorization, undefined);
+    assert.equal(saved.weekCapabilities.lastRequest.responseBody.access_token, undefined);
     assert.equal(saved.securityPolicy.delivery, "meta");
     assert.equal(saved.securityPolicy.rendererConnectAllowed, false);
     assert.equal(saved.session.hasSession, true);
     assert.match(saved.session.userId, /^user-1\.\.\./);
-    assert.equal(/"(?:access_token|refresh_token|Authorization)"\s*:|secret-token|secret-access-token|secret-refresh-token|must-not-persist/.test(raw), false);
+    assert.equal(/"(?:access_token|refresh_token|Authorization)"\s*:|secret-token|secret-access-token|secret-refresh-token|secret-week-token|must-not-persist/.test(raw), false);
     assert.deepEqual(await listDiagnosticReports(config), [result.filePath]);
   });
 });
