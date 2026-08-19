@@ -62,7 +62,7 @@ La banda muestra cuatro bloques:
 3. tiempo jugado, visible o privado según `play_time_public`;
 4. Presence como indicador de estado, no como una métrica gigante.
 
-Estado presenta punto más `Desconectado`, `Conectado`, `Jugando` o `Privado`;
+Estado presenta punto más `Desconectado`, `Conectado`, `Jugando` u `Oculto`;
 `—` queda para indisponibilidad. Al jugar, el nombre canónico aparece en una
 segunda línea. El label usa `whitespace-nowrap`, por lo que `Desconectado` no se
 parte. `officialResults` se conserva en el modelo competitivo aunque ya no se
@@ -200,7 +200,7 @@ deliberada para Presence y no modifica la historia de 0027.
 
 El cuarto bloque `Estado` de `ProfileStats` recibe Presence inicial por SSR y se
 actualiza cada 15 segundos mientras el documento está visible. Los estados
-visuales son `Jugando`, `Conectado`, `Desconectado` y `Privado`; un fallo de
+visuales son `Jugando`, `Conectado`, `Desconectado` u `Oculto`; un fallo de
 lectura conserva el último valor válido o muestra `—`, nunca inventa una
 desconexión. `JUGANDO` tiene prioridad sobre conexiones web o launcher y el
 detalle del juego siempre procede del `game_id` canónico resuelto en servidor.

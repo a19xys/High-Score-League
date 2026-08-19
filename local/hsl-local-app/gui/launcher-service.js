@@ -327,11 +327,11 @@ async function initializePlayTime() {
   }));
 }
 
-function createMamePlayTimeLifecycle(context, mode) {
+function createMamePlayTimeLifecycle(context, mode, recorder = playTimeRecorder) {
   const { baseConfig, session } = context;
   const playerKey = derivePlayerKey(session);
   if (!session?.hasSession || !session.userId || !playerKey) return null;
-  return playTimeRecorder.prepare({
+  return recorder.prepare({
     clientVersion: launcherClientVersion,
     gameKey: baseConfig.pack?.gameId,
     mode,
@@ -356,14 +356,16 @@ function combineMameLifecycles(lifecycles) {
   };
 }
 
-function createMameOperationLifecycle(context, mode) {
+function createMameOperationLifecycle(context, mode, options = {}) {
   const presence = presenceLifecycleProvider?.({
     mode,
     userId: context.session?.userId || null,
     weekId: context.baseConfig?.pack?.weekId || context.baseConfig?.defaultWeekId || null,
   });
   return combineMameLifecycles([
-    createMamePlayTimeLifecycle(context, mode),
+    options.playTimeRecorder
+      ? createMamePlayTimeLifecycle(context, mode, options.playTimeRecorder)
+      : createMamePlayTimeLifecycle(context, mode),
     presence,
   ]);
 }
@@ -1023,8 +1025,8 @@ async function resolveRememberedPack(config) {
   };
 }
 
-async function ensureRememberedPackLoaded() {
-  const config = loadRuntimeConfig();
+async function ensureRememberedPackLoaded(configOverride = null) {
+  const config = configOverride || loadRuntimeConfig();
   const session = await getAuthState(config, { deferRemote: true });
   const [library, preferences] = await Promise.all([
     librarySnapshotAuthority.read(config),
@@ -2355,7 +2357,12 @@ async function runDiagnose(options = {}) {
 }
 
 async function playCompetitionAction(options = {}) {
+  const readState = (stateOptions = {}) => getLauncherState({
+    ...stateOptions,
+    ...(options.config ? { config: options.config } : {}),
+  });
   const context = await getLauncherContext({
+    ...(options.config ? { config: options.config } : {}),
     deferRemoteMembership: Boolean(options.confirmedCompetition),
   });
   const { baseConfig, session } = context;
@@ -2370,7 +2377,7 @@ async function playCompetitionAction(options = {}) {
       ok: false,
       reason: "launch-context-changed",
       summary: "El contexto competitivo ha cambiado.",
-      state: await getLauncherState({ deferRemoteMembership: true }),
+      state: await readState({ deferRemoteMembership: true }),
     };
   }
 
@@ -2385,7 +2392,7 @@ async function playCompetitionAction(options = {}) {
       ok: false,
       reason: session.requiresLogin ? "session-requires-login" : "session-missing",
       summary: "Inicia sesion para jugar en competicion.",
-      state: await getLauncherState({ connected: true }),
+      state: await readState({ connected: true }),
     };
   }
 
@@ -2396,7 +2403,7 @@ async function playCompetitionAction(options = {}) {
       ok: false,
       reason: membershipStatus === "not_member" ? "not-member" : "membership-not-confirmed",
       summary: membership.message,
-      state: await getLauncherState({ connected: true }),
+      state: await readState({ connected: true }),
     };
   }
 
@@ -2409,7 +2416,7 @@ async function playCompetitionAction(options = {}) {
       ok: false,
       reason: "local-competition-not-ready",
       summary: "No se pudo preparar la cola local.",
-      state: await getLauncherState({ connected: true }),
+      state: await readState({ connected: true }),
     };
   }
 
@@ -2428,7 +2435,7 @@ async function playCompetitionAction(options = {}) {
   if (readinessBlock) {
     return {
       ...readinessBlock,
-      state: await getLauncherState({ connected: true }),
+      state: await readState({ connected: true }),
     };
   }
 
@@ -2467,7 +2474,7 @@ async function playCompetitionAction(options = {}) {
         lines: [normalizeMessage(error)],
         ok: false,
         summary: "No se pudo preparar la captura competitiva.",
-        state: await getLauncherState({ connected: true }),
+        state: await readState({ connected: true }),
       };
     }
   }
@@ -2475,7 +2482,11 @@ async function playCompetitionAction(options = {}) {
   const startedAtMs = Date.now();
   let mameSpawned = false;
   const mameLifecycle = combineMameLifecycles([
-    createMameOperationLifecycle(context, "competition"),
+    options.playTimeRecorder
+      ? createMameOperationLifecycle(context, "competition", {
+          playTimeRecorder: options.playTimeRecorder,
+        })
+      : createMameOperationLifecycle(context, "competition"),
     {
       onSpawn() {
         mameSpawned = true;
@@ -2491,8 +2502,12 @@ async function playCompetitionAction(options = {}) {
   try {
     captured = await captureConsoleAsync(() => (
       isPackV2
-        ? launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
-        : launchMame(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
+        ? options.launchMameDetailedImpl
+          ? options.launchMameDetailedImpl(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
+          : launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
+        : options.launchMameImpl
+          ? options.launchMameImpl(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
+          : launchMame(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
     ));
   } finally {
     if (scoreCaptureMonitor) {
@@ -2540,7 +2555,7 @@ async function playCompetitionAction(options = {}) {
     ok: exitCode === 0,
     phase: "mame-closed",
     result: captured.result || null,
-    state: await getLauncherState({ connected: true }),
+    state: await readState({ deferRemoteMembership: true }),
   };
 }
 
@@ -2556,8 +2571,14 @@ async function playCompetition(options = {}) {
 }
 
 async function playPractice(options = {}) {
-  await ensureRememberedPackLoaded();
-  const context = await getLauncherContext({ deferRemoteMembership: true });
+  await ensureRememberedPackLoaded(options.config || null);
+  const readState = (stateOptions = {}) => getLauncherState({
+    ...stateOptions,
+    ...(options.config ? { config: options.config } : {}),
+  });
+  const context = await (options.config
+    ? getLauncherContext({ config: options.config, deferRemoteMembership: true })
+    : getLauncherContext({ deferRemoteMembership: true }));
   const autoSync = getAutoSyncDisplayState({
     autoSyncInProgress,
     membership: context.membership,
@@ -2579,13 +2600,17 @@ async function playPractice(options = {}) {
   if (readinessBlock) {
     return {
       ...readinessBlock,
-      state: await getLauncherState(),
+      state: await readState({ deferRemoteMembership: true }),
     };
   }
 
   let mameSpawned = false;
   const mameLifecycle = combineMameLifecycles([
-    createMameOperationLifecycle(context, "practice"),
+    options.playTimeRecorder
+      ? createMameOperationLifecycle(context, "practice", {
+          playTimeRecorder: options.playTimeRecorder,
+        })
+      : createMameOperationLifecycle(context, "practice"),
     {
       onSpawn() {
         mameSpawned = true;
@@ -2596,12 +2621,10 @@ async function playPractice(options = {}) {
       },
     },
   ]);
-  const captured = await captureConsoleAsync(() => launchMame(
-    context.config,
-    context.config.pack.rom,
-    "practice",
-    undefined,
-    mameLifecycle,
+  const captured = await captureConsoleAsync(() => (
+    options.launchMameImpl
+      ? options.launchMameImpl(context.config, context.config.pack.rom, "practice", undefined, mameLifecycle)
+      : launchMame(context.config, context.config.pack.rom, "practice", undefined, mameLifecycle)
   ));
   requestPlayTimeSync("mame-close", { ensureFollowUp: mameSpawned }).catch(() => {});
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.exitCode;
@@ -2615,7 +2638,7 @@ async function playPractice(options = {}) {
     ok: exitCode === 0,
     phase: "mame-closed",
     result: captured.result || null,
-    state: await getLauncherState(),
+    state: await readState({ deferRemoteMembership: true }),
   };
 }
 

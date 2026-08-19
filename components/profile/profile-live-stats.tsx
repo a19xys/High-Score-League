@@ -36,6 +36,8 @@ export function ProfileLiveStats({
           : "visible",
         setInterval: (listener, delay) => window.setInterval(listener, delay),
         clearInterval: (timer) => window.clearInterval(timer as number),
+        setTimeout: (listener, delay) => window.setTimeout(listener, delay),
+        clearTimeout: (timer) => window.clearTimeout(timer as number),
         addFocusListener: (listener) => window.addEventListener("focus", listener),
         removeFocusListener: (listener) => window.removeEventListener("focus", listener),
         addVisibilityListener: (listener) => document.addEventListener("visibilitychange", listener),
@@ -84,7 +86,7 @@ export function ProfileLiveStats({
           {playTimeVisible
             ? formatPlayTime(playTime.totalSeconds)
             : playTimePrivate
-              ? "Privado"
+              ? "Oculto"
               : "No disponible"}
         </dd>
         <p className="mt-2 hidden text-xs leading-5 theme-text-muted md:block">

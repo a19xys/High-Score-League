@@ -2,6 +2,7 @@ import type { PlayerPlayTimeDto } from "@/lib/playtime";
 import type { PlayerPresence } from "@/lib/player-presence";
 
 export const PROFILE_LIVE_POLL_INTERVAL_MS = 15_000;
+export const PROFILE_LIVE_LANE_TIMEOUT_MS = 10_000;
 
 type VisibilityState = "hidden" | "visible";
 type Listener = () => void;
@@ -10,6 +11,8 @@ export type ProfileLiveRefreshEnvironment = {
   getVisibilityState: () => VisibilityState;
   setInterval: (listener: Listener, delay: number) => unknown;
   clearInterval: (timer: unknown) => void;
+  setTimeout: (listener: Listener, delay: number) => unknown;
+  clearTimeout: (timer: unknown) => void;
   addFocusListener: (listener: Listener) => void;
   removeFocusListener: (listener: Listener) => void;
   addVisibilityListener: (listener: Listener) => void;
@@ -22,6 +25,17 @@ type ProfileLiveRefreshOptions = {
   readPresence: (signal: AbortSignal) => Promise<PlayerPresence | null>;
   applyPlayTime: (playTime: PlayerPlayTimeDto) => void;
   applyPresence: (presence: PlayerPresence) => void;
+  laneTimeoutMs?: number;
+};
+
+type Lane<T> = {
+  controller: AbortController | null;
+  generation: number;
+  inFlight: boolean;
+  releaseWait: (() => void) | null;
+  timeout: unknown;
+  read: (signal: AbortSignal) => Promise<T | null>;
+  apply: (value: T) => void;
 };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -99,46 +113,80 @@ export function createProfileLiveRefreshLifecycle({
   readPresence,
   applyPlayTime,
   applyPresence,
+  laneTimeoutMs = PROFILE_LIVE_LANE_TIMEOUT_MS,
 }: ProfileLiveRefreshOptions) {
   let timer: unknown = null;
   let disposed = false;
-  let inFlight = false;
-  let generation = 0;
-  let requestController: AbortController | null = null;
+  const createLane = <T>(
+    read: (signal: AbortSignal) => Promise<T | null>,
+    apply: (value: T) => void,
+  ): Lane<T> => ({
+    apply,
+    controller: null,
+    generation: 0,
+    inFlight: false,
+    read,
+    releaseWait: null,
+    timeout: null,
+  });
+  const presenceLane = createLane(readPresence, applyPresence);
+  const playTimeLane = createLane(readPlayTime, applyPlayTime);
+
+  const advanceLane = async <T>(lane: Lane<T>) => {
+    if (disposed || lane.inFlight) return;
+
+    lane.inFlight = true;
+    const requestGeneration = ++lane.generation;
+    const controller = new AbortController();
+    lane.controller = controller;
+
+    let waitReleased = false;
+    const timeoutResult = new Promise<{ kind: "cancelled" | "timeout" }>((resolve) => {
+      const settle = (kind: "cancelled" | "timeout") => {
+        if (waitReleased) return;
+        waitReleased = true;
+        resolve({ kind });
+      };
+      lane.releaseWait = () => settle("cancelled");
+      lane.timeout = environment.setTimeout(() => {
+        controller.abort();
+        settle("timeout");
+      }, laneTimeoutMs);
+    });
+    const readResult = Promise.resolve()
+      .then(() => lane.read(controller.signal))
+      .then(
+        (value) => ({ kind: "value" as const, value }),
+        () => ({ kind: "error" as const }),
+      );
+
+    try {
+      const result = await Promise.race([readResult, timeoutResult]);
+      if (disposed || requestGeneration !== lane.generation) return;
+      if (result.kind === "value" && result.value) lane.apply(result.value);
+    } finally {
+      if (requestGeneration === lane.generation) {
+        if (lane.timeout !== null) environment.clearTimeout(lane.timeout);
+        lane.releaseWait?.();
+        lane.controller = null;
+        lane.inFlight = false;
+        lane.releaseWait = null;
+        lane.timeout = null;
+      }
+    }
+  };
 
   const refresh = async () => {
     if (
       disposed
-      || inFlight
       || environment.getVisibilityState() === "hidden"
     ) {
       return;
     }
-
-    inFlight = true;
-    const requestGeneration = ++generation;
-    const controller = new AbortController();
-    requestController = controller;
-
-    try {
-      const [presenceResult, playTimeResult] = await Promise.allSettled([
-        readPresence(controller.signal),
-        readPlayTime(controller.signal),
-      ]);
-      if (disposed || requestGeneration !== generation) return;
-
-      if (presenceResult.status === "fulfilled" && presenceResult.value) {
-        applyPresence(presenceResult.value);
-      }
-      if (playTimeResult.status === "fulfilled" && playTimeResult.value) {
-        applyPlayTime(playTimeResult.value);
-      }
-    } finally {
-      if (requestGeneration === generation) {
-        inFlight = false;
-        requestController = null;
-      }
-    }
+    await Promise.allSettled([
+      advanceLane(presenceLane),
+      advanceLane(playTimeLane),
+    ]);
   };
 
   const schedule = () => {
@@ -169,8 +217,16 @@ export function createProfileLiveRefreshLifecycle({
     dispose() {
       if (disposed) return;
       disposed = true;
-      generation += 1;
-      requestController?.abort();
+      for (const lane of [presenceLane, playTimeLane]) {
+        lane.generation += 1;
+        lane.controller?.abort();
+        if (lane.timeout !== null) environment.clearTimeout(lane.timeout);
+        lane.releaseWait?.();
+        lane.controller = null;
+        lane.inFlight = false;
+        lane.releaseWait = null;
+        lane.timeout = null;
+      }
       if (timer !== null) environment.clearInterval(timer);
       timer = null;
       environment.removeFocusListener(resume);

@@ -11,7 +11,7 @@ import {
   getPublicPlayerProfile,
 } from "@/lib/data/player-profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getPlayerPlayTime } from "@/lib/data/player-playtime";
+import { getPlayerPlayTimeSnapshot } from "@/lib/data/player-playtime";
 import { getPlayerPresence } from "@/lib/data/player-presence";
 
 export const dynamic = "force-dynamic";
@@ -67,13 +67,13 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   }
 
   const { data: visitor } = await supabase.auth.getUser();
-  const isOwner = visitor.user?.id === profileResult.profile.id;
   const [competitive, playTimeResult, presence] = await Promise.all([
     getPlayerCompetitiveProfile(profileResult.profile.id, "public"),
-    getPlayerPlayTime(supabase, profileResult.profile.id, {
-      isOwner,
-      playTimePublic: profileResult.profile.play_time_public === true,
-    }),
+    getPlayerPlayTimeSnapshot(
+      supabase,
+      username,
+      visitor.user?.id || "",
+    ),
     getPlayerPresence(profileResult.profile.id),
   ]);
 

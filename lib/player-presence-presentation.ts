@@ -23,10 +23,10 @@ export function getPlayerPresencePresentation(
     return variant === "compact"
       ? null
       : {
-          ariaLabel: "Estado privado",
+          ariaLabel: "Estado oculto",
           detail: null,
           dotClassName: "bg-slate-400 dark:bg-slate-500",
-          label: "Privado",
+          label: "Oculto",
         };
   }
 

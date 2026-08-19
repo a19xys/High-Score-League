@@ -204,7 +204,7 @@ if (process.env.HSL_LIBRARY_ALPHA_ASSETS) {
   packs[4].title = "FALLBACK DE PORTADA";
 }
 
-function snapshot({ libraryVariant = activeLibraryVariant, samePack = false } = {}) {
+function snapshot({ libraryVariant = activeLibraryVariant, playTime = "12,6 h", samePack = false } = {}) {
   const pack = packs[activeIndex];
   const visiblePacks = libraryPacksForVariant(libraryVariant);
   const accounts = accountFixtureMode === "empty" ? [] : [
@@ -308,7 +308,7 @@ function snapshot({ libraryVariant = activeLibraryVariant, samePack = false } = 
       instanceKey: pack.instanceKey,
       manual: { available: true },
       packId: pack.id,
-      playTime: "12,6 h",
+      playTime,
       shortDescription: "Fixture representativa con metadatos, acciones y actividad para verificar el final real del scroll.",
       weekId: pack.weekId,
       weekNumber: pack.weekNumber,
@@ -750,6 +750,12 @@ contextBridge.exposeInMainWorld("hslFixture", {
   emitSamePackSnapshot() {
     launcherStateRevision += 1;
     launcherStateListener?.({ state: snapshot({ samePack: true }) });
+  },
+  emitPlayTimeSnapshot(playTime) {
+    launcherStateRevision += 1;
+    const state = snapshot({ playTime: String(playTime || "No jugado") });
+    launcherStateListener?.({ postMameConvergence: true, source: "fixture", state });
+    return state;
   },
   getSwitchAccountCalls() {
     return switchAccountCalls;

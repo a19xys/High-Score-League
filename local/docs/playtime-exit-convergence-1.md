@@ -32,6 +32,36 @@ con su revisión antigua, se descarta. Si un cambio de cuenta o contexto más
 nuevo toma autoridad mientras se prepara la convergencia, esa convergencia
 también se descarta.
 
+## Convergencia visible productiva
+
+Práctica y competición comparten ahora un contrato explícito para el estado
+final: después de `mame-closed` vuelven a leer `getLauncherState` desde el
+almacenamiento y el contexto local efectivos, con la pertenencia remota
+diferida. Competición no fuerza
+una relectura conectada para formar `result.state`. Por tanto, el camino que
+alimenta la publicación post-MAME es siempre:
+
+`mame-closed` válido -> evento durable -> `summary.json` reconciliado -> snapshot
+local fresco -> revisión post-MAME fresca -> snapshot aceptado por el renderer
+-> `game-identity` con el valor visible fresco.
+
+El cierre espera el lifecycle aunque MAME devuelva un exit code no cero después
+de un `spawn` válido: el tiempo realmente transcurrido se conserva y se muestra.
+Si el preflight falla o nunca ocurre `spawn`, no se inicia ni se inventa una
+sesión de Playtime.
+
+Este contrato no depende de Connectivity, Supabase, Presence, puntuaciones,
+ranking, refresh de membership ni ACK remoto. Offline, el evento puede seguir
+pendiente mientras la ficha ya muestra el nuevo total. Una sync o confirmación
+remota posterior tampoco puede rebajar el `summary.json` local que aún contenga
+eventos pendientes.
+
+La actualización sigue entrando como snapshot completo por
+`launcher:state`, atraviesa `launcher-state-gate` y solo reescribe las regiones
+cuyo HTML cambió. `Tiempo jugado` pertenece a `game-identity`; la topología de
+cards de Biblioteca, sus imágenes resueltas, selección, filtros, búsqueda,
+orden, favoritos, scrolls, foco y geometría del sidebar permanecen estables.
+
 ## Sincronización remota
 
 El cierre de MAME solicita sync con intención explícita de follow-up. Si ya hay

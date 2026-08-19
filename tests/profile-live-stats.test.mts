@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   createProfileLiveRefreshLifecycle,
   parsePlayerPlayTimeResponse,
+  PROFILE_LIVE_LANE_TIMEOUT_MS,
   PROFILE_LIVE_POLL_INTERVAL_MS,
   type ProfileLiveRefreshEnvironment,
 } from "../lib/profile-live-refresh.ts";
@@ -32,6 +33,7 @@ function fakeEnvironment(initialVisibility: "visible" | "hidden" = "visible") {
   let visibility = initialVisibility;
   let nextTimer = 1;
   const timers = new Map<number, () => void>();
+  const timeouts = new Map<number, () => void>();
   const delays: number[] = [];
   const focusListeners = new Set<() => void>();
   const visibilityListeners = new Set<() => void>();
@@ -44,6 +46,12 @@ function fakeEnvironment(initialVisibility: "visible" | "hidden" = "visible") {
       return timer;
     },
     clearInterval: (timer) => timers.delete(timer as number),
+    setTimeout: (listener) => {
+      const timer = nextTimer++;
+      timeouts.set(timer, listener);
+      return timer;
+    },
+    clearTimeout: (timer) => timeouts.delete(timer as number),
     addFocusListener: (listener) => focusListeners.add(listener),
     removeFocusListener: (listener) => focusListeners.delete(listener),
     addVisibilityListener: (listener) => visibilityListeners.add(listener),
@@ -52,10 +60,18 @@ function fakeEnvironment(initialVisibility: "visible" | "hidden" = "visible") {
   return {
     environment,
     timers,
+    timeouts,
     delays,
     setVisibility(value: "visible" | "hidden") { visibility = value; },
     focus() { focusListeners.forEach((listener) => listener()); },
     visibilityChange() { visibilityListeners.forEach((listener) => listener()); },
+    fireNextTimeout() {
+      const entry = timeouts.entries().next().value as [number, () => void] | undefined;
+      if (!entry) return false;
+      timeouts.delete(entry[0]);
+      entry[1]();
+      return true;
+    },
     get listenerCount() { return focusListeners.size + visibilityListeners.size; },
   };
 }
@@ -66,12 +82,14 @@ function harness({
   visibility = "visible",
   readPlayTime = async () => ({ visibility: "visible", totalSeconds: 12600 } as const),
   readPresence = async () => connected,
+  laneTimeoutMs = PROFILE_LIVE_LANE_TIMEOUT_MS,
 }: {
   initialPlayTime?: PlayerPlayTime;
   initialPresence?: PlayerPresence;
   visibility?: "visible" | "hidden";
   readPlayTime?: (signal: AbortSignal) => Promise<PlayerPlayTimeDto | null>;
   readPresence?: (signal: AbortSignal) => Promise<PlayerPresence | null>;
+  laneTimeoutMs?: number;
 } = {}) {
   const clock = fakeEnvironment(visibility);
   let playTime = initialPlayTime;
@@ -98,6 +116,7 @@ function harness({
       presence = value;
       presenceUpdates += 1;
     },
+    laneTimeoutMs,
   });
   return {
     clock,
@@ -115,6 +134,7 @@ const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 test("SSR snapshots remain the first render and one 15 s cadence owns both reads", async () => {
   const live = harness();
+  assert.equal(PROFILE_LIVE_LANE_TIMEOUT_MS < PROFILE_LIVE_POLL_INTERVAL_MS, true);
   assert.deepEqual(live.playTime, { visibility: "visible", totalSeconds: 12240 });
   assert.deepEqual(live.presence, offline);
   assert.equal(live.playTimeReads, 0);
@@ -239,39 +259,106 @@ test("focus refreshes immediately and keeps a single interval", async () => {
   live.lifecycle.dispose();
 });
 
-test("in-flight ticks do not overlap either endpoint", async () => {
-  const playTimeRequest = deferred<PlayerPlayTimeDto | null>();
+test("a hung Presence lane does not block Playtime or duplicate Presence on the next tick", async () => {
   const presenceRequest = deferred<PlayerPresence | null>();
+  let playTimeTotal = 12_600;
   const live = harness({
-    readPlayTime: () => playTimeRequest.promise,
     readPresence: () => presenceRequest.promise,
+    readPlayTime: async () => ({
+      visibility: "visible",
+      totalSeconds: playTimeTotal,
+    }),
   });
   const first = live.lifecycle.refresh();
-  await live.lifecycle.refresh();
-  assert.equal(live.playTimeReads, 1);
+  await flush();
+  assert.deepEqual(live.playTime, { visibility: "visible", totalSeconds: 12_600 });
   assert.equal(live.presenceReads, 1);
-  playTimeRequest.resolve({ visibility: "visible", totalSeconds: 12600 });
+  playTimeTotal = 13_000;
+  [...live.clock.timers.values()][0]?.();
+  await flush();
+  assert.equal(live.presenceReads, 1);
+  assert.equal(live.playTimeReads, 2);
+  assert.deepEqual(live.playTime, { visibility: "visible", totalSeconds: 13_000 });
   presenceRequest.resolve(connected);
   await first;
   live.lifecycle.dispose();
 });
 
-test("dispose aborts pending work, removes cadence/listeners and blocks late updates", async () => {
+test("a hung Playtime lane does not block Presence or duplicate Playtime on the next tick", async () => {
   const playTimeRequest = deferred<PlayerPlayTimeDto | null>();
+  let nextPresence: PlayerPresence = connected;
+  const live = harness({
+    readPlayTime: () => playTimeRequest.promise,
+    readPresence: async () => nextPresence,
+  });
+  const first = live.lifecycle.refresh();
+  await flush();
+  assert.deepEqual(live.presence, connected);
+  nextPresence = { visibility: "private" };
+  [...live.clock.timers.values()][0]?.();
+  await flush();
+  assert.equal(live.playTimeReads, 1);
+  assert.equal(live.presenceReads, 2);
+  assert.deepEqual(live.presence, { visibility: "private" });
+  playTimeRequest.resolve({ visibility: "visible", totalSeconds: 12_600 });
+  await first;
+  live.lifecycle.dispose();
+});
+
+test("a lane timeout aborts its generation, retains state and permits a clean retry", async () => {
+  const stalePresence = deferred<PlayerPresence | null>();
   let capturedSignal: AbortSignal | null = null;
+  let reads = 0;
+  const live = harness({
+    laneTimeoutMs: 9_000,
+    readPresence: (signal) => {
+      capturedSignal = signal;
+      reads += 1;
+      return reads === 1 ? stalePresence.promise : Promise.resolve(connected);
+    },
+  });
+  const first = live.lifecycle.refresh();
+  await flush();
+  assert.equal(live.clock.fireNextTimeout(), true);
+  await first;
+  assert.equal(capturedSignal?.aborted, true);
+  assert.deepEqual(live.presence, offline);
+
+  await live.lifecycle.refresh();
+  assert.equal(live.presenceReads, 2);
+  assert.deepEqual(live.presence, connected);
+  stalePresence.resolve({ visibility: "private" });
+  await flush();
+  assert.deepEqual(live.presence, connected);
+  live.lifecycle.dispose();
+});
+
+test("dispose aborts both lanes, removes cadence/timeouts/listeners and blocks late updates", async () => {
+  const playTimeRequest = deferred<PlayerPlayTimeDto | null>();
+  const presenceRequest = deferred<PlayerPresence | null>();
+  const signals: AbortSignal[] = [];
   const live = harness({
     readPlayTime: (signal) => {
-      capturedSignal = signal;
+      signals.push(signal);
       return playTimeRequest.promise;
+    },
+    readPresence: (signal) => {
+      signals.push(signal);
+      return presenceRequest.promise;
     },
   });
   const refresh = live.lifecycle.refresh();
+  await flush();
   live.lifecycle.dispose();
-  assert.equal(capturedSignal?.aborted, true);
+  await refresh;
+  assert.equal(signals.length, 2);
+  assert.equal(signals.every((signal) => signal.aborted), true);
   assert.equal(live.clock.timers.size, 0);
+  assert.equal(live.clock.timeouts.size, 0);
   assert.equal(live.clock.listenerCount, 0);
   playTimeRequest.resolve({ visibility: "visible", totalSeconds: 99999 });
-  await refresh;
+  presenceRequest.resolve(connected);
+  await flush();
   assert.equal(live.playTimeUpdates, 0);
   assert.equal(live.presenceUpdates, 0);
   assert.deepEqual(live.playTime, {

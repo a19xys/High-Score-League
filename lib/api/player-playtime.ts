@@ -1,13 +1,8 @@
-import type { PlayerPlayTimeReadResult } from "@/lib/data/player-playtime";
+import type { PlayerPlayTimeSnapshotReadResult } from "@/lib/data/player-playtime";
 
 type ViewerResult =
   | { status: "signed-in"; userId: string }
   | { status: "signed-out" }
-  | { status: "error" };
-
-type TargetResult =
-  | { status: "ok"; id: string; playTimePublic: boolean }
-  | { status: "not-found" }
   | { status: "error" };
 
 export type PlayerPlayTimeApiDependencies<Client> = {
@@ -18,12 +13,11 @@ export type PlayerPlayTimeApiDependencies<Client> = {
     userId: string,
   ) => Promise<{ active: boolean; error: string | null }>;
   isValidUsername: (username: string) => boolean;
-  findTarget: (client: Client, username: string) => Promise<TargetResult>;
-  readPlayTime: (
+  readSnapshot: (
     client: Client,
-    playerId: string,
-    access: { isOwner: boolean; playTimePublic: boolean },
-  ) => Promise<PlayerPlayTimeReadResult>;
+    username: string,
+    viewerUserId: string,
+  ) => Promise<PlayerPlayTimeSnapshotReadResult>;
 };
 
 export type PlayerPlayTimeApiResult = {
@@ -66,19 +60,15 @@ export async function resolvePlayerPlayTimeApi<Client>(
       return failure(403, "Necesitas un perfil activo.");
     }
 
-    const target = await dependencies.findTarget(client, username);
-    if (target.status === "error") {
-      return failure(503, "Playtime no está disponible.");
-    }
-    if (target.status === "not-found") {
-      return failure(404, "Jugador no encontrado.");
-    }
-
-    const result = await dependencies.readPlayTime(client, target.id, {
-      isOwner: viewer.userId === target.id,
-      playTimePublic: target.playTimePublic,
-    });
+    const result = await dependencies.readSnapshot(
+      client,
+      username,
+      viewer.userId,
+    );
     if (!result.ok) {
+      if (result.error === "not-found") {
+        return failure(404, "Jugador no encontrado.");
+      }
       return failure(503, "Playtime no está disponible.");
     }
 

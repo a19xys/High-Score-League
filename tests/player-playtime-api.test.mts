@@ -3,17 +3,20 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolvePlayerPlayTimeApi } from "../lib/api/player-playtime.ts";
-import { getPlayerPlayTime } from "../lib/data/player-playtime.ts";
+import { getPlayerPlayTimeSnapshot } from "../lib/data/player-playtime.ts";
 
 type Scenario = {
   configured?: boolean;
   viewerId?: string | null;
   viewerError?: boolean;
   viewerActive?: boolean;
-  target?: { id: string; playTimePublic: boolean } | null;
-  targetError?: boolean;
+  target?: {
+    anonymized?: boolean;
+    id: string;
+    playTimePublic: boolean;
+  } | null;
+  snapshotError?: unknown;
   total?: number | string | null;
-  totalError?: unknown;
 };
 
 function scenario(overrides: Scenario = {}) {
@@ -22,28 +25,36 @@ function scenario(overrides: Scenario = {}) {
     viewerId: "viewer",
     viewerError: false,
     viewerActive: true,
-    target: { id: "target", playTimePublic: true },
-    targetError: false,
+    target: { anonymized: false, id: "target", playTimePublic: true },
+    snapshotError: null,
     total: 12240,
-    totalError: null,
     ...overrides,
   };
-  let aggregateQueries = 0;
-  let targetQueries = 0;
-  const aggregateQuery = {
+  let canonicalReads = 0;
+  const query = {
     select() { return this; },
     eq() { return this; },
+    is() { return this; },
     async maybeSingle() {
-      aggregateQueries += 1;
+      canonicalReads += 1;
+      const target = settings.target;
+      const totalVisibleThroughRls = target
+        && (settings.viewerId === target.id || target.playTimePublic);
       return {
-        data: settings.total === null
+        data: !target || target.anonymized
           ? null
-          : { total_seconds: settings.total },
-        error: settings.totalError,
+          : {
+              id: target.id,
+              play_time_public: target.playTimePublic,
+              play_time_total: totalVisibleThroughRls && settings.total !== null
+                ? [{ total_seconds: settings.total }]
+                : [],
+            },
+        error: settings.snapshotError,
       };
     },
   };
-  const client = { from: () => aggregateQuery };
+  const client = { from: () => query };
   const dependencies = {
     createClient: async () => settings.configured ? client : null,
     getViewer: async () => settings.viewerError
@@ -53,28 +64,16 @@ function scenario(overrides: Scenario = {}) {
         : { status: "signed-out" as const },
     hasActiveProfile: async () => ({ active: settings.viewerActive, error: null }),
     isValidUsername: (username: string) => /^[a-z0-9_-]{3,24}$/i.test(username),
-    findTarget: async () => {
-      targetQueries += 1;
-      if (settings.targetError) return { status: "error" as const };
-      return settings.target
-        ? {
-            status: "ok" as const,
-            id: settings.target.id,
-            playTimePublic: settings.target.playTimePublic,
-          }
-        : { status: "not-found" as const };
-    },
-    readPlayTime: (
+    readSnapshot: (
       value: typeof client,
-      playerId: string,
-      access: { isOwner: boolean; playTimePublic: boolean },
-    ) => getPlayerPlayTime(value as never, playerId, access),
+      username: string,
+      viewerUserId: string,
+    ) => getPlayerPlayTimeSnapshot(value as never, username, viewerUserId),
   };
 
   return {
     dependencies,
-    get aggregateQueries() { return aggregateQueries; },
-    get targetQueries() { return targetQueries; },
+    get canonicalReads() { return canonicalReads; },
   };
 }
 
@@ -87,17 +86,20 @@ test("Playtime API rejects missing configuration, session and invalid usernames"
 
   const invalid = scenario();
   assert.equal((await resolvePlayerPlayTimeApi("!", invalid.dependencies)).status, 400);
-  assert.equal(invalid.targetQueries, 0);
+  assert.equal(invalid.canonicalReads, 0);
 });
 
-test("Playtime API returns 404 for an absent active player", async () => {
-  const missing = scenario({ target: null });
-  const result = await resolvePlayerPlayTimeApi("missing", missing.dependencies);
-  assert.equal(result.status, 404);
-  assert.deepEqual(result.body, { ok: false, error: "Jugador no encontrado." });
+test("absent and anonymized targets retain the not-found contract", async () => {
+  for (const target of [null, { anonymized: true, id: "target", playTimePublic: true }]) {
+    const missing = scenario({ target });
+    const result = await resolvePlayerPlayTimeApi("missing", missing.dependencies);
+    assert.equal(result.status, 404);
+    assert.deepEqual(result.body, { ok: false, error: "Jugador no encontrado." });
+    assert.equal(missing.canonicalReads, 1);
+  }
 });
 
-test("private owner still receives the visible aggregate", async () => {
+test("private owner receives the total from one canonical relational snapshot", async () => {
   const owner = scenario({
     viewerId: "target",
     target: { id: "target", playTimePublic: false },
@@ -108,10 +110,10 @@ test("private owner still receives the visible aggregate", async () => {
     ok: true,
     playTime: { visibility: "visible", totalSeconds: 12240 },
   });
-  assert.equal(owner.aggregateQueries, 1);
+  assert.equal(owner.canonicalReads, 1);
 });
 
-test("private third-party response omits the total and skips its aggregate query", async () => {
+test("private third party receives no total from the same RLS-backed snapshot", async () => {
   const hidden = scenario({
     viewerId: "visitor",
     target: { id: "target", playTimePublic: false },
@@ -122,32 +124,59 @@ test("private third-party response omits the total and skips its aggregate query
     ok: true,
     playTime: { visibility: "private" },
   });
-  assert.equal(hidden.aggregateQueries, 0);
+  assert.equal(hidden.canonicalReads, 1);
+  assert.doesNotMatch(JSON.stringify(result.body), /totalSeconds/);
 });
 
-test("public third-party and legitimately absent aggregates return visible totals", async () => {
+test("public third party and legitimately absent aggregates distinguish total from zero", async () => {
   const visible = scenario({ viewerId: "visitor" });
   assert.deepEqual(
     (await resolvePlayerPlayTimeApi("target", visible.dependencies)).body,
     { ok: true, playTime: { visibility: "visible", totalSeconds: 12240 } },
   );
+  assert.equal(visible.canonicalReads, 1);
 
   const absent = scenario({ total: null });
   assert.deepEqual(
     (await resolvePlayerPlayTimeApi("target", absent.dependencies)).body,
     { ok: true, playTime: { visibility: "visible", totalSeconds: 0 } },
   );
+  assert.equal(absent.canonicalReads, 1);
 });
 
-test("aggregate query errors become 503 and never a visible zero", async () => {
-  const failed = scenario({ total: null, totalError: { message: "secret detail" } });
+test("canonical snapshot errors become 503 and never a visible zero", async () => {
+  const failed = scenario({ snapshotError: { message: "secret detail" }, total: null });
   const result = await resolvePlayerPlayTimeApi("target", failed.dependencies);
   assert.equal(result.status, 503);
   assert.deepEqual(result.body, { ok: false, error: "Playtime no está disponible." });
   assert.doesNotMatch(JSON.stringify(result.body), /secret detail|totalSeconds/);
+  assert.equal(failed.canonicalReads, 1);
+
+  const invalid = scenario({ total: "not-a-number" });
+  const invalidResult = await resolvePlayerPlayTimeApi("target", invalid.dependencies);
+  assert.equal(invalidResult.status, 503);
+  assert.doesNotMatch(JSON.stringify(invalidResult.body), /totalSeconds/);
+  assert.equal(invalid.canonicalReads, 1);
 });
 
-test("Playtime read route is dynamic, no-store, authenticated and does not use admin authority", async () => {
+test("the target privacy decision and aggregate are one PostgREST operation", async () => {
+  const reader = await readFile(
+    join(process.cwd(), "lib/data/player-playtime.ts"),
+    "utf8",
+  );
+  const snapshotReader = reader.slice(
+    reader.indexOf("export async function getPlayerPlayTimeSnapshot"),
+    reader.indexOf("export async function getPlayerPlayTime("),
+  );
+  assert.equal((snapshotReader.match(/\.from\(/g) || []).length, 1);
+  assert.equal((snapshotReader.match(/\.maybeSingle/g) || []).length, 1);
+  assert.match(snapshotReader, /play_time_public/);
+  assert.match(snapshotReader, /player_play_time_totals\(total_seconds\)/);
+  assert.match(snapshotReader, /\.is\("anonymized_at", null\)/);
+  assert.doesNotMatch(snapshotReader, /\.rpc\(|createSupabaseAdminClient|service_role|SECURITY DEFINER/i);
+});
+
+test("Playtime route remains dynamic, no-store, authenticated and under visitor RLS", async () => {
   const route = await readFile(
     join(process.cwd(), "app/api/players/[username]/playtime/route.ts"),
     "utf8",
@@ -157,7 +186,6 @@ test("Playtime read route is dynamic, no-store, authenticated and does not use a
   assert.match(route, /supabase\.auth\.getUser\(\)/);
   assert.match(route, /hasActiveProfile/);
   assert.match(route, /usernamePattern/);
-  assert.match(route, /\.is\("anonymized_at", null\)/);
-  assert.match(route, /getPlayerPlayTime/);
-  assert.doesNotMatch(route, /Admin|service.role|service_role/i);
+  assert.match(route, /getPlayerPlayTimeSnapshot/);
+  assert.doesNotMatch(route, /Admin|service.role|service_role|SECURITY DEFINER/i);
 });

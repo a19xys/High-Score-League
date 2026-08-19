@@ -340,7 +340,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
                     Ocultar mi estado en línea y juego actual
                   </span>
                   <span className="mt-1 block text-xs leading-5 theme-text-muted">
-                    Si lo ocultas, tu perfil mostrará «Privado». No guardamos un historial de conexión.
+                    Si lo ocultas, en tu perfil no se mostrará tu estado. No se guardan historiales de conexión.
                   </span>
                 </span>
               </label>

@@ -2870,6 +2870,61 @@ async function detailScrollMetrics(window) {
   };
 }
 
+async function playTimeVisibleConvergenceDiagnostic(window) {
+  window.show();
+  window.focus();
+  window.webContents.focus();
+  await waitForFrames(window, 2);
+  await window.webContents.executeJavaScript(`(() => {
+    window.hslFixture.emitPlayTimeSnapshot("47 min");
+  })()`);
+  await waitForFrames(window, 2);
+  await window.webContents.executeJavaScript(`document.querySelector('.pack-card[data-selected="true"] .favorite-slot:not(:disabled)').scrollIntoView({ block: "center" })`);
+  await waitForFrames(window, 2);
+  const focusPoint = await window.webContents.executeJavaScript(`(() => {
+    const rect = document.querySelector('.pack-card[data-selected="true"] .favorite-slot:not(:disabled)').getBoundingClientRect();
+    return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+  })()`);
+  window.webContents.sendInputEvent({ type: "mouseMove", ...focusPoint });
+  window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...focusPoint });
+  window.webContents.sendInputEvent({ type: "mouseMove", x: 2, y: 2, movementX: 2 - focusPoint.x, movementY: 2 - focusPoint.y });
+  window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, x: 2, y: 2 });
+  await waitFor(window, "document.activeElement?.matches?.('.favorite-slot')", 5_000);
+  return window.webContents.executeJavaScript(`(async () => {
+    const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const libraryScroll = document.querySelector(".library-scroll");
+    const gameScroll = document.querySelector(".game-scroll");
+    const search = document.querySelector("[data-library-search]");
+    const focusTarget = document.activeElement;
+    libraryScroll.scrollTop = Math.min(240, Math.max(0, libraryScroll.scrollHeight - libraryScroll.clientHeight));
+    gameScroll.scrollTop = Math.min(90, Math.max(0, gameScroll.scrollHeight - gameScroll.clientHeight));
+    const cards = [...document.querySelectorAll(".pack-card")];
+    const images = cards.map((card) => card.querySelector("img"));
+    const selected = document.querySelector('.pack-card[data-selected="true"]')?.dataset.instanceKey || null;
+    const before = document.querySelector(".game-metadata-item--playtime .game-metadata-value")?.textContent.trim() || null;
+    const focusedBefore = Boolean(focusTarget?.matches?.(".favorite-slot"));
+    const beforeLibraryScrollTop = libraryScroll.scrollTop;
+    const beforeGameScrollTop = gameScroll.scrollTop;
+    window.hslFixture.emitPlayTimeSnapshot("53 min");
+    await frame();
+    const currentCards = [...document.querySelectorAll(".pack-card")];
+    return {
+      after: document.querySelector(".game-metadata-item--playtime .game-metadata-value")?.textContent.trim() || null,
+      activeAfter: document.activeElement?.getAttribute?.("data-focus-key") || document.activeElement?.tagName || null,
+      before,
+      cardsSame: cards.length === currentCards.length && cards.every((card, index) => currentCards[index] === card),
+      focusedBefore,
+      focusPreserved: document.activeElement === focusTarget,
+      gameScrollPreserved: gameScroll.scrollTop === beforeGameScrollTop,
+      imagesSame: images.every((image, index) => currentCards[index]?.querySelector("img") === image),
+      libraryScrollPreserved: libraryScroll.scrollTop === beforeLibraryScrollTop,
+      selectedAfter: document.querySelector('.pack-card[data-selected="true"]')?.dataset.instanceKey || null,
+      selectedBefore: selected,
+      searchSame: document.querySelector("[data-library-search]") === search,
+    };
+  })()`, true);
+}
+
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   prepareAccountFixtureAvatar();
@@ -2915,6 +2970,7 @@ app.whenReady().then(async () => {
         preferences: () => playerPreferencesSmoke(window),
         profiles: () => profileAccountSmoke(window),
         "render-invariants-before": () => passiveRefreshReproduction(window),
+        "playtime-visible-convergence": () => playTimeVisibleConvergenceDiagnostic(window),
         "interaction-stability-diagnostic": () => passiveLibraryUpdateScenario(window, { expanded: true, view: "covers" }),
         "passive-topology-clamp-diagnostic": () => passiveTopologyClampDiagnostic(window),
         "production-authority-scroll-diagnostic": () => productionAuthorityScrollDiagnostic(window),

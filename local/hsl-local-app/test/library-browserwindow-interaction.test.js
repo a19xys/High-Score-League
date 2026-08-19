@@ -656,3 +656,33 @@ test("BrowserWindow keeps JUGAR disabled through accepted pack revalidation", { 
     null,
   ]);
 });
+
+test("BrowserWindow applies post-MAME Playtime visibly without rebuilding Library state", { skip: !enabled, timeout: 90_000 }, async () => {
+  const electron = require("electron");
+  const fixture = path.join(__dirname, "..", "test-support", "library-browserwindow-fixture-main.cjs");
+  const { stdout } = await execFileAsync(electron, [fixture], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      HSL_LIBRARY_CHECK_ONLY: "playtime-visible-convergence",
+      HSL_LIBRARY_PACK_COUNT: "40",
+      HSL_LIBRARY_QUIET: "1",
+      HSL_LIBRARY_USE_GPU: "1",
+    },
+    maxBuffer: 2 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const result = JSON.parse(stdout.trim());
+  const diagnostic = JSON.stringify(result);
+  assert.equal(result.before, "47 min", diagnostic);
+  assert.equal(result.after, "53 min", diagnostic);
+  assert.equal(result.cardsSame, true, diagnostic);
+  assert.equal(result.imagesSame, true, diagnostic);
+  assert.equal(result.libraryScrollPreserved, true, diagnostic);
+  assert.equal(result.gameScrollPreserved, true, diagnostic);
+  assert.equal(result.focusedBefore, true, diagnostic);
+  assert.equal(result.searchSame, true, diagnostic);
+  assert.equal(result.focusPreserved, true, diagnostic);
+  assert.equal(result.selectedAfter, result.selectedBefore, diagnostic);
+});

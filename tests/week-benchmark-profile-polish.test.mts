@@ -132,7 +132,7 @@ test("Presence presentation supplies text plus color and hides private compact s
   const playing = getPlayerPresencePresentation({ visibility: "visible", status: "playing", game: { id: "g1", title: "Pac-Man" } });
   assert.deepEqual([playing?.label, playing?.detail], ["Jugando", "Pac-Man"]);
   assert.equal(getPlayerPresencePresentation({ visibility: "visible", status: "playing", game: null })?.label, "Jugando");
-  assert.equal(getPlayerPresencePresentation({ visibility: "private" })?.label, "Privado");
+  assert.equal(getPlayerPresencePresentation({ visibility: "private" })?.label, "Oculto");
   const compactPlaying = getPlayerPresencePresentation(
     { visibility: "visible", status: "playing", game: { id: "g1", title: "Pac-Man" } },
     "compact",
