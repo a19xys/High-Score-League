@@ -69,7 +69,8 @@ export default async function WeekDetailPage({ params }: WeekDetailPageProps) {
         currentUserId={session.userId}
         dataMode={detail.mode}
         game={detail.game}
-        hideDownloads={detail.hideDownloads}
+        hidePackImport={detail.hidePackImport}
+        launcherPackId={detail.launcherPackId}
         leaderboard={detail.leaderboard}
         leaderboardPending={detail.leaderboardPending}
         season={detail.season}

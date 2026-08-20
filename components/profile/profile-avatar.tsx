@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { getProfileAvatarPresentation } from "@/lib/profile-avatar-presentation";
 
 type ProfileAvatarProps = {
   avatarUrl?: string | null;
@@ -31,11 +32,11 @@ export function ProfileAvatar({
   className = "",
   glow = false,
 }: ProfileAvatarProps) {
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [avatarUrl]);
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
+  const { showImage, showInitials } = getProfileAvatarPresentation(
+    avatarUrl,
+    failedAvatarUrl,
+  );
 
   const sharedClassName = `${sizeClasses[size]} relative shrink-0 overflow-hidden rounded-full theme-surface-strong ${className}`;
 
@@ -46,14 +47,14 @@ export function ProfileAvatar({
       className={`${sharedClassName} inline-flex items-center justify-center font-bold`}
       role={decorative ? undefined : "img"}
     >
-      {initials || "HSL"}
-      {avatarUrl && !imageFailed ? (
+      {showInitials ? initials || "HSL" : null}
+      {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
-          onError={() => setImageFailed(true)}
-          src={avatarUrl}
+          onError={() => setFailedAvatarUrl(avatarUrl ?? null)}
+          src={avatarUrl ?? undefined}
         />
       ) : null}
     </span>

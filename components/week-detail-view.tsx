@@ -1,5 +1,4 @@
-﻿import Link from "next/link";
-import { GameHero } from "@/components/game-hero";
+﻿import { GameHero } from "@/components/game-hero";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { PlayerPill } from "@/components/player-pill";
 import { SubmissionsTable } from "@/components/submissions-table";
@@ -8,6 +7,7 @@ import { EmptyState } from "@/components/ui/state";
 import { DataTable } from "@/components/ui/table";
 import { WeekCountdown } from "@/components/week-countdown";
 import { formatLeaguePointsDelta, formatWeekRange } from "@/lib/format";
+import { isLauncherPackId } from "@/lib/launcher-pack-distribution";
 import {
   getWeekStatusDisplay,
   type WeekDisplayTone,
@@ -129,7 +129,8 @@ type WeekDetailViewProps = {
   currentUserId?: string | null;
   weeklyResults?: WeeklyResult[];
   dataMode?: "supabase";
-  hideDownloads?: boolean;
+  launcherPackId: string | null;
+  hidePackImport: boolean;
   leaderboardPending?: boolean;
   submissionsPending?: boolean;
   warning?: string | null;
@@ -146,15 +147,17 @@ export function WeekDetailView({
   currentUserId = null,
   weeklyResults = [],
   dataMode = "supabase",
-  hideDownloads = false,
+  launcherPackId,
+  hidePackImport,
   leaderboardPending = false,
   submissionsPending = false,
   warning,
 }: WeekDetailViewProps) {
   const showOfficialResults = dataMode === "supabase" && week.status === "published";
   const instructionLines = getInstructionLines(week, game);
-  const manualHref = week.manualUrl ?? game.manualUrl;
-  const downloadHref = game.downloadUrl;
+  const packImportHref = !hidePackImport && isLauncherPackId(launcherPackId)
+    ? `highscoreleague://import-pack/${launcherPackId}`
+    : null;
   const statusDisplay = getWeekStatusDisplay(week);
 
   return (
@@ -208,30 +211,25 @@ export function WeekDetailView({
                 )}
               </div>
             </div>
-            {!hideDownloads && (downloadHref || manualHref) ? (
+            {!hidePackImport ? (
               <div className="flex flex-col gap-3 sm:flex-row">
-                {downloadHref ? (
+                {packImportHref ? (
                   <a
                     className="inline-flex items-center justify-center rounded-md bg-circuit px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
-                    href={downloadHref}
-                    rel="noreferrer"
-                    target="_blank"
+                    href={packImportHref}
                   >
                     <MaskIcon className="mr-2 h-4 w-4 bg-current" src="/icons/download.png" />
-                    Descargar juego
+                    Importar pack
                   </a>
-                ) : null}
-                {manualHref ? (
-                <a
-                  className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-semibold transition theme-border theme-surface theme-text theme-hover"
-                  href={manualHref}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  <MaskIcon className="mr-2 h-4 w-4 bg-current" src="/icons/book-open.png" />
-                  Ver manual
-                </a>
-                ) : null}
+                ) : (
+                  <span
+                    aria-disabled="true"
+                    className="inline-flex cursor-not-allowed items-center justify-center rounded-md border px-4 py-2 text-sm font-semibold opacity-60 theme-border theme-surface-muted theme-text-muted"
+                  >
+                    <MaskIcon className="mr-2 h-4 w-4 bg-current" src="/icons/download.png" />
+                    Pack no disponible
+                  </span>
+                )}
               </div>
             ) : null}
           </div>

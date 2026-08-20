@@ -73,9 +73,21 @@ if (missing?.status !== "unavailable" || missing.reason !== "not-found" || missi
   throw new Error(`La semana inexistente no devolvio unavailable: ${JSON.stringify(missing)}`);
 }
 
-const raw = JSON.stringify(payload);
+function collectResponseKeys(value, keys = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectResponseKeys(item, keys);
+  } else if (value && typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) {
+      keys.push(key);
+      collectResponseKeys(item, keys);
+    }
+  }
+  return keys;
+}
 
-if (/player|profile|submission|score|membership|service.role|token/i.test(raw)) {
+const responseKeys = collectResponseKeys(payload);
+
+if (responseKeys.some((key) => /player|profile|submission|score|membership|service.role|token/i.test(key))) {
   throw new Error("La respuesta contiene campos que no pertenecen al contrato publico.");
 }
 

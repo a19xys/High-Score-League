@@ -6,21 +6,23 @@ export function PublicLanding() {
     <section className="public-landing-shell">
       <div aria-hidden="true" className="public-landing-aurora" />
       <div className="public-landing-content">
-        <BrandImage
-          alt="High Score League"
-          className="public-landing-logo mx-auto h-auto max-h-[28vh] w-auto max-w-[22rem] object-contain sm:max-w-lg"
-          fallback={
-            <div className="public-landing-logo public-landing-logo-fallback inline-flex items-center gap-3">
-              <span className="public-landing-logo-mark flex h-14 w-14 items-center justify-center rounded-md text-base font-bold">
-                HSL
-              </span>
-              <span className="text-2xl font-bold uppercase">
-                High Score League
-              </span>
-            </div>
-          }
-          src="/brand/logo-horizontal.png"
-        />
+        <div className="public-landing-logo-motion">
+          <BrandImage
+            alt="High Score League"
+            className="public-landing-logo-image h-auto max-h-[28vh] w-auto max-w-[22rem] object-contain sm:max-w-lg"
+            fallback={
+              <div className="public-landing-logo-fallback inline-flex items-center gap-3">
+                <span className="public-landing-logo-mark flex h-14 w-14 items-center justify-center rounded-md text-base font-bold">
+                  HSL
+                </span>
+                <span className="text-2xl font-bold uppercase">
+                  High Score League
+                </span>
+              </div>
+            }
+            src="/brand/logo-horizontal.png"
+          />
+        </div>
 
         <div className="public-landing-card mt-6 rounded-lg border p-6 backdrop-blur-sm sm:p-8">
           <p className="public-landing-eyebrow text-xs font-semibold uppercase">

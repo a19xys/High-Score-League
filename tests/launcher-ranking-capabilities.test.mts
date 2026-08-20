@@ -255,9 +255,10 @@ test("admin configuration reports missing server variables without exposing valu
 });
 
 test("page and endpoint consume the same public ranking helper", async () => {
-  const [pageHelper, endpoint] = await Promise.all([
+  const [pageHelper, endpoint, smoke] = await Promise.all([
     readFile(join(root, "lib", "data", "week-detail.ts"), "utf8"),
     readFile(join(root, "app", "api", "launcher", "ranking-capabilities", "route.ts"), "utf8"),
+    readFile(join(root, "scripts", "check-launcher-api.mjs"), "utf8"),
   ]);
 
   assert.match(pageHelper, /resolvePublicRankingCapability/);
@@ -269,4 +270,7 @@ test("page and endpoint consume the same public ranking helper", async () => {
   assert.match(endpoint, /validLauncherRankingDatabaseWeekId/);
   assert.match(endpoint, /launcher-ranking-query-failed/);
   assert.doesNotMatch(endpoint, /Authorization|request\.cookies|rankingUrl/);
+  assert.match(smoke, /collectResponseKeys\(payload\)/);
+  assert.match(smoke, /responseKeys\.some/);
+  assert.doesNotMatch(smoke, /const raw = JSON\.stringify\(payload\)/);
 });

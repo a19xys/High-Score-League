@@ -30,6 +30,7 @@ import {
 } from "@/lib/week-status";
 import { deriveCurrentCompetitionWeekState } from "@/lib/current-competition-week";
 import { resolvePublicRankingCapability } from "@/lib/launcher-ranking-capabilities";
+import { getWeekLauncherPack } from "./week-launcher-pack";
 import type { SubmissionRow } from "@/types/supabase";
 
 type WeekSubmission = Submission & {
@@ -49,7 +50,8 @@ export type WeekDetailData = {
   mode: "supabase";
   warning: string | null;
   isSecret: boolean;
-  hideDownloads: boolean;
+  launcherPackId: string | null;
+  hidePackImport: boolean;
   leaderboardPending: boolean;
   submissionsPending: boolean;
   statusHelp: string | null;
@@ -180,8 +182,9 @@ async function buildRealWeekDetail(
   const isSecret = rankingCapability.status !== "available";
   const week = mapWeekRowToWeek(weekRow);
   const rules = isSecret
-    ? ["El juego, instrucciones y descargas permanecerán ocultos hasta que se anuncie la semana."]
+    ? ["El juego, las instrucciones y el pack permanecerán ocultos hasta que se anuncie la semana."]
     : week.rules;
+  const launcherPack = await getWeekLauncherPack(isSecret, weekRow.id);
   const submissionsResult = isSecret ? null : await getRealSubmissions(weekRow.id);
   const benchmarksResult = isSecret ? null : await getRealWeekBenchmarks(weekRow.id);
   const weeklyResultsResult = isSecret ? null : await getRealWeeklyResults(weekRow.id);
@@ -201,6 +204,7 @@ async function buildRealWeekDetail(
     weeklyResultsResult?.error
       ? `No se pudieron cargar resultados oficiales: ${weeklyResultsResult.error}.`
       : null,
+    launcherPack.warning,
   ].filter(Boolean);
   const realSubmissionRows = submissionsResult?.rows ?? [];
   const realBenchmarkRows = benchmarksResult?.rows ?? [];
@@ -262,7 +266,8 @@ async function buildRealWeekDetail(
     mode: "supabase",
     warning: detailWarningParts.length > 0 ? detailWarningParts.join(" ") : null,
     isSecret,
-    hideDownloads: isSecret,
+    launcherPackId: launcherPack.launcherPackId,
+    hidePackImport: isSecret,
     leaderboardPending: false,
     submissionsPending: false,
     statusHelp: getWeekStatusHelp(isSecret ? preliminaryDerivedStatus : derivedStatus),
@@ -310,7 +315,8 @@ export async function getWeekDetailData(
       mode: "supabase",
       warning: context.error,
       isSecret: false,
-      hideDownloads: true,
+      launcherPackId: null,
+      hidePackImport: true,
       leaderboardPending: true,
       submissionsPending: true,
       statusHelp: null,

@@ -10,6 +10,7 @@ import {
   getProfileSubmissionGameOptions,
 } from "../lib/profile-submission-games.ts";
 import { resolveProfileSection } from "../lib/profile-sections.ts";
+import { getProfileAvatarPresentation } from "../lib/profile-avatar-presentation.ts";
 
 const read = (...parts: string[]) => readFile(join(process.cwd(), ...parts), "utf8");
 
@@ -169,17 +170,53 @@ test("the profile workspace is accessible, mounted and free of the old anchor na
   assert.equal(historyExists, false);
 });
 
-test("avatar ring and public logo breathe animate only transforms with reduced motion", async () => {
-  const [styles, hero] = await Promise.all([
+test("avatar image and initials are mutually exclusive across valid, absent and failed states", async () => {
+  const avatar = await read("components", "profile", "profile-avatar.tsx");
+
+  assert.deepEqual(getProfileAvatarPresentation("/avatar.png", null), {
+    showImage: true,
+    showInitials: false,
+  });
+  assert.deepEqual(getProfileAvatarPresentation(null, null), {
+    showImage: false,
+    showInitials: true,
+  });
+  assert.deepEqual(getProfileAvatarPresentation("/avatar.png", "/avatar.png"), {
+    showImage: false,
+    showInitials: true,
+  });
+  assert.deepEqual(getProfileAvatarPresentation("/new-avatar.png", "/old-avatar.png"), {
+    showImage: true,
+    showInitials: false,
+  });
+  assert.match(avatar, /showInitials \? initials \|\| "HSL" : null/);
+  assert.match(avatar, /showImage \? \([\s\S]*<img/);
+  assert.match(avatar, /onError=\{\(\) => setFailedAvatarUrl\(avatarUrl \?\? null\)\}/);
+  assert.match(avatar, /role=\{decorative \? undefined : "img"\}/);
+  assert.match(avatar, /aria-hidden=\{decorative \? "true" : undefined\}/);
+  assert.match(avatar, /alt=""/);
+});
+
+test("avatar ring and public logo separate transform motion from visual shadow", async () => {
+  const [styles, hero, landing] = await Promise.all([
     read("app", "globals.css"),
     read("components", "profile", "profile-hero.tsx"),
+    read("components", "public-landing.tsx"),
   ]);
 
   assert.match(hero, /glow/);
   assert.match(styles, /profile-avatar-glow::before/);
   assert.match(styles, /conic-gradient/);
   assert.match(styles, /profile-avatar-ring-spin 5\.5s linear infinite/);
-  assert.match(styles, /public-landing-logo-breathe 6\.2s ease-in-out infinite/);
+  const motionRule = styles.match(/\.public-landing-logo-motion\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+  const imageRule = styles.match(/\.public-landing-logo-image\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+  const fallbackRule = styles.match(/\.public-landing-logo-fallback\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+  assert.match(motionRule, /animation:\s*public-landing-logo-breathe 6\.2s ease-in-out infinite/);
+  assert.match(motionRule, /transform-origin:\s*center/);
+  assert.match(motionRule, /will-change:\s*transform/);
+  assert.doesNotMatch(motionRule, /filter|drop-shadow/);
+  assert.match(imageRule, /filter:\s*drop-shadow\(var\(--landing-logo-shadow\)\)/);
+  assert.match(fallbackRule, /filter:\s*drop-shadow\(var\(--landing-logo-shadow\)\)/);
   assert.match(styles, /max-inline-size:\s*calc\(100% \/ 1\.09\)/);
   assert.match(styles, /@keyframes public-landing-logo-breathe[\s\S]*50%\s*\{\s*transform: scale\(1\.09\)/);
   assert.doesNotMatch(styles, /public-landing-logo-heartbeat/);
@@ -188,7 +225,10 @@ test("avatar ring and public logo breathe animate only transforms with reduced m
     styles.indexOf("@keyframes profile-avatar-ring-spin"),
   );
   assert.doesNotMatch(breathe, /opacity|width|height|margin|filter/);
-  assert.match(styles, /prefers-reduced-motion:\s*reduce[\s\S]*public-landing-logo[\s\S]*animation:\s*none[\s\S]*transform:\s*none/);
+  assert.match(landing, /<div className="public-landing-logo-motion">[\s\S]*<BrandImage/);
+  assert.match(landing, /className="public-landing-logo-image/);
+  assert.equal((landing.match(/public-landing-logo-motion/g) ?? []).length, 1);
+  assert.match(styles, /prefers-reduced-motion:\s*reduce[\s\S]*public-landing-logo-motion[\s\S]*animation:\s*none[\s\S]*transform:\s*none[\s\S]*will-change:\s*auto/);
   assert.match(styles, /prefers-reduced-motion:\s*reduce[\s\S]*profile-avatar-glow::before/);
 });
 

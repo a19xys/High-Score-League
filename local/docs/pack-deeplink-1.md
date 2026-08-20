@@ -165,4 +165,4 @@ Usar un installer local en una cuenta o VM desechable; no publicar el artefacto 
 8. Probar Biblioteca ausente: elegir una carpeta válida y comprobar que reaparece el mismo intent.
 9. Desinstalar y confirmar que `reg query HKCU\Software\Classes\highscoreleague /s` ya no encuentra la clave.
 
-La web no debe exponer este deep link hasta que exista una versión publicada del launcher que incluya el contrato. El catálogo/backend, almacenamiento y botón web pertenecen a `WEB-PACK-DISTRIBUTION-R2-1` y `WEB-PACK-IMPORT-DEEPLINK-1`.
+El launcher `0.3.0` ya está publicado y se validó el updater real `0.2.0 → 0.3.0`. Cumplida esa condición, la web puede exponer el deep link mediante `WEB-PACK-IMPORT-DEEPLINK-1`; el navegador transporta únicamente el `packId` publicado y el launcher conserva la autoridad de descarga e importación.

@@ -258,18 +258,19 @@ textarea {
     margin-inline: auto;
   }
 
-  .public-landing-content img {
-    filter: drop-shadow(var(--landing-logo-shadow));
-  }
-
-  .public-landing-logo {
+  .public-landing-logo-motion {
     animation: public-landing-logo-breathe 6.2s ease-in-out infinite;
+    display: flex;
+    inline-size: fit-content;
+    margin-inline: auto;
+    max-inline-size: calc(100% / 1.09);
     transform-origin: center;
     will-change: transform;
   }
 
-  .public-landing-content .public-landing-logo {
-    max-inline-size: calc(100% / 1.09);
+  .public-landing-logo-image {
+    filter: drop-shadow(var(--landing-logo-shadow));
+    max-inline-size: 100%;
   }
 
   .public-landing-logo-fallback {
@@ -665,7 +666,7 @@ textarea {
     opacity: var(--landing-aurora-opacity-reduced);
   }
 
-  .public-landing-logo {
+  .public-landing-logo-motion {
     animation: none;
     transform: none;
     will-change: auto;
