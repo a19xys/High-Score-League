@@ -18,6 +18,10 @@ export const RECOVERY_INVALID_MESSAGE =
   "Este enlace de recuperación ya no es válido. Solicita uno nuevo.";
 export const RECOVERY_UPDATE_ERROR_MESSAGE =
   "No hemos podido actualizar la contraseña. Inténtalo de nuevo.";
+export const RECOVERY_SAME_PASSWORD_MESSAGE =
+  "La nueva contraseña debe ser distinta de la contraseña actual.";
+export const RECOVERY_WEAK_PASSWORD_MESSAGE =
+  "La contraseña no cumple los requisitos de seguridad. Revisa los requisitos e inténtalo con otra.";
 export const RECOVERY_LOGOUT_ERROR_MESSAGE =
   "La contraseña se ha actualizado, pero no hemos podido cerrar todas las sesiones. Inténtalo de nuevo para completar el proceso.";
 
@@ -56,8 +60,10 @@ export type PasswordRecoveryCompletionResult =
   | { kind: "logout-error" }
   | { kind: "mismatch" }
   | { kind: "policy-error" }
+  | { kind: "same-password" }
   | { kind: "success" }
-  | { kind: "update-error" };
+  | { kind: "update-error" }
+  | { kind: "weak-password" };
 
 export function getRecoveryCookieOptions(path: string) {
   return {
@@ -110,32 +116,49 @@ function recoveryErrorShape(error: unknown): RecoveryErrorShape {
   return error as RecoveryErrorShape;
 }
 
-function isRateLimitError(error: unknown) {
+function normalizedRecoveryError(error: unknown) {
   const shape = recoveryErrorShape(error);
   const status = typeof shape.status === "number" ? shape.status : null;
   const code = typeof shape.code === "string" ? shape.code.toLowerCase() : "";
   const message =
     typeof shape.message === "string" ? shape.message.toLowerCase() : "";
 
-  return (
-    status === 429 ||
-    code.includes("rate_limit") ||
-    message.includes("rate limit") ||
-    message.includes("too many requests")
-  );
+  return { code, message, status };
 }
 
-function isOperationalRecoveryError(error: unknown) {
-  const shape = recoveryErrorShape(error);
-  const status = typeof shape.status === "number" ? shape.status : null;
-  const message =
-    typeof shape.message === "string" ? shape.message.toLowerCase() : "";
+function classifyPasswordRecoveryRequestError(
+  error: unknown,
+): PasswordRecoveryRequestResult {
+  const { code, message, status } = normalizedRecoveryError(error);
 
-  return (
-    (status !== null && status >= 500) ||
-    message.includes("failed to fetch") ||
-    message.includes("network")
-  );
+  if (code === "user_not_found") {
+    return { kind: "accepted", message: RECOVERY_GENERIC_SUCCESS };
+  }
+
+  if (
+    code === "over_email_send_rate_limit" ||
+    code === "over_request_rate_limit"
+  ) {
+    return { kind: "rate-limited", message: RECOVERY_RATE_LIMIT_MESSAGE };
+  }
+
+  if (code === "email_address_invalid") {
+    return { kind: "invalid-email", message: "Introduce un email válido." };
+  }
+
+  if (status === 429) {
+    return { kind: "rate-limited", message: RECOVERY_RATE_LIMIT_MESSAGE };
+  }
+
+  // A narrow compatibility fallback is used only for unstructured errors.
+  if (
+    !code &&
+    (message.includes("rate limit") || message.includes("too many requests"))
+  ) {
+    return { kind: "rate-limited", message: RECOVERY_RATE_LIMIT_MESSAGE };
+  }
+
+  return { kind: "unavailable", message: RECOVERY_UNAVAILABLE_MESSAGE };
 }
 
 export async function requestPasswordRecovery(input: {
@@ -164,17 +187,11 @@ export async function requestPasswordRecovery(input: {
     return { kind: "unavailable", message: RECOVERY_UNAVAILABLE_MESSAGE };
   }
 
-  if (isRateLimitError(error)) {
-    return { kind: "rate-limited", message: RECOVERY_RATE_LIMIT_MESSAGE };
+  if (error === null) {
+    return { kind: "accepted", message: RECOVERY_GENERIC_SUCCESS };
   }
 
-  if (isOperationalRecoveryError(error)) {
-    return { kind: "unavailable", message: RECOVERY_UNAVAILABLE_MESSAGE };
-  }
-
-  // Auth-level responses remain intentionally indistinguishable so the UI
-  // cannot reveal whether an address is registered.
-  return { kind: "accepted", message: RECOVERY_GENERIC_SUCCESS };
+  return classifyPasswordRecoveryRequestError(error);
 }
 
 export async function verifyRecoveryOtp(
@@ -213,6 +230,16 @@ export async function completePasswordRecovery(input: {
     const { error } = await input.auth.updateUser({ password: input.password });
 
     if (error) {
+      const { code } = normalizedRecoveryError(error);
+
+      if (code === "same_password") {
+        return { kind: "same-password" };
+      }
+
+      if (code === "weak_password") {
+        return { kind: "weak-password" };
+      }
+
       return { kind: "update-error" };
     }
   } catch {

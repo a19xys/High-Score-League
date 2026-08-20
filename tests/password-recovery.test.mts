@@ -14,7 +14,11 @@ import {
   isStructurallyValidRecoveryToken,
   RECOVERY_GENERIC_SUCCESS,
   RECOVERY_MAX_AGE_SECONDS,
+  RECOVERY_RATE_LIMIT_MESSAGE,
+  RECOVERY_SAME_PASSWORD_MESSAGE,
   RECOVERY_TOKEN_MAX_LENGTH,
+  RECOVERY_UNAVAILABLE_MESSAGE,
+  RECOVERY_WEAK_PASSWORD_MESSAGE,
   requestPasswordRecovery,
   selectRecoveryToken,
   verifyRecoveryOtp,
@@ -35,7 +39,7 @@ test("the canonical new-password policy requires 8 chars, lower, upper and digit
   assert.equal(validateNewPassword("Aa1 2345"), null);
 });
 
-test("register uses new-password policy while login accepts legacy credentials locally", async () => {
+test("register applies the new-password policy while login delegates credential validity to Supabase", async () => {
   const [login, register] = await Promise.all([
     source("components", "auth", "login-form.tsx"),
     source("components", "auth", "register-form.tsx"),
@@ -116,7 +120,7 @@ test("forgot-password keeps registered and undisclosed addresses indistinguishab
     auth: {
       async resetPasswordForEmail() {
         return {
-          error: { message: "User not found", status: 400 },
+          error: { code: "user_not_found", status: 400 },
         };
       },
     },
@@ -131,21 +135,118 @@ test("forgot-password keeps registered and undisclosed addresses indistinguishab
   });
 });
 
-test("forgot-password safely classifies rate limits and blocks double submit in UI", async () => {
-  const [result, form] = await Promise.all([
-    requestPasswordRecovery({
+test("forgot-password classifies known rate limits and invalid addresses by semantic code", async () => {
+  const cases = [
+    {
+      error: { code: "over_email_send_rate_limit" },
+      expected: {
+        kind: "rate-limited",
+        message: RECOVERY_RATE_LIMIT_MESSAGE,
+      },
+    },
+    {
+      error: { code: "over_request_rate_limit" },
+      expected: {
+        kind: "rate-limited",
+        message: RECOVERY_RATE_LIMIT_MESSAGE,
+      },
+    },
+    {
+      error: { status: 429 },
+      expected: {
+        kind: "rate-limited",
+        message: RECOVERY_RATE_LIMIT_MESSAGE,
+      },
+    },
+    {
+      error: { code: "email_address_invalid", status: 429 },
+      expected: {
+        kind: "invalid-email",
+        message: "Introduce un email válido.",
+      },
+    },
+  ] as const;
+
+  for (const { error, expected } of cases) {
+    const result = await requestPasswordRecovery({
       auth: {
         async resetPasswordForEmail() {
-          return { error: { code: "over_email_send_rate_limit", status: 429 } };
+          return { error };
         },
       },
       email: "player@example.com",
       origin: "https://hsl.example",
-    }),
-    source("components", "auth", "forgot-password-form.tsx"),
-  ]);
+    });
 
-  assert.equal(result.kind, "rate-limited");
+    assert.deepEqual(result, expected);
+  }
+});
+
+test("forgot-password fails closed for every other non-null error", async () => {
+  const errors = [
+    { code: "email_address_not_authorized" },
+    { code: "email_provider_disabled" },
+    { code: "captcha_failed" },
+    { code: "validation_failed" },
+    { code: "request_timeout" },
+    { code: "unexpected_failure" },
+    { code: "future_unknown_error", message: "Too many requests", status: 400 },
+    { message: "unknown", status: 400 },
+    { message: "unknown", status: 422 },
+    { message: "unknown", status: 500 },
+  ];
+
+  for (const error of errors) {
+    const result = await requestPasswordRecovery({
+      auth: {
+        async resetPasswordForEmail() {
+          return { error };
+        },
+      },
+      email: "player@example.com",
+      origin: "https://hsl.example",
+    });
+
+    assert.deepEqual(result, {
+      kind: "unavailable",
+      message: RECOVERY_UNAVAILABLE_MESSAGE,
+    });
+  }
+});
+
+test("forgot-password uses only a narrow text fallback and sanitizes thrown errors", async () => {
+  const fallback = await requestPasswordRecovery({
+    auth: {
+      async resetPasswordForEmail() {
+        return { error: { message: "Too many requests" } };
+      },
+    },
+    email: "player@example.com",
+    origin: "https://hsl.example",
+  });
+  const thrown = await requestPasswordRecovery({
+    auth: {
+      async resetPasswordForEmail() {
+        throw new Error("raw transport detail");
+      },
+    },
+    email: "player@example.com",
+    origin: "https://hsl.example",
+  });
+
+  assert.deepEqual(fallback, {
+    kind: "rate-limited",
+    message: RECOVERY_RATE_LIMIT_MESSAGE,
+  });
+  assert.deepEqual(thrown, {
+    kind: "unavailable",
+    message: RECOVERY_UNAVAILABLE_MESSAGE,
+  });
+});
+
+test("forgot-password blocks double submit in UI without email lookups", async () => {
+  const form = await source("components", "auth", "forgot-password-form.tsx");
+
   assert.match(form, /if \(isSubmitting\)[\s\S]*return/);
   assert.match(form, /disabled=\{isSubmitting\}/);
   assert.doesNotMatch(form, /auth\.users|profiles|rpc\(|admin\./i);
@@ -235,6 +336,7 @@ test("reset-password guard requires both a recovery marker and authenticated use
 function completionAuth(options?: {
   signOutError?: unknown;
   updateError?: unknown;
+  updateThrows?: boolean;
 }) {
   const calls: Array<{ name: string; value: unknown }> = [];
   return {
@@ -245,6 +347,11 @@ function completionAuth(options?: {
       },
       async updateUser(value: { password: string }) {
         calls.push({ name: "updateUser", value });
+
+        if (options?.updateThrows) {
+          throw new Error("raw update detail");
+        }
+
         return { error: options?.updateError ?? null };
       },
     },
@@ -314,6 +421,52 @@ test("update failure skips signout; global signout failure remains incomplete", 
   });
 });
 
+test("known password update rejections are actionable and never sign out", async () => {
+  const cases = [
+    {
+      error: { code: "same_password", message: "raw same-password detail" },
+      kind: "same-password",
+    },
+    {
+      error: { code: "weak_password", message: "raw policy reasons" },
+      kind: "weak-password",
+    },
+  ] as const;
+
+  for (const { error, kind } of cases) {
+    const fake = completionAuth({ updateError: error });
+    const result = await completePasswordRecovery({
+      auth: fake.auth,
+      confirmation: "Aa123456",
+      password: "Aa123456",
+    });
+
+    assert.equal(result.kind, kind);
+    assert.deepEqual(fake.calls, [
+      { name: "updateUser", value: { password: "Aa123456" } },
+    ]);
+  }
+});
+
+test("unknown and thrown password update errors remain generic and never sign out", async () => {
+  for (const options of [
+    { updateError: { code: "unexpected_failure", status: 500 } },
+    { updateThrows: true },
+  ]) {
+    const fake = completionAuth(options);
+    const result = await completePasswordRecovery({
+      auth: fake.auth,
+      confirmation: "Aa123456",
+      password: "Aa123456",
+    });
+
+    assert.equal(result.kind, "update-error");
+    assert.deepEqual(fake.calls, [
+      { name: "updateUser", value: { password: "Aa123456" } },
+    ]);
+  }
+});
+
 test("completion route retains a marker for safe global-signout retry", async () => {
   const [route, page, form] = await Promise.all([
     source("app", "reset-password", "complete", "route.ts"),
@@ -325,10 +478,43 @@ test("completion route retains a marker for safe global-signout retry", async ()
   assert.match(route, /result\.kind === "logout-error"[\s\S]*retainLogoutRetryState/);
   assert.match(route, /retryGlobalRecoverySignOut/);
   assert.match(route, /\/login\?passwordReset=success/);
+  const retryBranch = route.slice(
+    route.indexOf("if (logoutPending)"),
+    route.indexOf("let formData"),
+  );
+  assert.match(retryBranch, /retryGlobalRecoverySignOut/);
+  assert.doesNotMatch(retryBranch, /completePasswordRecovery|updateUser/);
   assert.match(page, /isAuthorizedRecoverySession/);
   assert.match(page, /supabase\.auth\.getUser\(\)/);
   assert.match(form, /autoComplete="new-password"/);
   assert.equal((form.match(/autoComplete="new-password"/g) ?? []).length, 2);
+});
+
+test("reset-password accepts only safe semantic statuses and keeps retryable forms visible", async () => {
+  const [route, page, form] = await Promise.all([
+    source("app", "reset-password", "complete", "route.ts"),
+    source("app", "reset-password", "page.tsx"),
+    source("components", "auth", "reset-password-form.tsx"),
+  ]);
+
+  assert.match(page, /"same-password"/);
+  assert.match(page, /"weak-password"/);
+  assert.match(route, /"same-password": "same-password"/);
+  assert.match(route, /"weak-password": "weak-password"/);
+  assert.match(form, /status === "same-password"[\s\S]*RECOVERY_SAME_PASSWORD_MESSAGE/);
+  assert.match(form, /status === "weak-password"[\s\S]*RECOVERY_WEAK_PASSWORD_MESSAGE/);
+  assert.match(form, /Mínimo 8 caracteres/);
+  assert.match(form, /Los caracteres especiales son opcionales/);
+  assert.match(form, /name="password"/);
+  assert.doesNotMatch(form, /passwordReset=success|searchParams|query/i);
+  assert.equal(
+    RECOVERY_SAME_PASSWORD_MESSAGE,
+    "La nueva contraseña debe ser distinta de la contraseña actual.",
+  );
+  assert.equal(
+    RECOVERY_WEAK_PASSWORD_MESSAGE,
+    "La contraseña no cumple los requisitos de seguridad. Revisa los requisitos e inténtalo con otra.",
+  );
 });
 
 test("recovery implementation has no parallel Auth authority or secret storage", async () => {
@@ -342,7 +528,7 @@ test("recovery implementation has no parallel Auth authority or secret storage",
 
   assert.doesNotMatch(
     implementation,
-    /createSupabaseAdminClient|SUPABASE_SERVICE_ROLE_KEY|auth\.admin|updateUserById|localStorage|sessionStorage/,
+    /createSupabaseAdminClient|SUPABASE_SERVICE_ROLE_KEY|auth\.admin|auth\.users|profiles|rpc\(|updateUserById|localStorage|sessionStorage/,
   );
   assert.doesNotMatch(implementation, /console\.(?:log|error|warn)/);
 });

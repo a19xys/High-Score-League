@@ -29,7 +29,9 @@ const allowedStatuses = new Set([
   "logout-pending",
   "mismatch",
   "policy",
+  "same-password",
   "update-error",
+  "weak-password",
 ] as const);
 
 type ResetPasswordStatus =
@@ -37,7 +39,9 @@ type ResetPasswordStatus =
   | "logout-pending"
   | "mismatch"
   | "policy"
-  | "update-error";
+  | "same-password"
+  | "update-error"
+  | "weak-password";
 
 export default async function ResetPasswordPage({
   searchParams,

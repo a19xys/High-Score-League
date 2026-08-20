@@ -7,7 +7,9 @@ import {
 } from "@/lib/auth/validation";
 import {
   RECOVERY_LOGOUT_ERROR_MESSAGE,
+  RECOVERY_SAME_PASSWORD_MESSAGE,
   RECOVERY_UPDATE_ERROR_MESSAGE,
+  RECOVERY_WEAK_PASSWORD_MESSAGE,
 } from "@/lib/auth/password-recovery";
 
 type ResetPasswordStatus =
@@ -15,7 +17,9 @@ type ResetPasswordStatus =
   | "logout-pending"
   | "mismatch"
   | "policy"
-  | "update-error";
+  | "same-password"
+  | "update-error"
+  | "weak-password";
 
 function statusMessage(status: ResetPasswordStatus | null) {
   if (status === "mismatch") {
@@ -24,6 +28,14 @@ function statusMessage(status: ResetPasswordStatus | null) {
 
   if (status === "policy") {
     return NEW_PASSWORD_REQUIREMENTS;
+  }
+
+  if (status === "same-password") {
+    return RECOVERY_SAME_PASSWORD_MESSAGE;
+  }
+
+  if (status === "weak-password") {
+    return RECOVERY_WEAK_PASSWORD_MESSAGE;
   }
 
   if (status === "update-error") {

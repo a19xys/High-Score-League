@@ -51,9 +51,12 @@ de contraseña:
 - al menos un número (`[0-9]`);
 - los caracteres especiales están permitidos, pero no son obligatorios.
 
-Login no ejecuta esta política. Una contraseña histórica se envía a
-`signInWithPassword()` y Supabase decide si la credencial es válida; así no se
-bloquean cuentas antiguas por una regla creada con posterioridad.
+Login no reutiliza la política de creación de contraseñas. Comprueba que el
+password no esté vacío y delega en `signInWithPassword()`; Supabase Auth es la
+autoridad que determina si las credenciales proporcionadas son válidas. Crear o
+cambiar una contraseña y autenticar credenciales existentes son fronteras
+distintas, por lo que un cambio futuro de política no debe convertir Login en
+otra autoridad de validación.
 
 Esta misma política debe configurarse manualmente en **Authentication → Password
 policy** del dashboard de Supabase:
@@ -85,10 +88,23 @@ El flujo web usa exclusivamente Supabase Auth:
   → /login?passwordReset=success
 ```
 
-La solicitud siempre presenta el mismo mensaje aceptado exista o no una cuenta.
-No consulta `auth.users`, perfiles, RPCs ni APIs admin, por lo que no convierte
-la existencia del email en una señal visible. Los fallos operativos y el rate
-limit se muestran con mensajes sanitizados.
+La clasificación de la solicitud prioriza el `code` semántico, después un
+`status` fiable y, sólo cuando no existe `code`, un fallback textual estrecho
+para rate limit. Cualquier error no nulo que no esté reconocido falla de forma
+cerrada y presenta un mensaje sanitizado:
+
+- `error === null`: solicitud aceptada con el mensaje genérico;
+- `user_not_found`: el mismo resultado público genérico, únicamente como defensa
+  de compatibilidad anti-enumeración;
+- `over_email_send_rate_limit`, `over_request_rate_limit` o `status === 429`:
+  esperar antes de reintentar;
+- `email_address_invalid`: introducir un email válido;
+- cualquier otro error, conocido o futuro: recuperación no disponible.
+
+El éxito normal y el fallback defensivo `user_not_found` son indistinguibles. El
+flujo no consulta `auth.users`, perfiles, RPCs ni APIs admin, por lo que no
+convierte la existencia del email en una señal visible. Tampoco expone códigos,
+mensajes raw ni detalles de SMTP.
 
 ### Staging resistente a prefetch
 
@@ -105,10 +121,23 @@ tokens ausentes, caducados, usados o inválidos convergen en el mismo error
 seguro.
 
 Tras verificar, el servidor crea un marker `HttpOnly` sin email, UUID, token ni
-password, también con 15 minutos de vida y limitado a `/reset-password`.
-El formulario sólo se renderiza si existen a la vez ese marker y una sesión
-Supabase confirmada mediante `getUser()`. La validación de la política y la
+password, también con 15 minutos de vida y limitado a `/reset-password`. Este
+marker es una guardia del flujo de la aplicación, no una prueba criptográfica de
+identidad por sí solo. El formulario sólo se renderiza si existen a la vez esa
+guardia y una sesión Supabase confirmada mediante `getUser()`; Supabase Auth
+sigue siendo la autoridad de identidad. La validación de la política y la
 confirmación se repiten en el POST antes de `updateUser()`.
+
+La actualización mantiene una taxonomía acotada y siempre conserva el formulario
+cuando el password no se ha cambiado:
+
+- `same_password`: elegir una contraseña distinta;
+- `weak_password`: revisar los requisitos de seguridad, sin mostrar razones raw;
+- cualquier otro error o excepción: fallo genérico de actualización;
+- actualización correcta: ejecutar después `signOut({ scope: "global" })`.
+
+Ningún error de `updateUser()` ejecuta logout ni destruye la sesión recovery o el
+marker, de modo que el usuario puede corregir el password y reintentar.
 
 Si la contraseña se actualiza pero falla `signOut({ scope: "global" })`, la UI
 no declara éxito: conserva markers efímeros para ofrecer un reintento que sólo
@@ -141,6 +170,15 @@ primero a la frontera anti-prefetch usando `.RedirectTo` y `.TokenHash`:
 `/auth/recovery/start`; no acepta `next`, `returnTo`, `redirect` ni `origin` de
 query params.
 
+### Estado de implantación
+
+La clasificación cerrada, las guardias de flujo, la validación local/server, la
+actualización y el logout global están implementados en código. Siguen pendientes
+de configuración y verificación externas el SMTP, la plantilla Reset password,
+las Redirect URLs y la Password Policy del proyecto Supabase. El repositorio no
+demuestra que esos ajustes estén aplicados ni que el recovery por email real se
+haya probado.
+
 ### Revocación global y launcher
 
 El logout global revoca las sesiones renovables y refresh tokens del usuario,
@@ -161,9 +199,7 @@ Con una cuenta real y el SMTP/configuración remota preparados:
 4. aceptar una contraseña de 8 caracteres con mayúscula, minúscula y número;
 5. comprobar el mensaje final en Login y el login manual con la nueva clave;
 6. comprobar que otra sesión web y el launcher exigen login al expirar/refrescar;
-7. comprobar enlace reutilizado, caducado e inválido;
-8. comprobar que una contraseña histórica que no cumpla la política nueva sigue
-   llegando a Supabase desde Login.
+7. comprobar enlace reutilizado, caducado e inválido.
 
 ## Registro
 

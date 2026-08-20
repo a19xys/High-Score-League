@@ -134,7 +134,9 @@ export async function POST(request: Request) {
   const statusByResult = {
     mismatch: "mismatch",
     "policy-error": "policy",
+    "same-password": "same-password",
     "update-error": "update-error",
+    "weak-password": "weak-password",
   } as const;
 
   return redirect(request, `/reset-password?status=${statusByResult[result.kind]}`);
