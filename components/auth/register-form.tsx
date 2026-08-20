@@ -6,9 +6,10 @@ import { FormEvent, useState } from "react";
 import { ensureProfileForCurrentUser } from "@/lib/auth/ensure-profile";
 import {
   humanizeSupabaseError,
+  NEW_PASSWORD_REQUIREMENTS,
   normalizeInitials,
   validateInitials,
-  validatePassword,
+  validateNewPassword,
   validateUsername,
 } from "@/lib/auth/validation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -37,7 +38,7 @@ export function RegisterForm() {
       return;
     }
 
-    const passwordError = validatePassword(password);
+    const passwordError = validateNewPassword(password);
     const usernameError = validateUsername(cleanUsername);
     const initialsError = validateInitials(cleanInitials);
 
@@ -123,6 +124,9 @@ export function RegisterForm() {
             type="password"
             value={password}
           />
+          <span className="mt-1 block text-xs theme-text-muted">
+            {NEW_PASSWORD_REQUIREMENTS} Los caracteres especiales son opcionales.
+          </span>
         </label>
         <label className="block">
           <span className="text-sm font-semibold theme-text">

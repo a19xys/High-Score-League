@@ -1,6 +1,9 @@
 export const usernamePattern = /^[a-z][a-z0-9_]{2,19}$/;
 export const initialsPattern = /^[A-Z0-9]{3}$/;
 export const PROFILE_BIO_MAX_LENGTH = 150;
+export const PASSWORD_MIN_LENGTH = 8;
+export const NEW_PASSWORD_REQUIREMENTS =
+  "La contraseña debe tener al menos 8 caracteres e incluir una mayúscula, una minúscula y un número.";
 
 export function normalizeInitials(value: string) {
   return value.trim().toUpperCase();
@@ -36,9 +39,14 @@ export function validateProfileBio(value: string) {
   return null;
 }
 
-export function validatePassword(value: string) {
-  if (value.length < 6) {
-    return "La contraseña debe tener al menos 6 caracteres.";
+export function validateNewPassword(value: string) {
+  if (
+    value.length < PASSWORD_MIN_LENGTH ||
+    !/[a-z]/.test(value) ||
+    !/[A-Z]/.test(value) ||
+    !/[0-9]/.test(value)
+  ) {
+    return NEW_PASSWORD_REQUIREMENTS;
   }
 
   return null;

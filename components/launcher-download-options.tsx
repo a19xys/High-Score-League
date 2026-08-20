@@ -15,7 +15,7 @@ export function LauncherDownloadOptions() {
         />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold">Descargar para Windows</span>
-          <span className="mt-1 block text-xs font-semibold text-ink/75">Windows 64 bits</span>
+          <span className="mt-1 block text-xs font-semibold text-ink/75">Windows 64-bits</span>
         </span>
       </a>
 

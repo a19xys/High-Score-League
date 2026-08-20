@@ -33,6 +33,138 @@ El proveedor integrado de email de Supabase tiene limites bajos. Para usuarios
 reales conviene configurar SMTP propio y activar confirmacion cuando el flujo ya
 este cerrado.
 
+La recuperación de contraseña usa el mismo canal. El email integrado es útil
+para desarrollo, pero sus límites son muy reducidos: antes de habilitar el flujo
+para usuarios reales se debe configurar SMTP propio. Si el proveedor ofrece
+seguimiento de enlaces, hay que excluir los enlaces de Auth para que no reescriba
+ni rompa el `token_hash`. SMTP, DNS, SPF y DKIM son configuración operativa y no
+se aplican desde este repositorio.
+
+## Política de contraseñas nuevas
+
+La política canónica HSL se aplica a registros, recuperaciones y futuros cambios
+de contraseña:
+
+- mínimo 8 caracteres;
+- al menos una letra minúscula (`[a-z]`);
+- al menos una letra mayúscula (`[A-Z]`);
+- al menos un número (`[0-9]`);
+- los caracteres especiales están permitidos, pero no son obligatorios.
+
+Login no ejecuta esta política. Una contraseña histórica se envía a
+`signInWithPassword()` y Supabase decide si la credencial es válida; así no se
+bloquean cuentas antiguas por una regla creada con posterioridad.
+
+Esta misma política debe configurarse manualmente en **Authentication → Password
+policy** del dashboard de Supabase:
+
+```text
+Minimum password length: 8
+Required character classes: lowercase, uppercase, digits
+Special characters required: no
+```
+
+El código no confirma que esos ajustes remotos ya estén aplicados.
+
+## Recuperación de contraseña
+
+El flujo web usa exclusivamente Supabase Auth:
+
+```text
+/forgot-password
+  → resetPasswordForEmail(email, redirectTo=<origen>/auth/recovery/start)
+  → email de Supabase
+  → GET /auth/recovery/start?token_hash=...
+  → cookie HttpOnly temporal + redirect limpio a /auth/recovery
+  → POST humano /auth/recovery/verify
+  → verifyOtp({ token_hash, type: "recovery" })
+  → sesión recovery de Supabase + marker HttpOnly temporal
+  → /reset-password
+  → updateUser({ password })
+  → signOut({ scope: "global" })
+  → /login?passwordReset=success
+```
+
+La solicitud siempre presenta el mismo mensaje aceptado exista o no una cuenta.
+No consulta `auth.users`, perfiles, RPCs ni APIs admin, por lo que no convierte
+la existencia del email en una señal visible. Los fallos operativos y el rate
+limit se muestran con mensajes sanitizados.
+
+### Staging resistente a prefetch
+
+El primer GET del correo nunca llama a `verifyOtp`. Sólo acepta un único
+`token_hash` no vacío y acotado, lo guarda durante 15 minutos en la cookie
+`hsl_password_recovery_staged` (`HttpOnly`, `SameSite=Lax`, `Secure` en
+producción y `Path=/auth/recovery`) y redirige inmediatamente a una URL sin
+token. El hash no entra en HTML, estado React, `localStorage` ni
+`sessionStorage`.
+
+La página limpia exige pulsar **Continuar**, que hace un POST. Ese POST consume
+la cookie, llama a `verifyOtp` como recovery y elimina siempre el staging. Los
+tokens ausentes, caducados, usados o inválidos convergen en el mismo error
+seguro.
+
+Tras verificar, el servidor crea un marker `HttpOnly` sin email, UUID, token ni
+password, también con 15 minutos de vida y limitado a `/reset-password`.
+El formulario sólo se renderiza si existen a la vez ese marker y una sesión
+Supabase confirmada mediante `getUser()`. La validación de la política y la
+confirmación se repiten en el POST antes de `updateUser()`.
+
+Si la contraseña se actualiza pero falla `signOut({ scope: "global" })`, la UI
+no declara éxito: conserva markers efímeros para ofrecer un reintento que sólo
+completa la revocación. En éxito se eliminan los markers y la sesión web, no se
+inicia sesión automáticamente y se vuelve a Login.
+
+Las páginas y respuestas sensibles son dinámicas/no-store y noindex. No se
+registran passwords, token hashes, cookies de recovery, tokens ni sesiones.
+
+### URL Configuration y plantilla Reset password
+
+En **Authentication → URL Configuration** se deben autorizar sólo los destinos
+que se usen realmente, sin comodines amplios en producción:
+
+```text
+Producción: https://high-score-league.vercel.app/auth/recovery/start
+Desarrollo: http://localhost:3000/auth/recovery/start
+```
+
+En **Authentication → Email Templates → Reset password**, el enlace debe llevar
+primero a la frontera anti-prefetch usando `.RedirectTo` y `.TokenHash`:
+
+```html
+<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}">
+  Cambiar contraseña
+</a>
+```
+
+`resetPasswordForEmail()` deriva el origen desde la web actual y añade siempre
+`/auth/recovery/start`; no acepta `next`, `returnTo`, `redirect` ni `origin` de
+query params.
+
+### Revocación global y launcher
+
+El logout global revoca las sesiones renovables y refresh tokens del usuario,
+incluido el del launcher. No invalida instantáneamente access-token JWT ya
+emitidos: estos pueden seguir siendo válidos hasta su `exp`. Cada navegador y el
+launcher quedan obligados a reautenticarse cuando el access token expire o
+necesiten refrescarlo; el launcher debe converger entonces a su estado existente
+**Requiere iniciar sesión**. Este flujo no añade integración directa, polling ni
+deep links al launcher.
+
+### QA manual pendiente
+
+Con una cuenta real y el SMTP/configuración remota preparados:
+
+1. solicitar recovery y abrir el correo;
+2. confirmar que el GET inicial no consume el enlace y que la URL queda limpia;
+3. pulsar Continuar y rechazar 7 caracteres o una contraseña sin número;
+4. aceptar una contraseña de 8 caracteres con mayúscula, minúscula y número;
+5. comprobar el mensaje final en Login y el login manual con la nueva clave;
+6. comprobar que otra sesión web y el launcher exigen login al expirar/refrescar;
+7. comprobar enlace reutilizado, caducado e inválido;
+8. comprobar que una contraseña histórica que no cumpla la política nueva sigue
+   llegando a Supabase desde Login.
+
 ## Registro
 
 `/register` pide:

@@ -7,7 +7,13 @@ export const metadata: Metadata = {
   title: "Login | High Score League",
 };
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams: Promise<{ passwordReset?: string | string[] }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { passwordReset } = await searchParams;
+
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: "Iniciar sesión" }]} />
@@ -16,7 +22,7 @@ export default function LoginPage() {
           <CardHeader title="Iniciar sesión" eyebrow="Auth">
             Accede con email y contraseña para entrar en la liga privada.
           </CardHeader>
-          <LoginForm />
+          <LoginForm passwordResetSucceeded={passwordReset === "success"} />
         </Card>
       </div>
     </div>

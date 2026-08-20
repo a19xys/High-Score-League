@@ -192,7 +192,7 @@ test("route and authenticated Home retain the public, semantic UI contract", asy
   assert.doesNotMatch(home, /<LinkButton href=\{seasonHref\}>\s*Clasificación/);
 
   assert.match(options, /<a[\s\S]*?href="\/download\/launcher\/windows"/);
-  assert.match(options, /Windows 64 bits/);
+  assert.match(options, /Windows 64-bits/);
   assert.match(options, /aria-disabled="true"[\s\S]*GNU\/Linux[\s\S]*Próximamente/);
   assert.match(options, /platform-icon platform-icon-windows text-ink/);
   assert.match(options, /platform-icon platform-icon-gnu-linux theme-text-muted/);
