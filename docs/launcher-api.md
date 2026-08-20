@@ -36,6 +36,44 @@ identidades validas del contrato son `unavailable/not-found` sin hacer fallar el
 batch. Service role permanece encapsulado en servidor y nunca se devuelven
 scores, perfiles, membership, claves ni errores internos.
 
+## GET /api/launcher/packs/&lt;packId&gt;/download
+
+API bearer-only para resolver un pack publicado y una semana públicamente
+revelada. No acepta cookies ni exige membership.
+
+```http
+GET /api/launcher/packs/space-invaders-s1-w1/download
+Authorization: Bearer <sesión HSL>
+Accept: application/json
+```
+
+La respuesta `200` contiene exactamente:
+
+```json
+{
+  "version": 1,
+  "packId": "space-invaders-s1-w1",
+  "artifact": {
+    "sizeBytes": 31457280,
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "downloadUrl": "https://proveedor-r2/objeto?firma=temporal"
+  }
+}
+```
+
+El servidor consulta el catálogo privado mediante service role, reutiliza la
+misma autoridad de visibilidad que ranking, comprueba existencia y
+`ContentLength` con `HeadObject` y firma un GET R2 durante 900 segundos. Los
+bytes no atraviesan Vercel, el bearer HSL no se envía al artefacto y ETag no se
+usa como SHA-256.
+
+Taxonomía: `400` para `packId` inválido; `401` para bearer ausente/malformado o
+rechazado; `403` para perfil no activo; `404` indistinguible para pack
+missing/draft/disabled, semana secreta u objeto ausente; `503` para fallos de
+perfil, catálogo, contexto, configuración R2, infraestructura, tamaño o firma.
+Todas las respuestas son `no-store` y no exponen estado interno, object key,
+secretos ni URL firmada en logs.
+
 ## Smoke desplegado
 
 ```powershell

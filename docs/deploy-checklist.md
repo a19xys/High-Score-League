@@ -12,11 +12,20 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 CRON_SECRET=
+HSL_R2_ACCOUNT_ID=
+HSL_R2_BUCKET=
+HSL_R2_ACCESS_KEY_ID=
+HSL_R2_SECRET_ACCESS_KEY=
+HSL_R2_JURISDICTION=default
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` son publicas.
 - `SUPABASE_SERVICE_ROLE_KEY` es secreto y solo debe existir en servidor.
 - `CRON_SECRET` es secreto y protege `/api/cron/process-schedule`.
+- Las cinco variables `HSL_R2_*` son sólo de servidor. El token debe ser
+  `Object Read only` y estar limitado al bucket privado de packs; no habilitar
+  `r2.dev`, acceso público ni CORS. Mantener cualquier credencial read+write de
+  publicación separada de Vercel.
 - No usar valores reales en `.env.example`, README ni documentacion versionada.
 
 ## 2. Supabase
@@ -55,6 +64,7 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 0028_player_presence.sql
 0029_profile_privacy_defaults.sql
 0030_week_benchmark_images.sql
+0031_launcher_packs.sql
 ```
 
 En el Supabase remoto actual, `0023` y `0024` ya están aplicadas. No deben
@@ -75,8 +85,15 @@ pendiente de aplicación remota. Ejecutar antes su preflight de solo lectura
 `supabase/preflight/0030_week_benchmark_images.sql`. El orden es: verificar el
 schema y bucket → aplicar `0030` → verificar columna, constraint y tres policies
 → desplegar la web compatible → QA de crear/reemplazar/quitar/eliminar con un
-benchmark desechable. No crear migraciones posteriores a `0030` salvo un nuevo
-conflicto real.
+benchmark desechable.
+
+`0031_launcher_packs.sql` está incluida en Git, pero no se afirma aplicada en
+ningún Supabase remoto. Antes de desplegar el endpoint: verificar el estado real
+de migraciones, ejecutar el preflight de sólo lectura
+`supabase/preflight/0031_launcher_packs.sql`, detenerse ante cualquier drift,
+aplicar `0031`, comprobar constraints/triggers/índice parcial/RLS y sólo después
+configurar R2 y desplegar. `0030` continúa con su estado histórico pendiente; no
+se deduce su aplicación por la mera presencia del archivo.
 
 Comprobar despues:
 
@@ -113,6 +130,14 @@ Comprobar despues:
   `icon_key` legacy. Después, comprobar el patrón
   `benchmarks/icons/<UUID>.webp`, las policies admin de `INSERT/SELECT/DELETE` y
   el fallback `REF` para filas sin imagen.
+- Antes de `0031`, confirmar que `weeks.id` es UUID, existen `public.is_admin()`
+  y `public.set_updated_at()`, no existe ya `launcher_packs` y `weeks` no contiene
+  una columna improvisada `launcher_pack_id`. Después, verificar object key
+  generated, límites/hash/status, lifecycle e inmutabilidad, draft borrable,
+  publicados no borrables, único published por semana y RLS sin lectura normal.
+- Crear después un bucket R2 privado y un token Object Read only limitado al
+  bucket; configurar las cinco variables server-side y probar con un pack
+  autorizado sólo tras desplegar. No reutilizar una credencial de escritura.
 
 ## 3. Realtime
 
@@ -234,6 +259,8 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
 
 - Ningun secreto real en el repositorio.
 - `SUPABASE_SERVICE_ROLE_KEY` solo en servidor.
+- Credenciales R2, bearer HSL y URLs presigned sólo en servidor/transporte; no
+  registrarlas ni devolver object keys. El bucket de packs permanece privado.
 - Endpoints `/api/admin/*` protegidos por perfil admin.
 - `/api/cron/process-schedule` protegido por `CRON_SECRET`.
 - `/api/submissions/ingest` no acepta `playerId` ni `submittedAt`.
@@ -280,6 +307,12 @@ Para `WEB-WEEK-BENCHMARK-PROFILE-POLISH-2`, `0030` sigue pendiente: no desplegar
 la web que selecciona `week_benchmarks.image_storage_path` hasta aplicarla y
 verificarla. La migración es aditiva y conserva `icon_key` para permitir un
 rollback temporal a la web anterior.
+
+Para `WEB-PACK-DISTRIBUTION-R2-1`, `0031`, el bucket, el token read-only, las
+variables de Vercel, el deploy y la prueba E2E real siguen pendientes. El orden
+operativo es preflight → migración → verificación RLS/constraints → R2 privado →
+env → deploy → alta/publicación de un pack autorizado → endpoint/HEAD/presign →
+importación desde launcher.
 
 ## Roadmap no bloqueante para releases actuales
 

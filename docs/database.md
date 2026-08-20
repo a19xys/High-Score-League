@@ -121,6 +121,26 @@ número dentro de una misma temporada.
 como override opcional de instrucciones de semana. Si está vacío, el detalle de
 semana usa `games.instructions`; si tampoco existe, muestra un estado vacío.
 
+### launcher_packs
+
+`0031_launcher_packs.sql` añade el catálogo privado de packs distribuibles. Una
+fila relaciona `pack_id` con `week_id`, tamaño y SHA-256 canónicos; no confunde
+esas identidades con `game_id` ni usa `games.download_url`. `object_key` es
+generated/stored y deriva siempre como
+`packs/v1/<pack_id>/<sha256>.hslpack.zip`.
+
+El lifecycle comienza en `draft`; el primer cambio a `published` fija
+`published_at`. Desde entonces identidad, semana, tamaño, hash, object key y
+fecha de publicación son inmutables, sólo se permite `published ↔ disabled` y
+la fila no puede borrarse. Los drafts nunca publicados sí pueden corregirse o
+borrarse. Un índice único parcial limita a uno los packs `published` por semana.
+
+La FK apunta de `launcher_packs.week_id` a `weeks.id` con `on delete restrict`;
+`weeks` no recibe `launcher_pack_id`. RLS no concede lectura general a `anon` ni
+a jugadores autenticados: sólo admins pueden gestionar el catálogo y el
+endpoint server-side lo consulta con service role. Esto evita revelar mediante
+un `pack_id` descriptivo el juego de una semana futura.
+
 ### submissions
 
 Representa cada puntuación subida por un jugador. Guarda la semana, jugador,
@@ -299,6 +319,7 @@ publicar una semana.
 - `weeks.season_id` referencia `seasons.id`.
 - `weeks.game_id` referencia `games.id` cuando tiene valor; puede ser `null`
   para semanas futuras o todavía no anunciadas.
+- `launcher_packs.week_id` referencia `weeks.id` con borrado restringido.
 - `submissions.week_id` referencia `weeks.id`.
 - `submissions.player_id` referencia `profiles.id`.
 - `weekly_results.week_id` referencia `weeks.id`.
@@ -379,6 +400,9 @@ Todas las tablas principales tienen Row Level Security activado.
   administrada y `avatar_url` como compatibilidad.
 - `seasons`, `games`, `weeks`: usuarios autenticados pueden leer; solo admins
   pueden insertar, actualizar o borrar.
+- `launcher_packs`: catálogo privado sin lectura general para `anon` ni
+  autenticados; una única policy permite gestión a `public.is_admin()` y el
+  resolver server-side usa service role.
 - `submissions`: usuarios autenticados pueden leer submissions visibles y
   válidas; cada jugador puede leer las propias aunque estén ocultas; el insert
   propio exige membership activa y `detected_at` dentro de apertura/deadline,

@@ -1,3 +1,5 @@
+import { resolvePublicWeekVisibility } from "./public-week-visibility.ts";
+
 export const LAUNCHER_RANKING_CONTRACT_VERSION = 1;
 export const LAUNCHER_RANKING_BATCH_LIMIT = 100;
 export const LAUNCHER_RANKING_ID_MAX_LENGTH = 128;
@@ -99,25 +101,7 @@ export function validateLauncherRankingRequest(payload: unknown):
 }
 
 export function resolvePublicRankingCapability(input: PublicRankingInput) {
-  const { week, season, derivedStatus, currentActiveWeekNumber = null } = input;
-
-  if (!week) {
-    return { status: "unavailable" as const, reason: "not-found" as const };
-  }
-
-  const futureActiveSeasonWeek = season?.status === "active" &&
-    typeof currentActiveWeekNumber === "number" &&
-    week.week_number > currentActiveWeekNumber &&
-    week.status !== "published";
-  const visibleStatus = ["active", "final_stretch", "closed", "published"].includes(
-    String(derivedStatus || ""),
-  );
-
-  if (!season || season.status === "draft" || !week.game_id || futureActiveSeasonWeek || !visibleStatus) {
-    return { status: "unavailable" as const, reason: "not-public" as const };
-  }
-
-  return { status: "available" as const, reason: "public-week" as const };
+  return resolvePublicWeekVisibility(input);
 }
 
 export function buildLauncherRankingResults(options: {

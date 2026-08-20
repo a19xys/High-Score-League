@@ -72,6 +72,18 @@ export type WeekRow = {
   updated_at?: string;
 };
 
+export type LauncherPackRow = {
+  pack_id: string;
+  week_id: string;
+  size_bytes: number;
+  sha256: string;
+  object_key: string;
+  status: "draft" | "published" | "disabled";
+  published_at: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type SubmissionSource =
   | "web"
   | "mame_memory"
