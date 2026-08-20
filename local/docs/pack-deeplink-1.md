@@ -95,6 +95,10 @@ Sólo la petición HSL lleva bearer. La petición al artefacto lleva únicamente
 
 Los errores HTTP conservan la autoridad de cada frontera: en el endpoint HSL autenticado, `401/403` significa sesión/autorización y produce `requires-login`; en la URL temporal del artefacto, `401/403` describe un fallo de esa capacidad y produce `remote-error`, nunca un problema de login. En ambas fronteras, `404/410/503` produce `pack-unavailable`.
 
+## Estado operativo posterior
+
+El endpoint `/api/launcher/packs/<packId>/download` ya existe y la distribución privada mediante Supabase + R2 está operativa. Se completó un E2E real con el pack `space-invaders-s1-w1-r1`.
+
 ## Streaming, verificación e importación
 
 El artefacto se lee por chunks desde `ReadableStream` y se escribe en un ZIP aleatorio dentro de un directorio temporal. Cada chunk incrementa el contador y el SHA-256; no se llama a `arrayBuffer()` para el ZIP completo. La descarga aborta si supera el tamaño declarado o el máximo local. Al finalizar deben coincidir exactamente bytes y hash. Timeout, señal externa, suspensión y shutdown cancelan la operación.

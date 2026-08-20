@@ -11,6 +11,11 @@ Representa a los jugadores. Cada fila está asociada a `auth.users(id)` y guarda
 datos públicos de liga: `username`, siglas, avatar, bio pública, visibilidad de
 Playtime e indicador `is_admin`.
 
+Una identidad en `auth.users` no equivale todavía a un perfil HSL activo. Entre
+el alta o confirmación de Auth y el bootstrap puede existir temporalmente un
+usuario autenticado sin fila en `public.profiles`. La aplicación completa esa
+transición desde `user_metadata` mediante `ensureProfileForCurrentUser()`.
+
 La identidad visible principal son las siglas de 3 caracteres. Debajo se muestra
 el username con `@`, por ejemplo `LVC` y `@lauravc`.
 
@@ -394,10 +399,13 @@ excluyendo la última semana con resultados oficiales.
 
 Todas las tablas principales tienen Row Level Security activado.
 
-- `profiles`: usuarios autenticados pueden leer perfiles; cada usuario puede
-  insertar o actualizar su propio perfil sin poder activar `is_admin`; admins
-  pueden gestionar perfiles. El avatar usa `avatar_storage_path` como referencia
-  administrada y `avatar_url` como compatibilidad.
+- `profiles`: un viewer con perfil activo entra en el modelo normal de lectura.
+  Un usuario Auth que aún no tiene perfil sólo puede ver su propia fila no
+  anonimizada durante el bootstrap; no puede enumerar perfiles ajenos. Cada
+  usuario puede insertar o actualizar su propio perfil sin poder activar
+  `is_admin`; admins pueden gestionar perfiles. El avatar usa
+  `avatar_storage_path` como referencia administrada y `avatar_url` como
+  compatibilidad.
 - `seasons`, `games`, `weeks`: usuarios autenticados pueden leer; solo admins
   pueden insertar, actualizar o borrar.
 - `launcher_packs`: catálogo privado sin lectura general para `anon` ni
@@ -435,6 +443,90 @@ Todas las tablas principales tienen Row Level Security activado.
   está revocada y el ingest autenticado usa la RPC.
 - `player_game_play_time` y `player_play_time_totals`: lectura para propietario,
   admin o miembros autenticados cuando `play_time_public = true`.
+
+### Bootstrap RLS de `profiles` (`0032`)
+
+`ensureProfileForCurrentUser()` crea el perfil con
+`insert(...).select(...).single()` para recibir la fila canónica. Ese `.select()`
+genera un `INSERT ... RETURNING`, y PostgreSQL aplica también la policy SELECT a
+la fila devuelta. La policy INSERT de 0027 ya validaba correctamente UUID propio,
+`anonymized_at is null`, `is_admin = false` y la exclusión de `deleted_*`, pero
+la policy SELECT exigía `public.has_active_profile()`: condición imposible antes
+de que la primera fila fuese visible para el `RETURNING`.
+
+`0032_profile_bootstrap_rls.sql` reemplaza únicamente
+`profiles_select_authenticated` con esta semántica:
+
+```sql
+using (
+  public.has_active_profile()
+  or (
+    id = auth.uid()
+    and auth.uid() is not null
+    and anonymized_at is null
+  )
+)
+```
+
+La primera rama conserva el modelo normal. La segunda sólo hace visible la fila
+propia no anonimizada durante el bootstrap. Para un viewer sin perfil, una fila
+ajena no cumple `id = auth.uid()`; una tombstone no cumple
+`anonymized_at is null`; y un usuario no autenticado no dispone de `auth.uid()`.
+Tras crear la fila, `public.has_active_profile()` pasa a ser de nuevo la autoridad
+normal. La migración no redefine esa función ni modifica las policies INSERT o
+UPDATE, no crea RPC/trigger y no hace backfill de identidades Auth huérfanas.
+
+Matriz de autorización esperada:
+
+| Viewer | Fila objetivo | Visible |
+| --- | --- | ---: |
+| Sin perfil | Ajena activa | No |
+| Sin perfil | Propia activa/bootstrap | Sí |
+| Con perfil activo | Propia activa | Sí |
+| Con perfil activo | Otras permitidas por el modelo normal | Sí |
+| Tombstone sin perfil activo | Tombstone propia | No por bootstrap |
+| No autenticado | Cualquier perfil | No |
+
+Antes de aplicar 0032, ejecutar su preflight de sólo lectura. Después de aplicarla
+manualmente, validar con un cliente autenticado, nunca con service role:
+
+1. una cuenta Auth existente sin perfil debe iniciar sesión, crear su fila desde
+   metadata válida y llegar a `/profile`;
+2. una cuenta nueva debe completar el mismo bootstrap sin error RLS;
+3. antes del bootstrap, la lectura de perfiles ajenos debe devolver cero filas,
+   mientras el insert propio válido con `RETURNING` debe devolver su fila;
+4. una fila con `anonymized_at is not null` debe continuar fuera de la excepción.
+
+La comprobación administrativa posterior para una cuenta concreta puede usar un
+UUID placeholder, sin incorporarlo al repositorio:
+
+```sql
+select
+  u.id,
+  u.email,
+  p.id as profile_id,
+  p.username,
+  p.initials,
+  p.anonymized_at
+from auth.users u
+left join public.profiles p on p.id = u.id
+where u.id = '<UUID>';
+```
+
+Rollback operativo de emergencia —no ejecutar como migración automática—:
+
+```sql
+drop policy if exists profiles_select_authenticated on public.profiles;
+
+create policy profiles_select_authenticated
+on public.profiles
+for select
+to authenticated
+using (public.has_active_profile());
+```
+
+Este rollback restaura sólo la policy anterior, pero reintroduce deliberadamente
+el bloqueo de bootstrap con `INSERT ... RETURNING`.
 
 Nota: si la home pública debe leer datos directamente desde Supabase sin sesión,
 habrá que decidir más adelante si se añaden políticas `anon` de solo lectura o
@@ -480,17 +572,17 @@ guardar el tipo y tamano del archivo resultante.
 Aplicar todas las migraciones ausentes de `supabase/migrations/` en orden
 numérico, no sólo `0001_initial_schema.sql`, y verificar después tablas,
 constraints, RLS, Realtime y Storage. `0023` debe preceder a `0024`, `0024` a
-`0025`, `0025` a `0026`, `0026` a `0027`, `0027` a `0028`, `0028` a `0029`
-y `0029` a `0030`.
+`0025`, `0025` a `0026`, `0026` a `0027`, `0027` a `0028`, `0028` a `0029`,
+`0029` a `0030`, `0030` a `0031` y `0031` a `0032`.
 
 En el entorno remoto actual `0023_profile_bio_max_length.sql` y
 `0024_media_uploads.sql` ya están aplicadas. También está confirmado que
 `0026_submission_detected_at_window.sql` existe y ya fue aplicada remotamente:
 no debe modificarse, renombrarse, duplicarse ni reaplicarse.
 `0027_profile_anonymization.sql` también está aplicada remotamente. Las
-migraciones `0028_player_presence.sql` y `0029_profile_privacy_defaults.sql`
-están en el repositorio; `0030_week_benchmark_images.sql` se crea en esta tarea
-y queda pendiente de aplicación remota.
+migraciones `0028` a `0031` están en el repositorio. La nueva
+`0032_profile_bootstrap_rls.sql` queda pendiente de aplicación manual en
+Supabase; su presencia local no demuestra que esté aplicada remotamente.
 
 Para verificar una instalación antes de aplicarla, ejecutar el preflight SELECT-only de
 `supabase/preflight/0027_profile_anonymization.sql`. La propia migración aborta
@@ -499,6 +591,11 @@ si faltan tablas o columnas de Playtime introducidas por `0025`, el índice de
 inventario de `week_benchmarks`, la ausencia previa de la nueva columna, el bucket,
 benchmarks legacy y policies de Storage. El procedimiento completo está en el
 [checklist de despliegue](deploy-checklist.md).
+
+Antes de 0032, ejecutar `supabase/preflight/0032_profile_bootstrap_rls.sql`. Es
+estrictamente read-only: inventaría `profiles`, `has_active_profile()`, RLS y las
+policies SELECT/INSERT/UPDATE, y cuenta identidades de `auth.users` sin fila de
+perfil sin exponer emails, tokens, hashes ni metadata completa.
 
 `retired_profile_usernames` conserva únicamente SHA-256 de
 `lower(trim(username))` y no concede lectura a usuarios normales. Esto evita

@@ -133,6 +133,8 @@ Después de revisar y commitear esta pipeline:
 
 Publicar `0.2.0` no actualiza un cliente que ya tiene `0.2.0`. La primera auto-update real será una Release estable posterior, como `0.2.1` o `0.3.0`; no se crea una versión ficticia.
 
+Tras preparar el source tree del launcher en `0.3.0`, esa versión es la candidata real para la primera auto-update `0.2.0 → 0.3.0`. Esta preparación local no afirma que el E2E del updater ya se haya ejecutado.
+
 ## Recuperación y limitaciones
 
 - Si Build y la subida del Actions Artifact terminaron correctamente y falla solo el job Stage, abrir esa misma ejecución en GitHub Actions y elegir `Re-run jobs → Re-run failed jobs`. Se reutilizan el `github.sha`, el `github.ref`, el build y el artifact originales; si había un draft parcial, Stage completa únicamente assets ausentes y conserva los idénticos.

@@ -240,6 +240,15 @@ Tras login correcto, la app llama a `ensureProfileForCurrentUser`:
 
 Nunca se redirige a `/profile/setup` desde el flujo normal.
 
+Una identidad autenticada en `auth.users` y un perfil HSL activo son estados
+distintos. Durante el bootstrap puede existir sesión Auth sin fila en
+`public.profiles`. `0032_profile_bootstrap_rls.sql` añade una excepción SELECT
+estrecha para que ese usuario vea únicamente su propia fila no anonimizada al
+ejecutar el `INSERT ... RETURNING` de `ensureProfileForCurrentUser`; no habilita
+la lectura de perfiles ajenos. Después de crearla,
+`public.has_active_profile()` vuelve a gobernar el acceso normal. La migración
+queda pendiente de aplicación manual en Supabase.
+
 ## Perfil
 
 `/profile` es el centro único del perfil real. Comparte sistema visual y capa de

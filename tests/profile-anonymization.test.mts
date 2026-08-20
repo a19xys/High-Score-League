@@ -132,15 +132,22 @@ test("chat content is preserved except for the exact generated join message", as
   assert.doesNotMatch(sql, /delete from public\.league_chat_messages/i);
 });
 
-test("authenticated read and write policies use the active-viewer barrier", async () => {
-  const sql = await read("supabase", "migrations", "0027_profile_anonymization.sql");
+test("authenticated policies retain the active-viewer barrier and narrow profile bootstrap", async () => {
+  const [sql, bootstrap] = await Promise.all([
+    read("supabase", "migrations", "0027_profile_anonymization.sql"),
+    read("supabase", "migrations", "0032_profile_bootstrap_rls.sql"),
+  ]);
 
   assert.match(sql, /create or replace function public\.has_active_profile\(\)/i);
   assert.match(sql, /profile\.id = auth\.uid\(\)[\s\S]*profile\.anonymized_at is null/i);
   assert.match(sql, /create or replace function public\.is_admin\(\)[\s\S]*profile\.anonymized_at is null[\s\S]*profile\.is_admin = true/i);
 
+  assert.match(
+    bootstrap,
+    /profiles_select_authenticated[\s\S]*public\.has_active_profile\(\)[\s\S]*or\s*\([\s\S]*id = auth\.uid\(\)[\s\S]*auth\.uid\(\) is not null[\s\S]*anonymized_at is null/i,
+  );
+
   for (const policy of [
-    "profiles_select_authenticated",
     "seasons_select_authenticated",
     "games_select_authenticated",
     "weeks_select_authenticated",

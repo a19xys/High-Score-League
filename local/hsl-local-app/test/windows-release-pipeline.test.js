@@ -79,5 +79,5 @@ test("workflow artifacts preserve exact provenance and publication remains a sec
   assert.doesNotMatch(`${stage}\n${publish}`, /--publish always/);
   const packageJson = await fsp.readFile(path.join(REPO_ROOT, "local", "hsl-local-app", "package.json"), "utf8");
   assert.match(packageJson, /electron-builder[^\n]+--publish never/);
-  assert.equal(JSON.parse(packageJson).version, "0.2.0");
+  assert.equal(JSON.parse(packageJson).version, "0.3.0");
 });

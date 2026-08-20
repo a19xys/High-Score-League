@@ -120,7 +120,7 @@ No debe publicarse una Release estable «solo web» que desplace `/releases/late
 - `2.0.0` se reserva para una transformación radical de producto, escala, equipo, monetización o audiencia.
 - Toda versión publicada para auto-update es conceptualmente inmutable; la siguiente Release updater debe ser SemVer superior.
 
-La transición `0.1.0 → 0.2.0` es manual porque `0.1.0` no contiene updater. La primera actualización automática real será una futura `0.2.0 → 0.2.1` o `0.2.0 → 0.3.0`; no se fabrica una Release de igual versión para probar.
+La transición `0.1.0 → 0.2.0` es manual porque `0.1.0` no contiene updater. `0.3.0` es la candidata real para la primera actualización automática `0.2.0 → 0.3.0`; ese E2E del updater todavía no se ha ejecutado y no se fabrica una Release de igual versión para probar.
 
 ## Pipeline de Release implementada
 
