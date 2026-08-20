@@ -112,16 +112,22 @@ La taxonomía externa es:
 | Caso | HTTP |
 |---|---:|
 | `packId` inválido | 400 |
-| bearer ausente, malformado o rechazado | 401 |
+| bearer ausente/malformado, sesión rechazada normalmente o usuario no resuelto | 401 |
 | perfil inexistente, inactivo o anonymized | 403 |
 | pack no disponible, semana secreta u objeto ausente | 404 |
-| perfil no verificable, catálogo/contexto/R2/config/HEAD/tamaño/presign fallido | 503 |
+| backend Auth no configurado/no inicializable o excepción de `getUser()` | 503 |
+| perfil no verificable, catálogo no inicializable, contexto/R2/config/HEAD/tamaño/presign fallido | 503 |
 | descriptor emitido | 200 |
 
 Los errores de proveedor se reducen a clasificaciones seguras. No se registran
 Authorization, credenciales AWS/Supabase, errores SDK completos, URLs firmadas,
 `X-Amz-Signature` ni `X-Amz-Credential`. Las respuestas 404 tampoco revelan
 `weekId`, `objectKey`, hash, tamaño o estado interno.
+
+La frontera distingue una respuesta normal de Auth que rechaza la credencial
+(`401`) de no poder inicializar o ejecutar el backend necesario para validarla
+(`503`). Reiniciar sesión no se presenta como solución para una avería o
+configuración incompleta del servidor.
 
 ## Operación pendiente
 

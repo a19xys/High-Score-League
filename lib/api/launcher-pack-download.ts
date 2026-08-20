@@ -72,6 +72,14 @@ function unavailablePack() {
   return errorResult(404, "PACK_NOT_AVAILABLE", "Este pack no está disponible.");
 }
 
+function packAuthUnavailable() {
+  return errorResult(503, "PACK_AUTH_UNAVAILABLE", "La distribución de packs no está disponible.");
+}
+
+function packCatalogNotConfigured() {
+  return errorResult(503, "PACK_CATALOG_NOT_CONFIGURED", "La distribución de packs no está disponible.");
+}
+
 export async function loadLauncherPackCatalogRow(
   client: AdminClient,
   packId: string,
@@ -147,21 +155,26 @@ export async function resolveLauncherPackDownload(
     return errorResult(401, "AUTH_REQUIRED", "Necesitas una sesión válida.");
   }
 
-  const bearerClient = dependencies.createBearerClient(request);
+  let bearerClient: LauncherPackBearerClient | null;
+  try {
+    bearerClient = dependencies.createBearerClient(request);
+  } catch {
+    return packAuthUnavailable();
+  }
   if (!bearerClient) {
-    return errorResult(401, "AUTH_REQUIRED", "Necesitas una sesión válida.");
+    return packAuthUnavailable();
   }
 
-  let userId: string | null = null;
+  let authResult: Awaited<ReturnType<LauncherPackBearerClient["auth"]["getUser"]>>;
   try {
-    const { data, error } = await bearerClient.auth.getUser();
-    if (!error && data.user) userId = data.user.id;
+    authResult = await bearerClient.auth.getUser();
   } catch {
-    userId = null;
+    return packAuthUnavailable();
   }
-  if (!userId) {
+  if (authResult.error || !authResult.data.user) {
     return errorResult(401, "AUTH_REQUIRED", "Necesitas una sesión válida.");
   }
+  const userId = authResult.data.user.id;
 
   let profileState: { active: boolean; error: string | null };
   try {
@@ -176,9 +189,14 @@ export async function resolveLauncherPackDownload(
     return errorResult(403, "ACTIVE_PROFILE_REQUIRED", "La cuenta no puede descargar packs.");
   }
 
-  const adminClient = dependencies.createAdminClient();
+  let adminClient: AdminClient | null;
+  try {
+    adminClient = dependencies.createAdminClient();
+  } catch {
+    return packCatalogNotConfigured();
+  }
   if (!adminClient) {
-    return errorResult(503, "PACK_CATALOG_NOT_CONFIGURED", "La distribución de packs no está disponible.");
+    return packCatalogNotConfigured();
   }
 
   let catalogResult: CatalogResult;

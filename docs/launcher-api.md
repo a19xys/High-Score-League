@@ -67,12 +67,14 @@ misma autoridad de visibilidad que ranking, comprueba existencia y
 bytes no atraviesan Vercel, el bearer HSL no se envía al artefacto y ETag no se
 usa como SHA-256.
 
-Taxonomía: `400` para `packId` inválido; `401` para bearer ausente/malformado o
-rechazado; `403` para perfil no activo; `404` indistinguible para pack
-missing/draft/disabled, semana secreta u objeto ausente; `503` para fallos de
-perfil, catálogo, contexto, configuración R2, infraestructura, tamaño o firma.
-Todas las respuestas son `no-store` y no exponen estado interno, object key,
-secretos ni URL firmada en logs.
+Taxonomía: `400` para `packId` inválido; `401` para bearer ausente/malformado,
+sesión rechazada normalmente por Auth o usuario no resuelto; `403` para perfil
+no activo; `404` indistinguible para pack missing/draft/disabled, semana secreta
+u objeto ausente. `503` cubre backend Auth no configurado/no inicializable,
+excepción inesperada de `getUser()`, fallo de perfil, catálogo no
+configurado/no inicializable, contexto, R2, tamaño o firma. Todas las respuestas
+son `no-store` y no exponen estado interno, object key, secretos ni URL firmada
+en logs.
 
 ## Smoke desplegado
 

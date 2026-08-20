@@ -24,6 +24,7 @@ import {
 } from "../lib/pack-storage/r2.ts";
 import { resolvePublicRankingCapability } from "../lib/launcher-ranking-capabilities.ts";
 import { resolvePublicWeekVisibility } from "../lib/public-week-visibility.ts";
+import { getSupabaseEnv } from "../lib/supabase/env.ts";
 
 const require = createRequire(import.meta.url);
 const { validatePackDescriptor } = require("../local/hsl-local-app/src/remote-pack-import.js");
@@ -55,6 +56,9 @@ type HarnessOptions = {
   catalogError?: unknown;
   profileError?: string | null;
   storageConfigured?: boolean;
+  throwAdminFactory?: boolean;
+  throwBearerFactory?: boolean;
+  throwGetUser?: boolean;
   user?: { id: string } | null;
   userError?: unknown;
   visibility?: { ok: true; available: boolean } | { ok: false };
@@ -71,6 +75,9 @@ function createHarness(options: HarnessOptions = {}) {
     catalogError: null,
     profileError: null,
     storageConfigured: true,
+    throwAdminFactory: false,
+    throwBearerFactory: false,
+    throwGetUser: false,
     user: { id: "player-1" },
     userError: null,
     visibility: { ok: true, available: true } as const,
@@ -82,6 +89,7 @@ function createHarness(options: HarnessOptions = {}) {
     admin: 0,
     bearer: 0,
     catalog: 0,
+    getUser: 0,
     head: 0,
     membership: 0,
     presign: 0,
@@ -90,34 +98,47 @@ function createHarness(options: HarnessOptions = {}) {
     visibility: 0,
   };
   const storageOrder: string[] = [];
+  const operationOrder: string[] = [];
   const dependencies: LauncherPackDownloadDependencies = {
     createBearerClient: () => {
       calls.bearer += 1;
+      operationOrder.push("bearer-client");
+      if (settings.throwBearerFactory) throw new Error("private supabase detail secret");
       if (!settings.authClientConfigured) return null;
       return {
         auth: {
-          getUser: async () => ({
-            data: { user: settings.user },
-            error: settings.userError,
-          }),
+          getUser: async () => {
+            calls.getUser += 1;
+            operationOrder.push("get-user");
+            if (settings.throwGetUser) throw new Error("private auth transport failure secret");
+            return {
+              data: { user: settings.user },
+              error: settings.userError,
+            };
+          },
         },
       };
     },
     createAdminClient: () => {
       calls.admin += 1;
+      operationOrder.push("admin-client");
+      if (settings.throwAdminFactory) throw new Error("private service role detail secret");
       return settings.adminConfigured ? {} : null;
     },
     createStorage: () => {
       calls.storage += 1;
+      operationOrder.push("storage");
       if (!settings.storageConfigured) return null;
       return {
         headObject: async () => {
           calls.head += 1;
+          operationOrder.push("head");
           storageOrder.push("head");
           return settings.head;
         },
         presignGet: async (_key, expiresInSeconds) => {
           calls.presign += 1;
+          operationOrder.push("presign");
           storageOrder.push("presign");
           assert.equal(expiresInSeconds, LAUNCHER_PACK_PRESIGN_TTL_SECONDS);
           return settings.presign;
@@ -126,14 +147,17 @@ function createHarness(options: HarnessOptions = {}) {
     },
     checkActiveProfile: async () => {
       calls.profile += 1;
+      operationOrder.push("profile");
       return { active: settings.activeProfile, error: settings.profileError };
     },
     loadCatalogPack: async () => {
       calls.catalog += 1;
+      operationOrder.push("catalog");
       return { data: settings.catalog, error: settings.catalogError };
     },
     loadWeekVisibility: async () => {
       calls.visibility += 1;
+      operationOrder.push("visibility");
       return settings.visibility;
     },
     now: () => new Date("2026-08-20T00:00:00.000Z"),
@@ -141,6 +165,7 @@ function createHarness(options: HarnessOptions = {}) {
 
   return {
     calls,
+    operationOrder,
     storageOrder,
     resolve: (
       authorization: string | null = "Bearer launcher-session",
@@ -225,22 +250,107 @@ test("ranking y packs comparten la misma matriz pública", () => {
   }).status, "unavailable");
 });
 
-test("auth es bearer-only y perfil activo es obligatorio antes de catálogo/R2", async () => {
+test("Bearer ausente o malformado es 401 y no inicializa ningún backend", async () => {
   for (const authorization of [null, "Basic abc", "Bearer", "Bearer ", "Bearer token extra"]) {
     const scenario = createHarness();
-    assert.equal((await scenario.resolve(authorization)).status, 401);
+    const result = await scenario.resolve(authorization);
+    assert.equal(result.status, 401);
+    assert.deepEqual(result.body, {
+      ok: false,
+      code: "AUTH_REQUIRED",
+      error: "Necesitas una sesión válida.",
+    });
+    assert.deepEqual(scenario.calls, {
+      admin: 0,
+      bearer: 0,
+      catalog: 0,
+      getUser: 0,
+      head: 0,
+      membership: 0,
+      presign: 0,
+      profile: 0,
+      storage: 0,
+      visibility: 0,
+    });
+  }
+});
+
+test("factory bearer null/throw y getUser throw son 503 sin filtrar detalles", async () => {
+  const cases = [
+    createHarness({ authClientConfigured: false }),
+    createHarness({ throwBearerFactory: true }),
+    createHarness({ throwGetUser: true }),
+  ];
+
+  for (const scenario of cases) {
+    const result = await scenario.resolve();
+    assert.equal(result.status, 503);
+    assert.deepEqual(result.body, {
+      ok: false,
+      code: "PACK_AUTH_UNAVAILABLE",
+      error: "La distribución de packs no está disponible.",
+    });
+    assert.doesNotMatch(
+      JSON.stringify(result.body),
+      /private|supabase|next_public|anon_key|transport|stack|secret|url/i,
+    );
+    assert.equal(scenario.calls.profile, 0);
     assert.equal(scenario.calls.admin, 0);
+    assert.equal(scenario.calls.catalog, 0);
+    assert.equal(scenario.calls.visibility, 0);
+    assert.equal(scenario.calls.storage, 0);
+    assert.equal(scenario.calls.head, 0);
+    assert.equal(scenario.calls.presign, 0);
+  }
+  assert.equal(cases[0].calls.getUser, 0);
+  assert.equal(cases[1].calls.getUser, 0);
+  assert.equal(cases[2].calls.getUser, 1);
+});
+
+test("helper bearer real conserva null cuando falta configuración Supabase", async () => {
+  const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const previousAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  try {
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    assert.equal(getSupabaseEnv().isConfigured, false);
+
+    const source = await readFile(join(process.cwd(), "lib", "auth", "request-client.ts"), "utf8");
+    assert.match(source, /createBearerAuthenticatedClient/);
+    assert.match(source, /const env = getSupabaseEnv\(\)/);
+    assert.match(source, /!env\.isConfigured \|\| !env\.url \|\| !env\.anonKey\) return null/);
+  } finally {
+    if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
+    if (previousAnonKey === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = previousAnonKey;
+  }
+});
+
+test("getUser que responde rechazando o sin usuario conserva 401", async () => {
+  const cases = [
+    createHarness({ user: null, userError: new Error("normal auth rejection") }),
+    createHarness({ user: null, userError: null }),
+  ];
+
+  for (const scenario of cases) {
+    const result = await scenario.resolve();
+    assert.equal(result.status, 401);
+    assert.deepEqual(result.body, {
+      ok: false,
+      code: "AUTH_REQUIRED",
+      error: "Necesitas una sesión válida.",
+    });
+    assert.equal(scenario.calls.getUser, 1);
+    assert.equal(scenario.calls.profile, 0);
+    assert.equal(scenario.calls.admin, 0);
+    assert.equal(scenario.calls.catalog, 0);
     assert.equal(scenario.calls.storage, 0);
   }
+});
 
-  const rejectedBearer = createHarness({ user: null, userError: new Error("rejected") });
-  assert.equal((await rejectedBearer.resolve()).status, 401);
-  assert.equal(rejectedBearer.calls.admin, 0);
-
-  const missingAuthConfiguration = createHarness({ authClientConfigured: false });
-  assert.equal((await missingAuthConfiguration.resolve()).status, 401);
-  assert.equal(missingAuthConfiguration.calls.admin, 0);
-
+test("perfil conserva 403/503 y ambos fallan antes de catálogo/R2", async () => {
   const inactive = createHarness({ activeProfile: false });
   assert.equal((await inactive.resolve()).status, 403);
   assert.equal(inactive.calls.admin, 0);
@@ -250,6 +360,10 @@ test("auth es bearer-only y perfil activo es obligatorio antes de catálogo/R2",
   assert.equal(failed.status, 503);
   assert.doesNotMatch(JSON.stringify(failed.body), /private detail/);
   assert.equal(profileFailure.calls.admin, 0);
+  assert.equal(inactive.calls.catalog, 0);
+  assert.equal(profileFailure.calls.catalog, 0);
+  assert.equal(inactive.calls.storage, 0);
+  assert.equal(profileFailure.calls.storage, 0);
 });
 
 test("packId inválido falla antes de auth y catálogo no configurado/fallido produce 503", async () => {
@@ -258,8 +372,19 @@ test("packId inválido falla antes de auth y catálogo no configurado/fallido pr
   assert.equal(invalid.calls.bearer, 0);
 
   const unconfigured = createHarness({ adminConfigured: false });
-  assert.equal((await unconfigured.resolve()).status, 503);
+  const unconfiguredResult = await unconfigured.resolve();
+  assert.equal(unconfiguredResult.status, 503);
+  assert.equal((unconfiguredResult.body as { code?: string }).code, "PACK_CATALOG_NOT_CONFIGURED");
+  assert.equal(unconfigured.calls.catalog, 0);
   assert.equal(unconfigured.calls.storage, 0);
+
+  const throwingAdmin = createHarness({ throwAdminFactory: true });
+  const throwingAdminResult = await throwingAdmin.resolve();
+  assert.equal(throwingAdminResult.status, 503);
+  assert.equal((throwingAdminResult.body as { code?: string }).code, "PACK_CATALOG_NOT_CONFIGURED");
+  assert.doesNotMatch(JSON.stringify(throwingAdminResult.body), /private|service role|stack|secret/i);
+  assert.equal(throwingAdmin.calls.catalog, 0);
+  assert.equal(throwingAdmin.calls.storage, 0);
 
   const failed = createHarness({ catalogError: new Error("provider secret") });
   const result = await failed.resolve();
@@ -305,6 +430,28 @@ test("membership no forma parte del resolver ni de sus dependencias", async () =
   assert.equal(scenario.calls.membership, 0);
   const source = await readFile(join(process.cwd(), "lib", "api", "launcher-pack-download.ts"), "utf8");
   assert.doesNotMatch(source, /season_memberships|membership/i);
+});
+
+test("happy path conserva el orden completo, TTL y descriptor exacto", async () => {
+  const scenario = createHarness();
+  const result = await scenario.resolve();
+  assert.equal(result.status, 200);
+  assert.deepEqual(scenario.operationOrder, [
+    "bearer-client",
+    "get-user",
+    "profile",
+    "admin-client",
+    "catalog",
+    "visibility",
+    "storage",
+    "head",
+    "presign",
+  ]);
+  assert.deepEqual(result.body, {
+    version: 1,
+    packId: PACK_ID,
+    artifact: { sizeBytes: 8, sha256: SHA256, downloadUrl: DOWNLOAD_URL },
+  });
 });
 
 test("HEAD precede al presign, valida tamaño y clasifica ausencia del objeto", async () => {
