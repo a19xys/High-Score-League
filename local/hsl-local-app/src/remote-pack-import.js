@@ -94,9 +94,14 @@ function packDescriptorEndpoint(hslOrigin, packId) {
   return new URL(`/api/launcher/packs/${packId}/download`, origin);
 }
 
-function classifyHttpStatus(status) {
+function classifyDescriptorHttpStatus(status) {
   if ([404, 410, 503].includes(status)) return "pack-unavailable";
   if (status === 401 || status === 403) return "requires-login";
+  return "remote-error";
+}
+
+function classifyArtifactHttpStatus(status) {
+  if ([404, 410, 503].includes(status)) return "pack-unavailable";
   return "remote-error";
 }
 
@@ -151,7 +156,7 @@ async function requestPackDescriptor(options = {}) {
     return { status: request?.failureType === "cancelled" ? "cancelled" : "offline" };
   }
   const httpStatus = Number(request.httpStatus ?? request.response?.status);
-  if (httpStatus < 200 || httpStatus >= 300) return { status: classifyHttpStatus(httpStatus) };
+  if (httpStatus < 200 || httpStatus >= 300) return { status: classifyDescriptorHttpStatus(httpStatus) };
 
   try {
     const parsed = JSON.parse(request.bodyBuffer.toString("utf8"));
@@ -220,7 +225,7 @@ async function downloadPackArtifact(options = {}) {
       throw failure("remote_error", "Artifact redirect was rejected.");
     }
     if (status < 200 || status >= 300) {
-      throw failure(classifyHttpStatus(status).replaceAll("-", "_"), "Artifact request failed.");
+      throw failure(classifyArtifactHttpStatus(status).replaceAll("-", "_"), "Artifact request failed.");
     }
 
     const declaredLength = Number(response.headers?.get?.("content-length"));
@@ -297,7 +302,6 @@ function classifyDownloadFailure(error) {
     unexpected_pack_id: "unexpected-pack-id",
   };
   if (mappings[error?.code]) return mappings[error.code];
-  if (typeof error?.code === "string") return "invalid-pack";
   return "remote-error";
 }
 

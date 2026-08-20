@@ -132,6 +132,17 @@ test("descriptor usa bearer sólo en HSL y refresca canónicamente tras 401", as
   assert.deepEqual(authorizations, ["Bearer old-token", "Bearer new-token"]);
 });
 
+test("descriptor 403 conserva la autoridad de sesión y requiere login", async () => {
+  const result = await requestPackDescriptor({
+    config: { supabaseUrl: "https://example.supabase.co" },
+    fetchImpl: async () => new Response("", { status: 403 }),
+    hslOrigin: HSL_ORIGIN,
+    packId: PACK_ID,
+    resolveSession: async () => session(),
+  });
+  assert.equal(result.status, "requires-login");
+});
+
 test("descriptor sobredimensionado, 404 y sesión ausente fallan sin artefacto", async () => {
   const base = {
     config: { supabaseUrl: "https://example.supabase.co" },
@@ -218,6 +229,82 @@ test("downloader rechaza tamaño corto/largo, hash, HTTP y redirect y limpia tem
       }));
       assert.deepEqual(await fsp.readdir(tempBaseDir), []);
     }
+  });
+});
+
+test("artifact 401/403 es remote-error y nunca se atribuye a la sesión HSL", async () => {
+  await withTempDir(async (tempBaseDir) => {
+    const bytes = Buffer.from("fake zip");
+    for (const artifactStatus of [401, 403]) {
+      let fetches = 0;
+      const result = await executeRemotePackImport({
+        config: { supabaseUrl: "https://example.supabase.co" },
+        fetchImpl: async () => {
+          fetches += 1;
+          return fetches === 1
+            ? new Response(JSON.stringify(descriptor(bytes)), { status: 200 })
+            : new Response("", { status: artifactStatus });
+        },
+        hslOrigin: HSL_ORIGIN,
+        importZip: async () => { throw new Error("importer must not run"); },
+        packId: PACK_ID,
+        resolveSession: async () => session(),
+        tempBaseDir,
+      });
+      assert.notEqual(result.status, "requires-login", String(artifactStatus));
+      assert.equal(result.status, "remote-error", String(artifactStatus));
+      assert.deepEqual(await fsp.readdir(tempBaseDir), []);
+    }
+  });
+});
+
+test("artifact 404/410/503 conserva pack-unavailable", async () => {
+  await withTempDir(async (tempBaseDir) => {
+    const bytes = Buffer.from("fake zip");
+    for (const artifactStatus of [404, 410, 503]) {
+      let fetches = 0;
+      const result = await executeRemotePackImport({
+        config: { supabaseUrl: "https://example.supabase.co" },
+        fetchImpl: async () => {
+          fetches += 1;
+          return fetches === 1
+            ? new Response(JSON.stringify(descriptor(bytes)), { status: 200 })
+            : new Response("", { status: artifactStatus });
+        },
+        hslOrigin: HSL_ORIGIN,
+        importZip: async () => { throw new Error("importer must not run"); },
+        packId: PACK_ID,
+        resolveSession: async () => session(),
+        tempBaseDir,
+      });
+      assert.equal(result.status, "pack-unavailable", String(artifactStatus));
+      assert.deepEqual(await fsp.readdir(tempBaseDir), []);
+    }
+  });
+});
+
+test("fallo filesystem preparando el temporal es remote-error y no invalid-pack", async () => {
+  await withTempDir(async (root) => {
+    const bytes = Buffer.from("fake zip");
+    const notDirectory = path.join(root, "not-a-directory");
+    await fsp.writeFile(notDirectory, "fixture", "utf8");
+    let fetches = 0;
+    const result = await executeRemotePackImport({
+      config: { supabaseUrl: "https://example.supabase.co" },
+      fetchImpl: async () => {
+        fetches += 1;
+        return new Response(JSON.stringify(descriptor(bytes)), { status: 200 });
+      },
+      hslOrigin: HSL_ORIGIN,
+      importZip: async () => { throw new Error("importer must not run"); },
+      packId: PACK_ID,
+      resolveSession: async () => session(),
+      tempBaseDir: path.join(notDirectory, "nested"),
+    });
+    assert.notEqual(result.status, "invalid-pack");
+    assert.equal(result.status, "remote-error");
+    assert.equal(fetches, 1);
+    assert.deepEqual(await fsp.readdir(root), ["not-a-directory"]);
   });
 });
 

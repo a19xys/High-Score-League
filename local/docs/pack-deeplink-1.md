@@ -93,6 +93,8 @@ El JSON se limita a 32 KiB. Se exige versión 1, identidad exacta, tamaño enter
 
 Sólo la petición HSL lleva bearer. La petición al artefacto lleva únicamente `Accept: application/zip`, usa `redirect: "error"` y no conoce R2, S3 ni otro proveedor. La URL temporal no se registra ni se devuelve al renderer.
 
+Los errores HTTP conservan la autoridad de cada frontera: en el endpoint HSL autenticado, `401/403` significa sesión/autorización y produce `requires-login`; en la URL temporal del artefacto, `401/403` describe un fallo de esa capacidad y produce `remote-error`, nunca un problema de login. En ambas fronteras, `404/410/503` produce `pack-unavailable`.
+
 ## Streaming, verificación e importación
 
 El artefacto se lee por chunks desde `ReadableStream` y se escribe en un ZIP aleatorio dentro de un directorio temporal. Cada chunk incrementa el contador y el SHA-256; no se llama a `arrayBuffer()` para el ZIP completo. La descarga aborta si supera el tamaño declarado o el máximo local. Al finalizar deben coincidir exactamente bytes y hash. Timeout, señal externa, suspensión y shutdown cancelan la operación.
@@ -125,7 +127,7 @@ invalid-pack
 unexpected-pack-id
 ```
 
-Un 404/410/503 se presenta como pack no disponible. Un fallo de transporte se presenta como falta de conexión; un fallo de tamaño/hash como integridad; un ZIP rechazado como pack inválido. Un duplicado detectado al finalizar converge a `already-installed`. Ninguno de estos fallos modifica por sí solo la autoridad global de conectividad HSL.
+Un 404/410/503 se presenta como pack no disponible. Un fallo de transporte se presenta como falta de conexión; un fallo de tamaño/hash como integridad; un ZIP rechazado por el importador como pack inválido. `invalid-pack` queda reservado a contenido que el importador ha inspeccionado y rechazado. Un fallo local creando o escribiendo el temporal, incluidos errores de filesystem o `download_io_failed`, produce `remote-error`. Un duplicado detectado al finalizar converge a `already-installed`. Ninguno de estos fallos modifica por sí solo la autoridad global de conectividad HSL.
 
 ## Registro Windows NSIS
 
