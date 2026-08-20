@@ -208,7 +208,6 @@ async function downloadPackArtifact(options = {}) {
     timedOut = true;
     controller.abort("pack-download-timeout");
   }, timeoutMs);
-  timer.unref?.();
   let fileHandle = null;
   let reader = null;
 

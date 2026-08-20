@@ -322,6 +322,28 @@ test("downloader respeta abort y timeout y limpia temporales", async () => {
       signal: external.signal,
       tempBaseDir,
     }), { code: "cancelled" });
+
+    let markFetchStarted;
+    const fetchStarted = new Promise((resolve) => { markFetchStarted = resolve; });
+    const waitForInFlightAbort = async (_url, init) => {
+      markFetchStarted();
+      return new Promise((resolve, reject) => {
+        init.signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })), { once: true });
+      });
+    };
+    const inFlightExternal = new AbortController();
+    const inFlightDownload = downloadPackArtifact({
+      descriptor: validatePackDescriptor(descriptor(bytes), PACK_ID),
+      fetchImpl: waitForInFlightAbort,
+      signal: inFlightExternal.signal,
+      tempBaseDir,
+      timeoutMs: 1000,
+    });
+    await fetchStarted;
+    inFlightExternal.abort("shutdown");
+    await assert.rejects(inFlightDownload, { code: "cancelled" });
+    assert.deepEqual(await fsp.readdir(tempBaseDir), []);
+
     await assert.rejects(() => downloadPackArtifact({
       descriptor: validatePackDescriptor(descriptor(bytes), PACK_ID),
       fetchImpl: waitForAbort,
