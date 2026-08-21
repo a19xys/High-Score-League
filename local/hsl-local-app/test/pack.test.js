@@ -41,7 +41,7 @@ function validPack() {
     gameId: "space-invaders",
     rom: "invaders",
     weekId: "week-1",
-    webBaseUrl: "https://high-score-league.vercel.app",
+    webBaseUrl: "https://highscoreleague.com",
     mame: {
       relativeExecutablePath: "mame/mame.exe",
       workingDir: "mame",

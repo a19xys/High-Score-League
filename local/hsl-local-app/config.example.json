@@ -3,7 +3,7 @@
   "eventsBaseDir": "userData/events",
   "sessionFile": "userData/session.json",
   "logsDir": "userData/logs",
-  "hslOrigin": "https://high-score-league.vercel.app",
+  "hslOrigin": "https://highscoreleague.com",
 
   "supabaseUrl": "https://TU_PROYECTO.supabase.co",
   "supabaseAnonKey": "TU_SUPABASE_ANON_KEY",

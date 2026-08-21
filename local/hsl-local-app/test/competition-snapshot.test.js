@@ -23,7 +23,7 @@ async function fixture(t) {
     gameId: "space-invaders",
     rom: "invaders",
     weekId: "week-snapshot-test",
-    webBaseUrl: "https://high-score-league.vercel.app",
+    webBaseUrl: "https://highscoreleague.com",
     runtime: { type: "mame", minVersion: "0.287", recommendedVersion: "0.287" },
     mame: {
       romPath: "roms",

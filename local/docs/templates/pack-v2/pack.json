@@ -8,7 +8,7 @@
   "seasonName": "Season Name",
   "weekId": "WEEK_ID",
   "weekNumber": 1,
-  "webBaseUrl": "https://high-score-league.vercel.app",
+  "webBaseUrl": "https://highscoreleague.com",
   "runtime": {
     "type": "mame",
     "minVersion": "0.287",

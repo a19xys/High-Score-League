@@ -6,7 +6,7 @@ const {
 } = require("../src/account-store");
 const { createAccountProfileSync } = require("../src/account-profile-sync");
 const { loadConfig } = require("../src/config");
-const { normalizeHslOrigin } = require("../src/hsl-origin");
+const { OFFICIAL_HSL_ORIGIN, normalizeHslOrigin } = require("../src/hsl-origin");
 const {
   emptyAutoSyncState,
   getAutoSyncDisplayState,
@@ -101,6 +101,15 @@ const {
   checkSeasonMembership,
   shouldBlockCompetition,
 } = require("../src/season-membership");
+
+const HISTORICAL_PUBLISHED_PACK_ORIGIN = "https://high-score-league.vercel.app";
+
+// Metadata-only compatibility for already-published pack bytes. It must not be
+// reused by networking, same-origin validation or Remote Authority.
+function isHistoricalPublishedPackOrigin(declaredOrigin, trustedOrigin) {
+  return declaredOrigin === HISTORICAL_PUBLISHED_PACK_ORIGIN
+    && trustedOrigin === OFFICIAL_HSL_ORIGIN;
+}
 
 let activeOpenedPack = null;
 let activeLibraryIssue = null;
@@ -563,9 +572,15 @@ function deriveOpenedPackConfig(baseConfig, pack) {
   const declaredWebBaseUrl = pack.webBaseUrl || null;
   let originWarning = null;
   const declaredOrigin = declaredWebBaseUrl ? normalizeHslOrigin(declaredWebBaseUrl) : null;
+  const trustedOrigin = trustedWebBaseUrl ? normalizeHslOrigin(trustedWebBaseUrl) : null;
   if (declaredWebBaseUrl && !declaredOrigin) {
     originWarning = "El webBaseUrl del pack no es un origen valido y se ha ignorado.";
-  } else if (declaredOrigin && trustedWebBaseUrl && declaredOrigin !== normalizeHslOrigin(trustedWebBaseUrl)) {
+  } else if (
+    declaredOrigin
+    && trustedOrigin
+    && declaredOrigin !== trustedOrigin
+    && !isHistoricalPublishedPackOrigin(declaredOrigin, trustedOrigin)
+  ) {
     originWarning = "El webBaseUrl del pack no coincide con el origen HSL del launcher y se ha ignorado.";
   }
   const normalizedPack = {

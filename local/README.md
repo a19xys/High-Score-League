@@ -310,12 +310,18 @@ Do not configure `clientVersion` manually. `package.json.version` is the single
 product-version authority and the runtime derives submissions and diagnostics
 from it.
 
-`hslOrigin` belongs to the launcher and defaults to the compiled official
-origin. `HSL_ORIGIN` is the explicit development override. A global
-`webBaseUrl` is accepted temporarily as a deprecated alias, while
-`pack.webBaseUrl` is audited metadata and never changes the launcher's remote
-endpoint. Fields such as `defaultWeekId` and MAME paths still belong to
-`pack.json` in the external-pack model.
+`hslOrigin` belongs to the launcher. The source is prepared so new packaged
+builds resolve the compiled/product-metadata authority
+`https://highscoreleague.com`; the currently published `0.3.0` still uses
+`https://high-score-league.vercel.app` until a new release is shipped. In a
+packaged build, product metadata wins over persisted `config.json` and ignores
+`HSL_ORIGIN`. In development, `HSL_ORIGIN` remains the explicit override. A
+global `webBaseUrl` is accepted temporarily as a deprecated development alias,
+while `pack.webBaseUrl` is audited metadata and never changes the launcher's
+remote endpoint. There is no automatic fallback between apex and legacy.
+Fields such as `defaultWeekId` and MAME paths still belong to `pack.json` in the
+external-pack model. See
+[`docs/global-hsl-origin-1.md`](docs/global-hsl-origin-1.md).
 
 ## Modo desarrollo: app desde repo + pack externo
 

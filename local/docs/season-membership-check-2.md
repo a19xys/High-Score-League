@@ -125,7 +125,7 @@ empty_response
 Abrir en el navegador:
 
 ```text
-https://high-score-league.vercel.app/api/local/season-membership?weekId=<weekId>
+https://highscoreleague.com/api/local/season-membership?weekId=<weekId>
 ```
 
 La respuesta esperada sin `Authorization` es:

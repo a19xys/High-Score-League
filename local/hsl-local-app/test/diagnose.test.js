@@ -83,7 +83,7 @@ async function createDevBridgeConfig(root) {
     eventsPendingDirAbs: pending,
     eventsSentDirAbs: sent,
     eventsFailedDirAbs: failed,
-    webBaseUrl: "https://high-score-league.vercel.app",
+    webBaseUrl: "https://highscoreleague.com",
     defaultWeekId: "week-1",
     supabaseUrl: "https://example.supabase.co",
     supabaseAnonKey: "secret-dev-bridge-anon-key",
@@ -160,7 +160,7 @@ test("diagnose confirms practice does not include the score plugin in launcher a
 test("diagnose warns when webBaseUrl has no protocol", async () => {
   await withTempDir(async (dir) => {
     const config = await createBaseConfig(dir);
-    config.webBaseUrl = "high-score-league.vercel.app";
+    config.webBaseUrl = "highscoreleague.com";
 
     const report = await buildDiagnoseReport(config);
 

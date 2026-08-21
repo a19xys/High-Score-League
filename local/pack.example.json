@@ -5,7 +5,7 @@
   "rom": "invaders",
   "weekId": "PON_AQUI_EL_WEEK_ID",
   "seasonId": "PON_AQUI_EL_SEASON_ID",
-  "webBaseUrl": "https://high-score-league.vercel.app",
+  "webBaseUrl": "https://highscoreleague.com",
   "mame": {
     "relativeExecutablePath": "mame/mame.exe",
     "workingDir": "mame",

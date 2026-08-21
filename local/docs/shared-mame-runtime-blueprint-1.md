@@ -179,7 +179,7 @@ Contrato inicial definido por `LOCAL-PACK-CONTRACT-2`:
   "seasonName": "Temporada 1",
   "weekId": "...",
   "weekNumber": 1,
-  "webBaseUrl": "https://high-score-league.vercel.app",
+  "webBaseUrl": "https://highscoreleague.com",
   "runtime": {
     "type": "mame",
     "minVersion": "0.287",

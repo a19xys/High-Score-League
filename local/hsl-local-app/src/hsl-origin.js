@@ -1,4 +1,4 @@
-const OFFICIAL_HSL_ORIGIN = "https://high-score-league.vercel.app";
+const OFFICIAL_HSL_ORIGIN = "https://highscoreleague.com";
 
 function normalizeHslOrigin(value) {
   if (typeof value !== "string") return null;

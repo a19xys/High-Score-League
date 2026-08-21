@@ -2622,6 +2622,34 @@ test("pack webBaseUrl is audited and never overrides the trusted launcher origin
   });
 });
 
+test("historical published pack metadata stays clean while launcher networking remains on the apex", async () => {
+  await withTempDir(async (dir) => {
+    const canonicalOrigin = "https://highscoreleague.com";
+    const legacyPublishedOrigin = "https://high-score-league.vercel.app";
+    const config = deriveOpenedPackConfig({
+      globalWebBaseUrl: canonicalOrigin,
+      hslOrigin: canonicalOrigin,
+      userDataDir: path.join(dir, "userData"),
+      webBaseUrl: canonicalOrigin,
+    }, {
+      ...validV2Pack(),
+      errors: [],
+      metadataWarnings: [],
+      packId: "space-invaders-s1-w1-r1",
+      packPath: path.join(dir, "pack.json"),
+      packRoot: dir,
+      webBaseUrl: legacyPublishedOrigin,
+    });
+
+    assert.equal(config.hslOrigin, canonicalOrigin);
+    assert.equal(config.webBaseUrl, canonicalOrigin);
+    assert.equal(config.pack.webBaseUrl, canonicalOrigin);
+    assert.equal(config.pack.declaredWebBaseUrl, legacyPublishedOrigin);
+    assert.deepEqual(config.pack.metadataWarnings, []);
+    assert.deepEqual(config.packErrors, []);
+  });
+});
+
 test("resolveRememberedPack loads a valid remembered pack", async () => {
   await withTempDir(async (dir) => {
     const config = {

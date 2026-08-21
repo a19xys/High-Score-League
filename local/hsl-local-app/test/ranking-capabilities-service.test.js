@@ -5,6 +5,9 @@ const {
   safeRankingUrl,
 } = require("../src/ranking-capabilities-service");
 
+const CANONICAL_HSL_ORIGIN = "https://highscoreleague.com";
+const LEGACY_HSL_ORIGIN = "https://high-score-league.vercel.app";
+
 function jsonResponse(body, status = 200, headerOverrides = {}) {
   return {
     headers: {
@@ -377,8 +380,49 @@ test("diagnostics declare session verification and no automatic TTL refresh", as
   assert.ok(diagnostics.transitions.length > 0);
 });
 
+test("ranking cache treats legacy and apex as distinct same-origin authorities", async () => {
+  const requestUrls = [];
+  const h = harness({
+    fetchImpl: async (url, init) => {
+      requestUrls.push(url);
+      const origin = new URL(url).origin;
+      const body = JSON.parse(init.body);
+      return jsonResponse({
+        build: "unknown",
+        environment: "unknown",
+        version: 1,
+        results: body.requests.map((request) => ({
+          reason: "public-week",
+          requestKey: request.requestKey,
+          status: "available",
+          url: `${origin}/weeks/${request.weekId}`,
+        })),
+      });
+    },
+  });
+
+  h.service.updateContext({ webBaseUrl: LEGACY_HSL_ORIGIN, packs: [{ weekId: "week-1" }] });
+  await h.service.refresh();
+  assert.equal(h.service.getCapability("week-1").url, `${LEGACY_HSL_ORIGIN}/weeks/week-1`);
+
+  h.service.updateContext({ webBaseUrl: CANONICAL_HSL_ORIGIN, packs: [{ weekId: "week-1" }] });
+  assert.equal(h.service.getCapability("week-1").status, "unknown");
+  await h.service.refresh();
+  assert.equal(h.service.getCapability("week-1").url, `${CANONICAL_HSL_ORIGIN}/weeks/week-1`);
+
+  h.service.updateContext({ webBaseUrl: LEGACY_HSL_ORIGIN, packs: [{ weekId: "week-1" }] });
+  assert.equal(h.service.getCapability("week-1").url, `${LEGACY_HSL_ORIGIN}/weeks/week-1`);
+  assert.deepEqual(requestUrls, [
+    `${LEGACY_HSL_ORIGIN}/api/launcher/ranking-capabilities`,
+    `${CANONICAL_HSL_ORIGIN}/api/launcher/ranking-capabilities`,
+  ]);
+});
+
 test("rejects unsafe schemes and foreign origins", () => {
   assert.equal(safeRankingUrl("javascript:alert(1)", "https://hsl.example"), null);
   assert.equal(safeRankingUrl("https://other.example/weeks/1", "https://hsl.example"), null);
   assert.equal(safeRankingUrl("https://hsl.example/weeks/1", "https://hsl.example"), "https://hsl.example/weeks/1");
+  assert.equal(safeRankingUrl(`${CANONICAL_HSL_ORIGIN}/weeks/1`, CANONICAL_HSL_ORIGIN), `${CANONICAL_HSL_ORIGIN}/weeks/1`);
+  assert.equal(safeRankingUrl(`${LEGACY_HSL_ORIGIN}/weeks/1`, CANONICAL_HSL_ORIGIN), null);
+  assert.equal(safeRankingUrl(`${LEGACY_HSL_ORIGIN}/weeks/1`, LEGACY_HSL_ORIGIN), `${LEGACY_HSL_ORIGIN}/weeks/1`);
 });

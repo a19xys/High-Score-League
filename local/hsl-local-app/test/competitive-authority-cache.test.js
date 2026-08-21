@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   CACHE_SCHEMA_VERSION,
+  authorityContextKey,
   createMembershipCache,
   createWeekCapabilityCache,
   membershipCachePath,
@@ -17,6 +18,8 @@ async function withTempDir(run) {
 }
 
 const context = { authorityKey: "launcher-api:1", origin: "https://hsl.example" };
+const legacyContext = { authorityKey: "launcher-api:1", origin: "https://high-score-league.vercel.app" };
+const canonicalContext = { authorityKey: "launcher-api:1", origin: "https://highscoreleague.com" };
 
 function weekEntry(key, overrides = {}) {
   return {
@@ -88,6 +91,66 @@ test("Membership v2 conserva solo conclusiones y aísla cuenta, season y origin"
     assert.equal(cache.read({ ...context, origin: "https://other.example" }, "user-a", "season-a"), null);
     assert.equal(cache.snapshot().entries[0].key, "https://hsl.example|launcher-api:1|user:user-a|season:season-a");
     assert.equal(cache.path, membershipCachePath(config));
+  });
+});
+
+test("upgrade conserva las entradas legacy y abre namespaces Week/Membership fríos para el apex", async () => {
+  await withTempDir(async (userDataDir) => {
+    const config = { userDataDir };
+    const legacyWeekCache = createWeekCapabilityCache(config);
+    const legacyMembershipCache = createMembershipCache(config);
+    await Promise.all([legacyWeekCache.initialize(), legacyMembershipCache.initialize()]);
+
+    assert.notEqual(authorityContextKey(legacyContext), authorityContextKey(canonicalContext));
+    await legacyWeekCache.remember(legacyContext, {
+      checkedAt: "2026-08-01T00:00:00.000Z",
+      conclusive: true,
+      publicState: "active",
+      reason: "week-active",
+      seasonId: "season-a",
+      seasonStatus: "active",
+      weekId: "week-a",
+    });
+    await legacyMembershipCache.remember(legacyContext, {
+      checkedAt: "2026-08-01T00:00:00.000Z",
+      seasonId: "season-a",
+      status: "member",
+      userId: "user-a",
+    });
+
+    const upgradedWeekCache = createWeekCapabilityCache(config);
+    const upgradedMembershipCache = createMembershipCache(config);
+    await Promise.all([upgradedWeekCache.initialize(), upgradedMembershipCache.initialize()]);
+    assert.equal(upgradedWeekCache.read(canonicalContext, "week-a"), null);
+    assert.equal(upgradedMembershipCache.read(canonicalContext, "user-a", "season-a"), null);
+
+    await upgradedWeekCache.remember(canonicalContext, {
+      checkedAt: "2026-08-02T00:00:00.000Z",
+      conclusive: true,
+      publicState: "closed",
+      reason: "week-closed",
+      seasonId: "season-a",
+      seasonStatus: "active",
+      weekId: "week-a",
+    });
+    await upgradedMembershipCache.remember(canonicalContext, {
+      checkedAt: "2026-08-02T00:00:00.000Z",
+      seasonId: "season-a",
+      status: "not_member",
+      userId: "user-a",
+    });
+
+    assert.equal(upgradedWeekCache.read(legacyContext, "week-a").publicState, "active");
+    assert.equal(upgradedWeekCache.read(canonicalContext, "week-a").publicState, "closed");
+    assert.equal(upgradedMembershipCache.read(legacyContext, "user-a", "season-a").status, "member");
+    assert.equal(upgradedMembershipCache.read(canonicalContext, "user-a", "season-a").status, "not_member");
+
+    const persistedWeek = JSON.parse(await fsp.readFile(weekCachePath(config), "utf8"));
+    const persistedMembership = JSON.parse(await fsp.readFile(membershipCachePath(config), "utf8"));
+    for (const persisted of [persistedWeek, persistedMembership]) {
+      assert.ok(persisted.entries.some((entry) => entry.key.startsWith(`${legacyContext.origin}|`)));
+      assert.ok(persisted.entries.some((entry) => entry.key.startsWith(`${canonicalContext.origin}|`)));
+    }
   });
 });
 

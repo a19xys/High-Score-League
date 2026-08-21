@@ -304,6 +304,7 @@ function writePackagedSmokeReport(phase) {
     const config = loadConfig();
     const pluginSource = getRepoPluginDir(config.appDir);
     const report = {
+      effectiveHslOrigin: config.hslOrigin || null,
       isPackaged: app.isPackaged,
       mame: {
         available: config.sharedMameRuntime?.available === true,
@@ -314,7 +315,9 @@ function writePackagedSmokeReport(phase) {
       phase,
       pluginAvailable: fs.existsSync(path.join(pluginSource, "init.lua")),
       productConfigAvailable: Boolean(config.hslOrigin && config.supabaseUrl && config.supabasePublishableKey),
+      productConfigSource: config.productConfigSource || "none",
       productName: app.getName(),
+      remoteConfigurationSource: config.remoteConfiguration?.source || "none",
       rendererReady: phase === "renderer-ready",
       resourcesPath: process.resourcesPath,
       windowsUpdate: windowsUpdate?.getState() || null,

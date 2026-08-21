@@ -165,7 +165,7 @@ test("navigation, windows and permissions are denied by pure policy", () => {
   const expected = "file:///launcher/renderer/index.html";
   assert.equal(isAllowedRendererNavigation(expected, expected, false), true);
   for (const target of [
-    "https://high-score-league.vercel.app",
+    "https://highscoreleague.com",
     "http://localhost:3000",
     "file:///launcher/renderer/other.html",
     "javascript:alert(1)",

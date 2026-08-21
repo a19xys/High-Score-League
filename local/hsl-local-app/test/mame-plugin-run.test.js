@@ -47,7 +47,7 @@ async function createV2Config(root, overrides = {}) {
     gameId: "space-invaders",
     rom: "invaders",
     weekId: "week-1",
-    webBaseUrl: "https://high-score-league.vercel.app",
+    webBaseUrl: "https://highscoreleague.com",
     runtime: { type: "mame", minVersion: "0.287", recommendedVersion: "0.287" },
     mame: {
       romPath: "roms",

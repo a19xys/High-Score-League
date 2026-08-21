@@ -238,6 +238,8 @@ test("packaged config uses product metadata and bundled MAME without config.json
     });
     assert.equal(config.configExists, false);
     assert.equal(config.productConfigSource, "product-metadata");
+    assert.equal(config.hslOrigin, "https://highscoreleague.com");
+    assert.equal(config.remoteConfiguration.source, "launcher-config");
     assert.equal(config.clientVersion, packageMetadata.version);
     assert.equal(config.supabasePublishableKey.startsWith("sb_publishable_"), true);
     assert.equal(config.sharedMameRuntime.source, "bundled");
@@ -249,7 +251,7 @@ test("packaged config uses product metadata and bundled MAME without config.json
 test("product config rejects Supabase secrets and service_role JWTs", () => {
   const base = {
     schemaVersion: 1,
-    hslOrigin: "https://high-score-league.vercel.app",
+    hslOrigin: "https://highscoreleague.com",
     supabaseUrl: "https://project.supabase.co",
   };
   assert.throws(() => validateProductPublicConfig({ ...base, supabasePublishableKey: "sb_secret_forbidden" }), /secret\/service_role/);

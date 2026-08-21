@@ -5,6 +5,9 @@ const os = require("node:os");
 const path = require("node:path");
 const { getBoxDir, loadConfig, resolveFromAppDir } = require("../src/config");
 
+const CANONICAL_HSL_ORIGIN = "https://highscoreleague.com";
+const LEGACY_HSL_ORIGIN = "https://high-score-league.vercel.app";
+
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-config-test-"));
 
@@ -59,14 +62,14 @@ test("loadConfig resolves explicit queue paths and legacy default session path",
   });
 });
 
-test("loadConfig converts the legacy global URL to the canonical HSL origin", async () => {
+test("loadConfig keeps legacy webBaseUrl as a development compatibility source", async () => {
   await withTempDir(async (dir) => {
     const configPath = path.join(dir, "config.json");
-    await fsp.writeFile(configPath, JSON.stringify({ webBaseUrl: "https://hsl.example" }), "utf8");
+    await fsp.writeFile(configPath, JSON.stringify({ webBaseUrl: LEGACY_HSL_ORIGIN }), "utf8");
     const config = loadConfig(configPath, dir, { environment: {} });
-    assert.equal(config.hslOrigin, "https://hsl.example");
-    assert.equal(config.globalWebBaseUrl, "https://hsl.example");
-    assert.equal(config.webBaseUrl, "https://hsl.example");
+    assert.equal(config.hslOrigin, LEGACY_HSL_ORIGIN);
+    assert.equal(config.globalWebBaseUrl, LEGACY_HSL_ORIGIN);
+    assert.equal(config.webBaseUrl, LEGACY_HSL_ORIGIN);
     assert.equal(config.remoteConfiguration.source, "legacy-webBaseUrl");
   });
 });
@@ -74,9 +77,43 @@ test("loadConfig converts the legacy global URL to the canonical HSL origin", as
 test("loadConfig provides the official origin when no local config exists", async () => {
   await withTempDir(async (dir) => {
     const config = loadConfig(path.join(dir, "missing.json"), dir, { environment: {} });
-    assert.equal(config.hslOrigin, "https://high-score-league.vercel.app");
+    assert.equal(config.hslOrigin, CANONICAL_HSL_ORIGIN);
     assert.equal(config.remoteConfiguration.status, "configured");
     assert.equal(config.remoteConfiguration.source, "official-default");
+  });
+});
+
+test("packaged product metadata overrides legacy config and accidental HSL_ORIGIN without rewriting config.json", async () => {
+  await withTempDir(async (dir) => {
+    const configPath = path.join(dir, "config.json");
+    const persistedConfig = `${JSON.stringify({ hslOrigin: LEGACY_HSL_ORIGIN }, null, 2)}\n`;
+    await fsp.writeFile(configPath, persistedConfig, "utf8");
+
+    const config = loadConfig(configPath, dir, {
+      environment: {
+        HSL_ORIGIN: "https://environment.example",
+        HSL_USER_DATA_DIR: path.join(dir, "existing-userData"),
+      },
+      productRuntime: {
+        isPackaged: true,
+        productConfig: {
+          schemaVersion: 1,
+          hslOrigin: CANONICAL_HSL_ORIGIN,
+          supabaseUrl: "https://project.supabase.co",
+          supabasePublishableKey: "sb_publishable_test",
+        },
+        resourcesPath: path.join(dir, "resources"),
+        userDataDir: path.join(dir, "existing-userData"),
+        version: "0.3.0",
+      },
+    });
+
+    assert.equal(config.hslOrigin, CANONICAL_HSL_ORIGIN);
+    assert.equal(config.globalWebBaseUrl, CANONICAL_HSL_ORIGIN);
+    assert.equal(config.webBaseUrl, CANONICAL_HSL_ORIGIN);
+    assert.equal(config.productConfigSource, "product-metadata");
+    assert.equal(config.remoteConfiguration.source, "launcher-config");
+    assert.equal(await fsp.readFile(configPath, "utf8"), persistedConfig);
   });
 });
 

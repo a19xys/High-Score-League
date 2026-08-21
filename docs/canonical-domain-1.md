@@ -21,6 +21,8 @@ request para decidir la autoridad del producto.
 - `https://high-score-league.vercel.app` sigue sirviendo Production directamente
   y no se redirige globalmente. Se mantiene por compatibilidad con el launcher
   `0.3.0`.
+- El codigo fuente del launcher esta preparado para que una build futura use el
+  apex; esto no significa que esa nueva release ya se haya publicado.
 - Las cookies y sesiones de ambos hosts son independientes; no se transfieren ni
   se comparten entre dominios.
 
@@ -55,6 +57,11 @@ http://localhost:3000/auth/recovery/start
 `request.nextUrl.origin` al construir URLs de semana. Un launcher que llama al
 host legacy recibe URLs legacy; uno que llama al apex recibe URLs del apex. Esta
 frontera no debe cambiarse por la autoridad canónica web.
+
+La proxima build empaquetada del launcher resolvera
+`https://highscoreleague.com` desde metadata de producto, sin fallback al host
+legacy. La release publica `0.3.0` conserva su autoridad Vercel hasta que el
+usuario instale una release posterior.
 
 El smoke `npm run test:launcher-api` usa el apex por defecto, no sigue redirects
 HTTP y admite `HSL_LAUNCHER_API_BASE_URL` para comprobar el alias legacy.

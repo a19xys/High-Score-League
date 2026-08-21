@@ -6,6 +6,8 @@ const { spawn } = require("node:child_process");
 const packageMetadata = require("../package.json");
 const { readMameRuntimeManifest } = require("../src/mame-runtime-manifest");
 
+const EXPECTED_HSL_ORIGIN = "https://highscoreleague.com";
+
 async function waitForFile(filePath, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -45,6 +47,13 @@ async function smokePackaged(options = {}) {
     if (!report.mame?.available || report.mame.version !== manifest.version || !report.productConfigAvailable || !report.pluginAvailable) {
       throw new Error(`Recursos empaquetados incompletos: ${JSON.stringify(report)}`);
     }
+    if (
+      report.effectiveHslOrigin !== EXPECTED_HSL_ORIGIN
+      || report.productConfigSource !== "product-metadata"
+      || report.remoteConfigurationSource !== "launcher-config"
+    ) {
+      throw new Error(`Autoridad HSL empaquetada invalida: ${JSON.stringify(report)}`);
+    }
     if (report.windowsUpdate?.enabled !== false || report.windowsUpdate?.enableReason !== "packaged-smoke") {
       throw new Error(`El updater no quedo aislado durante smoke: ${JSON.stringify(report.windowsUpdate)}`);
     }
@@ -67,4 +76,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { smokePackaged, waitForFile };
+module.exports = { EXPECTED_HSL_ORIGIN, smokePackaged, waitForFile };

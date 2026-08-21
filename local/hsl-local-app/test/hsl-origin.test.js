@@ -17,6 +17,7 @@ test("HSL origins are absolute, credential-free HTTP origins", () => {
 });
 
 test("official builds resolve the compiled origin without local config", () => {
+  assert.equal(OFFICIAL_HSL_ORIGIN, "https://highscoreleague.com");
   assert.deepEqual(resolveHslOrigin(), {
     hslOrigin: OFFICIAL_HSL_ORIGIN,
     message: "Origen HSL configurado.",
