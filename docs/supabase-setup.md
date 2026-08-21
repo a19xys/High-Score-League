@@ -8,6 +8,7 @@ resume la configuracion local necesaria.
 Crear `.env.local` en la raiz del proyecto:
 
 ```bash
+NEXT_PUBLIC_SITE_URL=https://highscoreleague.com
 NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
 SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
@@ -19,12 +20,40 @@ Las variables publicas se copian desde Supabase Dashboard:
 - `Project Settings` -> `API` -> `Project URL`
 - `Project Settings` -> `API` -> `Project API keys` -> `anon public`
 
+`NEXT_PUBLIC_SITE_URL` es la autoridad web anunciada por metadata y enlaces
+absolutos de HSL. En Production debe ser `https://highscoreleague.com`. En
+desarrollo puede configurarse explícitamente como `http://localhost:3000`; si se
+omite o es inválida, la aplicación usa el fallback seguro del dominio oficial.
+
 `SUPABASE_SERVICE_ROLE_KEY` solo se usa en servidor para acciones concretas de
 desarrollo o administracion server-side. Nunca debe exponerse con prefijo
 `NEXT_PUBLIC_*` ni usarse en componentes cliente.
 
 No incluir claves reales en `.env.example`, README ni documentacion versionada.
 `.env.local` esta ignorado por Git mediante `.gitignore`.
+
+## Dominio y Supabase Auth
+
+El origen canónico es `https://highscoreleague.com`. El alias histórico
+`https://high-score-league.vercel.app` continúa sirviendo la aplicación
+directamente, sin redirect global, y `https://www.highscoreleague.com` redirige
+al apex mediante Vercel.
+
+La configuración operativa de Supabase Auth es:
+
+```text
+Site URL:
+https://highscoreleague.com
+
+Redirect URLs:
+https://highscoreleague.com/auth/recovery/start
+https://high-score-league.vercel.app/auth/recovery/start
+http://localhost:3000/auth/recovery/start
+```
+
+HSL usa actualmente el proveedor integrado de email de Supabase: confirmación y
+recovery están operativos y sus límites se aceptan por ahora. Custom SMTP no está
+configurado; puede evaluarse para una escala futura, pero no bloquea esta fase.
 
 ## Ejecutar la app
 

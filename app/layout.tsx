@@ -5,6 +5,7 @@ import { PlayerHoverCardProvider } from "@/components/player-hover-card";
 import { WebPresenceHeartbeat } from "@/components/presence/web-presence-heartbeat";
 import { SiteNav } from "@/components/site-nav";
 import { getServerSession } from "@/lib/auth/session";
+import { canonicalSiteOrigin } from "@/lib/site-origin";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -22,6 +23,7 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(canonicalSiteOrigin),
   title: "High Score League",
   description: "Liga privada de puntuaciones arcade entre amigos.",
 };

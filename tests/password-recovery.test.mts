@@ -65,12 +65,12 @@ test("forgot-password rejects invalid email and unavailable client without reque
   const invalid = await requestPasswordRecovery({
     auth,
     email: "not-an-email",
-    origin: "https://hsl.example",
+    redirectOrigin: "https://highscoreleague.com",
   });
   const unavailable = await requestPasswordRecovery({
     auth: null,
     email: "player@example.com",
-    origin: "https://hsl.example",
+    redirectOrigin: "https://highscoreleague.com",
   });
 
   assert.equal(invalid.kind, "invalid-email");
@@ -78,7 +78,7 @@ test("forgot-password rejects invalid email and unavailable client without reque
   assert.equal(calls, 0);
 });
 
-test("forgot-password performs one request with a fixed same-origin staging redirect", async () => {
+test("forgot-password performs one request with the canonical staging redirect", async () => {
   const calls: Array<{
     email: string;
     options: { redirectTo: string };
@@ -91,7 +91,7 @@ test("forgot-password performs one request with a fixed same-origin staging redi
       },
     },
     email: " player@example.com ",
-    origin: "https://hsl.example",
+    redirectOrigin: "https://highscoreleague.com",
   });
 
   assert.deepEqual(result, {
@@ -102,7 +102,7 @@ test("forgot-password performs one request with a fixed same-origin staging redi
   assert.equal(calls[0].email, "player@example.com");
   assert.equal(
     calls[0].options.redirectTo,
-    "https://hsl.example/auth/recovery/start",
+    "https://highscoreleague.com/auth/recovery/start",
   );
 });
 
@@ -114,7 +114,7 @@ test("forgot-password keeps registered and undisclosed addresses indistinguishab
       },
     },
     email: "existing@example.com",
-    origin: "https://hsl.example",
+    redirectOrigin: "https://highscoreleague.com",
   });
   const undisclosed = await requestPasswordRecovery({
     auth: {
@@ -125,7 +125,7 @@ test("forgot-password keeps registered and undisclosed addresses indistinguishab
       },
     },
     email: "missing@example.com",
-    origin: "https://hsl.example",
+    redirectOrigin: "https://highscoreleague.com",
   });
 
   assert.deepEqual(existing, undisclosed);
@@ -175,7 +175,7 @@ test("forgot-password classifies known rate limits and invalid addresses by sema
         },
       },
       email: "player@example.com",
-      origin: "https://hsl.example",
+      redirectOrigin: "https://highscoreleague.com",
     });
 
     assert.deepEqual(result, expected);
@@ -204,7 +204,7 @@ test("forgot-password fails closed for every other non-null error", async () => 
         },
       },
       email: "player@example.com",
-      origin: "https://hsl.example",
+      redirectOrigin: "https://highscoreleague.com",
     });
 
     assert.deepEqual(result, {
@@ -222,7 +222,7 @@ test("forgot-password uses only a narrow text fallback and sanitizes thrown erro
       },
     },
     email: "player@example.com",
-    origin: "https://hsl.example",
+    redirectOrigin: "https://highscoreleague.com",
   });
   const thrown = await requestPasswordRecovery({
     auth: {
@@ -231,7 +231,7 @@ test("forgot-password uses only a narrow text fallback and sanitizes thrown erro
       },
     },
     email: "player@example.com",
-    origin: "https://hsl.example",
+    redirectOrigin: "https://highscoreleague.com",
   });
 
   assert.deepEqual(fallback, {

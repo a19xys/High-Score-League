@@ -164,7 +164,7 @@ function classifyPasswordRecoveryRequestError(
 export async function requestPasswordRecovery(input: {
   auth: PasswordRecoveryRequestAuth | null;
   email: string;
-  origin: string;
+  redirectOrigin: string;
 }): Promise<PasswordRecoveryRequestResult> {
   const email = input.email.trim();
 
@@ -180,7 +180,10 @@ export async function requestPasswordRecovery(input: {
 
   try {
     const result = await input.auth.resetPasswordForEmail(email, {
-      redirectTo: new URL("/auth/recovery/start", input.origin).toString(),
+      redirectTo: new URL(
+        "/auth/recovery/start",
+        input.redirectOrigin,
+      ).toString(),
     });
     error = result.error;
   } catch {

@@ -8,6 +8,7 @@ Vercel con Supabase. No representa por sí solo el estado actual de producción.
 Configurar en Vercel, y en local si se prueba antes:
 
 ```text
+NEXT_PUBLIC_SITE_URL=https://highscoreleague.com
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
@@ -19,6 +20,8 @@ HSL_R2_SECRET_ACCESS_KEY=
 HSL_R2_JURISDICTION=default
 ```
 
+- `NEXT_PUBLIC_SITE_URL` es pública y en Production debe ser exactamente
+  `https://highscoreleague.com`.
 - `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` son publicas.
 - `SUPABASE_SERVICE_ROLE_KEY` es secreto y solo debe existir en servidor.
 - `CRON_SECRET` es secreto y protege `/api/cron/process-schedule`.
@@ -173,13 +176,26 @@ usa Realtime como via rapida y polling de respaldo cada 10 segundos.
 
 Configurar en Supabase Auth:
 
-- Site URL de produccion.
-- Redirect URLs de produccion.
-- Redirect URLs de preview/local si se van a usar.
-- SMTP propio si se quiere evitar limites del proveedor integrado.
+- Site URL: `https://highscoreleague.com`.
+- Redirect URL: `https://highscoreleague.com/auth/recovery/start`.
+- Redirect URL legacy: `https://high-score-league.vercel.app/auth/recovery/start`.
+- Redirect URL local: `http://localhost:3000/auth/recovery/start`.
 - Email templates si se quiere personalizar confirmacion o recovery.
 
-No inventar URLs: usar las URLs reales generadas por Vercel y el dominio final.
+El estado actual usa el proveedor integrado de email de Supabase, con
+confirmación y recovery operativos y límites aceptados para esta fase. Custom
+SMTP no está configurado ni bloquea el despliegue; mantenerlo como recomendación
+futura si la escala exige otros límites.
+
+En Vercel, confirmar además este contrato de dominios:
+
+- `https://highscoreleague.com`: dominio canónico de Production;
+- `https://www.highscoreleague.com`: redirect de Vercel al apex;
+- `https://high-score-league.vercel.app`: alias legacy directo, sin redirect
+  global, necesario para compatibilidad del launcher `0.3.0`.
+
+No añadir redirects de hostname en middleware o Next config. Las sesiones no se
+comparten ni migran entre el apex y el host `.vercel.app`.
 
 ## 5. Cron
 

@@ -6,6 +6,7 @@ import {
   requestPasswordRecovery,
   type PasswordRecoveryRequestResult,
 } from "@/lib/auth/password-recovery";
+import { resolveRecoveryRedirectOrigin } from "@/lib/site-origin";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function ForgotPasswordForm() {
@@ -28,7 +29,7 @@ export function ForgotPasswordForm() {
     const result = await requestPasswordRecovery({
       auth: supabase?.auth ?? null,
       email,
-      origin: window.location.origin,
+      redirectOrigin: resolveRecoveryRedirectOrigin(window.location.origin),
     });
 
     setFeedback(result);

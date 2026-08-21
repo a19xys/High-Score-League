@@ -8,6 +8,7 @@ usan datos reales de Supabase; Auth gestiona sesion real y perfil real.
 Crear `.env.local` con:
 
 ```bash
+NEXT_PUBLIC_SITE_URL=https://highscoreleague.com
 NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
 SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
@@ -26,19 +27,15 @@ $env:NODE_OPTIONS="--use-system-ca"
 
 ## Email y SMTP
 
-Supabase puede exigir confirmacion de email. En desarrollo puede desactivarse
-temporalmente para evitar rate limits mientras se prueba el flujo.
+El entorno HSL actual usa el proveedor integrado de email de Supabase. La
+confirmación de email está operativa, se completó un recovery real y los límites
+actuales del proveedor se aceptan para esta fase. **Custom SMTP no está
+configurado y no bloquea el estado actual.**
 
-El proveedor integrado de email de Supabase tiene limites bajos. Para usuarios
-reales conviene configurar SMTP propio y activar confirmacion cuando el flujo ya
-este cerrado.
-
-La recuperación de contraseña usa el mismo canal. El email integrado es útil
-para desarrollo, pero sus límites son muy reducidos: antes de habilitar el flujo
-para usuarios reales se debe configurar SMTP propio. Si el proveedor ofrece
-seguimiento de enlaces, hay que excluir los enlaces de Auth para que no reescriba
-ni rompa el `token_hash`. SMTP, DNS, SPF y DKIM son configuración operativa y no
-se aplican desde este repositorio.
+Para una escala futura sigue siendo recomendable evaluar SMTP propio. Si el
+proveedor elegido ofrece seguimiento de enlaces, habrá que excluir los enlaces
+de Auth para que no reescriba ni rompa el `token_hash`. SMTP, DNS, SPF y DKIM son
+configuración operativa y no se aplican desde este repositorio.
 
 ## Política de contraseñas nuevas
 
@@ -77,7 +74,7 @@ El flujo web usa exclusivamente Supabase Auth:
 
 ```text
 /forgot-password
-  → resetPasswordForEmail(email, redirectTo=<origen>/auth/recovery/start)
+  → resetPasswordForEmail(email, redirectTo=<origen canónico>/auth/recovery/start)
   → email de Supabase
   → GET /auth/recovery/start?token_hash=...
   → cookie HttpOnly temporal + redirect limpio a /auth/recovery
@@ -155,8 +152,12 @@ En **Authentication → URL Configuration** se deben autorizar sólo los destino
 que se usen realmente, sin comodines amplios en producción:
 
 ```text
-Producción: https://high-score-league.vercel.app/auth/recovery/start
-Desarrollo: http://localhost:3000/auth/recovery/start
+Site URL: https://highscoreleague.com
+
+Redirect URLs:
+https://highscoreleague.com/auth/recovery/start
+https://high-score-league.vercel.app/auth/recovery/start
+http://localhost:3000/auth/recovery/start
 ```
 
 En **Authentication → Email Templates → Reset password**, el enlace debe llevar
@@ -168,19 +169,21 @@ primero a la frontera anti-prefetch usando `.RedirectTo` y `.TokenHash`:
 </a>
 ```
 
-`resetPasswordForEmail()` deriva el origen desde la web actual y añade siempre
-`/auth/recovery/start`; no acepta `next`, `returnTo`, `redirect` ni `origin` de
-query params.
+`resetPasswordForEmail()` añade siempre `/auth/recovery/start` al origen resuelto
+por la autoridad central: en un runtime loopback de desarrollo conserva
+`localhost`, `127.0.0.1` o `::1`; cualquier host público, incluido el alias
+`.vercel.app` o un preview, converge en `https://highscoreleague.com`. No acepta
+`next`, `returnTo`, `redirect` ni `origin` de query params.
 
 ### Estado de implantación
 
 La clasificación cerrada, las guardias de flujo, la validación local/server, la
 actualización y el logout global están implementados en código. En el entorno
-HSL actual, el SMTP/configuración externa, la plantilla Reset password, las
-Redirect URLs y la Password Policy del proyecto Supabase están configurados. Se
-completó satisfactoriamente un recovery real por email a través del flujo normal
-descrito en este documento. Este estado operativo no sustituye las instrucciones
-manuales anteriores para reproducir una instalación nueva.
+HSL actual, la plantilla Reset password, las Redirect URLs y la Password Policy
+del proyecto Supabase están configuradas. Se completó satisfactoriamente un
+recovery real por email con el proveedor integrado de Supabase. Custom SMTP no
+está configurado. Este estado operativo no sustituye las instrucciones manuales
+anteriores para reproducir una instalación nueva.
 
 ### Revocación global y launcher
 
@@ -197,7 +200,7 @@ deep links al launcher.
 El QA real del entorno HSL confirmó el recorrido normal desde la solicitud por
 email hasta el cambio de contraseña. No se documenta como demostrada ninguna
 variante adicional. Para una instalación nueva o una revalidación completa, con
-una cuenta real y el SMTP/configuración remota preparados:
+una cuenta real y la configuración remota del proveedor de email preparada:
 
 1. solicitar recovery y abrir el correo;
 2. confirmar que el GET inicial no consume el enlace y que la URL queda limpia;

@@ -147,7 +147,7 @@ test("public capability matches week visibility without requiring scores", () =>
 });
 
 
-test("batch preserves correlation, duplicates week ids and canonical URLs", () => {
+test("batch preserves correlation, duplicates and the caller request origin", () => {
   const results = buildLauncherRankingResults({
     requests: [
       { requestKey: "instance-a", weekId: "week-1" },
@@ -156,11 +156,14 @@ test("batch preserves correlation, duplicates week ids and canonical URLs", () =
     ],
     weeks: [{ ...publicWeek, derivedStatus: "closed" }],
     seasons: [{ id: "season-1", status: "completed" }],
-    origin: "https://hsl.example",
+    origin: "https://high-score-league.vercel.app",
   });
 
   assert.equal(results[0].status, "available");
-  assert.equal(results[0].url, "https://hsl.example/weeks/week-1");
+  assert.equal(
+    results[0].url,
+    "https://high-score-league.vercel.app/weeks/week-1",
+  );
   assert.equal(results[1].url, results[0].url);
   assert.deepEqual(results[2], {
     requestKey: "missing",

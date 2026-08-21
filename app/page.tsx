@@ -1,4 +1,5 @@
 ﻿import { formatWeekCount, formatWeekRange } from "@/lib/format";
+import type { Metadata } from "next";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LeagueChat } from "@/components/league-chat";
 import { HomePollCard } from "@/components/home-poll-card";
@@ -19,6 +20,12 @@ import {
 } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/",
+  },
+};
 
 function weekStatusText(status: string, statusHelp: string | null) {
   if (status === "frozen" || statusHelp?.toLowerCase().includes("tramo final")) {

@@ -1,4 +1,4 @@
-const baseUrl = String(process.env.HSL_LAUNCHER_API_BASE_URL || "https://high-score-league.vercel.app").replace(/\/$/, "");
+const baseUrl = String(process.env.HSL_LAUNCHER_API_BASE_URL || "https://highscoreleague.com").replace(/\/$/, "");
 const weekId = String(process.env.HSL_LAUNCHER_WEEK_ID || "").trim();
 const expectedDeploymentSha = String(process.env.HSL_EXPECTED_DEPLOYMENT_SHA || "").trim().toLowerCase();
 
@@ -6,7 +6,19 @@ if (!/^[A-Za-z0-9_-]{1,128}$/.test(weekId)) {
   throw new Error("Define HSL_LAUNCHER_WEEK_ID con una semana real para ejecutar esta comprobacion.");
 }
 
-const health = await fetch(`${baseUrl}/api/launcher/health`, { cache: "no-store" });
+function assertNoRedirect(response, label) {
+  if (response.status >= 300 && response.status < 400) {
+    throw new Error(
+      `${label} devolvio un redirect HTTP ${response.status} a ${response.headers.get("location") || "un destino no anunciado"}.`,
+    );
+  }
+}
+
+const health = await fetch(`${baseUrl}/api/launcher/health`, {
+  cache: "no-store",
+  redirect: "manual",
+});
+assertNoRedirect(health, "Health");
 const healthBuild = String(health.headers.get("x-hsl-build") || "unknown");
 const healthEnvironment = String(health.headers.get("x-hsl-environment") || "unknown");
 const healthApiVersion = Number(health.headers.get("x-hsl-launcher-api-version"));
@@ -31,7 +43,9 @@ async function postBatch(requests) {
     cache: "no-store",
     headers: { "content-type": "application/json" },
     method: "POST",
+    redirect: "manual",
   });
+  assertNoRedirect(response, "Ranking");
   const payload = await response.json();
   return { latencyMs: Math.round(performance.now() - startedAt), payload, response };
 }
