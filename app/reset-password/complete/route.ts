@@ -7,36 +7,42 @@ import {
   RECOVERY_AUTHORIZED_COOKIE,
   RECOVERY_COOKIE_VALUE,
   RECOVERY_LOGOUT_PENDING_COOKIE,
-  RECOVERY_STAGING_COOKIE,
   retryGlobalRecoverySignOut,
 } from "@/lib/auth/password-recovery";
-import { getVerifiedSessionIdentity } from "@/lib/auth/session-context";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  applyRecoveryAuthHeaders,
+  clearRecoveryState,
+  createSupabaseRecoveryServerClient,
+} from "@/lib/supabase/recovery-server";
 
 export const dynamic = "force-dynamic";
 
-function redirect(request: Request, path: string) {
+type CookieRecord = { name: string; value: string };
+
+function redirect(request: Request, path: string, authHeaders?: Headers) {
   const response = NextResponse.redirect(new URL(path, request.url), 303);
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   response.headers.set("Referrer-Policy", "no-referrer");
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  if (authHeaders) {
+    applyRecoveryAuthHeaders(response, authHeaders);
+  }
   return response;
 }
 
-function expireRecoveryState(response: NextResponse) {
-  const recoveryCookies = [
-    [RECOVERY_STAGING_COOKIE, "/auth/recovery"],
-    [RECOVERY_AUTHORIZED_COOKIE, "/reset-password"],
-    [RECOVERY_LOGOUT_PENDING_COOKIE, "/reset-password"],
-  ] as const;
-
-  for (const [name, path] of recoveryCookies) {
-    response.cookies.set(name, "", {
-      ...getRecoveryCookieOptions(path),
-      expires: new Date(0),
-      maxAge: 0,
-    });
-  }
+function clearedRedirect(
+  request: Request,
+  path: string,
+  cookiesToInspect: CookieRecord[],
+  authHeaders?: Headers,
+) {
+  const response = redirect(request, path, authHeaders);
+  clearRecoveryState(response, cookiesToInspect, {
+    auth: true,
+    markers: true,
+    staging: true,
+  });
+  return response;
 }
 
 function retainLogoutRetryState(response: NextResponse) {
@@ -55,22 +61,27 @@ function retainLogoutRetryState(response: NextResponse) {
 
 export async function POST(request: Request) {
   const cookieStore = await cookies();
+  const cookieRecords = cookieStore.getAll();
   const hasAuthorizedMarker = hasRecoveryMarker(
     cookieStore.get(RECOVERY_AUTHORIZED_COOKIE)?.value,
   );
 
   if (!hasAuthorizedMarker) {
-    const response = redirect(request, "/reset-password?status=invalid");
-    expireRecoveryState(response);
-    return response;
+    return clearedRedirect(
+      request,
+      "/reset-password?status=invalid",
+      cookieRecords,
+    );
   }
 
-  const supabase = await createSupabaseServerClient();
+  const recovery = await createSupabaseRecoveryServerClient();
 
-  if (!supabase) {
-    const response = redirect(request, "/reset-password?status=invalid");
-    expireRecoveryState(response);
-    return response;
+  if (!recovery) {
+    return clearedRedirect(
+      request,
+      "/reset-password?status=invalid",
+      cookieRecords,
+    );
   }
 
   const logoutPending = hasRecoveryMarker(
@@ -78,25 +89,41 @@ export async function POST(request: Request) {
   );
 
   if (logoutPending) {
-    const signedOut = await retryGlobalRecoverySignOut(supabase.auth);
+    const signedOut = await retryGlobalRecoverySignOut(recovery.client.auth);
 
     if (signedOut) {
-      const response = redirect(request, "/login?passwordReset=success");
-      expireRecoveryState(response);
-      return response;
+      return clearedRedirect(
+        request,
+        "/login?passwordReset=success",
+        cookieRecords,
+        recovery.responseHeaders,
+      );
     }
 
-    const response = redirect(request, "/reset-password?status=logout-pending");
+    const response = redirect(
+      request,
+      "/reset-password?status=logout-pending",
+      recovery.responseHeaders,
+    );
     retainLogoutRetryState(response);
     return response;
   }
 
-  const identity = await getVerifiedSessionIdentity(supabase.auth);
+  let hasRecoveryUser = false;
+  try {
+    const { data, error } = await recovery.client.auth.getUser();
+    hasRecoveryUser = !error && Boolean(data.user);
+  } catch {
+    hasRecoveryUser = false;
+  }
 
-  if (identity.status !== "recovery") {
-    const response = redirect(request, "/reset-password?status=invalid");
-    expireRecoveryState(response);
-    return response;
+  if (!hasRecoveryUser) {
+    return clearedRedirect(
+      request,
+      "/reset-password?status=invalid",
+      cookieRecords,
+      recovery.responseHeaders,
+    );
   }
 
   let formData: FormData;
@@ -104,30 +131,45 @@ export async function POST(request: Request) {
   try {
     formData = await request.formData();
   } catch {
-    return redirect(request, "/reset-password?status=policy");
+    return redirect(
+      request,
+      "/reset-password?status=policy",
+      recovery.responseHeaders,
+    );
   }
 
   const password = formData.get("password");
   const confirmation = formData.get("confirmation");
 
   if (typeof password !== "string" || typeof confirmation !== "string") {
-    return redirect(request, "/reset-password?status=policy");
+    return redirect(
+      request,
+      "/reset-password?status=policy",
+      recovery.responseHeaders,
+    );
   }
 
   const result = await completePasswordRecovery({
-    auth: supabase.auth,
+    auth: recovery.client.auth,
     confirmation,
     password,
   });
 
   if (result.kind === "success") {
-    const response = redirect(request, "/login?passwordReset=success");
-    expireRecoveryState(response);
-    return response;
+    return clearedRedirect(
+      request,
+      "/login?passwordReset=success",
+      cookieRecords,
+      recovery.responseHeaders,
+    );
   }
 
   if (result.kind === "logout-error") {
-    const response = redirect(request, "/reset-password?status=logout-pending");
+    const response = redirect(
+      request,
+      "/reset-password?status=logout-pending",
+      recovery.responseHeaders,
+    );
     retainLogoutRetryState(response);
     return response;
   }
@@ -140,5 +182,9 @@ export async function POST(request: Request) {
     "weak-password": "weak-password",
   } as const;
 
-  return redirect(request, `/reset-password?status=${statusByResult[result.kind]}`);
+  return redirect(
+    request,
+    `/reset-password?status=${statusByResult[result.kind]}`,
+    recovery.responseHeaders,
+  );
 }

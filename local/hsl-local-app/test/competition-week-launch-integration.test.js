@@ -9,6 +9,8 @@ const { createWeekCapabilityCache } = require("../src/competitive-authority-cach
 const { createWeekCapabilitiesService } = require("../src/week-capabilities-service");
 const { launchMameDetailed } = require("../src/mame-launcher");
 const { prepareV2CompetitionRun } = require("../src/mame-plugin-run");
+const { writeCompetitionManifest } = require("../src/competition-manifest");
+const { loadPackFromDir } = require("../src/pack");
 
 async function writeFile(filePath, contents = "") {
   await fsp.mkdir(path.dirname(filePath), { recursive: true });
@@ -32,10 +34,44 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
       writeFile(path.join(runtimeRoot, "mame.exe"), "fixture-executable"),
       writeFile(path.join(runtimeRoot, "plugins", "boot.lua"), "return {}"),
       writeFile(path.join(sourceDir, "init.lua"), "return {}"),
-      writeFile(path.join(sourceDir, "plugin.json"), "{}"),
+      writeFile(path.join(sourceDir, "plugin.json"), JSON.stringify({ plugin: { version: "0.3.0" } })),
       writeFile(path.join(sourceDir, "core", "config.lua"), "return {}"),
       writeFile(path.join(sourceDir, "games", "invaders.lua"), "return {}"),
     ]);
+    await writeFile(path.join(packRoot, "pack.json"), `${JSON.stringify({
+      packVersion: 2,
+      packId: "space-invaders-dev-pack-v2",
+      gameId: "space-invaders",
+      rom: "invaders",
+      seasonId: "season-space-invaders",
+      seasonSlug: "season-space-invaders",
+      seasonName: "Season Space Invaders",
+      weekId: "week-space-invaders",
+      weekNumber: 1,
+      webBaseUrl: "https://hsl.example",
+      runtime: { type: "mame", minVersion: "0.286", recommendedVersion: "0.286" },
+      mame: {
+        romPath: "roms",
+        launchArgs: [],
+        profiles: {
+          practice: { launchArgs: [] },
+          competition: {
+            launchArgs: [],
+            integrity: { version: 1, mameVersion: "0.286", dips: [] },
+          },
+        },
+      },
+      capture: {
+        mode: "plugin",
+        pluginName: "hsl-score",
+        adapter: "scripts/invaders.lua",
+        automatic: { version: 1, strategy: "invaders-game-mode-final-v1" },
+      },
+    }, null, 2)}\n`);
+    const loadedPack = loadPackFromDir(packRoot);
+    assert.equal(loadedPack.loaded, true);
+    assert.deepEqual(loadedPack.errors, []);
+    await writeCompetitionManifest(loadedPack.pack);
 
     const deployment = { apiVersion: 1, build: "build-a", environment: "production" };
     const connection = { deployment: {}, reachability: "connecting", reachabilityGeneration: 0 };
@@ -98,40 +134,13 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
     assert.deepEqual(weekService.getDiagnostics().deployment.metadata, deployment);
 
     const config = {
-      pack: {
-        packVersion: 2,
-        packId: "space-invaders-dev-pack-v2",
-        gameId: "space-invaders",
-        packRoot,
-        rom: "invaders",
-        weekId: "week-space-invaders",
-        contract: {
-          version: 2,
-          capture: {
-            mode: "plugin",
-            pluginName: "hsl-score",
-            adapter: "scripts/invaders.lua",
-            adapterPath,
-          },
-          mame: {
-            launchArgs: [],
-            profiles: {
-              competition: {
-                integrity: {
-                  dips: [{ mask: 1, portTag: "IN0", value: 0 }],
-                  mameVersion: "0.286",
-                  version: 1,
-                },
-              },
-            },
-            romDir,
-          },
-        },
-      },
+      pack: loadedPack.pack,
       sharedMameRuntime: {
         available: true,
         configured: true,
         mameExecutablePath: path.join(runtimeRoot, "mame.exe"),
+        runtimeRoot,
+        source: "external/dev",
         version: "0.286",
       },
       userDataDir,
@@ -171,10 +180,10 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
         prepareCount += 1;
         const prepared = await prepareV2CompetitionRun(config, scope, {
           detectMameVersionImpl: async () => "0.286",
+          developerOverride: true,
           now: new Date("2026-08-01T00:00:00.000Z"),
           runId: "run_space_invaders",
           sourceDir,
-          verifyCompetitionManifestImpl: async () => ({ manifestSha256: "a".repeat(64) }),
         });
         assert.equal(prepared.runId, "run_space_invaders");
         const mame = await launchMameDetailed(prepared.config, "invaders", "competition", () => {

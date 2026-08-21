@@ -132,13 +132,16 @@ function buildMessage({ checks, status, canPlayCompetition, canPractice, canSubm
   return "No se pudo determinar si el pack esta listo.";
 }
 
-function evaluatePackReadiness({ config = {}, session = {}, membership = {}, weekCapability = {}, scope = null, queue = {}, autoSync = {} } = {}) {
+function evaluatePackReadiness({
+  config = {}, session = {}, membership = {}, weekCapability = {}, scope = null,
+  queue = {}, autoSync = {}, developerOverride = false,
+} = {}) {
   const checks = [];
   const pack = config.pack || null;
   const isPackV2 = pack?.packVersion === 2 || pack?.contract?.version === 2 || config.requiresSharedMameRuntime === true;
   const sharedRuntime = config.sharedMameRuntime || {};
   const v2Capture = isPackV2 ? getV2CaptureReadiness(config) : null;
-  const v2Competition = isPackV2 ? getV2CompetitionReadiness(config) : null;
+  const v2Competition = isPackV2 ? getV2CompetitionReadiness(config, { developerOverride }) : null;
   const rom = pack?.rom || config.rom || null;
   const weekId = config.defaultWeekId || pack?.weekId || null;
   const pluginName = getPluginName(config);
@@ -444,7 +447,7 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, wee
   );
   const hasRomDir = !isPackV2 || checks.find((item) => item.id === "rom-dir")?.level === "ok";
   const hasPlugin = isPackV2
-    ? Boolean(v2Competition?.ok)
+    ? Boolean(v2Capture?.ok)
     : Boolean(pluginName) && checks.find((item) => item.id === "plugin-folder")?.level !== "error";
   const hasSession = Boolean(session?.hasSession);
   const hasScope = Boolean(scope?.scopedQueueRoot);
@@ -453,9 +456,10 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, wee
   const hasPackErrors = Boolean(config.packErrors?.length > 0 || pack?.errors?.length > 0);
   const canPractice = !hasDuplicateConflict && !hasPackErrors && hasMame && hasRom && hasRomDir;
   const canCapture = hasPlugin;
+  const protectedCompetitionReady = Boolean(isPackV2 && v2Competition?.ok);
   const competitionAccess = deriveCompetitionAccess({
     local: {
-      canCapture,
+      protectedCompetitionReady,
       canPractice,
       canSubmitLocally: Boolean(hasSession && hasScope && hasWeek && config.webBaseUrl),
       hasCompetitionScope: hasScope,
@@ -492,11 +496,12 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, wee
     canSubmit,
     checks,
     competitionAccess,
-    localCompetitionReady: canPractice && canCapture && hasScope && hasWeek,
+    localCompetitionReady: canPractice && protectedCompetitionReady && hasScope && hasWeek,
     localSubmissionReady: Boolean(hasSession && hasScope && hasWeek && config.webBaseUrl),
     message: buildMessage({ checks, status: effectiveStatus, canPlayCompetition, canPractice, canSubmit }),
     status: effectiveStatus,
     title: buildTitle(effectiveStatus),
+    protectedCompetitionReady,
     warnings,
   };
 }

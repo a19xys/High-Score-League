@@ -5,22 +5,26 @@ const path = require("node:path");
 
 const pluginRoot = path.join(__dirname, "..", "..", "mame-plugin", "hsl-score");
 
-test("hsl-score 0.2.0 wires prestart DIP preparation before frame ARM", async () => {
+test("hsl-score 0.3.0 wires durable integrity before automatic frame capture", async () => {
   const [init, metadata, monitor] = await Promise.all([
     fsp.readFile(path.join(pluginRoot, "init.lua"), "utf8"),
     fsp.readFile(path.join(pluginRoot, "plugin.json"), "utf8"),
     fsp.readFile(path.join(pluginRoot, "core", "competition_integrity.lua"), "utf8"),
   ]);
-  assert.equal(JSON.parse(metadata).plugin.version, "0.2.0");
-  assert.match(init, /version = "0\.2\.0"/);
-  assert.match(init, /PLUGIN_VERSION = "0\.2\.0"/);
+  assert.equal(JSON.parse(metadata).plugin.version, "0.3.0");
+  assert.match(init, /version = "0\.3\.0"/);
+  assert.match(init, /PLUGIN_VERSION = "0\.3\.0"/);
   const start = init.indexOf("integrity.start()");
   const prestart = init.indexOf("emu.register_prestart", start);
   const prepare = init.indexOf("integrity.prepare()", prestart);
   const frame = init.indexOf("integrity.frame_tick()", prepare);
   assert.ok(start >= 0 && prestart > start && prepare > prestart && frame > prepare);
   assert.match(monitor, /state = "prepared"/);
-  assert.match(monitor, /state = "armed"/);
+  assert.match(monitor, /state = next\(violations\) == nil and "armed" or "violated"/);
+  assert.match(monitor, /armed\.marker/);
+  assert.match(monitor, /final\.marker/);
+  assert.match(monitor, /violation\." \.\. code \.\. "\.marker"/);
+  assert.match(monitor, /exit_pending == true/);
   assert.doesNotMatch(monitor, /violate_for_test|qaAction|testButton/i);
 });
 
@@ -47,4 +51,3 @@ test("integrity monitor retains every notifier and declares sticky codes canonic
   }
   assert.match(monitor, /if not violations\[code\] then/);
 });
-

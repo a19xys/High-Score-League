@@ -177,8 +177,8 @@ function normalizeCompetitionIntegrity(value, errors) {
   const dips = [];
   const seen = new Set();
 
-  if (!Array.isArray(value.dips) || value.dips.length === 0) {
-    errors.push("pack.json mame.profiles.competition.integrity.dips debe ser un array no vacio");
+  if (!Array.isArray(value.dips)) {
+    errors.push("pack.json mame.profiles.competition.integrity.dips debe ser un array");
   } else if (value.dips.length > MAX_COMPETITION_DIPS) {
     errors.push(`pack.json mame.profiles.competition.integrity.dips no puede superar ${MAX_COMPETITION_DIPS} entradas`);
   } else {
@@ -220,6 +220,33 @@ function normalizeCompetitionIntegrity(value, errors) {
   return {
     dips,
     mameVersion,
+    version: value.version,
+  };
+}
+
+function normalizeAutomaticCapture(value, errors) {
+  if (value === undefined) return null;
+  if (!isObject(value)) {
+    errors.push("pack.json capture.automatic debe ser un objeto");
+    return null;
+  }
+  if (Object.keys(value).sort().join(",") !== "strategy,version") {
+    errors.push("pack.json capture.automatic contiene campos desconocidos");
+  }
+  if (value.version !== 1) {
+    errors.push("pack.json capture.automatic.version debe ser exactamente 1");
+  }
+  const strategy = validateBoundedIntegrityString(
+    value.strategy,
+    "capture.automatic.strategy",
+    errors,
+    { maximum: 128 },
+  );
+  if (strategy && !/^[a-z0-9][a-z0-9._-]*$/.test(strategy)) {
+    errors.push("pack.json capture.automatic.strategy debe ser un identificador tecnico seguro");
+  }
+  return {
+    strategy,
     version: value.version,
   };
 }
@@ -371,6 +398,7 @@ function normalizeV2Pack(pack, options = {}) {
   const samplePath = validateLocalPathField(pack, "mame.samplePath", errors);
   const cfgPath = validateLocalPathField(pack, "mame.cfgPath", errors);
   const adapter = validateLocalPathField(pack, "capture.adapter", errors);
+  const automatic = normalizeAutomaticCapture(pack.capture?.automatic, errors);
 
   if (isBlank(pack.capture?.mode)) {
     errors.push("pack.json debe incluir capture.mode");
@@ -410,6 +438,7 @@ function normalizeV2Pack(pack, options = {}) {
       capture: {
         adapter,
         adapterPath: resolvePackResourcePath(adapter, packRoot),
+        automatic,
         mode: pack.capture?.mode || null,
         pluginName: pack.capture?.pluginName || null,
       },

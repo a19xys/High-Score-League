@@ -25,13 +25,22 @@
         "launchArgs": []
       },
       "competition": {
-        "launchArgs": []
+        "launchArgs": [],
+        "integrity": {
+          "version": 1,
+          "mameVersion": "0.287",
+          "dips": []
+        }
       }
     }
   },
   "capture": {
     "mode": "plugin",
     "pluginName": "hsl-score",
-    "adapter": "scripts/adapter.lua"
+    "adapter": "scripts/adapter.lua",
+    "automatic": {
+      "version": 1,
+      "strategy": "replace-with-game-specific-strategy-v1"
+    }
   }
 }

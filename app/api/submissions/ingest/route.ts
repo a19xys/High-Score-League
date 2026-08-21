@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createCookieOrBearerAuthenticatedClient } from "@/lib/auth/request-client";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { deriveSubmissionWindowAt } from "@/lib/submission-window";
 import type { SubmissionSource, WeekRow } from "@/types/supabase";
 import { hasActiveProfile } from "@/lib/auth/active-profile";
@@ -283,19 +282,8 @@ export async function POST(request: NextRequest) {
     return jsonError("Supabase no está configurado.", 500);
   }
 
-  const usesBearer = request.headers
-    .get("authorization")
-    ?.toLowerCase()
-    .startsWith("bearer ") === true;
-  let userId: string | null = null;
-
-  if (usesBearer) {
-    const { data, error } = await supabase.auth.getUser();
-    userId = error ? null : data.user?.id ?? null;
-  } else {
-    const identity = await getVerifiedProductIdentity(supabase.auth);
-    userId = identity.status === "product" ? identity.userId : null;
-  }
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const userId = authError ? null : authData.user?.id ?? null;
 
   if (!userId) {
     return jsonError("Necesitas una sesión válida para enviar puntuaciones.", 401);

@@ -21,12 +21,60 @@ function dipsEqual(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function validateCompetitionProvenance(provenance, expected = null) {
+  const errors = [];
+  if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) {
+    return { errors: ["competitionIntegrity.provenance debe ser un objeto"], normalized: null };
+  }
+  if (Object.keys(provenance).sort().join(",") !== "artifactSha256,artifactSizeBytes,competitionManifestSha256,mode") {
+    errors.push("competitionIntegrity.provenance contiene campos desconocidos");
+  }
+  if (!["remote_verified", "developer_override"].includes(provenance.mode)) {
+    errors.push("competitionIntegrity.provenance.mode es invalido");
+  }
+  if (typeof provenance.competitionManifestSha256 !== "string" || !/^[0-9a-f]{64}$/.test(provenance.competitionManifestSha256)) {
+    errors.push("competitionIntegrity.provenance.competitionManifestSha256 es invalido");
+  }
+  if (provenance.mode === "remote_verified") {
+    if (typeof provenance.artifactSha256 !== "string" || !/^[0-9a-f]{64}$/.test(provenance.artifactSha256)) {
+      errors.push("competitionIntegrity.provenance.artifactSha256 es invalido");
+    }
+    if (!Number.isSafeInteger(provenance.artifactSizeBytes) || provenance.artifactSizeBytes <= 0) {
+      errors.push("competitionIntegrity.provenance.artifactSizeBytes es invalido");
+    }
+  } else if (provenance.artifactSha256 !== null || provenance.artifactSizeBytes !== null) {
+    errors.push("developer_override no puede declarar identidad de artifact productiva");
+  }
+  if (expected && JSON.stringify(provenance) !== JSON.stringify(expected)) {
+    errors.push("competitionIntegrity.provenance no coincide con la run protegida");
+  }
+  return { errors, normalized: errors.length === 0 ? { ...provenance } : null };
+}
+
+function validateCompetitionEventBinding(binding) {
+  const errors = [];
+  if (!binding || typeof binding !== "object" || Array.isArray(binding)) {
+    return { errors: ["competitionIntegrity.event debe ser un objeto"], normalized: null };
+  }
+  if (Object.keys(binding).sort().join(",") !== "candidateId,detectedAt,rom,score,source") {
+    errors.push("competitionIntegrity.event contiene campos desconocidos");
+  }
+  if (!isBoundedString(binding.candidateId, 192)) errors.push("competitionIntegrity.event.candidateId es invalido");
+  if (!isBoundedString(binding.rom, 64)) errors.push("competitionIntegrity.event.rom es invalido");
+  if (!Number.isSafeInteger(binding.score) || binding.score <= 0) errors.push("competitionIntegrity.event.score es invalido");
+  if (!isBoundedString(binding.detectedAt, 64) || Number.isNaN(new Date(binding.detectedAt).getTime())) {
+    errors.push("competitionIntegrity.event.detectedAt es invalido");
+  }
+  if (binding.source !== "mame_memory") errors.push("competitionIntegrity.event.source es invalido");
+  return { errors, normalized: errors.length === 0 ? { ...binding } : null };
+}
+
 function validateCompetitionIntegrity(integrity, expected = null) {
   const errors = [];
   if (!integrity || typeof integrity !== "object" || Array.isArray(integrity)) {
     return { errors: ["competitionIntegrity debe ser un objeto"], normalized: null };
   }
-  if (Object.keys(integrity).sort().join(",") !== "dips,guardVersion,mameVersion,manifestSha256,packId,runId,version,violations") {
+  if (Object.keys(integrity).sort().join(",") !== "dips,event,guardVersion,mameVersion,manifestSha256,packId,pluginVersion,provenance,runId,version,violations") {
     errors.push("competitionIntegrity contiene campos desconocidos");
   }
   if (integrity.version !== 1) errors.push("competitionIntegrity.version debe ser 1");
@@ -37,11 +85,20 @@ function validateCompetitionIntegrity(integrity, expected = null) {
     errors.push("competitionIntegrity.manifestSha256 es invalido");
   }
   if (!isBoundedString(integrity.mameVersion, 32)) errors.push("competitionIntegrity.mameVersion es invalido");
+  if (!isBoundedString(integrity.pluginVersion, 32)) errors.push("competitionIntegrity.pluginVersion es invalido");
+
+  const provenance = validateCompetitionProvenance(integrity.provenance, expected?.provenance || null);
+  errors.push(...provenance.errors);
+  const eventBinding = validateCompetitionEventBinding(integrity.event);
+  errors.push(...eventBinding.errors);
+  if (integrity.provenance?.competitionManifestSha256 !== integrity.manifestSha256) {
+    errors.push("competitionIntegrity.provenance no coincide con manifestSha256");
+  }
 
   const dips = [];
   const seen = new Set();
-  if (!Array.isArray(integrity.dips) || integrity.dips.length === 0 || integrity.dips.length > 32) {
-    errors.push("competitionIntegrity.dips debe ser un array no vacio de hasta 32 entradas");
+  if (!Array.isArray(integrity.dips) || integrity.dips.length > 32) {
+    errors.push("competitionIntegrity.dips debe ser un array de hasta 32 entradas");
   } else {
     let previous = null;
     for (const dip of integrity.dips) {
@@ -83,13 +140,18 @@ function validateCompetitionIntegrity(integrity, expected = null) {
   }
 
   if (expected) {
-    for (const field of ["runId", "packId", "manifestSha256", "mameVersion"]) {
+    for (const field of ["runId", "packId", "manifestSha256", "mameVersion", "pluginVersion"]) {
       if (expected[field] !== undefined && integrity[field] !== expected[field]) errors.push(`competitionIntegrity.${field} no coincide con el run protegido`);
     }
     if (expected.dips && !dipsEqual(dips, expected.dips)) errors.push("competitionIntegrity.dips no coincide con el run protegido");
   }
 
-  return { errors, normalized: errors.length === 0 ? { ...integrity, dips } : null };
+  return { errors, normalized: errors.length === 0 ? {
+    ...integrity,
+    dips,
+    event: eventBinding.normalized,
+    provenance: provenance.normalized,
+  } : null };
 }
 
 function validateEvent(event, options = {}) {
@@ -189,6 +251,16 @@ function validateEvent(event, options = {}) {
   if (event.competitionIntegrity !== undefined || options.competitionGuard) {
     const integrity = validateCompetitionIntegrity(event.competitionIntegrity, options.competitionGuard || null);
     errors.push(...integrity.errors);
+    if (integrity.normalized) {
+      const binding = integrity.normalized.event;
+      for (const field of ["candidateId", "rom", "score", "detectedAt", "source"]) {
+        if (event[field] !== binding[field]) errors.push(`${field} no coincide con competitionIntegrity.event.${field}`);
+      }
+      if (event.runId !== integrity.normalized.runId) errors.push("runId no coincide con competitionIntegrity.runId");
+      if (event.packId !== integrity.normalized.packId) errors.push("packId no coincide con competitionIntegrity.packId");
+      if (event.mameVersion !== integrity.normalized.mameVersion) errors.push("mameVersion no coincide con competitionIntegrity.mameVersion");
+      if (event.pluginVersion !== integrity.normalized.pluginVersion) errors.push("pluginVersion no coincide con competitionIntegrity.pluginVersion");
+    }
   }
 
   return { errors, warnings, normalizedGame };
@@ -197,6 +269,8 @@ function validateEvent(event, options = {}) {
 module.exports = {
   ALLOWED_SOURCES,
   COMPETITION_VIOLATIONS,
+  validateCompetitionEventBinding,
   validateCompetitionIntegrity,
+  validateCompetitionProvenance,
   validateEvent,
 };

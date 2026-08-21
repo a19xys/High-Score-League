@@ -2,231 +2,289 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createServerClient } from "@supabase/ssr";
 import {
-  classifyVerifiedSessionClaims,
-  getVerifiedProductIdentity,
-  getVerifiedSessionContext,
-  getVerifiedSessionIdentity,
-  type VerifiableAuthClient,
-} from "../lib/auth/session-context.ts";
+  applyRecoveryAuthHeaders,
+  clearRecoveryState,
+  createRecoveryCookieAdapter,
+  getRecoveryAuthCookieNames,
+  getRecoveryAuthCookieOptions,
+  isRecoveryAuthCookieName,
+  RECOVERY_AUTH_COOKIE_PATH,
+  RECOVERY_AUTH_STORAGE_KEY,
+} from "../lib/supabase/recovery-cookies.ts";
+import { RECOVERY_MAX_AGE_SECONDS, verifyRecoveryOtp } from "../lib/auth/password-recovery.ts";
 import { resolveServerSession } from "../lib/auth/server-session.ts";
 
-function claims(methods?: unknown) {
-  return {
-    role: "authenticated",
-    sub: "user-1",
-    ...(methods === undefined ? {} : { amr: methods }),
-  };
-}
+const source = (...parts: string[]) =>
+  readFile(join(process.cwd(), ...parts), "utf8");
 
-function fakeAuth(options: {
-  claims?: unknown;
-  claimsError?: unknown;
-  claimsThrow?: boolean;
-  user?: { id: string; email?: string } | null;
-  userError?: unknown;
-}) {
-  const calls: Array<{ name: string }> = [];
-  const auth: VerifiableAuthClient = {
-    async getClaims() {
-      calls.push({ name: "claims" });
-      if (options.claimsThrow) throw new Error("unavailable");
-      return {
-        data: options.claims ? { claims: options.claims } : null,
-        error: options.claimsError ?? null,
-      };
-    },
-    async getUser() {
-      calls.push({ name: "user" });
-      return {
-        data: { user: options.user === undefined ? { id: "user-1" } : options.user },
-        error: options.userError ?? null,
-      };
-    },
-  };
-  return { auth, calls };
-}
-
-async function source(...parts: string[]) {
-  return readFile(join(process.cwd(), ...parts), "utf8");
-}
-
-test("verified AMR classifies password, oauth and legacy sessions as product", () => {
-  assert.deepEqual(
-    classifyVerifiedSessionClaims(claims([{ method: "password", timestamp: 1 }])),
-    { status: "product", userId: "user-1" },
-  );
-  assert.deepEqual(
-    classifyVerifiedSessionClaims(claims([{ method: "oauth", timestamp: 1 }])),
-    { status: "product", userId: "user-1" },
-  );
-  assert.deepEqual(classifyVerifiedSessionClaims(claims()), {
-    status: "product",
-    userId: "user-1",
-  });
-});
-
-test("recovery remains recovery after token_refresh", () => {
-  const initial = classifyVerifiedSessionClaims(
-    claims([{ method: "recovery", timestamp: 1 }]),
-  );
-  const refreshed = classifyVerifiedSessionClaims(
-    claims([
-      { method: "recovery", timestamp: 1 },
-      { method: "token_refresh", timestamp: 2 },
-    ]),
-  );
-
-  assert.equal(initial.status, "recovery");
-  assert.equal(refreshed.status, "recovery");
-});
-
-test("present malformed AMR and untrusted claims fail closed", () => {
-  for (const value of [
-    null,
-    {},
-    "recovery",
-    [null],
-    ["password", { method: "recovery", timestamp: 1 }],
-    [{ method: "password" }],
-    [{ method: "", timestamp: 1 }],
-    [{ method: " recovery ", timestamp: 1 }],
-    [" "],
-    [{ method: "password", timestamp: Number.NaN }],
-  ]) {
-    assert.equal(classifyVerifiedSessionClaims(claims(value)).status, "invalid");
-  }
-
-  assert.equal(classifyVerifiedSessionClaims({ role: "anon", sub: "user-1" }).status, "invalid");
-  assert.equal(classifyVerifiedSessionClaims({ role: "authenticated" }).status, "invalid");
-});
-
-test("claims verification errors fail closed and absent browser claims are signed out", async () => {
-  const rejected = fakeAuth({ claimsError: new Error("invalid JWT") });
-  assert.equal((await getVerifiedSessionContext(rejected.auth)).status, "invalid");
-  assert.deepEqual(rejected.calls, [{ name: "claims" }]);
-
-  const unavailable = fakeAuth({ claimsThrow: true });
-  assert.equal((await getVerifiedSessionContext(unavailable.auth)).status, "unavailable");
-
-  const absent = fakeAuth({ claims: null });
-  assert.equal((await getVerifiedSessionContext(absent.auth)).status, "signed-out");
-});
-
-test("product identity verifies claims before user and enforces sub coherence", async () => {
-  const valid = fakeAuth({
-    claims: claims([{ method: "password", timestamp: 1 }]),
-    user: { id: "user-1", email: "player@example.test" },
-  });
-  assert.equal((await getVerifiedProductIdentity(valid.auth)).status, "product");
-  assert.deepEqual(valid.calls, [
-    { name: "claims" },
-    { name: "user" },
+test("Recovery uses an isolated Supabase storage namespace supported by the installed SSR package", async () => {
+  const [recoveryClient, normalClient, middleware, ssrImplementation] = await Promise.all([
+    source("lib", "supabase", "recovery-server.ts"),
+    source("lib", "supabase", "server.ts"),
+    source("lib", "supabase", "middleware.ts"),
+    source("node_modules", "@supabase", "ssr", "src", "createServerClient.ts"),
   ]);
 
-  const mismatch = fakeAuth({
-    claims: claims([{ method: "password", timestamp: 1 }]),
-    user: { id: "different-user" },
+  assert.equal(RECOVERY_AUTH_STORAGE_KEY, "hsl-recovery-auth");
+  assert.equal(RECOVERY_AUTH_COOKIE_PATH, "/reset-password");
+  assert.match(recoveryClient, /cookieOptions:\s*\{[\s\S]*name: RECOVERY_AUTH_STORAGE_KEY/);
+  assert.doesNotMatch(recoveryClient, /auth:\s*\{[\s\S]*storageKey/);
+  assert.match(
+    ssrImplementation,
+    /options\?\.cookieOptions\?\.name[\s\S]*storageKey: options\.cookieOptions\.name/,
+  );
+
+  const cookieAdapter = { getAll: () => [], setAll() {} };
+  const normal = createServerClient("https://example.supabase.co", "anon", {
+    cookies: cookieAdapter,
   });
-  assert.equal((await getVerifiedProductIdentity(mismatch.auth)).status, "invalid");
+  const recovery = createServerClient("https://example.supabase.co", "anon", {
+    cookieOptions: { name: RECOVERY_AUTH_STORAGE_KEY },
+    cookies: cookieAdapter,
+  });
+  const normalStorageKey = (normal.auth as unknown as { storageKey: string }).storageKey;
+  const recoveryStorageKey = (recovery.auth as unknown as { storageKey: string }).storageKey;
+  assert.equal(recoveryStorageKey, RECOVERY_AUTH_STORAGE_KEY);
+  assert.notEqual(normalStorageKey, recoveryStorageKey);
+
+  assert.doesNotMatch(normalClient, /hsl-recovery-auth|RECOVERY_AUTH_STORAGE_KEY/);
+  assert.doesNotMatch(middleware, /hsl-recovery-auth|RECOVERY_AUTH_STORAGE_KEY|RecoveryServerClient/);
 });
 
-test("product boundaries reject recovery before requesting user data", async () => {
-  const recovery = fakeAuth({
-    claims: claims([{ method: "recovery", timestamp: 1 }]),
-  });
-  assert.equal((await getVerifiedProductIdentity(recovery.auth)).status, "recovery");
-  assert.deepEqual(recovery.calls, [{ name: "claims" }]);
+test("Recovery cookie writes enforce scope, hardening and the real 15-minute lifetime", () => {
+  const live = getRecoveryAuthCookieOptions(
+    {
+      name: "hsl-recovery-auth.0",
+      value: "opaque",
+      options: { maxAge: 60 * 60 * 24 * 400, path: "/" },
+    },
+    true,
+  );
+  assert.equal(live.maxAge, RECOVERY_MAX_AGE_SECONDS);
+  assert.equal(live.path, "/reset-password");
+  assert.equal(live.httpOnly, true);
+  assert.equal(live.sameSite, "lax");
+  assert.equal(live.secure, true);
 
-  const recoveryWorkflow = fakeAuth({
-    claims: claims([{ method: "recovery", timestamp: 1 }]),
-    user: { id: "user-1" },
-  });
-  assert.equal((await getVerifiedSessionIdentity(recoveryWorkflow.auth)).status, "recovery");
-  assert.deepEqual(recoveryWorkflow.calls.map((call) => call.name), ["claims", "user"]);
+  const expires = new Date(0);
+  const deletion = getRecoveryAuthCookieOptions(
+    {
+      name: "hsl-recovery-auth.0",
+      value: "",
+      options: { expires, maxAge: 0, path: "/" },
+    },
+    false,
+  );
+  assert.equal(deletion.maxAge, 0);
+  assert.equal(deletion.expires, expires);
+  assert.equal(deletion.path, "/reset-password");
+  assert.equal(deletion.httpOnly, true);
+  assert.equal(deletion.sameSite, "lax");
+  assert.equal(deletion.secure, false);
 });
 
-test("server session exposes only normal credentials as signed-in", async () => {
-  const product = fakeAuth({
-    claims: claims([{ method: "password", timestamp: 1 }]),
-    user: { id: "user-1", email: "player@example.test" },
+test("Recovery cookie adapter preserves SSR no-cache headers and never revives deletes", () => {
+  const writes: Array<{ name: string; value: string; options: Record<string, unknown> }> = [];
+  const responseHeaders = new Headers();
+  const adapter = createRecoveryCookieAdapter(
+    {
+      getAll: () => [],
+      set(name, value, options) {
+        writes.push({ name, value, options });
+      },
+    },
+    responseHeaders,
+    true,
+  );
+
+  adapter.setAll(
+    [
+      {
+        name: "hsl-recovery-auth.0",
+        value: "opaque",
+        options: { maxAge: 34_560_000 },
+      },
+      {
+        name: "hsl-recovery-auth.1",
+        value: "",
+        options: { expires: new Date(0), maxAge: 0 },
+      },
+    ],
+    {
+      "Cache-Control": "private, no-cache, no-store, must-revalidate, max-age=0",
+      Expires: "0",
+      Pragma: "no-cache",
+    },
+  );
+
+  assert.equal(writes[0].options.maxAge, RECOVERY_MAX_AGE_SECONDS);
+  assert.equal(writes[1].options.maxAge, 0);
+  assert.equal(writes[0].options.path, RECOVERY_AUTH_COOKIE_PATH);
+  assert.equal(responseHeaders.get("cache-control"), "private, no-cache, no-store, must-revalidate, max-age=0");
+  assert.equal(responseHeaders.get("expires"), "0");
+  assert.equal(responseHeaders.get("pragma"), "no-cache");
+
+  const targetHeaders = new Headers();
+  applyRecoveryAuthHeaders(
+    { cookies: { set() {} }, headers: targetHeaders },
+    responseHeaders,
+  );
+  assert.equal(targetHeaders.get("cache-control"), responseHeaders.get("cache-control"));
+});
+
+test("Recovery cleanup inventories every existing chunk without touching normal Auth", () => {
+  const cookies = [
+    { name: "hsl-recovery-auth.0", value: "a" },
+    { name: "hsl-recovery-auth.1", value: "b" },
+    { name: "sb-project-auth-token", value: "normal" },
+    { name: "unrelated", value: "value" },
+  ];
+  const names = getRecoveryAuthCookieNames(cookies);
+  assert.deepEqual(names, [
+    "hsl-recovery-auth",
+    "hsl-recovery-auth.0",
+    "hsl-recovery-auth.1",
+  ]);
+  assert.equal(isRecoveryAuthCookieName("hsl-recovery-auth.27"), true);
+  assert.equal(isRecoveryAuthCookieName("sb-project-auth-token"), false);
+
+  const expired: Array<{ name: string; options: Record<string, unknown> }> = [];
+  clearRecoveryState(
+    {
+      cookies: {
+        set(name, _value, options) {
+          expired.push({ name, options });
+        },
+      },
+      headers: { set() {} },
+    },
+    cookies,
+    { auth: true, markers: true, staging: true },
+  );
+
+  const expiredNames = expired.map(({ name }) => name);
+  assert.ok(expiredNames.includes("hsl-recovery-auth"));
+  assert.ok(expiredNames.includes("hsl-recovery-auth.0"));
+  assert.ok(expiredNames.includes("hsl-recovery-auth.1"));
+  assert.ok(!expiredNames.includes("sb-project-auth-token"));
+  assert.ok(expired.every(({ options }) => options.maxAge === 0));
+  assert.equal(
+    expired.find(({ name }) => name === "hsl-recovery-auth.1")?.options.path,
+    RECOVERY_AUTH_COOKIE_PATH,
+  );
+});
+
+test("the literal otp-AMR regression is irrelevant after isolated verification", async () => {
+  const calls: unknown[] = [];
+  const resultingSession = { amr: [{ method: "otp", timestamp: 1 }] };
+  const verified = await verifyRecoveryOtp(
+    {
+      async verifyOtp(input) {
+        calls.push({ input, resultingSession });
+        return { error: null };
+      },
+    },
+    "valid-token-hash",
+  );
+  const verifyRoute = await source("app", "auth", "recovery", "verify", "route.ts");
+
+  assert.equal(verified, true);
+  assert.deepEqual(calls[0], {
+    input: { token_hash: "valid-token-hash", type: "recovery" },
+    resultingSession,
   });
-  assert.deepEqual(await resolveServerSession(product.auth), {
+  assert.match(verifyRoute, /createSupabaseRecoveryServerClient/);
+  assert.match(verifyRoute, /verified[\s\S]*redirect\(request, "\/reset-password"\)/);
+  assert.doesNotMatch(verifyRoute, /getClaims|\.amr|AMR|getVerifiedSession|signOut/);
+});
+
+test("reset, completion and cancellation use only isolated Recovery Auth", async () => {
+  const [page, complete, cancel, preVerifyCancel, invalidate] = await Promise.all([
+    source("app", "reset-password", "page.tsx"),
+    source("app", "reset-password", "complete", "route.ts"),
+    source("app", "reset-password", "cancel", "route.ts"),
+    source("app", "auth", "recovery", "cancel", "route.ts"),
+    source("app", "reset-password", "invalidate", "route.ts"),
+  ]);
+
+  assert.match(page, /createSupabaseRecoveryServerClient/);
+  assert.match(page, /client\.auth\.getUser\(\)/);
+  assert.match(page, /isAuthorizedRecoverySession\([\s\S]*hasRecoveryUser/);
+  assert.doesNotMatch(page, /createSupabaseServerClient|getClaims|\.amr/);
+
+  assert.match(complete, /createSupabaseRecoveryServerClient/);
+  assert.match(complete, /client\.auth\.getUser\(\)/);
+  assert.match(complete, /auth: recovery\.client\.auth/);
+  assert.match(complete, /retryGlobalRecoverySignOut\(recovery\.client\.auth\)/);
+  assert.match(complete, /clearRecoveryState/);
+  assert.doesNotMatch(complete, /createSupabaseServerClient|getClaims|\.amr/);
+
+  assert.match(cancel, /createSupabaseRecoveryServerClient/);
+  assert.match(cancel, /client\.auth\.signOut\(\{ scope: "local" \}\)/);
+  assert.match(cancel, /clearRecoveryState/);
+  assert.doesNotMatch(cancel, /scope: "global"|createSupabaseServerClient/);
+
+  assert.match(preVerifyCancel, /clearRecoveryState/);
+  assert.match(preVerifyCancel, /\/reset-password\/cancel\?preverify=1/);
+  assert.doesNotMatch(preVerifyCancel, /createSupabase|\.auth\.|signOut/);
+
+  assert.match(invalidate, /export async function POST/);
+  assert.match(invalidate, /clearRecoveryState\([\s\S]*auth: true/);
+  assert.doesNotMatch(invalidate, /createSupabase|\.auth\.|signOut/);
+});
+
+test("normal HSL session authority is getUser-only and centralized in RootLayout", async () => {
+  let calls = 0;
+  const signedIn = await resolveServerSession({
+    async getUser() {
+      calls += 1;
+      return {
+        data: { user: { id: "normal-user", email: "player@example.test" } },
+        error: null,
+      };
+    },
+  });
+  assert.deepEqual(signedIn, {
     status: "signed-in",
-    userId: "user-1",
+    userId: "normal-user",
     email: "player@example.test",
   });
-
-  const recovery = fakeAuth({
-    claims: claims([{ method: "recovery", timestamp: 1 }]),
-  });
-  assert.deepEqual(await resolveServerSession(recovery.auth), {
-    status: "recovery",
+  assert.equal(calls, 1);
+  assert.deepEqual(await resolveServerSession(null), {
+    status: "not-configured",
     userId: null,
     email: null,
   });
-  assert.deepEqual(recovery.calls.map((call) => call.name), ["claims"]);
-});
 
-test("Recovery-safe layout does not activate private navigation or Presence", async () => {
-  const [layout, nav, profile, serverSession] = await Promise.all([
+  const [serverSession, layout, nav] = await Promise.all([
+    source("lib", "auth", "server-session.ts"),
     source("app", "layout.tsx"),
     source("components", "site-nav.tsx"),
-    source("app", "profile", "page.tsx"),
-    source("lib", "auth", "session.ts"),
   ]);
-
-  assert.match(layout, /session\.status === "signed-in"/);
+  assert.match(serverSession, /auth\.getUser\(\)/);
+  assert.doesNotMatch(serverSession, /getClaims|recovery|invalid|AMR|\.amr/);
+  assert.equal((layout.match(/getServerSession\(\)/g) ?? []).length, 1);
   assert.match(layout, /<SiteNav session=\{session\}/);
-  assert.match(nav, /session\.status !== "signed-in"/);
-  assert.doesNotMatch(nav, /auth\.getUser/);
-  assert.match(profile, /getVerifiedProductIdentity/);
-  assert.match(serverSession, /return session\.status === "signed-in"/);
+  assert.doesNotMatch(nav, /auth\.getUser|getServerSession/);
 });
 
-test("expired marker leaves a POST-only local exit from Recovery", async () => {
-  const [page, cancel, complete] = await Promise.all([
-    source("app", "reset-password", "page.tsx"),
-    source("app", "reset-password", "cancel", "route.ts"),
-    source("app", "reset-password", "complete", "route.ts"),
-  ]);
+test("all former web and dual Bearer boundaries use getUser with no AMR authority", async () => {
+  const paths = [
+    ["app", "api", "submissions", "ingest", "route.ts"],
+    ["app", "api", "launcher", "playtime", "ingest", "route.ts"],
+    ["app", "api", "presence", "web", "route.ts"],
+    ["app", "api", "profile", "anonymize", "route.ts"],
+    ["app", "api", "chat", "messages", "route.ts"],
+    ["app", "api", "home-poll", "vote", "route.ts"],
+    ["app", "api", "seasons", "[seasonId]", "join", "route.ts"],
+    ["components", "profile", "profile-editor.tsx"],
+  ];
+  const implementations = await Promise.all(paths.map((parts) => source(...parts)));
 
-  assert.match(page, /identity\.status === "recovery"[\s\S]*method="post"/);
-  assert.match(page, /action="\/reset-password\/cancel"/);
-  assert.match(cancel, /export async function POST/);
-  assert.match(cancel, /signOut\(\{ scope: "local" \}\)/);
-  assert.doesNotMatch(cancel, /scope: "global"/);
-  assert.match(complete, /getVerifiedSessionIdentity/);
-  assert.ok(
-    complete.indexOf('identity.status !== "recovery"') <
-      complete.indexOf("completePasswordRecovery({"),
-  );
-});
-
-test("dangerous web elevation remains behind product authorization", async () => {
-  const sources = await Promise.all([
-    source("app", "api", "profile", "anonymize", "route.ts"),
-    source("app", "api", "presence", "web", "route.ts"),
-  ]);
-
-  for (const implementation of sources) {
-    const authorityIndex = implementation.lastIndexOf("getVerifiedProductIdentity(");
-    const elevationIndexes = [
-      implementation.indexOf("createSupabaseAdminClient()"),
-    ].filter((index) => index >= 0);
-    assert.ok(authorityIndex >= 0);
-    assert.ok(elevationIndexes.every((index) => index > authorityIndex));
-  }
-});
-
-test("dual cookie/Bearer mutations classify only the browser branch", async () => {
-  const sources = await Promise.all([
-    source("app", "api", "submissions", "ingest", "route.ts"),
-    source("app", "api", "launcher", "playtime", "ingest", "route.ts"),
-  ]);
-
-  for (const implementation of sources) {
-    assert.match(implementation, /if \(usesBearer\)[\s\S]*auth\.getUser\(\)/);
-    assert.match(implementation, /else \{[\s\S]*getVerifiedProductIdentity\(supabase\.auth\)/);
+  for (const implementation of implementations) {
+    assert.match(implementation, /auth\.getUser\(\)/);
+    assert.doesNotMatch(implementation, /getClaims|getVerifiedProductIdentity|session-context|\.amr|AMR/);
   }
 });

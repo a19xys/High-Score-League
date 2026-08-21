@@ -4,13 +4,28 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { getRepoPluginDir, listPluginFilesToCopy } = require("./dev-sync-plugin");
 const { isUnsafePackRelativePath } = require("./pack-contract");
-const { verifyCompetitionManifest } = require("./competition-manifest");
+const { sha256 } = require("./competition-manifest");
+const { createVerifiedCompetitionSnapshot } = require("./competition-snapshot");
 const {
   COMPETITION_CONTROLLER_NAME,
   buildCompetitionControllerProfile,
 } = require("./mame-controller-profile");
 const { validatePackMameArguments } = require("./mame-arguments");
 const { compareMameVersions, detectMameVersion } = require("./mame-version");
+const {
+  developerOverrideProvenance,
+  readPackProvenanceReceipt,
+  remoteVerifiedProvenance,
+} = require("./pack-provenance");
+const { getProductRuntime } = require("./product-runtime");
+const {
+  PRODUCT_PLUGIN_INTEGRITY_FILENAME,
+  PRODUCT_RUNTIME_INTEGRITY_FILENAME,
+  readPluginVersion,
+  sha256File,
+  verifyBundledMameRuntimeIntegrity,
+  verifyBundledPluginIntegrity,
+} = require("./product-runtime-integrity");
 
 const DEFAULT_PLUGIN_NAME = "hsl-score";
 
@@ -64,6 +79,37 @@ function resolveSelectedMameRuntimeRoot(config = {}) {
 function resolvePluginBootstrapSourcePath(config = {}) {
   const runtimeRoot = resolveSelectedMameRuntimeRoot(config);
   return runtimeRoot ? path.join(runtimeRoot, "plugins", "boot.lua") : null;
+}
+
+function readManifestSha256(packRoot) {
+  try {
+    return sha256(fs.readFileSync(path.join(packRoot, "competition-manifest.json")));
+  } catch {
+    return null;
+  }
+}
+
+function resolveCompetitionProvenance(config, pack, manifestSha256, options = {}) {
+  const developerOverride = options.developerOverride === true && getProductRuntime().isPackaged !== true;
+  if (developerOverride) {
+    return {
+      errors: [],
+      mode: "developer_override",
+      ok: true,
+      provenance: developerOverrideProvenance(manifestSha256),
+      receiptPath: null,
+    };
+  }
+  const receipt = readPackProvenanceReceipt(config, pack?.packId, {
+    competitionManifestSha256: manifestSha256,
+  });
+  return {
+    errors: receipt.errors,
+    mode: receipt.ok ? "remote_verified" : "unverified",
+    ok: receipt.ok,
+    provenance: receipt.ok ? remoteVerifiedProvenance(receipt.receipt) : null,
+    receiptPath: receipt.receiptPath,
+  };
 }
 
 function getV2CaptureReadiness(config = {}, options = {}) {
@@ -128,10 +174,22 @@ function getV2CompetitionReadiness(config = {}, options = {}) {
   const captureReadiness = getV2CaptureReadiness(config, options);
   const errors = [...captureReadiness.errors];
   const integrity = config.pack?.contract?.mame?.profiles?.competition?.integrity || null;
+  let pluginVersion = null;
+
+  try {
+    pluginVersion = readPluginVersion(captureReadiness.sourceDir);
+    if (pluginVersion !== "0.3.0") errors.push(`Competicion protegida requiere hsl-score 0.3.0 exacto; se encontro ${pluginVersion}.`);
+  } catch (error) {
+    errors.push(`No se pudo acreditar la version del plugin HSL: ${error.message}`);
+  }
 
   if (!integrity || integrity.version !== 1) {
     errors.push("Este pack no esta preparado para Competicion protegida: falta integrity v1.");
   } else {
+    const automatic = config.pack?.contract?.capture?.automatic;
+    if (!automatic || automatic.version !== 1 || !automatic.strategy) {
+      errors.push("Este pack no declara una estrategia de captura automatica compatible con Competicion protegida.");
+    }
     if (config.sharedMameRuntime?.version) {
       try {
         if (compareMameVersions(config.sharedMameRuntime.version, integrity.mameVersion) !== 0) {
@@ -155,6 +213,34 @@ function getV2CompetitionReadiness(config = {}, options = {}) {
     if (competitionSeed && practiceCfg && path.resolve(competitionSeed).toLowerCase() === path.resolve(practiceCfg).toLowerCase()) {
       errors.push("El cfg seed de Competicion no puede ser la misma carpeta mutable usada por Practica.");
     }
+
+    const manifestSha256 = readManifestSha256(config.pack?.packRoot || config.packRoot);
+    if (!manifestSha256) errors.push("No se encontro competition-manifest.json para Competicion protegida.");
+    const provenance = manifestSha256
+      ? resolveCompetitionProvenance(config, config.pack, manifestSha256, options)
+      : { errors: [], mode: "unverified", ok: false, provenance: null, receiptPath: null };
+    if (!provenance.ok) errors.push(...provenance.errors);
+    if (config.sharedMameRuntime?.source !== "bundled" && provenance.mode !== "developer_override") {
+      errors.push("Competicion protegida con MAME externo requiere la autoridad existente de Developer Tools.");
+    }
+    if (config.sharedMameRuntime?.source === "bundled") {
+      if (!fs.existsSync(path.join(resolveSelectedMameRuntimeRoot(config) || "", PRODUCT_RUNTIME_INTEGRITY_FILENAME))) {
+        errors.push("El runtime MAME bundled no contiene su manifest de bytes criticos.");
+      }
+      if (!fs.existsSync(path.join(captureReadiness.sourceDir, PRODUCT_PLUGIN_INTEGRITY_FILENAME))) {
+        errors.push("El plugin HSL bundled no contiene su manifest de bytes criticos.");
+      }
+    }
+    return {
+      ...captureReadiness,
+      automatic,
+      errors,
+      integrity,
+      manifestSha256,
+      ok: errors.length === 0,
+      pluginVersion,
+      provenance,
+    };
   }
 
   return {
@@ -162,6 +248,7 @@ function getV2CompetitionReadiness(config = {}, options = {}) {
     errors,
     ok: errors.length === 0,
     integrity,
+    pluginVersion,
   };
 }
 
@@ -190,9 +277,10 @@ function buildRunConfigLua(run) {
   ));
   return [
     "return {",
-    `  outputDir = ${toLuaString(run.stagingPendingDir)},`,
+    `  outputDir = ${toLuaString(run.stagingCandidatesDir)},`,
     '  gameModule = "games/adapter.lua",',
     `  hslRunId = ${toLuaString(run.runId)},`,
+    `  automaticCaptureStrategy = ${toLuaString(run.automaticCaptureStrategy)},`,
     "  competitionIntegrity = {",
     "    version = 1,",
     "    guardVersion = 1,",
@@ -200,6 +288,7 @@ function buildRunConfigLua(run) {
     `    packId = ${toLuaString(run.integrity.packId)},`,
     `    manifestSha256 = ${toLuaString(run.integrity.manifestSha256)},`,
     `    mameVersion = ${toLuaString(run.integrity.mameVersion)},`,
+    `    integrityDir = ${toLuaString(run.integrityDir)},`,
     "    dips = {",
     ...dips,
     "    }",
@@ -247,22 +336,16 @@ async function copyPluginSource(sourceDir, pluginDir) {
   return files;
 }
 
-async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
-  if (!config.userDataDir) {
-    throw new Error("No se pudo resolver userDataDir para preparar competicion v2.");
-  }
 
+async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
+  if (!config.userDataDir) throw new Error("No se pudo resolver userDataDir para preparar competicion v2.");
   if (!scope?.scopedQueueRoot || !scope?.playerKey || !scope?.packKey) {
     throw new Error("No se pudo resolver la cola scoped de cuenta y pack.");
   }
 
   const readiness = getV2CompetitionReadiness(config, options);
+  if (!readiness.ok) throw new Error(`No se puede preparar competicion v2: ${readiness.errors.join(" ")}`);
 
-  if (!readiness.ok) {
-    throw new Error(`No se puede preparar competicion v2: ${readiness.errors.join(" ")}`);
-  }
-
-  const manifest = await (options.verifyCompetitionManifestImpl || verifyCompetitionManifest)(config.pack);
   const expectedMameVersion = readiness.integrity.mameVersion;
   const observedMameVersion = await Promise.resolve(
     (options.detectMameVersionImpl || detectMameVersion)(config.sharedMameRuntime.mameExecutablePath),
@@ -270,60 +353,93 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
   if (compareMameVersions(observedMameVersion, expectedMameVersion) !== 0) {
     throw new Error(`Competicion protegida requiere MAME ${expectedMameVersion} exacto; se encontro ${observedMameVersion}.`);
   }
-
   const mameRuntimeRoot = resolveSelectedMameRuntimeRoot(config);
   const pluginBootstrapSourcePath = resolvePluginBootstrapSourcePath(config);
-
   if (!pluginBootstrapSourcePath || !fs.existsSync(pluginBootstrapSourcePath) || !fs.statSync(pluginBootstrapSourcePath).isFile()) {
     throw new Error("No se puede preparar competicion v2: falta plugins/boot.lua en el runtime MAME seleccionado.");
+  }
+  let bundledRuntimeIntegrity = null;
+  if (config.sharedMameRuntime?.source === "bundled") {
+    bundledRuntimeIntegrity = await (options.verifyBundledMameRuntimeIntegrityImpl || verifyBundledMameRuntimeIntegrity)(mameRuntimeRoot, expectedMameVersion);
+    await (options.verifyBundledPluginIntegrityImpl || verifyBundledPluginIntegrity)(readiness.sourceDir);
+  } else if (readiness.provenance.mode !== "developer_override") {
+    throw new Error("MAME externo solo esta permitido para QA mediante Developer Tools.");
   }
 
   const runId = createRunId(options);
   const runRoot = path.join(config.userDataDir, "runtime", "runs", runId);
+  const snapshotRoot = path.join(runRoot, "pack");
+  const snapshot = await (options.createSnapshotImpl || createVerifiedCompetitionSnapshot)(
+    config.pack,
+    snapshotRoot,
+    options.snapshotOptions || {},
+  );
+  if (snapshot.manifestSha256 !== readiness.manifestSha256) {
+    throw new Error("El pack ha cambiado mientras se preparaba la partida. Vuelve a intentarlo.");
+  }
+  const snapshotConfig = {
+    ...config,
+    pack: snapshot.snapshotPack,
+    packRoot: snapshotRoot,
+  };
+  const snapshotProvenance = resolveCompetitionProvenance(
+    snapshotConfig,
+    snapshot.snapshotPack,
+    snapshot.manifestSha256,
+    options,
+  );
+  if (!snapshotProvenance.ok) throw new Error(`No se puede acreditar provenance local: ${snapshotProvenance.errors.join(" ")}`);
+
   const pluginSearchDir = path.join(runRoot, "plugins");
   const pluginDir = path.join(pluginSearchDir, readiness.pluginName);
+  const integrityDir = path.join(runRoot, "integrity");
   const stagingRoot = path.join(runRoot, "events");
+  const stagingCandidatesDir = path.join(stagingRoot, "candidates");
   const cfgDir = path.join(runRoot, "cfg");
   const ctrlrDir = path.join(runRoot, "ctrlr");
+  const adapterSourcePath = snapshot.snapshotPack.contract.capture.adapterPath;
   const run = {
     adapterPreparedPath: path.join(pluginDir, "games", "adapter.lua"),
-    adapterSourcePath: readiness.adapterPath,
+    adapterSourcePath,
+    automaticCaptureStrategy: snapshot.snapshotPack.contract.capture.automatic.strategy,
     createdAt: (options.now || new Date()).toISOString(),
     cfgDir,
     controllerName: COMPETITION_CONTROLLER_NAME,
     controllerPath: path.join(ctrlrDir, `${COMPETITION_CONTROLLER_NAME}.cfg`),
     ctrlrDir,
     iniDir: path.join(runRoot, "ini"),
+    integrityDir,
     pluginDir,
     pluginBootstrapPath: path.join(pluginSearchDir, "boot.lua"),
     pluginBootstrapSourcePath,
     pluginName: readiness.pluginName,
     pluginSearchDir,
+    provenance: snapshotProvenance.provenance,
+    receiptPath: snapshotProvenance.receiptPath,
     runId,
     runRoot,
+    snapshotRoot,
+    snapshot,
+    stagingCandidatesDir,
+    stagingRoot,
     integrity: {
       dips: readiness.integrity.dips.map(({ portTag, mask, value }) => ({ portTag, mask, value })),
       guardVersion: 1,
-      manifestSha256: manifest.manifestSha256,
+      manifestSha256: snapshot.manifestSha256,
       mameVersion: expectedMameVersion,
       observedMameVersion,
-      packId: config.pack.packId,
+      packId: snapshot.snapshotPack.packId,
+      pluginVersion: readiness.pluginVersion,
+      provenance: snapshotProvenance.provenance,
       runId,
       version: 1,
     },
-    stagingFailedDir: path.join(stagingRoot, "failed"),
-    stagingPendingDir: path.join(stagingRoot, "pending"),
-    stagingRoot,
-    stagingSentDir: path.join(stagingRoot, "sent"),
   };
 
-  const copiedFiles = await copyPluginSource(readiness.sourceDir, pluginDir);
-  await fsp.copyFile(run.pluginBootstrapSourcePath, run.pluginBootstrapPath);
-  await fsp.mkdir(path.dirname(run.adapterPreparedPath), { recursive: true });
-  await fsp.copyFile(readiness.adapterPath, run.adapterPreparedPath);
   await Promise.all([
     fsp.mkdir(run.cfgDir, { recursive: true }),
     fsp.mkdir(run.ctrlrDir, { recursive: true }),
+    fsp.mkdir(run.integrityDir, { recursive: true }),
     fsp.mkdir(path.join(run.runRoot, "nvram"), { recursive: true }),
     fsp.mkdir(path.join(run.runRoot, "inp"), { recursive: true }),
     fsp.mkdir(path.join(run.runRoot, "sta"), { recursive: true }),
@@ -333,61 +449,83 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
     fsp.mkdir(path.join(run.runRoot, "share"), { recursive: true }),
     fsp.mkdir(path.join(run.runRoot, "home"), { recursive: true }),
     fsp.mkdir(run.iniDir, { recursive: true }),
-    fsp.mkdir(run.stagingPendingDir, { recursive: true }),
-    fsp.mkdir(run.stagingFailedDir, { recursive: true }),
-    fsp.mkdir(run.stagingSentDir, { recursive: true }),
+    fsp.mkdir(run.stagingCandidatesDir, { recursive: true }),
   ]);
-  const cfgSeed = config.pack.contract.mame.profiles.competition.cfgDir;
+
+  const copiedFiles = await copyPluginSource(readiness.sourceDir, pluginDir);
+  await fsp.copyFile(run.pluginBootstrapSourcePath, run.pluginBootstrapPath);
+  if (config.sharedMameRuntime?.source === "bundled") {
+    await (options.verifyPreparedPluginIntegrityImpl || verifyBundledPluginIntegrity)(pluginDir);
+    const expectedBoot = bundledRuntimeIntegrity.manifest.files.find((entry) => entry.path === "plugins/boot.lua");
+    if (!expectedBoot || await sha256File(run.pluginBootstrapPath) !== expectedBoot.sha256) {
+      throw new Error("boot.lua copiado no coincide con el runtime MAME bundled verificado.");
+    }
+  }
+  await fsp.mkdir(path.dirname(run.adapterPreparedPath), { recursive: true });
+  await fsp.copyFile(run.adapterSourcePath, run.adapterPreparedPath);
+  const cfgSeed = snapshot.snapshotPack.contract.mame.profiles.competition.cfgDir;
   if (cfgSeed) await copyCfgSeed(cfgSeed, run.cfgDir);
   await fsp.writeFile(run.controllerPath, buildCompetitionControllerProfile(), "utf8");
   await fsp.writeFile(path.join(pluginDir, "config.lua"), buildRunConfigLua(run), "utf8");
+  await fsp.writeFile(path.join(integrityDir, "identity.json"), `${JSON.stringify({
+    version: 1,
+    runId,
+    packId: run.integrity.packId,
+    manifestSha256: run.integrity.manifestSha256,
+    mameVersion: run.integrity.mameVersion,
+    pluginVersion: run.integrity.pluginVersion,
+  }, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
   await fsp.writeFile(path.join(runRoot, "run.json"), JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: 2,
     adapter: readiness.adapter,
     adapterPreparedPath: run.adapterPreparedPath,
     adapterSourcePath: run.adapterSourcePath,
+    automaticCaptureStrategy: run.automaticCaptureStrategy,
     createdAt: run.createdAt,
     controllerName: run.controllerName,
     controllerPath: run.controllerPath,
-    iniDir: run.iniDir,
-    packId: config.pack?.packId || null,
+    expectedMameVersion,
+    integrityDir,
+    manifestSha256: run.integrity.manifestSha256,
+    mameRuntimeRoot,
+    observedMameVersion,
+    packId: run.integrity.packId,
     packKey: scope.packKey,
     playerKey: scope.playerKey,
     pluginDir: run.pluginDir,
-    pluginBootstrapPath: run.pluginBootstrapPath,
-    pluginBootstrapSourcePath: run.pluginBootstrapSourcePath,
     pluginName: run.pluginName,
-    runId: run.runId,
-    mameRuntimeRoot,
-    manifestSha256: run.integrity.manifestSha256,
-    expectedMameVersion,
-    observedMameVersion,
+    provenance: run.provenance,
+    runId,
     scopedQueueRoot: scope.scopedQueueRoot,
-    stagingPendingDir: run.stagingPendingDir,
+    snapshotRoot,
+    stagingCandidatesDir,
   }, null, 2), "utf8");
 
   return {
     ...run,
     copiedFiles,
     config: {
-      ...config,
+      ...snapshotConfig,
       v2PluginRun: {
         adapterPreparedPath: run.adapterPreparedPath,
         adapterSourcePath: run.adapterSourcePath,
-        iniDir: run.iniDir,
         cfgDir: run.cfgDir,
         controllerName: run.controllerName,
         controllerPath: run.controllerPath,
         ctrlrDir: run.ctrlrDir,
+        iniDir: run.iniDir,
         integrity: run.integrity,
+        integrityDir: run.integrityDir,
         pluginDir: run.pluginDir,
         pluginBootstrapPath: run.pluginBootstrapPath,
         pluginBootstrapSourcePath: run.pluginBootstrapSourcePath,
         pluginName: run.pluginName,
         pluginSearchDir: run.pluginSearchDir,
+        provenance: run.provenance,
         runId: run.runId,
         runRoot: run.runRoot,
-        stagingPendingDir: run.stagingPendingDir,
+        snapshotRoot: run.snapshotRoot,
+        stagingCandidatesDir: run.stagingCandidatesDir,
       },
     },
   };

@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
@@ -9,6 +10,7 @@ const {
 } = require("../src/mame-plugin-run");
 const { buildMameArgs } = require("../src/mame-launcher");
 const { writeCompetitionManifest } = require("../src/competition-manifest");
+const { loadPackFromDir } = require("../src/pack");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-plugin-run-test-"));
@@ -25,7 +27,7 @@ async function createPluginSource(root) {
   await fsp.mkdir(path.join(sourceDir, "core"), { recursive: true });
   await fsp.mkdir(path.join(sourceDir, "games"), { recursive: true });
   await fsp.writeFile(path.join(sourceDir, "init.lua"), "return {}", "utf8");
-  await fsp.writeFile(path.join(sourceDir, "plugin.json"), "{}", "utf8");
+  await fsp.writeFile(path.join(sourceDir, "plugin.json"), JSON.stringify({ plugin: { version: "0.3.0" } }), "utf8");
   await fsp.writeFile(path.join(sourceDir, "core", "config.lua"), "return {}", "utf8");
   await fsp.writeFile(path.join(sourceDir, "games", "invaders.lua"), "return {}", "utf8");
   return sourceDir;
@@ -39,7 +41,36 @@ async function createV2Config(root, overrides = {}) {
   await fsp.writeFile(adapterPath, "return { read_memory = function() end, build_event = function() end }", "utf8");
   await fsp.mkdir(path.join(packRoot, "roms"), { recursive: true });
   await fsp.writeFile(path.join(packRoot, "roms", "invaders.zip"), "fixture-rom", "utf8");
-  await fsp.writeFile(path.join(packRoot, "pack.json"), "{}\n", "utf8");
+  await fsp.writeFile(path.join(packRoot, "pack.json"), `${JSON.stringify({
+    packVersion: 2,
+    packId: "space-invaders-week-1",
+    gameId: "space-invaders",
+    rom: "invaders",
+    weekId: "week-1",
+    webBaseUrl: "https://high-score-league.vercel.app",
+    runtime: { type: "mame", minVersion: "0.287", recommendedVersion: "0.287" },
+    mame: {
+      romPath: "roms",
+      launchArgs: [],
+      profiles: {
+        practice: { launchArgs: [] },
+        competition: {
+          launchArgs: [],
+          integrity: {
+            version: 1,
+            mameVersion: "0.287",
+            dips: [{ portTag: ":IN2", mask: 3, value: 0, label: "Lives", settingLabel: "3" }],
+          },
+        },
+      },
+    },
+    capture: {
+      mode: "plugin",
+      pluginName: "hsl-score",
+      adapter: "scripts/invaders.lua",
+      automatic: { version: 1, strategy: "invaders-game-mode-final-v1" },
+    },
+  }, null, 2)}\n`, "utf8");
   await fsp.mkdir(path.join(runtimeRoot, "plugins"), { recursive: true });
   await fsp.writeFile(path.join(runtimeRoot, "plugins", "boot.lua"), "return { source = 'external/dev' }", "utf8");
 
@@ -76,6 +107,7 @@ async function createV2Config(root, overrides = {}) {
           pluginName: "hsl-score",
           adapter: "scripts/invaders.lua",
           adapterPath,
+          automatic: { version: 1, strategy: "invaders-game-mode-final-v1" },
         },
       },
     },
@@ -89,6 +121,10 @@ async function createV2Config(root, overrides = {}) {
     },
     ...overrides,
   };
+  const loaded = loadPackFromDir(packRoot);
+  assert.equal(loaded.loaded, true);
+  assert.deepEqual(loaded.errors, []);
+  config.pack = loaded.pack;
   await writeCompetitionManifest(config.pack);
   return config;
 }
@@ -120,6 +156,7 @@ test("prepareV2CompetitionRun copies plugin, adapter and run config", async () =
 
     const run = await prepareV2CompetitionRun(config, scope, {
       now: new Date("2026-06-30T00:00:00.000Z"),
+      developerOverride: true,
       runId: "run_test",
       sourceDir,
       detectMameVersionImpl: () => "0.287",
@@ -134,12 +171,42 @@ test("prepareV2CompetitionRun copies plugin, adapter and run config", async () =
     assert.equal(await fsp.readFile(run.adapterPreparedPath, "utf8"), "return { read_memory = function() end, build_event = function() end }");
     assert.match(configLua, /gameModule = "games\/adapter\.lua"/);
     assert.match(configLua, /outputDir = /);
-    assert.match(configLua, /events\\\\pending|events\/pending/);
+    assert.match(configLua, /events\\\\candidates|events\/candidates/);
     assert.equal(manifest.playerKey, scope.playerKey);
     assert.equal(manifest.packKey, scope.packKey);
-    await fsp.access(run.stagingPendingDir);
+    await fsp.access(run.stagingCandidatesDir);
     await fsp.access(path.join(run.pluginDir, "init.lua"));
     await fsp.access(path.join(run.pluginDir, "core", "config.lua"));
+  });
+});
+
+test("dips empty prepares a protected run without inventing DIP fields", async () => {
+  await withTempDir(async (dir) => {
+    const sourceDir = await createPluginSource(dir);
+    const config = await createV2Config(dir);
+    const packPath = path.join(config.packRoot, "pack.json");
+    const packJson = JSON.parse(await fsp.readFile(packPath, "utf8"));
+    packJson.mame.profiles.competition.integrity.dips = [];
+    await fsp.writeFile(packPath, `${JSON.stringify(packJson, null, 2)}\n`, "utf8");
+    const loaded = loadPackFromDir(config.packRoot);
+    assert.equal(loaded.loaded, true);
+    assert.deepEqual(loaded.errors, []);
+    config.pack = loaded.pack;
+    await writeCompetitionManifest(config.pack);
+
+    const run = await prepareV2CompetitionRun(config, {
+      packKey: "pack_no-dips",
+      playerKey: "user_no-dips",
+      scopedQueueRoot: path.join(config.userDataDir, "queue-no-dips"),
+    }, {
+      developerOverride: true,
+      detectMameVersionImpl: () => "0.287",
+      runId: "run_no_dips",
+      sourceDir,
+    });
+    assert.deepEqual(run.integrity.dips, []);
+    const configLua = await fsp.readFile(path.join(run.pluginDir, "config.lua"), "utf8");
+    assert.match(configLua, /dips = \{\s*\}/);
   });
 });
 
@@ -155,6 +222,10 @@ for (const runtimeSource of ["bundled", "external/dev"]) {
         plugin: { name: "data", type: "plugin", start: "true" },
       }), "utf8");
       await fsp.writeFile(path.join(runtimeRoot, "plugins", "data", "init.lua"), "return {}", "utf8");
+      if (runtimeSource === "bundled") {
+        await fsp.writeFile(path.join(runtimeRoot, "hsl-runtime-integrity.json"), "{}", "utf8");
+        await fsp.writeFile(path.join(sourceDir, "hsl-plugin-integrity.json"), "{}", "utf8");
+      }
       const config = await createV2Config(dir, {
         sharedMameRuntime: {
           available: true,
@@ -168,7 +239,18 @@ for (const runtimeSource of ["bundled", "external/dev"]) {
         packKey: "pack_space-invaders-week-1",
         playerKey: "user_user-1",
         scopedQueueRoot: path.join(config.userDataDir, "queue"),
-      }, { runId: `run_${runtimeSource.replace(/\W+/g, "_")}`, sourceDir, detectMameVersionImpl: () => "0.287" });
+      }, {
+        developerOverride: true,
+        runId: `run_${runtimeSource.replace(/\W+/g, "_")}`,
+        sourceDir,
+        detectMameVersionImpl: () => "0.287",
+        verifyBundledMameRuntimeIntegrityImpl: async () => ({ manifest: { files: [{
+          path: "plugins/boot.lua",
+          sha256: crypto.createHash("sha256").update(bootstrap).digest("hex"),
+        }] } }),
+        verifyBundledPluginIntegrityImpl: async () => ({}),
+        verifyPreparedPluginIntegrityImpl: async () => ({}),
+      });
 
       assert.equal(await fsp.readFile(run.pluginBootstrapPath, "utf8"), bootstrap);
       assert.equal(run.pluginBootstrapSourcePath, path.join(runtimeRoot, "plugins", "boot.lua"));
@@ -196,7 +278,7 @@ test("prepareV2CompetitionRun fails before creating a run when the selected runt
       packKey: "pack_space-invaders-week-1",
       playerKey: "user_user-1",
       scopedQueueRoot: path.join(config.userDataDir, "queue"),
-    }, { runId: "run_missing_boot", sourceDir, detectMameVersionImpl: () => "0.287" }), /falta plugins\/boot\.lua en el runtime MAME seleccionado/);
+    }, { developerOverride: true, runId: "run_missing_boot", sourceDir, detectMameVersionImpl: () => "0.287" }), /falta plugins\/boot\.lua en el runtime MAME seleccionado/);
     await assert.rejects(() => fsp.access(expectedRunRoot));
   });
 });
@@ -211,7 +293,7 @@ test("prepareV2CompetitionRun rejects an exact MAME mismatch before creating the
       packKey: "pack_space-invaders-week-1",
       playerKey: "user_user-1",
       scopedQueueRoot: path.join(config.userDataDir, "queue"),
-    }, { runId: "run_wrong_mame", sourceDir, detectMameVersionImpl: () => "0.288" }), /requiere MAME 0\.287 exacto; se encontro 0\.288/);
+    }, { developerOverride: true, runId: "run_wrong_mame", sourceDir, detectMameVersionImpl: () => "0.288" }), /requiere MAME 0\.287 exacto; se encontro 0\.288/);
     await assert.rejects(() => fsp.access(expectedRunRoot));
   });
 });
@@ -226,6 +308,11 @@ test("competitive cfg seed is manifest-covered, copied per run and never reused 
     await fsp.writeFile(seedPath, "seed-v1\n", "utf8");
     config.pack.contract.mame.profiles.competition.cfgDir = path.dirname(seedDir);
     config.pack.contract.mame.profiles.competition.cfgPath = "cfg-competition";
+    const packJsonPath = path.join(config.pack.packRoot, "pack.json");
+    const packJson = JSON.parse(await fsp.readFile(packJsonPath, "utf8"));
+    packJson.mame.profiles.competition.cfgPath = "cfg-competition";
+    await fsp.writeFile(packJsonPath, `${JSON.stringify(packJson, null, 2)}\n`, "utf8");
+    config.pack = loadPackFromDir(config.pack.packRoot).pack;
     await writeCompetitionManifest(config.pack);
     const scope = {
       packKey: "pack_space-invaders-week-1",
@@ -234,14 +321,14 @@ test("competitive cfg seed is manifest-covered, copied per run and never reused 
     };
 
     const first = await prepareV2CompetitionRun(config, scope, {
-      runId: "run_seed_1", sourceDir, detectMameVersionImpl: () => "0.287",
+      developerOverride: true, runId: "run_seed_1", sourceDir, detectMameVersionImpl: () => "0.287",
     });
     assert.equal(await fsp.readFile(path.join(first.cfgDir, "nested", "invaders.cfg"), "utf8"), "seed-v1\n");
     await fsp.writeFile(path.join(first.cfgDir, "nested", "invaders.cfg"), "mutated-run\n", "utf8");
     assert.equal(await fsp.readFile(seedPath, "utf8"), "seed-v1\n");
 
     const second = await prepareV2CompetitionRun(config, scope, {
-      runId: "run_seed_2", sourceDir, detectMameVersionImpl: () => "0.287",
+      developerOverride: true, runId: "run_seed_2", sourceDir, detectMameVersionImpl: () => "0.287",
     });
     assert.equal(await fsp.readFile(path.join(second.cfgDir, "nested", "invaders.cfg"), "utf8"), "seed-v1\n");
     for (const name of ["cfg", "ctrlr", "nvram", "inp", "sta", "snap", "diff", "comments", "share", "home", "ini", "plugins", "events"]) {

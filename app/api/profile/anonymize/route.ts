@@ -5,7 +5,6 @@ import {
 } from "@/lib/account-anonymization";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 export const dynamic = "force-dynamic";
 
@@ -38,9 +37,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const identity = await getVerifiedProductIdentity(supabase.auth);
+  const { data, error: userError } = await supabase.auth.getUser();
+  const user = data.user;
 
-  if (identity.status !== "product") {
+  if (userError || !user) {
     return errorResponse("AUTH_REQUIRED", "Necesitas una sesión válida.", 401);
   }
 
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
   const { data: profile, error: profileError } = await admin
     .from("profiles")
     .select("id,username,anonymized_at")
-    .eq("id", identity.userId)
+    .eq("id", user.id)
     .maybeSingle<ProfileState>();
 
   if (profileError) {
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await anonymizeAccount({ admin, userId: identity.userId });
+    await anonymizeAccount({ admin, userId: user.id });
   } catch (caught) {
     if (caught instanceof AccountAnonymizationError) {
       return errorResponse(caught.code, caught.message, caught.status, caught.retryable);

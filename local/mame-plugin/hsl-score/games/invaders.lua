@@ -1,4 +1,7 @@
 local M = {}
+local attempt_active = false
+local attempt_saw_alive = false
+local last_observed_mode = nil
 
 local function bcd_byte_to_int(byte)
   if byte == nil then
@@ -13,6 +16,44 @@ local function bcd_byte_to_int(byte)
   end
 
   return hi * 10 + lo
+end
+
+function M.observe_capture(tracker_state, result)
+  if type(result) ~= "table" or result.ok ~= true or type(result.raw) ~= "table" then return nil end
+  local mode = result.raw.game_mode_0x20EF or 0
+  local alive = result.raw.player1_alive_0x20E7 or 0
+  local ships = result.raw.p1_ships_remaining_0x21FF or 0
+
+  if not attempt_active and last_observed_mode ~= 1 and mode == 1 then
+    attempt_active = true
+    attempt_saw_alive = alive == 1
+  elseif attempt_active and alive == 1 then
+    attempt_saw_alive = true
+  end
+
+  local candidate = nil
+  if attempt_active and last_observed_mode == 1 and mode == 0 then
+    local score = tracker_state.bestScoreThisRun or 0
+    if attempt_saw_alive and alive == 0 and ships == 0 and score > 0 then
+      candidate = {
+        score = score,
+        metadata = {
+          gameOverDetected = true,
+          finalGameMode = mode,
+          playerAlive = alive,
+          shipsRemaining = ships,
+          displayScore = result.visibleScore,
+          trackedScore = tracker_state.trackedScore,
+          rollovers = tracker_state.rollovers
+        }
+      }
+    end
+    attempt_active = false
+    attempt_saw_alive = false
+  end
+
+  last_observed_mode = mode
+  return candidate
 end
 
 function M.read_memory(helpers)

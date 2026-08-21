@@ -7,7 +7,6 @@ import {
 import { assertWeekSeasonCanBeChanged } from "@/lib/admin/reconcile-week";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSynchronizedWeekStatus } from "@/lib/week-status";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 type WeeklyResultsRouteContext = {
   params: Promise<{
@@ -53,16 +52,17 @@ export async function POST(
     return jsonError("Supabase no está configurado.", 500);
   }
 
-  const identity = await getVerifiedProductIdentity(supabase.auth);
+  const { data, error: userError } = await supabase.auth.getUser();
+  const user = data.user;
 
-  if (identity.status !== "product") {
+  if (userError || !user) {
     return jsonError("Necesitas iniciar sesión.", 401);
   }
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("is_admin,anonymized_at")
-    .eq("id", identity.userId)
+    .eq("id", user.id)
     .maybeSingle<{ anonymized_at: string | null; is_admin: boolean }>();
 
   if (profileError) {

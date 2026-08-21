@@ -1,29 +1,22 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import {
-  getRecoveryCookieOptions,
-  RECOVERY_AUTHORIZED_COOKIE,
-  RECOVERY_LOGOUT_PENDING_COOKIE,
-  RECOVERY_STAGING_COOKIE,
-} from "@/lib/auth/password-recovery";
+import { clearRecoveryState } from "@/lib/supabase/recovery-server";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const response = NextResponse.redirect(new URL("/login", request.url), 303);
+  const cookieStore = await cookies();
+  const response = NextResponse.redirect(
+    new URL("/reset-password/cancel?preverify=1", request.url),
+    307,
+  );
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  response.headers.set("Referrer-Policy", "no-referrer");
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
-  const recoveryCookies = [
-    [RECOVERY_STAGING_COOKIE, "/auth/recovery"],
-    [RECOVERY_AUTHORIZED_COOKIE, "/reset-password"],
-    [RECOVERY_LOGOUT_PENDING_COOKIE, "/reset-password"],
-  ] as const;
-
-  for (const [name, path] of recoveryCookies) {
-    response.cookies.set(name, "", {
-      ...getRecoveryCookieOptions(path),
-      expires: new Date(0),
-      maxAge: 0,
-    });
-  }
+  clearRecoveryState(response, cookieStore.getAll(), {
+    auth: true,
+    markers: true,
+    staging: true,
+  });
   return response;
 }

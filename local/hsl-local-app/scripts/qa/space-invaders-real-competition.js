@@ -45,7 +45,7 @@ async function main() {
       packKey: "pack_real_qa",
       playerKey: "player_real_qa",
       scopedQueueRoot: path.join(qaRoot, "queue"),
-    }, { runId: "run_real_qa" });
+    }, { developerOverride: true, runId: "run_real_qa" });
     const launch = buildMameArgs(run.config, loaded.pack.rom, "competition");
     const mutable = ["cfg", "nvram", "input", "state", "snapshot", "diff", "comment", "share", "home", "ini"];
     for (const name of mutable) {
@@ -69,7 +69,7 @@ async function main() {
     ], { cwd: launch.cwd, encoding: "utf8", timeout: 30000, windowsHide: true });
     const output = `${processResult.stdout || ""}${processResult.stderr || ""}`;
     assert.equal(processResult.status, 0, output);
-    assert.match(output, /Plugin v0\.2\.0 cargado/);
+    assert.match(output, /Plugin v0\.3\.0 cargado/);
     assert.match(output, /Integridad competitiva ARMADA/);
     assert.match(output, /TYPE token=UI_MENU .*empty=true/);
     assert.match(output, /TYPE token=UI_CANCEL .*seq=KEYCODE_ESC empty=false/);
@@ -81,7 +81,7 @@ async function main() {
     process.stdout.write(`${JSON.stringify({
       manifestSha256: manifest.manifestSha256,
       mameVersion: run.integrity.observedMameVersion,
-      pluginVersion: "0.2.0",
+      pluginVersion: "0.3.0",
       controller: "hsl-competition",
       cfgIsPerRun: true,
       clean: true,

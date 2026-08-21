@@ -3,7 +3,6 @@ import { mapLeagueChatRowToMessage } from "@/lib/data/league-chat";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { LeagueChatMessageRow } from "@/types/supabase";
 import { hasActiveProfile } from "@/lib/auth/active-profile";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 const chatMessageMaxLength = 65_536;
 const editWindowMs = 15 * 60 * 1000;
@@ -98,13 +97,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return jsonError(content.error);
   }
 
-  const identity = await getVerifiedProductIdentity(supabase.auth);
+  const { data, error: userError } = await supabase.auth.getUser();
+  const user = data.user;
 
-  if (identity.status !== "product") {
+  if (userError || !user) {
     return jsonError("Necesitas iniciar sesion para editar el chat.", 401);
   }
 
-  const profileState = await hasActiveProfile(supabase, identity.userId);
+  const profileState = await hasActiveProfile(supabase, user.id);
 
   if (profileState.error) {
     return jsonError("No se pudo validar el perfil del chat.", 500);
@@ -135,7 +135,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   if (
     existingMessage.message_type !== "user" ||
-    existingMessage.author_id !== identity.userId ||
+    existingMessage.author_id !== user.id ||
     !insideEditWindow
   ) {
     return jsonCodeError("MESSAGE_NOT_EDITABLE", notEditableMessage, 403);
@@ -145,7 +145,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     .from("league_chat_messages")
     .select("id")
     .eq("message_type", "user")
-    .eq("author_id", identity.userId)
+    .eq("author_id", user.id)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(1)

@@ -298,8 +298,10 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
 - Credenciales R2, bearer HSL y URLs presigned sólo en servidor/transporte; no
   registrarlas ni devolver object keys. El bucket de packs permanece privado.
 - Endpoints `/api/admin/*` protegidos por perfil admin.
-- Las fronteras web sensibles clasifican primero las claims del navegador; un
-  AMR Recovery no activa sesión privada ni mutaciones de producto en la web.
+- Recovery usa el storage namespace exclusivo `hsl-recovery-auth`, con cookies
+  `Path=/reset-password`; no comparte ni sustituye la sesión Auth normal.
+- Las fronteras web sensibles verifican el usuario normal con `auth.getUser()`;
+  el middleware y la navegación no administran ni interpretan Recovery.
 - Los endpoints Bearer del launcher conservan su autenticación canónica mediante
   `auth.getUser()` y su taxonomía de errores existente.
 - `/api/cron/process-schedule` protegido por `CRON_SECRET`.
@@ -335,9 +337,13 @@ en el entorno destino. La aplicación remota de `0023`, `0024`,
 `0031_launcher_packs.sql` está confirmada. No se ha verificado qué SHA web está
 desplegado actualmente ni se afirma aquí el estado remoto de `0032`.
 
-Recovery se limita a la frontera web del navegador. Su QA posterior comprueba
-el workflow, la navegación desconectada y las páginas privadas; no requiere
-aplicar SQL ni probar Data API, Storage o Bearer con una credencial Recovery.
+Recovery se limita a una sesión Supabase aislada en la frontera web del
+navegador. No requiere aplicar SQL ni probar Data API o Storage. Después del
+deploy, usar un enlace nuevo y confirmar: GET anti-prefetch, POST Continuar a
+`/reset-password`, navegación normal desconectada, retries de password débil y
+misma password, cancelación local sólo Recovery, update válido, logout global y
+login manual. Repetir desde un navegador con sesión HSL previa para comprobar
+que verify no sobrescribe su cookie normal.
 
 Para `PROFILE-PRESENCE-1` el orden es estricto: (1) aplicar
 `0028_player_presence.sql`, (2) aplicar `0029_profile_privacy_defaults.sql`,

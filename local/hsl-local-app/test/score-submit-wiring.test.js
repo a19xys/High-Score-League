@@ -3,32 +3,30 @@ const assert = require("node:assert/strict");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 
-test("competition wiring starts v2 convergence before MAME and always closes it", async () => {
+test("competition wiring keeps candidates private and finalizes only after MAME closes", async () => {
   const launcher = await fsp.readFile(path.join(__dirname, "..", "gui", "launcher-service.js"), "utf8");
   const competition = launcher.slice(
     launcher.indexOf("async function playCompetitionAction"),
     launcher.indexOf("async function playCompetition(options"),
   );
 
-  const create = competition.indexOf("createScoreCaptureConvergence");
-  const start = competition.indexOf("scoreCaptureMonitor.start()");
   const launch = competition.indexOf("launchMameDetailed(launchConfig");
-  const close = competition.indexOf("scoreCaptureMonitor.close({ finalRescan: mameSpawned })");
-  assert.ok(create >= 0);
-  assert.ok(create < start);
-  assert.ok(start < launch);
-  assert.ok(launch < close);
-  assert.match(competition, /finally \{[\s\S]*scoreCaptureMonitor\.close/);
+  const finalize = competition.indexOf("finalizeCompetitionRun)(preparedRun");
+  const notify = competition.indexOf('notifyScoreAdopted(options, adoption, "close")');
+  assert.ok(launch >= 0);
+  assert.ok(finalize > launch);
+  assert.ok(notify > finalize);
+  assert.doesNotMatch(competition, /createScoreCaptureConvergence|scoreCaptureMonitor/);
 });
 
-test("v2 live adoption and legacy close adoption emit the explicit score-adopted intent", async () => {
+test("only post-close finalization and legacy close adoption emit the explicit score-adopted intent", async () => {
   const [launcher, main] = await Promise.all([
     fsp.readFile(path.join(__dirname, "..", "gui", "launcher-service.js"), "utf8"),
     fsp.readFile(path.join(__dirname, "..", "gui", "main.js"), "utf8"),
   ]);
 
-  assert.match(launcher, /onAdopted\(event\) \{[\s\S]*options\.onScoreAdopted\?\.\(event\)/);
-  assert.match(launcher, /if \(!isPackV2\) notifyScoreAdopted\(options, adoption, "close"\)/);
+  assert.match(launcher, /notifyScoreAdopted\(options, adoption, "close"\)/);
+  assert.doesNotMatch(launcher, /phase:\s*"live"/);
   assert.match(main, /onScoreAdopted: \(\) => schedulePendingAutoSubmit\("score-adopted"\)/);
   assert.match(main, /scoreAdoptedSubmitQueued = true/);
   assert.match(main, /drainQueuedScoreAdoptedSubmit\(\)/);

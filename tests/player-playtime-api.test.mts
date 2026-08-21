@@ -183,8 +183,8 @@ test("Playtime route remains dynamic, no-store, authenticated and under visitor 
   );
   assert.match(route, /dynamic = "force-dynamic"/);
   assert.match(route, /Cache-Control": "no-store, max-age=0"/);
-  assert.match(route, /getVerifiedProductIdentity\(supabase\.auth\)/);
-  assert.doesNotMatch(route, /supabase\.auth\.getUser\(\)/);
+  assert.match(route, /supabase\.auth\.getUser\(\)/);
+  assert.doesNotMatch(route, /getClaims|getVerifiedProductIdentity|session-context|\.amr|AMR/);
   assert.match(route, /hasActiveProfile/);
   assert.match(route, /usernamePattern/);
   assert.match(route, /getPlayerPlayTimeSnapshot/);

@@ -18,6 +18,13 @@ const { validateProductPublicConfig } = require("../src/product-config");
 const { stageProductPlugin } = require("../scripts/stage-product-plugin");
 const { prepareV2CompetitionRun } = require("../src/mame-plugin-run");
 const { writeCompetitionManifest } = require("../src/competition-manifest");
+const { loadPackFromDir } = require("../src/pack");
+const { writePackProvenanceReceipt } = require("../src/pack-provenance");
+const {
+  verifyBundledMameRuntimeIntegrity,
+  verifyBundledPluginIntegrity,
+  writeRuntimeIntegrityManifest,
+} = require("../src/product-runtime-integrity");
 const { configureProductRuntime, resetProductRuntime } = require("../src/product-runtime");
 
 async function withTempDir(fn) {
@@ -42,6 +49,7 @@ async function createBundledRuntime(resourcesPath, options = {}) {
   for (const relativePath of ["bgfx/effects", "bgfx/shaders"]) {
     if (relativePath !== options.omit) await fsp.mkdir(path.join(root, ...relativePath.split("/")), { recursive: true });
   }
+  if (!options.omit) await writeRuntimeIntegrityManifest(root, "0.287");
   return root;
 }
 
@@ -269,16 +277,36 @@ test("product plugin staging reuses the runtime allowlist and excludes mutable d
   });
 });
 
+test("product integrity manifests detect changed bytes and cannot omit critical coverage", async () => {
+  await withTempDir(async (root) => {
+    const runtimeRoot = await createBundledRuntime(path.join(root, "resources"));
+    await verifyBundledMameRuntimeIntegrity(runtimeRoot, "0.287");
+    await fsp.writeFile(path.join(runtimeRoot, "bgfx", "chains", "crt-geom.json"), "tampered", "utf8");
+    await assert.rejects(
+      () => verifyBundledMameRuntimeIntegrity(runtimeRoot, "0.287"),
+      /Recurso critico de producto modificado/,
+    );
+
+    const pluginRoot = path.join(root, "hsl-score");
+    await stageProductPlugin({ targetDir: pluginRoot });
+    await verifyBundledPluginIntegrity(pluginRoot);
+    const manifestPath = path.join(pluginRoot, "hsl-plugin-integrity.json");
+    const manifest = JSON.parse(await fsp.readFile(manifestPath, "utf8"));
+    manifest.files = manifest.files.filter((entry) => entry.path !== "core/writer.lua");
+    await fsp.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    await assert.rejects(
+      () => verifyBundledPluginIntegrity(pluginRoot),
+      /omite un recurso critico: core\/writer\.lua/,
+    );
+  });
+});
+
 test("packaged competition stages hsl-score from resources without checkout-relative access", async () => {
   await withTempDir(async (root) => {
     const resourcesPath = path.join(root, "installed", "resources");
     const runtimeRoot = await createBundledRuntime(resourcesPath);
     const sourceDir = path.join(resourcesPath, "hsl", "mame-plugin", "hsl-score");
-    for (const relativePath of ["init.lua", "plugin.json", "config.example.lua", "core/config.lua", "games/invaders.lua"]) {
-      const target = path.join(sourceDir, ...relativePath.split("/"));
-      await fsp.mkdir(path.dirname(target), { recursive: true });
-      await fsp.writeFile(target, "return {}", "utf8");
-    }
+    await stageProductPlugin({ targetDir: sourceDir });
     const packRoot = path.join(root, "pack");
     const adapterPath = path.join(packRoot, "scripts", "capture.lua");
     const romDir = path.join(packRoot, "roms");
@@ -286,7 +314,39 @@ test("packaged competition stages hsl-score from resources without checkout-rela
     await fsp.mkdir(romDir, { recursive: true });
     await fsp.writeFile(adapterPath, "return {}", "utf8");
     await fsp.writeFile(path.join(romDir, "invaders.zip"), "fixture-rom", "utf8");
-    await fsp.writeFile(path.join(packRoot, "pack.json"), "{}\n", "utf8");
+    await fsp.writeFile(path.join(packRoot, "pack.json"), `${JSON.stringify({
+      packVersion: 2,
+      packId: "packaged-pack",
+      gameId: "space-invaders",
+      rom: "invaders",
+      seasonId: "season-packaged",
+      seasonSlug: "season-packaged",
+      seasonName: "Season Packaged",
+      weekId: "week-packaged",
+      weekNumber: 1,
+      webBaseUrl: "https://high-score-league.example",
+      runtime: { type: "mame", minVersion: "0.287", recommendedVersion: "0.287" },
+      mame: {
+        romPath: "roms",
+        launchArgs: [],
+        profiles: {
+          practice: { launchArgs: [] },
+          competition: {
+            launchArgs: [],
+            integrity: { version: 1, mameVersion: "0.287", dips: [] },
+          },
+        },
+      },
+      capture: {
+        mode: "plugin",
+        pluginName: "hsl-score",
+        adapter: "scripts/capture.lua",
+        automatic: { version: 1, strategy: "invaders-game-mode-final-v1" },
+      },
+    }, null, 2)}\n`, "utf8");
+    const loadedPack = loadPackFromDir(packRoot);
+    assert.equal(loadedPack.loaded, true);
+    assert.deepEqual(loadedPack.errors, []);
     const config = {
       appDir: path.join(root, "checkout-does-not-exist", "hsl-local-app"),
       packRoot,
@@ -298,34 +358,16 @@ test("packaged competition stages hsl-score from resources without checkout-rela
         source: "bundled",
       },
       userDataDir: path.join(root, "userData"),
-      pack: {
-        packVersion: 2,
-        packId: "packaged-pack",
-        packRoot,
-        contract: {
-          version: 2,
-          capture: { adapter: "scripts/capture.lua", adapterPath, mode: "plugin", pluginName: "hsl-score" },
-          mame: {
-            launchArgs: [],
-            romDir,
-            romPath: "roms",
-            profiles: {
-              practice: { cfgDir: null, launchArgs: [] },
-              competition: {
-                cfgDir: null,
-                launchArgs: [],
-                integrity: {
-                  version: 1,
-                  mameVersion: "0.287",
-                  dips: [{ portTag: ":IN2", mask: 3, value: 0, label: "Lives", settingLabel: "3" }],
-                },
-              },
-            },
-          },
-        },
-      },
+      pack: loadedPack.pack,
     };
-    await writeCompetitionManifest(config.pack);
+    const manifest = await writeCompetitionManifest(config.pack);
+    await writePackProvenanceReceipt(config, {
+      artifactSha256: "b".repeat(64),
+      artifactSizeBytes: 1234,
+      competitionManifestSha256: manifest.manifestSha256,
+      importedAt: "2026-08-21T10:00:00.000Z",
+      packId: config.pack.packId,
+    });
     configureProductRuntime({ isPackaged: true, resourcesPath });
     try {
       const run = await prepareV2CompetitionRun(config, {
@@ -335,8 +377,8 @@ test("packaged competition stages hsl-score from resources without checkout-rela
       }, { runId: "run_packaged", detectMameVersionImpl: () => "0.287" });
       assert.equal(run.copiedFiles.includes("init.lua"), true);
       assert.equal(run.config.v2PluginRun.pluginDir.startsWith(config.userDataDir), true);
-      assert.equal(await fsp.readFile(path.join(run.pluginDir, "init.lua"), "utf8"), "return {}");
-      assert.equal(run.adapterSourcePath, adapterPath);
+      assert.match(await fsp.readFile(path.join(run.pluginDir, "init.lua"), "utf8"), /PLUGIN_VERSION = "0\.3\.0"/);
+      assert.equal(run.adapterSourcePath, path.join(run.snapshotRoot, "scripts", "capture.lua"));
       assert.equal(run.iniDir, path.join(run.runRoot, "ini"));
       assert.equal(await fsp.readFile(run.pluginBootstrapPath, "utf8"), "fixture");
     } finally {

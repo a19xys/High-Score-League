@@ -35,6 +35,8 @@ local function default_config()
     -- Modulo de juego/adaptador relativo a la carpeta del plugin preparado.
     -- En competicion v2 la app genera config.lua con "games/adapter.lua".
     gameModule = "games/invaders.lua",
+    hslRunId = nil,
+    automaticCaptureStrategy = nil,
 
     -- Configurada exclusivamente por el launcher para runs protegidas.
     competitionIntegrity = nil,
@@ -59,6 +61,14 @@ local function apply_user_config(config, user_config)
 
   if is_safe_module_path(user_config.gameModule) then
     config.gameModule = user_config.gameModule
+  end
+
+  if type(user_config.hslRunId) == "string" and user_config.hslRunId ~= "" then
+    config.hslRunId = user_config.hslRunId
+  end
+
+  if type(user_config.automaticCaptureStrategy) == "string" and user_config.automaticCaptureStrategy ~= "" then
+    config.automaticCaptureStrategy = user_config.automaticCaptureStrategy
   end
 
   if type(user_config.enableFrameTracking) == "boolean" then

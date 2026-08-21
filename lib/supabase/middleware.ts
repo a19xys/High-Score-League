@@ -30,8 +30,8 @@ export async function updateSupabaseSession(request: NextRequest) {
     },
   });
 
-  // Refresh SSR cookies only. Product authorization is performed downstream
-  // from verified claims; this call never grants access by itself.
+  // Refresh only the normal HSL SSR session. Downstream authorization still
+  // validates the user and the relevant product data for each request.
   await supabase.auth.getUser();
 
   return response;

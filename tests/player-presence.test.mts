@@ -181,8 +181,8 @@ test("heartbeat and read routes authenticate canonically, are no-store and never
     readFile(join(process.cwd(), "components/presence/web-presence-heartbeat.tsx"), "utf8"),
   ]);
   assert.match(webRoute, /createCookieAuthenticatedClient/);
-  assert.match(webRoute, /getVerifiedProductIdentity\(supabase\.auth\)/);
-  assert.doesNotMatch(webRoute, /supabase\.auth\.getUser\(\)/);
+  assert.match(webRoute, /supabase\.auth\.getUser\(\)/);
+  assert.doesNotMatch(webRoute, /getClaims|getVerifiedProductIdentity|session-context|\.amr|AMR/);
   assert.match(webRoute, /source: "web"/);
   assert.match(webRoute, /activity: "connected"/);
   assert.match(webRoute, /Cache-Control[\s\S]*no-store/);

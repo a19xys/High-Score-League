@@ -4,7 +4,7 @@ const { APP_DIR } = require("./config");
 const { getProductRuntime } = require("./product-runtime");
 
 const SYNC_PLUGIN_CONFIG_ERROR = "No hay pack MAME externo configurado. sync-plugin requiere mame.workingDir y mame.pluginName.";
-const TOP_LEVEL_PLUGIN_FILES = ["init.lua", "plugin.json", "config.example.lua"];
+const TOP_LEVEL_PLUGIN_FILES = ["init.lua", "plugin.json", "config.example.lua", "hsl-plugin-integrity.json"];
 const PLUGIN_SOURCE_DIRS = ["core", "games"];
 
 function getRepoPluginDir(appDir = APP_DIR, options = {}) {

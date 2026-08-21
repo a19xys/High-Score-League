@@ -901,7 +901,7 @@ test("CLOSED durable converge automaticamente a ACTIVE sin focus, restart ni int
     assert.equal(service.getCapability("week-a").publicState, "active");
     assert.equal(service.getCapability("week-a").fresh, true);
     const access = deriveCompetitionAccess({
-      local: { canCapture: true, canPractice: true, canSubmitLocally: true, hasCompetitionScope: true, hasWeek: true },
+      local: { canCapture: true, canPractice: true, canSubmitLocally: true, hasCompetitionScope: true, hasWeek: true, protectedCompetitionReady: true },
       membership: { canSubmit: true, status: "member" },
       session: { hasSession: true, remoteUsable: true, requiresLogin: false, userId: "user-a" },
       week: service.getCapability("week-a"),

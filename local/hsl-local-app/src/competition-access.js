@@ -20,7 +20,7 @@ function deriveCompetitionAccess({
 } = {}) {
   const canPractice = local.canPractice === true;
   const localCompetitionReady = canPractice
-    && local.canCapture === true
+    && local.protectedCompetitionReady === true
     && local.hasCompetitionScope === true
     && local.hasWeek === true;
   const hasStableIdentity = session.hasSession === true && Boolean(session.userId);
@@ -36,7 +36,7 @@ function deriveCompetitionAccess({
   if (!canPractice) {
     reason = ACCESS_REASONS.LOCAL_PACK;
     reasonCategory = "local";
-  } else if (local.canCapture !== true || local.hasCompetitionScope !== true || local.hasWeek !== true) {
+  } else if (local.protectedCompetitionReady !== true || local.hasCompetitionScope !== true || local.hasWeek !== true) {
     reason = ACCESS_REASONS.LOCAL_CAPTURE;
     reasonCategory = "local";
   } else if (requiresLogin) {

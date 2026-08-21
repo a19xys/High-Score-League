@@ -87,9 +87,10 @@ Para la GUI esa carpeta pasa a ser staging: una bandeja de captura temporal.
 La cola final del jugador vive en el scope de `userData`.
 
 `userData/events/{pending,sent,failed,rejected}` queda como file queue global
-legacy/CLI. No debe confundirse con el scope de la GUI ni con staging real de
-un pack v2. Para `packVersion: 2`, el staging competitivo se crea por ejecucion
-en `userData/runtime/runs/<runId>/events/pending`.
+legacy/CLI. No debe confundirse con el scope de la GUI. La primera carga v2 usó
+`events/pending` por run; una Competition protegida actual escribe candidates
+privados en `userData/runtime/runs/<runId>/events/candidates` y sólo una
+finalización CLEAN posterior al cierre publica en pending scoped.
 
 ## Adopcion de capturas nuevas
 

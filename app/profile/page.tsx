@@ -3,7 +3,6 @@ import {
   type ProfileAuthData,
 } from "@/components/profile-dashboard";
 import { ensureProfileForCurrentUser } from "@/lib/auth/ensure-profile";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { getAdminCurrentWeek } from "@/lib/data/admin-weeks";
 import {
   emptyPlayerCompetitiveProfile,
@@ -62,9 +61,10 @@ export default async function ProfilePage() {
     );
   }
 
-  const identity = await getVerifiedProductIdentity(supabase.auth);
+  const { data, error: userError } = await supabase.auth.getUser();
+  const user = data.user;
 
-  if (identity.status !== "product") {
+  if (userError || !user) {
     return (
       <ProfileDashboard
         adminCenter={{ isAdmin: false }}
@@ -82,7 +82,7 @@ export default async function ProfilePage() {
     const { data: lifecycleProfile } = await admin
       .from("profiles")
       .select("anonymized_at")
-      .eq("id", identity.userId)
+      .eq("id", user.id)
       .maybeSingle<{ anonymized_at: string | null }>();
 
     if (lifecycleProfile?.anonymized_at) {
@@ -93,7 +93,7 @@ export default async function ProfilePage() {
 
   const profileResult = await ensureProfileForCurrentUser(
     supabase,
-    identity.user,
+    user,
   );
 
   if (profileResult.status === "inaccessible") {
@@ -122,12 +122,12 @@ export default async function ProfilePage() {
   ]);
   const auth: ProfileAuthData = {
     status: "signed-in",
-    email: identity.user.email ?? "Email no disponible",
+    email: user.email ?? "Email no disponible",
     profile,
     profileError:
       profileResult.status === "needs-input" ? profileResult.error : null,
-    metadataUsername: metadataString(identity.user.user_metadata?.username).trim(),
-    metadataInitials: metadataString(identity.user.user_metadata?.initials).trim(),
+    metadataUsername: metadataString(user.user_metadata?.username).trim(),
+    metadataInitials: metadataString(user.user_metadata?.initials).trim(),
   };
 
   return (

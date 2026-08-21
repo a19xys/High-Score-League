@@ -9,15 +9,18 @@ import {
   RECOVERY_STAGING_COOKIE,
   verifyRecoveryOtp,
 } from "@/lib/auth/password-recovery";
-import { getVerifiedSessionIdentity } from "@/lib/auth/session-context";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  applyRecoveryAuthHeaders,
+  clearRecoveryState,
+  createSupabaseRecoveryServerClient,
+} from "@/lib/supabase/recovery-server";
 
 export const dynamic = "force-dynamic";
 
-function redirect(request: Request, path: string) {
+function redirect(request: Request, path: string, status = 303) {
   const response = NextResponse.redirect(
     new URL(path, request.url),
-    303,
+    status,
   );
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   response.headers.set("Referrer-Policy", "no-referrer");
@@ -25,57 +28,44 @@ function redirect(request: Request, path: string) {
   return response;
 }
 
-function expireCookie(response: NextResponse, name: string, path: string) {
-  response.cookies.set(name, "", {
-    ...getRecoveryCookieOptions(path),
-    expires: new Date(0),
-    maxAge: 0,
-  });
-}
-
-function expireAllRecoveryState(response: NextResponse) {
-  expireCookie(response, RECOVERY_STAGING_COOKIE, "/auth/recovery");
-  expireCookie(response, RECOVERY_AUTHORIZED_COOKIE, "/reset-password");
-  expireCookie(response, RECOVERY_LOGOUT_PENDING_COOKIE, "/reset-password");
-}
-
 export async function POST(request: Request) {
   const cookieStore = await cookies();
   const tokenHash = cookieStore.get(RECOVERY_STAGING_COOKIE)?.value;
 
   if (!isStructurallyValidRecoveryToken(tokenHash)) {
-    const response = redirect(request, "/auth/recovery");
-    expireAllRecoveryState(response);
+    const response = redirect(request, "/reset-password/invalidate", 307);
+    clearRecoveryState(response, cookieStore.getAll(), {
+      auth: true,
+      markers: true,
+      staging: true,
+    });
     return response;
   }
 
-  const supabase = await createSupabaseServerClient();
-  const verified = supabase
-    ? await verifyRecoveryOtp(supabase.auth, tokenHash)
+  const recovery = await createSupabaseRecoveryServerClient();
+  const verified = recovery
+    ? await verifyRecoveryOtp(recovery.client.auth, tokenHash)
     : false;
 
-  if (!supabase || !verified) {
-    const response = redirect(request, "/auth/recovery");
-    expireAllRecoveryState(response);
-    return response;
-  }
-
-  const recoveryIdentity = await getVerifiedSessionIdentity(supabase.auth);
-
-  if (recoveryIdentity.status !== "recovery") {
-    try {
-      await supabase.auth.signOut({ scope: "local" });
-    } catch {
-      // Recovery state is expired below even if local Auth cleanup is unavailable.
+  if (!recovery || !verified) {
+    const response = redirect(request, "/reset-password/invalidate", 307);
+    if (recovery) {
+      applyRecoveryAuthHeaders(response, recovery.responseHeaders);
     }
-    const response = redirect(request, "/auth/recovery");
-    expireAllRecoveryState(response);
+    clearRecoveryState(response, cookieStore.getAll(), {
+      auth: true,
+      markers: true,
+      staging: true,
+    });
     return response;
   }
 
   const response = redirect(request, "/reset-password");
-  expireCookie(response, RECOVERY_STAGING_COOKIE, "/auth/recovery");
-  expireCookie(response, RECOVERY_LOGOUT_PENDING_COOKIE, "/reset-password");
+  applyRecoveryAuthHeaders(response, recovery.responseHeaders);
+  clearRecoveryState(response, cookieStore.getAll(), {
+    markers: true,
+    staging: true,
+  });
   response.cookies.set(
     RECOVERY_AUTHORIZED_COOKIE,
     RECOVERY_COOKIE_VALUE,

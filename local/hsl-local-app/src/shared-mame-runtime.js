@@ -3,6 +3,7 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { readMameRuntimeManifest } = require("./mame-runtime-manifest");
 const { getProductRuntime } = require("./product-runtime");
+const { PRODUCT_RUNTIME_INTEGRITY_FILENAME } = require("./product-runtime-integrity");
 
 const RUNTIME_SCHEMA_VERSION = 1;
 const RUNTIME_CONFIG_RELATIVE_PATH = path.join("runtime", "mame-runtime.json");
@@ -131,6 +132,7 @@ function inspectBundledMameRuntime(productRuntime = getProductRuntime(), manifes
   const required = [
     ["file", "mame.exe"],
     ["file", path.join("plugins", "boot.lua")],
+    ["file", PRODUCT_RUNTIME_INTEGRITY_FILENAME],
     ["file", path.join("bgfx", "chains", "crt-geom.json")],
     ["directory", path.join("bgfx", "effects")],
     ["directory", path.join("bgfx", "shaders")],

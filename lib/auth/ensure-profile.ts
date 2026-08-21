@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RealProfile } from "@/types/supabase";
-import { getVerifiedProductIdentity } from "./session-context";
 import {
   humanizeSupabaseError,
   normalizeInitials,
@@ -59,11 +58,9 @@ export async function ensureProfileForCurrentUser(
     user_metadata?: Record<string, unknown>;
   },
 ): Promise<EnsureProfileResult> {
-  const identity = verifiedUser
-    ? null
-    : await getVerifiedProductIdentity(supabase.auth);
+  const userResult = verifiedUser ? null : await supabase.auth.getUser();
 
-  if (identity?.status === "unavailable") {
+  if (userResult?.error) {
     return {
       status: "needs-input",
       profile: null,
@@ -71,17 +68,7 @@ export async function ensureProfileForCurrentUser(
     };
   }
 
-  if (identity && identity.status !== "product") {
-    return identity.status === "recovery"
-      ? {
-          status: "inaccessible",
-          profile: null,
-          error: "Recovery no es una sesión de producto.",
-        }
-      : { status: "signed-out", profile: null, error: null };
-  }
-
-  const user = verifiedUser ?? (identity?.status === "product" ? identity.user : null);
+  const user = verifiedUser ?? userResult?.data.user ?? null;
 
   if (!user) {
     return { status: "signed-out", profile: null, error: null };

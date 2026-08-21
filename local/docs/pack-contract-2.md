@@ -1,189 +1,83 @@
 # LOCAL-PACK-CONTRACT-2
 
-Contrato inicial para `packVersion: 2` y compatibilidad temporal con
-`packVersion: 1`.
+`packVersion: 2` es el contrato actual para packs ligeros. El pack no contiene
+MAME: declara recursos relativos y la app usa un runtime compartido. V1 sigue
+visible y practicable como legacy/deprecated, pero no recibe la autoridad de
+Competición protegida descrita aquí.
 
-## Objetivo
+## Campos
 
-`packVersion: 2` es el contrato actual para packs ligeros de High Score League.
-El pack no incluye MAME. La app local cargara el pack, leera sus recursos y,
-cuando exista `LOCAL-SHARED-MAME-RUNTIME-1`, lanzara el runtime MAME compartido
-instalado con la app.
+Requeridos:
 
-`packVersion: 1` sigue soportado para el dev bridge y packs de prueba, pero
-queda marcado como legacy/deprecated porque puede declarar MAME dentro del pack
-mediante `mame.relativeExecutablePath`, `mame.executablePath` y
-`mame.workingDir`.
+- `packVersion`, `packId`, `gameId`, `rom`, `weekId`, `webBaseUrl`;
+- `runtime.type` (`mame`);
+- `mame.romPath`;
+- `capture.mode`.
 
-## Campos requeridos v2
+Recomendados: identidad de temporada, `weekNumber`, versiones mínima y
+recomendada, rutas de artwork/samples/cfg, `capture.pluginName` y
+`capture.adapter`. Para Competición protegida también se declaran
+`mame.profiles.competition.integrity` y `capture.automatic`.
 
-- `packVersion`
-- `packId`
-- `gameId`
-- `rom`
-- `weekId`
-- `webBaseUrl`
-- `runtime.type`
-- `mame.romPath`
-- `capture.mode`
+```json
+{
+  "capture": {
+    "mode": "plugin",
+    "pluginName": "hsl-score",
+    "adapter": "scripts/invaders.lua",
+    "automatic": {
+      "version": 1,
+      "strategy": "invaders-game-mode-final-v1"
+    }
+  }
+}
+```
 
-`runtime.type` debe ser `mame` en esta version del contrato.
+`capture.automatic` tiene schema cerrado. Sólo declara versión y un identificador
+seguro de estrategia; no convierte la estrategia de un juego en algoritmo
+universal.
 
-## Campos recomendados v2
+## Separación de responsabilidades
 
-- `seasonId`
-- `seasonSlug`
-- `seasonName`
-- `weekNumber`
-- `runtime.minVersion`
-- `runtime.recommendedVersion`
-- `mame.artworkPath`
-- `mame.samplePath`
-- `mame.cfgPath`
-- `capture.pluginName`
-- `capture.adapter`
+- `pack.json`: identidad y contrato técnico del pack;
+- `metadata.json`: presentación, manual, créditos y assets;
+- `competition-manifest.json`: cobertura determinista de bytes competitivos;
+- receipt local: provenance de una importación remota verificada;
+- adapter: observación específica del juego y propuesta limitada de candidate;
+- launcher/plugin HSL: identidad, sandbox, guard, evidencia y finalización.
 
-Estos campos mejoran experiencia offline, diagnostico y preparacion del runtime,
-pero no sustituyen la autoridad competitiva de la web.
-
-## Separacion de responsabilidades
-
-- `pack.json`: contrato tecnico, jugable y competitivo.
-- `metadata.json`: presentacion local, textos, creditos, enlaces y assets.
-- `competition-manifest.json`: cobertura local determinista de los bytes que
-  pueden afectar una Competition protegida. Se valida antes de crear el run.
-- el descriptor/artefacto remoto de distribucion conserva su responsabilidad
-  independiente sobre descarga, instalacion y updates.
-
-`metadata.json` no debe convertirse en autoridad competitiva.
-`competition-manifest.json` no contiene secretos, timestamps ni rutas
-absolutas y todavia no es una firma ni una autoridad web.
+Manifest y receipt no son firmas ni sustituyen la futura autoridad web.
 
 ## Rutas seguras
 
-Las rutas locales de v2 son relativas al root del pack. Se aceptan valores como:
+ROM, artwork, samples, cfg y adapter son rutas relativas al pack. Se rechazan
+absolutas, URLs y traversal. El loader normaliza las rutas y mantiene separados
+el cfg persistente de Práctica y un `profiles.competition.cfgPath` opcional que
+sólo actúa como seed manifestado.
 
-```text
-roms
-artwork
-samples
-cfg
-scripts/invaders.lua
-```
+## Perfiles MAME y visual común
 
-Se rechazan rutas absolutas, traversal y URLs para recursos locales:
-
-```text
-C:/...
-/usr/...
-../fuera-del-pack
-https://...
-file://...
-```
-
-Se validan especialmente `mame.romPath`, `mame.artworkPath`,
-`mame.samplePath`, `mame.cfgPath` y `capture.adapter`. `mame.romPath` y
-`capture.adapter`, cuando se declara, fallan si son inseguros.
-
-`mame.profiles.practice.cfgPath` y `mame.profiles.competition.cfgPath`, si se
-declaran, siguen las mismas reglas de ruta relativa segura.
-
-## Pack de referencia
-
-Space Invaders es el primer pack v2 de referencia real. Su adapter canonico es
-`scripts/invaders.lua`, los assets canonicos son `assets/cover.png`,
-`assets/hero.png`, `assets/icon.ico` y `assets/logo.png`, y el filtro
-`crt-geom` se declara solo en `mame.profiles.competition.launchArgs`.
-
-La estructura y decisiones completas estan documentadas en:
-
-```text
-local/docs/space-invaders-pack-v2-real-1.md
-```
-
-La distribucion MVP de packs locales para una primera competicion esta
-documentada en:
-
-```text
-local/docs/pack-distribution-mvp-1.md
-```
-
-## Normalizacion
-
-El loader normaliza v1 y v2 con campos comunes:
-
-- `packVersion`
-- `contractStatus`
-- `deprecated`
-- `deprecationReason`
-- `replacement`
-- identidad del pack, juego, ROM, temporada, semana y web
-- `contract.runtime`
-- `contract.mame`
-- `contract.capture`
-- `warnings`
-- `errors`
-
-Para v1:
-
-```js
-{
-  contractStatus: "deprecated",
-  deprecated: true,
-  replacement: "packVersion 2"
-}
-```
-
-Para v2:
-
-```js
-{
-  contractStatus: "current",
-  deprecated: false
-}
-```
-
-## Estado actual de ejecucion
-
-La biblioteca puede detectar y mostrar packs v2 validos. Readiness puede cargar
-el pack y explicar su estado. Desde `LOCAL-SHARED-MAME-RUNTIME-1`, practica v2
-puede usar el runtime MAME compartido si esta configurado y `mame.romPath`
-existe. Desde `LOCAL-MAME-PACK-PLUGIN-LOADING-2`, competicion v2 prepara
-plugin/adaptador por ejecucion cuando el resto de requisitos estan listos.
-Desde `LOCAL-COMPETITION-INTEGRITY-1`, solo un pack que declara `integrity` v1,
-verifica su manifest y usa la version MAME exacta puede preparar una
-Competition protegida. Un pack v2 sin policy sigue siendo valido para la
-Biblioteca y Practica; no se migra ni se marca corrupto.
-
-## Perfiles MAME opcionales
-
-El contrato acepta `mame.profiles.practice` y `mame.profiles.competition` para
-ajustar el lanzamiento por modo sin cambiar el runtime compartido:
+Los filtros visuales pertenecen a `mame.launchArgs` para que sean idénticos en
+ambos modos:
 
 ```json
 {
   "mame": {
+    "romPath": "roms",
+    "artworkPath": "artwork",
+    "samplePath": "samples",
     "cfgPath": "cfg",
-    "launchArgs": [],
+    "launchArgs": ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
     "profiles": {
       "practice": {
-        "cfgPath": "cfg/practice",
         "launchArgs": []
       },
       "competition": {
-        "launchArgs": ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+        "launchArgs": [],
         "integrity": {
           "version": 1,
           "mameVersion": "0.287",
-          "dips": [
-            {
-              "portTag": ":IN2",
-              "mask": 3,
-              "value": 0,
-              "label": "Lives",
-              "settingLabel": "3"
-            }
-          ]
+          "dips": []
         }
       }
     }
@@ -191,78 +85,91 @@ ajustar el lanzamiento por modo sin cambiar el runtime compartido:
 }
 ```
 
-En Practica, el launcher usa el `cfgPath` del perfil o `mame.cfgPath` como cfg
-persistente. En Competition protegida, el cfg efectivo siempre es
-`runRoot/cfg`; un `profiles.competition.cfgPath` opcional es solo seed
-manifestado y copiado. Nunca se usa vivo dentro del pack.
+`profiles.practice.launchArgs` puede expresar libertades de Práctica. Para
+Competición, `mame.launchArgs` y `profiles.competition.launchArgs` pasan una
+allowlist estricta. Actualmente sólo se auditan `-video bgfx` y
+`-bgfx_screen_chains <chain-segura>`; cualquier opción o alias no reconocido,
+valor ausente, duplicado o token posicional bloquea.
 
-El launcher concatena `mame.launchArgs` con los argumentos del perfil. Son una
-lista explicita de strings, sin parseo de shell. En Competition, `ctrlr`,
-rewind, state/save/load, cheats, speed/throttle, debugger, autoboot, console,
-HTTP y plugins permanecen bajo autoridad del launcher; esas familias no se
-prohiben globalmente a Practica.
+## Integrity v1
 
-## Integrity y manifest competitivos v1
+```json
+{
+  "version": 1,
+  "mameVersion": "0.287",
+  "dips": [
+    {
+      "portTag": ":IN2",
+      "mask": 3,
+      "value": 0,
+      "label": "Lives",
+      "settingLabel": "3"
+    }
+  ]
+}
+```
 
-El schema, canonicalizacion y limites completos estan documentados en
-`local/docs/competition-integrity-1.md`. En resumen:
+La versión y MAME son exactos. `dips` admite 0-32 entradas canónicas por
+`portTag + mask`; `value` debe caber dentro de mask. Labels son diagnóstico.
+Práctica no acepta `integrity`.
 
-- `integrity.version` es exactamente 1 y `mameVersion` es exacta;
-- hay 1-32 DIP canonicos por `portTag + mask`, con value dentro de mask;
-- la cobertura deriva de pack, adapter, ROMs, scripts, artwork interactivo y
-  seed competitivo;
-- samples, metadata, assets y manual se excluyen solo cuando son salida de
-  audio o presentacion sin efecto sobre estado/captura;
-- paths, orden, size, SHA-256 y serializacion son canonicos.
+La ausencia de `integrity`, manifest, estrategia automática o provenance no
+corrompe el pack: readiness separa explícitamente Biblioteca/Práctica de
+`protectedCompetitionReady`.
 
-La ausencia de `integrity` es compatible. Readiness diferencia pack valido de
-pack listo para Competition protegida. Una modificacion no acompanada bloquea
-Competition y deja Practica disponible. Regenerar el manifest tras modificar
-el pack produce un hash coherente nuevo; `WEB-COMPETITION-INTEGRITY-1` debera
-compararlo con el valor publicado.
+## Manifest y snapshot
+
+La cobertura deriva de `pack.json`, adapter, ROMs, scripts, artwork y cfg seed.
+Samples pueden permanecer fuera si son únicamente audio de salida; metadata,
+assets y manual no forman parte de la ejecución MAME.
+
+Al preparar Competición, la app relee el pack, compara su identidad y copia cada
+archivo manifestado al snapshot mientras calcula size/hash. Después vuelve a
+parsear y verificar el snapshot. MAME usa sus rutas desde ese snapshot; el
+adapter aislado también se copia desde allí.
+
+## Contrato del adapter 0.3
+
+El módulo conserva `read_memory(helpers)` y puede implementar:
+
+```lua
+observe_capture(tracker_state, result)
+-- nil, o bien:
+-- { score = <entero positivo>, metadata = <JSON limitado> }
+```
+
+El adapter decide cuándo un intento es legítimo según su juego. El core rechaza
+metatables y metadata no JSON o fuera de límites. Core controla ROM real,
+`runId`, `candidateId`, timestamp, source, versiones y strategy.
+
+Los candidates se escriben sólo en `runRoot/events/candidates`. No entran en
+pending ni disparan submit mientras MAME está abierto. Al cierre,
+`finalizeCompetitionRun` valida el ledger final completo: CLEAN promueve todos;
+una violación invalida todos; crash, falta de seal o candidate corrupto falla
+cerrado.
+
+`build_event`/captura manual queda como compatibilidad legacy. No es una ruta
+válida para Competición protegida.
+
+## Provenance y runtime
+
+Un remote import realmente verificado crea un receipt ligado a artifact,
+`packId` y `competitionManifestSha256`. Importación manual y already-installed
+no lo hacen. Developer Tools puede habilitar un override sólo en app no
+empaquetada; producto exige receipt y runtime bundled.
+
+El runtime bundled y el plugin staging contienen manifests launcher-owned de
+bytes críticos que se revalidan antes de Competición. El runtime externo se
+reserva para QA dev con MAME exacto.
+
+## Pack de referencia
+
+Space Invaders conserva `space-invaders-s1-w1-r1`, MAME 0.287, Lives=3, Bonus
+Life=1500 y `cfg/` vacío. Usa `invaders-game-mode-final-v1`; su investigación y
+QA real se documentan en `local/docs/space-invaders-pack-v2-real-1.md`.
 
 ## Compatibilidad legacy
 
-El soporte v1 se conserva para no romper:
-
-- dev bridge;
-- pack plano `hsl-invaders`;
-- pruebas existentes;
-- `sync-plugin`;
-- apertura manual de packs antiguos.
-
-La eliminacion de v1 queda para `LOCAL-REMOVE-PACK-V1-LEGACY`, despues de tener
-runtime compartido estable, carga de plugin/adaptador y migracion de packs.
-
-## Estado anterior de capture.adapter
-
-El contrato valida que `capture.adapter` sea relativo y permanezca dentro del
-pack. El launcher comprueba además si el archivo existe, pero todavía no lo
-ejecuta ni lo copia. Por seguridad, declarar el campo no habilita competición
-v2 hasta `LOCAL-MAME-PACK-PLUGIN-LOADING-2`.
-
-## Estado actual de capture.adapter
-
-Desde `LOCAL-MAME-PACK-PLUGIN-LOADING-2`, `capture.adapter` ya participa en la
-competicion v2 cuando el resto de requisitos estan listos: runtime compartido,
-sesion, scope, membership, plugin controlado por la app y staging de ejecucion.
-
-El adapter no se ejecuta directamente desde el pack. La app lo valida como ruta
-relativa segura, comprueba que exista y lo copia a:
-
-```text
-userData/runtime/runs/<runId>/plugins/hsl-score/games/adapter.lua
-```
-
-El contrato inicial del adapter es un modulo Lua que devuelve una tabla con:
-
-```lua
-read_memory(helpers)
-build_event(config, tracker_state, result, plugin_version, detected_at, score, helpers)
-```
-
-La app genera `config.lua` para la ejecucion, incluyendo la policy ya validada,
-y el plugin escribe en
-`userData/runtime/runs/<runId>/events/pending` y la GUI adopta luego al pending
-scoped. El core HSL, no el adapter, anade `competitionIntegrity`; eventos
-violados o sin evidencia valida van a rejected local y no disparan submit.
+V1 continúa soportado para discovery, dev bridge, apertura y Práctica. No se
+migra automáticamente ni se copia MAME o ROM al repositorio. Su retirada queda
+fuera de este hardening.

@@ -320,21 +320,19 @@ test("recovery OTP verification is POST-only, typed as recovery and fails closed
     "route.ts",
   );
   assert.match(route, /export async function POST/);
-  assert.match(route, /expireAllRecoveryState\(response\)/);
+  assert.match(route, /createSupabaseRecoveryServerClient/);
+  assert.match(route, /clearRecoveryState\(response/);
   assert.match(route, /RECOVERY_AUTHORIZED_COOKIE/);
-  assert.match(route, /getVerifiedSessionIdentity/);
-  assert.match(route, /recoveryIdentity\.status !== "recovery"/);
-  assert.match(route, /signOut\(\{ scope: "local" \}\)/);
   assert.match(route, /redirect\(request, "\/reset-password"\)/);
+  assert.doesNotMatch(route, /getClaims|\.amr|AMR|getVerifiedSession|signOut/);
   assert.doesNotMatch(route, /service.?role|auth\.admin|updateUser/i);
 });
 
-test("reset-password guard requires both a recovery marker and classified recovery", () => {
-  assert.equal(isAuthorizedRecoverySession(undefined, "signed-out"), false);
-  assert.equal(isAuthorizedRecoverySession("1", "signed-out"), false);
-  assert.equal(isAuthorizedRecoverySession(undefined, "recovery"), false);
-  assert.equal(isAuthorizedRecoverySession("1", "product"), false);
-  assert.equal(isAuthorizedRecoverySession("1", "recovery"), true);
+test("reset-password guard requires both a recovery marker and isolated Recovery user", () => {
+  assert.equal(isAuthorizedRecoverySession(undefined, false), false);
+  assert.equal(isAuthorizedRecoverySession("1", false), false);
+  assert.equal(isAuthorizedRecoverySession(undefined, true), false);
+  assert.equal(isAuthorizedRecoverySession("1", true), true);
 });
 
 function completionAuth(options?: {
@@ -489,9 +487,11 @@ test("completion route retains a marker for safe global-signout retry", async ()
   assert.match(retryBranch, /retryGlobalRecoverySignOut/);
   assert.doesNotMatch(retryBranch, /completePasswordRecovery|updateUser/);
   assert.match(page, /isAuthorizedRecoverySession/);
-  assert.match(page, /getVerifiedSessionIdentity/);
-  assert.match(page, /identity\.status === "recovery"/);
-  assert.match(route, /identity\.status !== "recovery"/);
+  assert.match(page, /createSupabaseRecoveryServerClient/);
+  assert.match(page, /client\.auth\.getUser\(\)/);
+  assert.match(route, /createSupabaseRecoveryServerClient/);
+  assert.match(route, /client\.auth\.getUser\(\)/);
+  assert.doesNotMatch(page + route, /getClaims|getVerifiedSession|\.amr|AMR/);
   assert.match(form, /autoComplete="new-password"/);
   assert.equal((form.match(/autoComplete="new-password"/g) ?? []).length, 2);
 });

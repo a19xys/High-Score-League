@@ -82,14 +82,35 @@ function competitionGuard(overrides = {}) {
     packId: "space-invaders-test",
     manifestSha256: "a".repeat(64),
     mameVersion: "0.287",
+    pluginVersion: "0.3.0",
     dips: [{ portTag: ":IN2", mask: 3, value: 0 }],
+    provenance: {
+      artifactSha256: null,
+      artifactSizeBytes: null,
+      competitionManifestSha256: "a".repeat(64),
+      mode: "developer_override",
+    },
+    event: {
+      candidateId: "run-a_candidate_000001",
+      rom: "invaders",
+      score: 1230,
+      detectedAt: "2026-08-19T10:00:00Z",
+      source: "mame_memory",
+    },
     ...overrides,
   };
 }
 
 function guardedEvent(violations = [], overrides = {}) {
+  const expected = competitionGuard();
+  const integrity = { ...expected, ...overrides, violations };
   return validEvent(1230, {
-    competitionIntegrity: { ...competitionGuard(), ...overrides, violations },
+    candidateId: expected.event.candidateId,
+    runId: expected.runId,
+    packId: expected.packId,
+    mameVersion: expected.mameVersion,
+    pluginVersion: expected.pluginVersion,
+    competitionIntegrity: integrity,
   });
 }
 

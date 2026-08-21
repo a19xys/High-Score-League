@@ -289,10 +289,10 @@ El launcher anade `-skip_gameinfo` tanto en practica como en competicion para
 evitar la pantalla inicial automatica de informacion de MAME sin depender del
 `mame.ini` global del usuario.
 
-Los argumentos finales de lanzamiento se imprimen en el resumen local. Esto
-permite comprobar que `Jugar` recibe los argumentos del perfil competitivo, por
-ejemplo `-video bgfx -bgfx_screen_chains crt-geom`, y que `Practicar` recibe el
-perfil `practice` sin activar `hsl-score`.
+Los argumentos finales de lanzamiento se imprimen en el resumen local. Un
+filtro como `-video bgfx -bgfx_screen_chains crt-geom` se declara como argumento
+común y debe aparecer igual en `Jugar` y `Practicar`; sólo `Jugar` activa el
+hardening y `hsl-score`.
 
 ## Pospuesto
 

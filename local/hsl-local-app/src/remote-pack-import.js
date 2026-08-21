@@ -5,6 +5,9 @@ const fsp = require("node:fs/promises");
 const { executeCanonicalAuthenticatedRequest } = require("./authenticated-request");
 const { executeRemoteRequest, combineAbortSignals } = require("./remote-request");
 const { isRemotePackId } = require("./pack-deeplink");
+const { verifyCompetitionManifest } = require("./competition-manifest");
+const { writePackProvenanceReceipt } = require("./pack-provenance");
+const { loadPackFromDir } = require("./pack");
 
 const MAX_PACK_DESCRIPTOR_BYTES = 32 * 1024;
 const MAX_REMOTE_PACK_BYTES = 1024 * 1024 * 1024;
@@ -304,6 +307,29 @@ function classifyDownloadFailure(error) {
   return "remote-error";
 }
 
+async function persistRemoteImportProvenance(options, descriptor, download, importResult) {
+  if (importResult?.imported !== true || classifyImporterResult(importResult) !== "imported" || importResult?.alreadyInstalled === true) return null;
+  const packRoot = importResult?.pack?.packRoot || importResult?.packDir;
+  if (!packRoot) throw failure("remote_error", "Imported pack root is unavailable for provenance verification.");
+  const loaded = (options.loadPackFromDirImpl || loadPackFromDir)(packRoot);
+  if (!loaded.loaded || loaded.errors?.length > 0 || loaded.pack?.packId !== descriptor.packId) {
+    throw failure("remote_error", "Installed pack identity could not be verified for provenance.");
+  }
+  let manifest;
+  try {
+    manifest = await (options.verifyCompetitionManifestImpl || verifyCompetitionManifest)(loaded.pack);
+  } catch {
+    throw failure("remote_error", "Installed competition manifest could not be verified for provenance.");
+  }
+  return (options.writePackProvenanceReceiptImpl || writePackProvenanceReceipt)(options.config, {
+    artifactSha256: descriptor.artifact.sha256,
+    artifactSizeBytes: download.bytes,
+    competitionManifestSha256: manifest.manifestSha256,
+    importedAt: options.importedAt,
+    packId: descriptor.packId,
+  });
+}
+
 async function executeRemotePackImport(options = {}) {
   options.onPhase?.("Preparando pack");
   const descriptorResult = await requestPackDescriptor(options);
@@ -324,9 +350,14 @@ async function executeRemotePackImport(options = {}) {
     const importResult = await options.importZip(download.filePath, {
       expectedPackId: options.packId,
     });
+    const status = classifyImporterResult(importResult);
+    const provenance = status === "imported"
+      ? await persistRemoteImportProvenance(options, descriptorResult.descriptor, download, importResult)
+      : null;
     return {
       importResult,
-      status: classifyImporterResult(importResult),
+      provenance,
+      status,
     };
   } catch (error) {
     return { status: classifyDownloadFailure(error) };
@@ -345,5 +376,6 @@ module.exports = {
   executeRemotePackImport,
   packDescriptorEndpoint,
   requestPackDescriptor,
+  persistRemoteImportProvenance,
   validatePackDescriptor,
 };

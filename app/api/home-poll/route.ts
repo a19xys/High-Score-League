@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPublicHomePoll } from "@/lib/data/home-poll";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
@@ -14,13 +13,14 @@ export async function GET() {
     return jsonError("Supabase no está configurado.", 500);
   }
 
-  const identity = await getVerifiedProductIdentity(supabase.auth);
+  const { data, error: userError } = await supabase.auth.getUser();
+  const user = data.user;
 
-  if (identity.status !== "product") {
+  if (userError || !user) {
     return jsonError("Necesitas iniciar sesión.", 401);
   }
 
-  const result = await getPublicHomePoll(supabase, identity.userId);
+  const result = await getPublicHomePoll(supabase, user.id);
 
   if (result.error) {
     return jsonError("No se pudo cargar el cuestionario.", 500);

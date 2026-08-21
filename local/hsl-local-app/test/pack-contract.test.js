@@ -106,6 +106,30 @@ test("v2 valido queda current y normaliza rutas internas", async () => {
   });
 });
 
+test("capture.automatic v1 is optional for Library but closed when declared", () => {
+  const valid = normalizePackContract(validV2Pack({
+    capture: {
+      ...validV2Pack().capture,
+      automatic: { version: 1, strategy: "invaders-game-mode-final-v1" },
+    },
+  }));
+  assert.deepEqual(valid.errors, []);
+  assert.deepEqual(valid.normalized.contract.capture.automatic, {
+    strategy: "invaders-game-mode-final-v1",
+    version: 1,
+  });
+  for (const automatic of [
+    { version: 2, strategy: "invaders-game-mode-final-v1" },
+    { version: 1, strategy: "../script" },
+    { version: 1, strategy: "valid", adapterControlsScore: true },
+  ]) {
+    const result = normalizePackContract(validV2Pack({
+      capture: { ...validV2Pack().capture, automatic },
+    }));
+    assert.ok(result.errors.length > 0);
+  }
+});
+
 test("v2 acepta el pack de referencia de Space Invaders con perfil competitivo crt-geom", async () => {
   await withTempDir(async (dir) => {
     const result = normalizePackContract(validV2Pack({
@@ -278,13 +302,17 @@ test("integrity v1 es compatible-opcional, valida limites y canonicaliza DIP", (
   }));
   assert.deepEqual(valid.errors, []);
   assert.deepEqual(valid.normalized.contract.mame.profiles.competition.integrity.dips.map((dip) => dip.mask), [3, 8]);
+  const noDips = normalizePackContract(validV2Pack({
+    mame: { ...validV2Pack().mame, profiles: { competition: { integrity: integrityV1([]) } } },
+  }));
+  assert.deepEqual(noDips.errors, []);
+  assert.deepEqual(noDips.normalized.contract.mame.profiles.competition.integrity.dips, []);
 
   for (const [name, integrity, pattern] of [
     ["version", { ...integrityV1(), version: 2 }, /version debe ser exactamente 1/],
     ["mameVersion", { ...integrityV1(), mameVersion: "" }, /mameVersion/],
     ["mameVersion exacta", { ...integrityV1(), mameVersion: "MAME 0.287" }, /version MAME exacta/],
     ["campo integrity desconocido", { ...integrityV1(), trusted: true }, /campos desconocidos/],
-    ["empty dips", { ...integrityV1(), dips: [] }, /array no vacio/],
     ["mask zero", integrityV1([{ portTag: ":IN2", mask: 0, value: 0, label: "Lives", settingLabel: "3" }]), /mask/],
     ["mask 33bit", integrityV1([{ portTag: ":IN2", mask: 0x100000000, value: 0, label: "Lives", settingLabel: "3" }]), /mask/],
     ["outside mask", integrityV1([{ portTag: ":IN2", mask: 3, value: 8, label: "Lives", settingLabel: "3" }]), /fuera de mask/],

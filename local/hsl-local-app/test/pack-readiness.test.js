@@ -92,16 +92,16 @@ async function createReadyFixture(root, overrides = {}) {
   };
 }
 
-test("pack valido con MAME, sesion, member y scope queda ready", async () => {
+test("pack legacy valido conserva captura y practica, pero no obtiene Competicion protegida", async () => {
   await withTempDir(async (dir) => {
     const context = await createReadyFixture(dir);
     const result = evaluatePackReadiness(context);
 
-    assert.equal(result.status, "ready");
+    assert.equal(result.status, "warning");
     assert.equal(result.canPractice, true);
-    assert.equal(result.canPlayCompetition, true);
+    assert.equal(result.canPlayCompetition, false);
     assert.equal(result.canCapture, true);
-    assert.equal(result.canSubmit, true);
+    assert.equal(result.canSubmit, false);
   });
 });
 
@@ -294,7 +294,7 @@ test("metadata warnings y failed generan warnings no bloqueantes para practica",
 
     assert.equal(result.status, "warning");
     assert.equal(result.canPractice, true);
-    assert.equal(result.canPlayCompetition, true);
+    assert.equal(result.canPlayCompetition, false);
     assert.ok(result.warnings.some((message) => /metadata/i.test(message)));
     assert.ok(result.warnings.some((message) => /error/i.test(message)));
   });
@@ -505,6 +505,7 @@ test("packVersion 2 con adapter valido distingue loader de Competition protegida
           pluginName: "hsl-score",
           adapter: "scripts/invaders.lua",
           adapterPath,
+          automatic: { version: 1, strategy: "invaders-game-mode-final-v1" },
         },
       },
     };
@@ -512,7 +513,7 @@ test("packVersion 2 con adapter valido distingue loader de Competition protegida
     const unprotected = evaluatePackReadiness(context);
 
     assert.equal(unprotected.canPractice, true);
-    assert.equal(unprotected.canCapture, false);
+    assert.equal(unprotected.canCapture, true);
     assert.equal(unprotected.canPlayCompetition, false);
     assert.equal(unprotected.status, "warning");
     assert.ok(unprotected.checks.some((item) => item.id === "capture-v2" && item.level === "ok"));
@@ -531,7 +532,9 @@ test("packVersion 2 con adapter valido distingue loader de Competition protegida
       },
     };
     context.config.sharedMameRuntime.version = "0.287";
-    const result = evaluatePackReadiness(context);
+    context.config.sharedMameRuntime.source = "external/dev";
+    await fsp.writeFile(path.join(context.config.packRoot, "competition-manifest.json"), "{}\n", "utf8");
+    const result = evaluatePackReadiness({ ...context, developerOverride: true });
 
     assert.equal(result.canPractice, true);
     assert.equal(result.canCapture, true);

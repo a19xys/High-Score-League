@@ -148,10 +148,9 @@ async function renderAcceptedConvergence(initialState, result) {
   return { convergence, gameRegion, initialSelection, libraryRegion };
 }
 
-for (const { exitCode, mode } of [
-  { exitCode: 0, mode: "practice" },
-  { exitCode: 7, mode: "competition" },
-]) {
+// This fixture intentionally exercises a legacy v1 pack. Such packs remain
+// usable for Practice but cannot acquire protected Competition authority.
+for (const { exitCode, mode } of [{ exitCode: 0, mode: "practice" }]) {
   test(`launcher-service derives and renders 47 min + 360 s as 53 min after ${mode} exit ${exitCode}, offline`, async (t) => {
     const { config, initialState, store } = await fixture(t, `${mode}-${exitCode}`);
     const monotonic = { value: 0n };

@@ -142,16 +142,16 @@ function M.create(config, game, helpers)
 
   function api.frame_tick()
     if not config.enableFrameTracking then
-      return
+      return nil
     end
 
     tracker.frameCount = tracker.frameCount + 1
 
     if tracker.frameCount % config.trackingIntervalFrames ~= 0 then
-      return
+      return nil
     end
 
-    api.update("frame_tracking")
+    return api.update("frame_tracking")
   end
 
   return api

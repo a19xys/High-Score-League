@@ -3,9 +3,12 @@
 Implementacion inicial de carga segura de plugin/adaptador para competicion
 `packVersion: 2` con MAME compartido.
 
-> Estado actual: `LOCAL-COMPETITION-INTEGRITY-1` endurece esta preparacion con
-> manifest, MAME exacto, sandbox mutable completo, controller y evidencia. Las
-> reglas actuales prevalecen sobre las decisiones iniciales descritas aqui.
+> Estado histórico: `LOCAL-COMPETITION-INTEGRITY-HARDENING-1` reemplazó el
+> staging `events/pending`, watcher y adopción live descritos en este documento.
+> Una Competition protegida actual usa snapshot verificada,
+> `events/candidates`, ledger durable y finalización sólo después del cierre.
+> Las reglas de `competition-integrity-1.md` prevalecen; este texto conserva la
+> motivación de la primera carga aislada.
 
 ## Estrategia elegida
 
@@ -136,10 +139,11 @@ Practica v2 sigue usando MAME compartido y recursos del pack, añade
 {
   "mame": {
     "cfgPath": "cfg",
-    "launchArgs": [],
+    "launchArgs": ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
     "profiles": {
+      "practice": { "launchArgs": [] },
       "competition": {
-        "launchArgs": ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+        "launchArgs": [],
         "integrity": {
           "version": 1,
           "mameVersion": "0.287",
@@ -155,12 +159,12 @@ Practica v2 sigue usando MAME compartido y recursos del pack, añade
 
 Práctica usa el cfg del perfil o `mame.cfgPath`. Competition siempre usa
 `runRoot/cfg`; su `cfgPath` opcional es sólo seed manifestado. El launcher
-anade primero `mame.launchArgs` y despues los `launchArgs` del perfil. Esto
-permite aplicar filtros como `crt-geom` solo en competicion.
+anade primero `mame.launchArgs` y despues los `launchArgs` del perfil. Un filtro
+visual elegido por el pack, como `crt-geom`, debe ir en los argumentos comunes.
 
-La referencia real de Space Invaders mantiene `crt-geom` solo en el perfil
-`competition`, no usa seed, declara Lives=3/Bonus Life=1500 en `integrity` y
-deja el cfg personal exclusivamente a Práctica.
+La referencia real de Space Invaders aplica `crt-geom` igual en ambos modos, no
+usa seed, declara Lives=3/Bonus Life=1500 en `integrity` y deja el cfg personal
+exclusivamente a Práctica.
 
 ## Legacy v1
 

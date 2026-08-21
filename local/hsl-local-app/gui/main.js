@@ -178,6 +178,10 @@ const developerToolsEnabled = deriveDeveloperToolsEnabled({
   environment: process.env,
   isPackaged: app.isPackaged,
 });
+service.configureDeveloperCompetitionOverride({
+  developerToolsEnabled,
+  isPackaged: app.isPackaged,
+});
 let trustedHslOrigin = null;
 let trustedHslOriginSource = "none";
 let remoteConfiguration = null;

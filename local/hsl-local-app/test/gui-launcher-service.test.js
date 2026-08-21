@@ -43,6 +43,8 @@ const { createPlayTimeStore } = require("../src/playtime-store");
 const { scanPackLibrary } = require("../src/pack-library");
 const { readLibrarySelection, writeLibrarySelection } = require("../src/library-selection");
 const { writeLastOpenedPack } = require("../src/recent-packs");
+const { writeCompetitionManifest } = require("../src/competition-manifest");
+const { loadPackFromDir } = require("../src/pack");
 const { createSessionResult } = require("../src/session-result");
 const { canonicalPath } = require("../test-support/canonical-path.cjs");
 
@@ -485,7 +487,8 @@ test("launcher service prepares isolated plugin run for v2 competition", async (
   );
 
   assert.match(service, /prepareV2CompetitionRun/);
-  assert.match(service, /preparedRun\.stagingPendingDir/);
+  assert.match(service, /finalizeCompetitionRun\)\(preparedRun/);
+  assert.match(service, /preparedRun\.runId/);
   assert.match(service, /launchMameDetailed\(launchConfig/);
   assert.match(service, /Salida MAME relevante/);
   assert.equal(/Competicion v2 bloqueada: falta cargar el plugin/.test(service), false);
@@ -3420,6 +3423,10 @@ test("product path deep link descarga, verifica, importa, refresca y activa el p
     await fsp.mkdir(tempBaseDir, { recursive: true });
     await setPackDirectory(config, libraryRoot);
     await writeValidV2PackDir(sourcePack, { packId: "remote-pack" });
+    await fsp.mkdir(path.join(sourcePack, "artwork"), { recursive: true });
+    const loadedSource = loadPackFromDir(sourcePack);
+    assert.equal(loadedSource.loaded, true);
+    await writeCompetitionManifest(loadedSource.pack);
     await createZipFromDir(sourcePack, zipPath, "Remote Pack");
     const zipBytes = await fsp.readFile(zipPath);
     const digest = crypto.createHash("sha256").update(zipBytes).digest("hex");

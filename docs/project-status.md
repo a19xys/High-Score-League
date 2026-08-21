@@ -34,18 +34,23 @@ de una revisión concreta.
 - `/supabase-test` y `/real-data-test` son diagnósticos protegidos para admin y
   no forman parte de la navegación pública.
 
-## AUTH-RECOVERY-SCOPE-REDUCTION-1
+## AUTH-RECOVERY-ISOLATED-SESSION-1
 
-Recovery queda reducido a la frontera web del navegador:
+Recovery queda físicamente separado de la sesión HSL normal:
 
-- `getClaims()` clasifica `JWT.amr.method=recovery` antes de que una página o
-  mutación web sensible acepte una sesión de producto;
-- `getServerSession()` distingue `recovery`; navegación privada, perfil, Home,
-  hover current user y Presence sólo aceptan `signed-in`;
-- reset exige marker + Recovery verificada + usuario coherente, repite el guard
-  en el POST y ofrece cancelación local;
-- los endpoints Bearer del launcher conservan el modelo normal `auth.getUser()`;
-- no se añade schema, RLS, Storage ni una autoridad Recovery transversal.
+- el cliente server exclusivo usa `hsl-recovery-auth` como nombre/storage key y
+  cookies de 15 minutos con `Path=/reset-password`;
+- marker + `getUser()` sobre ese cliente autorizan el formulario y completion;
+  la clasificación del método de autenticación del JWT no forma parte del
+  diseño;
+- verify escribe sólo el namespace Recovery, cancel hace logout local sólo allí
+  y success hace update + logout global antes del cleanup completo de chunks;
+- `getServerSession()` vuelve a `not-configured | signed-out | signed-in` y las
+  fronteras web normales verifican mediante `auth.getUser()`;
+- Root Layout sigue resolviendo la sesión una sola vez para SiteNav, Presence y
+  hover current user;
+- los endpoints Bearer conservan `auth.getUser()` y no se añade schema, RLS ni
+  Storage.
 
 El QA pendiente es exclusivamente browser/web. Detalle y riesgo aceptado en
 [Recovery authorization boundary](auth-recovery-authorization-boundary.md).

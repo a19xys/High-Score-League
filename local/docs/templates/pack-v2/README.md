@@ -27,6 +27,14 @@ Pack Name/
 Completa los placeholders antes de distribuir el pack. Manten todas las rutas
 relativas al root del pack.
 
+Para Competición protegida, sustituye el identificador de
+`capture.automatic.strategy` e implementa `observe_capture` con una estrategia
+específica y probada para el juego. HSL no presupone un detector universal de
+game over. `integrity.dips` puede ser `[]` si el juego no tiene DIP competitivos.
+
+Si eliges un filtro visual, decláralo en `mame.launchArgs` para que Práctica y
+Competición se vean igual; no lo coloques sólo en el perfil competitivo.
+
 Distribucion recomendada:
 
 ```text

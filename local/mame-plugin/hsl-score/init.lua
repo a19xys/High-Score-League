@@ -1,17 +1,17 @@
 -- license:MIT
 -- High Score League - MAME Lua score event writer
--- v0.2.0: integrity guard local para runs competitivas v2
+-- v0.3.0: candidates automaticos y finalizacion durable post-proceso
 
 local exports = {
   name = "hsl-score",
-  version = "0.2.0",
+  version = "0.3.0",
   description = "High Score League score event writer",
   license = "MIT",
   author = { name = "High Score League" }
 }
 
 local hsl_score = exports
-local PLUGIN_VERSION = "0.2.0"
+local PLUGIN_VERSION = "0.3.0"
 
 -- MAME deberia llamar a set_folder(path) con la carpeta real del plugin.
 -- Dejamos este fallback para instalaciones sencillas.
@@ -67,7 +67,10 @@ function hsl_score.startplugin()
   local paths = paths_module.create(plugin_folder, config)
   local helpers = helpers_module.create(emu, manager)
   local tracker = tracking_module.create(config, game, helpers)
-  local integrity = integrity_module.create(config, helpers, emu, manager)
+  local integrity = integrity_module.create(config, helpers, json, emu, manager, PLUGIN_VERSION)
+  if integrity.enabled and type(game.observe_capture) ~= "function" then
+    error("[HSL] Adapter invalido: Competicion protegida requiere observe_capture")
+  end
   integrity.start()
   if integrity.enabled then
     emu.register_prestart(function()
@@ -84,7 +87,15 @@ function hsl_score.startplugin()
   if config.enableFrameTracking or integrity.enabled then
     emu.register_frame_done(function()
       if integrity.enabled then integrity.frame_tick() end
-      if config.enableFrameTracking then tracker.frame_tick() end
+      local result = config.enableFrameTracking and tracker.frame_tick() or nil
+      if integrity.enabled and result and result.ok then
+        local observe_ok, candidate = pcall(game.observe_capture, tracker.state, result)
+        if not observe_ok then
+          integrity.unavailable("observe_capture fallo: " .. tostring(candidate))
+        elseif candidate and not writer.write_candidate(candidate) then
+          integrity.unavailable("candidate automatico rechazado")
+        end
+      end
     end, "frame")
   end
 

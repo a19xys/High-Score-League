@@ -4,7 +4,7 @@ const { deriveCompetitionAccess } = require("../src/competition-access");
 
 function ready(overrides = {}) {
   return {
-    local: { canCapture: true, canPractice: true, canSubmitLocally: true, hasCompetitionScope: true, hasWeek: true },
+    local: { canCapture: true, canPractice: true, canSubmitLocally: true, hasCompetitionScope: true, hasWeek: true, protectedCompetitionReady: true },
     membership: { canSubmit: true, status: "member" },
     session: { hasSession: true, remoteUsable: true, requiresLogin: false, userId: "user-a" },
     week: { publicState: "active" },

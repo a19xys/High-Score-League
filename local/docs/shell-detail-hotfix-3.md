@@ -36,9 +36,9 @@ pack no declara `-bgfx_path`, el launcher anade:
 -bgfx_path <mame>/bgfx
 ```
 
-Si el pack declara explicitamente `-bgfx_path`, se respeta y no se duplica.
-Practica no hereda el perfil competitivo si `crt-geom` vive solo en
-`mame.profiles.competition`.
+`-bgfx_path` permanece reservado al launcher. Los perfiles siguen separados,
+pero un filtro visual elegido para el pack debe declararse en
+`mame.launchArgs` y ser idéntico en Práctica y Competición.
 
 ## Reescaneo
 

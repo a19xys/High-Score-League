@@ -88,21 +88,51 @@ function guard(overrides = {}) {
     packId: "space-invaders-test",
     manifestSha256: "a".repeat(64),
     mameVersion: "0.287",
+    pluginVersion: "0.3.0",
     dips: [
       { portTag: ":IN2", mask: 3, value: 0 },
       { portTag: ":IN2", mask: 8, value: 0 },
     ],
     violations: [],
+    provenance: {
+      artifactSha256: null,
+      artifactSizeBytes: null,
+      competitionManifestSha256: "a".repeat(64),
+      mode: "developer_override",
+    },
+    event: {
+      candidateId: "run_test_candidate_000001",
+      rom: "invaders",
+      score: 1230,
+      detectedAt: "2026-05-24T22:08:00Z",
+      source: "mame_memory",
+    },
     ...overrides,
   };
 }
 
+function protectedEvent(integrity = guard(), overrides = {}) {
+  return validEvent({
+    candidateId: integrity.event.candidateId,
+    runId: integrity.runId,
+    packId: integrity.packId,
+    rom: integrity.event.rom,
+    score: integrity.event.score,
+    detectedAt: integrity.event.detectedAt,
+    source: integrity.event.source,
+    mameVersion: integrity.mameVersion,
+    pluginVersion: integrity.pluginVersion,
+    competitionIntegrity: integrity,
+    ...overrides,
+  });
+}
+
 test("guard v1 exige evidence completa y ligada al run sin endurecer eventos historicos", () => {
   assert.deepEqual(validateEvent(validEvent()).errors, []);
-  assert.deepEqual(validateEvent(validEvent({ competitionIntegrity: guard() }), { competitionGuard: guard() }).errors, []);
+  assert.deepEqual(validateEvent(protectedEvent(), { competitionGuard: guard() }).errors, []);
   assert.match(validateEvent(validEvent(), { competitionGuard: guard() }).errors.join("\n"), /competitionIntegrity debe ser un objeto/);
-  assert.match(validateEvent(validEvent({ competitionIntegrity: guard({ runId: "run_other" }) }), { competitionGuard: guard() }).errors.join("\n"), /runId no coincide/);
-  assert.match(validateEvent(validEvent({ competitionIntegrity: guard({ manifestSha256: "A".repeat(64) }) })).errors.join("\n"), /manifestSha256/);
+  assert.match(validateEvent(protectedEvent(guard({ runId: "run_other" })), { competitionGuard: guard() }).errors.join("\n"), /runId no coincide/);
+  assert.match(validateEvent(protectedEvent(guard({ manifestSha256: "A".repeat(64) }))).errors.join("\n"), /manifestSha256/);
   assert.match(validateEvent(validEvent({ competitionIntegrity: guard({ dips: [
     { portTag: ":IN2", mask: 8, value: 0 },
     { portTag: ":IN2", mask: 3, value: 0 },

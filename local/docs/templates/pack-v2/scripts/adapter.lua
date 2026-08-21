@@ -1,5 +1,11 @@
 local M = {}
 
+function M.observe_capture(tracker_state, result)
+  -- Implementa una estrategia demostrable y específica del juego.
+  -- Devuelve nil, o { score = <entero positivo>, metadata = <JSON limitado> }.
+  return nil
+end
+
 function M.read_memory(helpers)
   local rom = helpers.get_rom_name()
   local game = helpers.get_game_name()

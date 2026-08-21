@@ -4,7 +4,6 @@ import { getPlayerPresence } from "@/lib/data/player-presence";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasActiveProfile } from "@/lib/auth/active-profile";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +20,10 @@ export async function GET(
 ) {
   const supabase = await createSupabaseServerClient();
   if (!supabase) return json({ ok: false, error: "Presence no está configurada." }, 503);
-  const identity = await getVerifiedProductIdentity(supabase.auth);
-  if (identity.status !== "product") return json({ ok: false, error: "Necesitas una sesión válida." }, 401);
-  const viewerProfile = await hasActiveProfile(supabase, identity.userId);
+  const { data, error: userError } = await supabase.auth.getUser();
+  const user = data.user;
+  if (userError || !user) return json({ ok: false, error: "Necesitas una sesión válida." }, 401);
+  const viewerProfile = await hasActiveProfile(supabase, user.id);
   if (viewerProfile.error) return json({ ok: false, error: "Presence no está disponible." }, 503);
   if (!viewerProfile.active) return json({ ok: false, error: "Necesitas un perfil activo." }, 403);
 

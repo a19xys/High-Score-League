@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { usernamePattern } from "@/lib/auth/validation";
 import { getPlayerProfilePreview } from "@/lib/data/player-profile-preview";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 export const dynamic = "force-dynamic";
 
@@ -38,16 +37,17 @@ export async function GET(
     return errorResponse(503);
   }
 
-  const identity = await getVerifiedProductIdentity(supabase.auth);
+  const { data, error: userError } = await supabase.auth.getUser();
+  const user = data.user;
 
-  if (identity.status !== "product") {
+  if (userError || !user) {
     return errorResponse(401);
   }
 
   const result = await getPlayerProfilePreview(
     supabase,
     username,
-    identity.userId,
+    user.id,
   );
 
   if (result.status === "not-found") {

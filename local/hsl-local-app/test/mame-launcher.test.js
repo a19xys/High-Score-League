@@ -72,7 +72,7 @@ function packV2Config(overrides = {}) {
           artworkDir: "C:/Packs/space-invaders/artwork",
           sampleDir: "C:/Packs/space-invaders/samples",
           cfgDir: "C:/Packs/space-invaders/cfg",
-          launchArgs: ["-window"],
+          launchArgs: [],
           profiles: {
             competition: {
               integrity: {
@@ -163,7 +163,7 @@ test("packVersion 2 competition uses prepared pluginpath and score plugin", () =
       runId: "run-1",
       runRoot: "C:/HSL/userData/runtime/runs/run-1",
       pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
-      stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
+      stagingCandidatesDir: "C:/HSL/userData/runtime/runs/run-1/events/candidates",
     },
   }), "invaders", "competition");
 
@@ -199,7 +199,7 @@ test("packVersion 2 launch applies mode-specific MAME profile", () => {
       runId: "run-1",
       runRoot: "C:/HSL/userData/runtime/runs/run-1",
       pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
-      stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
+      stagingCandidatesDir: "C:/HSL/userData/runtime/runs/run-1/events/candidates",
     },
   });
   const launch = buildMameArgs(config, "invaders", "competition");
@@ -231,7 +231,7 @@ test("packVersion 2 BGFX keeps pack artwork before MAME artwork and adds bgfx_pa
       runId: "run-1",
       runRoot: "C:/HSL/userData/runtime/runs/run-1",
       pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
-      stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
+      stagingCandidatesDir: "C:/HSL/userData/runtime/runs/run-1/events/candidates",
     },
   });
   const launch = buildMameArgs(config, "invaders", "competition");
@@ -263,7 +263,7 @@ test("packVersion 2 rejects pack-controlled bgfx_path", () => {
       runId: "run-1",
       runRoot: "C:/HSL/userData/runtime/runs/run-1",
       pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
-      stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
+      stagingCandidatesDir: "C:/HSL/userData/runtime/runs/run-1/events/candidates",
     },
   });
   assert.throws(() => buildMameArgs(config, "invaders", "competition"), /opcion reservada -bgfx_path/);
@@ -301,6 +301,42 @@ test("packVersion 2 practice ignores competition-only video profile", () => {
   assert.equal(launch.args.includes("-noplugins"), true);
 });
 
+test("a shared visual profile produces the same crt-geom argv in Practice and Competition", () => {
+  const base = packV2Config();
+  const runRoot = "C:/HSL/userData/runtime/runs/run-visual";
+  const config = packV2Config({
+    pack: {
+      ...base.pack,
+      contract: {
+        ...base.pack.contract,
+        mame: {
+          ...base.pack.contract.mame,
+          launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+          profiles: {
+            practice: { launchArgs: [] },
+            competition: { ...base.pack.contract.mame.profiles.competition, launchArgs: [] },
+          },
+        },
+      },
+    },
+    v2PluginRun: {
+      pluginName: "hsl-score",
+      runId: "run-visual",
+      runRoot,
+      pluginSearchDir: path.join(runRoot, "plugins"),
+      stagingCandidatesDir: path.join(runRoot, "events", "candidates"),
+    },
+  });
+  const practice = buildMameArgs(config, "invaders", "practice");
+  const competition = buildMameArgs(config, "invaders", "competition");
+  for (const launch of [practice, competition]) {
+    assert.equal(launch.args.filter((value) => value === "-video").length, 1);
+    assert.equal(argumentValue(launch.args, "-video"), "bgfx");
+    assert.equal(launch.args.filter((value) => value === "-bgfx_screen_chains").length, 1);
+    assert.equal(argumentValue(launch.args, "-bgfx_screen_chains"), "crt-geom");
+  }
+});
+
 test("packVersion 2 competition pluginpath exposes only the isolated run root", () => {
   const pluginSearchPath = buildPluginSearchPath("C:/HSL/userData/runtime/runs/run-1/plugins");
 
@@ -330,7 +366,7 @@ test("competition inipath cannot inherit plugin.ini from the runtime", () => {
       runId: "run-isolated",
       runRoot,
       pluginSearchDir: path.join(runRoot, "plugins"),
-      stagingPendingDir: path.join(runRoot, "events", "pending"),
+      stagingCandidatesDir: path.join(runRoot, "events", "candidates"),
     },
   }), "invaders", "competition");
   assert.equal(argumentValue(launch.args, "-inipath"), path.join(runRoot, "ini"));
@@ -491,7 +527,7 @@ test("printLaunchSummary shows final competition profile args", () => {
         runId: "run-1",
         runRoot: "C:/HSL/userData/runtime/runs/run-1",
         pluginSearchDir: "C:/HSL/userData/runtime/runs/run-1/plugins",
-        stagingPendingDir: "C:/HSL/userData/runtime/runs/run-1/events/pending",
+        stagingCandidatesDir: "C:/HSL/userData/runtime/runs/run-1/events/candidates",
       },
     });
 

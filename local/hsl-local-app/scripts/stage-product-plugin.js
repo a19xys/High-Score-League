@@ -1,6 +1,10 @@
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { getRepoPluginDir, listPluginFilesToCopy } = require("../src/dev-sync-plugin");
+const {
+  readPluginVersion,
+  writePluginIntegrityManifest,
+} = require("../src/product-runtime-integrity");
 
 const APP_DIR = path.resolve(__dirname, "..");
 
@@ -20,8 +24,10 @@ async function stageProductPlugin(options = {}) {
     await fsp.mkdir(path.dirname(targetPath), { recursive: true });
     await fsp.copyFile(path.join(sourceDir, relativePath), targetPath);
   }
+  const pluginVersion = readPluginVersion(targetDir);
+  const integrity = await writePluginIntegrityManifest(targetDir, pluginVersion, files);
   process.stdout.write(`hsl-score preparado: ${files.length} archivos en ${targetDir}\n`);
-  return { files, sourceDir, targetDir };
+  return { files, integrity, pluginVersion, sourceDir, targetDir };
 }
 
 if (require.main === module) {

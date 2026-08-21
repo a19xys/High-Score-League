@@ -5,6 +5,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { path7za } = require("7zip-bin");
 const { readMameRuntimeManifest } = require("../src/mame-runtime-manifest");
+const { writeRuntimeIntegrityManifest } = require("../src/product-runtime-integrity");
 
 const APP_DIR = path.resolve(__dirname, "..");
 const REQUIRED_RUNTIME_ENTRIES = Object.freeze([
@@ -158,6 +159,7 @@ async function stageProductMame(options = {}) {
     await extractImpl(assetPath, tempDir, cacheDir);
     validateRuntimeTree(tempDir);
     const executable = await verifyExecutableImpl(tempDir, manifest.version);
+    await writeRuntimeIntegrityManifest(tempDir, manifest.version);
     await fsp.rm(runtimeDir, { recursive: true, force: true });
     await fsp.rename(tempDir, runtimeDir);
     process.stdout.write(`MAME de producto ${manifest.version} reconstruido: ${runtimeDir}\nSHA-256: ${digest}\n`);

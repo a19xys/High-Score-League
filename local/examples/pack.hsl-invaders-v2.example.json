@@ -19,25 +19,36 @@
     "artworkPath": "artwork",
     "samplePath": "samples",
     "cfgPath": "cfg",
-    "launchArgs": [],
+    "launchArgs": [
+      "-video",
+      "bgfx",
+      "-bgfx_screen_chains",
+      "crt-geom"
+    ],
     "profiles": {
       "practice": {
         "launchArgs": []
       },
       "competition": {
-        "cfgPath": "cfg",
-        "launchArgs": [
-          "-video",
-          "bgfx",
-          "-bgfx_screen_chains",
-          "crt-geom"
-        ]
+        "launchArgs": [],
+        "integrity": {
+          "version": 1,
+          "mameVersion": "0.287",
+          "dips": [
+            { "portTag": ":IN2", "mask": 3, "value": 0, "label": "Lives", "settingLabel": "3" },
+            { "portTag": ":IN2", "mask": 8, "value": 0, "label": "Bonus Life", "settingLabel": "1500" }
+          ]
+        }
       }
     }
   },
   "capture": {
     "mode": "plugin",
     "pluginName": "hsl-score",
-    "adapter": "scripts/invaders.lua"
+    "adapter": "scripts/invaders.lua",
+    "automatic": {
+      "version": 1,
+      "strategy": "invaders-game-mode-final-v1"
+    }
   }
 }

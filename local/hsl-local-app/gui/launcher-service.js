@@ -33,8 +33,8 @@ const {
   adoptNewStagingEvents,
   listPendingFileSnapshot,
 } = require("../src/staging-event-adoption");
-const { createScoreCaptureConvergence } = require("../src/score-capture-convergence");
 const { launchMame, launchMameDetailed } = require("../src/mame-launcher");
+const { finalizeCompetitionRun } = require("../src/competition-run-finalizer");
 const { formatPlayTime } = require("../src/playtime-format");
 const { createPlayTimeRecorder } = require("../src/playtime-recorder");
 const { createPlayTimeStore } = require("../src/playtime-store");
@@ -148,6 +148,7 @@ let scoreCaptureConvergenceDiagnostics = {
 let remoteOperationSignalProvider = null;
 let remotePackImportFetchImpl = null;
 let competitionAuthorityProvider = null;
+let developerCompetitionOverrideEnabled = false;
 let accountProfileSync = null;
 let playTimeSync = null;
 let presenceLifecycleProvider = null;
@@ -240,6 +241,11 @@ function setRemoteOperationSignalProvider(provider) {
 
 function configureRemotePackImport(options = {}) {
   remotePackImportFetchImpl = typeof options.fetchImpl === "function" ? options.fetchImpl : null;
+}
+
+function configureDeveloperCompetitionOverride(options = {}) {
+  developerCompetitionOverrideEnabled = options.developerToolsEnabled === true && options.isPackaged !== true;
+  return developerCompetitionOverrideEnabled;
 }
 
 function setCompetitionAuthorityProvider(provider) {
@@ -1399,6 +1405,7 @@ async function stateFromContext(context) {
     : evaluatePackReadiness({
         autoSync,
         config,
+        developerOverride: developerCompetitionOverrideEnabled,
         membership,
         queue,
         scope: scoped.scope,
@@ -2431,6 +2438,7 @@ async function playCompetitionAction(options = {}) {
   const readiness = evaluatePackReadiness({
     autoSync: autoSyncState,
     config: scoped.config,
+    developerOverride: developerCompetitionOverrideEnabled,
     membership,
     queue: readinessQueue,
     scope: scoped.scope,
@@ -2451,33 +2459,14 @@ async function playCompetitionAction(options = {}) {
   let stagingPendingDir = baseConfig.eventsPendingDirAbs;
   let snapshot = await listPendingFileSnapshot(stagingPendingDir);
   let preparedRun = null;
-  let scoreCaptureMonitor = null;
 
   if (isPackV2) {
     try {
-      preparedRun = await prepareV2CompetitionRun(baseConfig, scoped.scope);
-      launchConfig = preparedRun.config;
-      stagingPendingDir = preparedRun.stagingPendingDir;
-      snapshot = new Map();
-      const createMonitor = options.createScoreCaptureConvergenceImpl || createScoreCaptureConvergence;
-      scoreCaptureMonitor = createMonitor({
-        packKey: scoped.scope.packKey,
-        playerKey: scoped.scope.playerKey,
-        runId: preparedRun.runId,
-        competitionGuard: preparedRun.integrity,
-        scopedPendingDir: scoped.config.eventsPendingDirAbs,
-        scopedRejectedDir: scoped.config.eventsRejectedDirAbs,
-        stagingPendingDir,
-        onAdopted(event) {
-          options.onScoreAdopted?.(event);
-        },
-        onDiagnostics(next) {
-          scoreCaptureConvergenceDiagnostics = { ...next };
-        },
+      preparedRun = await prepareV2CompetitionRun(baseConfig, scoped.scope, {
+        developerOverride: developerCompetitionOverrideEnabled,
       });
-      scoreCaptureMonitor.start();
+      launchConfig = preparedRun.config;
     } catch (error) {
-      await scoreCaptureMonitor?.close({ finalRescan: false }).catch(() => {});
       return {
         action: "play-competition",
         lines: [normalizeMessage(error)],
@@ -2507,32 +2496,43 @@ async function playCompetitionAction(options = {}) {
     },
   ]);
   let captured;
-  let v2Adoption = null;
-  try {
-    captured = await captureConsoleAsync(() => (
-      isPackV2
-        ? options.launchMameDetailedImpl
-          ? options.launchMameDetailedImpl(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
-          : launchMameDetailed(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
-        : options.launchMameImpl
-          ? options.launchMameImpl(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
-          : launchMame(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
-    ));
-  } finally {
-    if (scoreCaptureMonitor) {
-      v2Adoption = await scoreCaptureMonitor.close({ finalRescan: mameSpawned });
-    }
-  }
+  captured = await captureConsoleAsync(() => (
+    isPackV2
+      ? options.launchMameDetailedImpl
+        ? options.launchMameDetailedImpl(launchConfig, launchConfig.pack.rom, "competition", undefined, mameLifecycle)
+        : launchMameDetailed(launchConfig, launchConfig.pack.rom, "competition", undefined, mameLifecycle)
+      : options.launchMameImpl
+        ? options.launchMameImpl(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
+        : launchMame(launchConfig, baseConfig.pack.rom, "competition", undefined, mameLifecycle)
+  ));
   requestPlayTimeSync("mame-close", { ensureFollowUp: mameSpawned }).catch(() => {});
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.result?.exitCode ?? captured.exitCode;
   const mameOutputLines = summarizeMameOutput(captured.result);
-  const adoption = v2Adoption || await adoptNewStagingEvents(
-    stagingPendingDir,
-    scoped.config.eventsPendingDirAbs,
-    snapshot,
-    startedAtMs
-  );
-  if (!isPackV2) notifyScoreAdopted(options, adoption, "close");
+  const adoption = isPackV2
+    ? await (options.finalizeCompetitionRunImpl || finalizeCompetitionRun)(preparedRun, {
+        scopedPendingDir: scoped.config.eventsPendingDirAbs,
+        scopedRejectedDir: scoped.config.eventsRejectedDirAbs,
+      }, { exitCode })
+    : await adoptNewStagingEvents(
+        stagingPendingDir,
+        scoped.config.eventsPendingDirAbs,
+        snapshot,
+        startedAtMs
+      );
+  if (isPackV2) {
+    scoreCaptureConvergenceDiagnostics = {
+      ...scoreCaptureConvergenceDiagnostics,
+      activeRun: null,
+      closed: true,
+      closeAdopted: adoption.adopted.length,
+      lastRun: preparedRun.runId,
+      liveAdopted: 0,
+      localRejected: adoption.rejected.length,
+      submitRequests: adoption.adopted.length > 0 ? 1 : 0,
+      watching: false,
+    };
+  }
+  notifyScoreAdopted(options, adoption, "close");
   const legacyLine = !isPackV2 && snapshot.size > 0
     ? `Hay ${snapshot.size} capturas antiguas sin asignar en staging; no se importaron automaticamente.`
     : null;
@@ -2601,6 +2601,7 @@ async function playPractice(options = {}) {
   const readiness = evaluatePackReadiness({
     autoSync,
     config: context.config,
+    developerOverride: developerCompetitionOverrideEnabled,
     membership: context.membership,
     queue: context.queue,
     scope: context.scoped.scope,
@@ -3542,6 +3543,7 @@ module.exports = {
   cancelOpenPack,
   chooseSharedMameRuntimeFromGui,
   choosePackDirectoryFromGui,
+  configureDeveloperCompetitionOverride,
   configureRemotePackImport,
   configureAccountProfileSync,
   configurePlayTimeSync,

@@ -10,8 +10,7 @@ import {
   RECOVERY_AUTHORIZED_COOKIE,
   RECOVERY_LOGOUT_PENDING_COOKIE,
 } from "@/lib/auth/password-recovery";
-import { getVerifiedSessionIdentity } from "@/lib/auth/session-context";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseRecoveryServerClient } from "@/lib/supabase/recovery-server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -47,21 +46,27 @@ type ResetPasswordStatus =
 export default async function ResetPasswordPage({
   searchParams,
 }: ResetPasswordPageProps) {
-  const [{ status }, cookieStore, supabase] = await Promise.all([
+  const [{ status }, cookieStore, recovery] = await Promise.all([
     searchParams,
     cookies(),
-    createSupabaseServerClient(),
+    createSupabaseRecoveryServerClient(),
   ]);
   const markerValue = cookieStore.get(RECOVERY_AUTHORIZED_COOKIE)?.value;
   const logoutPending = hasRecoveryMarker(
     cookieStore.get(RECOVERY_LOGOUT_PENDING_COOKIE)?.value,
   );
-  const identity = supabase
-    ? await getVerifiedSessionIdentity(supabase.auth)
-    : { status: "unavailable" as const };
+  let hasRecoveryUser = false;
+  if (recovery) {
+    try {
+      const { data, error } = await recovery.client.auth.getUser();
+      hasRecoveryUser = !error && Boolean(data.user);
+    } catch {
+      hasRecoveryUser = false;
+    }
+  }
   const recoveryAllowed = isAuthorizedRecoverySession(
     markerValue,
-    identity.status,
+    hasRecoveryUser,
   );
   const safeStatus =
     typeof status === "string" && allowedStatuses.has(status as ResetPasswordStatus)
@@ -92,7 +97,7 @@ export default async function ResetPasswordPage({
               >
                 Solicitar un nuevo enlace
               </Link>
-              {identity.status === "recovery" ? (
+              {hasRecoveryUser ? (
                 <form action="/reset-password/cancel" method="post">
                   <button
                     className="rounded-md border px-4 py-3 text-sm font-semibold theme-border theme-text focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"

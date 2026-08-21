@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { validatePlayTimePayload } from "@/lib/playtime-contract";
 import { createCookieOrBearerAuthenticatedClient } from "@/lib/auth/request-client";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { hasActiveProfile } from "@/lib/auth/active-profile";
 
 function errorResponse(error: string, status: number, code?: string) {
@@ -19,18 +18,8 @@ export async function POST(request: NextRequest) {
   if (!validation.ok) return errorResponse(validation.error, 400, "INVALID_PAYLOAD");
   const supabase = await createCookieOrBearerAuthenticatedClient(request);
   if (!supabase) return errorResponse("Supabase no está configurado.", 500, "NOT_CONFIGURED");
-  const usesBearer = request.headers
-    .get("authorization")
-    ?.toLowerCase()
-    .startsWith("bearer ") === true;
-  let userId: string | null = null;
-  if (usesBearer) {
-    const { data, error } = await supabase.auth.getUser();
-    userId = error ? null : data.user?.id ?? null;
-  } else {
-    const identity = await getVerifiedProductIdentity(supabase.auth);
-    userId = identity.status === "product" ? identity.userId : null;
-  }
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const userId = authError ? null : authData.user?.id ?? null;
   if (!userId) {
     return errorResponse("Necesitas una sesión válida.", 401, "AUTH_REQUIRED");
   }

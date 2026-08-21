@@ -80,10 +80,10 @@ El flujo web usa exclusivamente Supabase Auth:
   → cookie HttpOnly temporal + redirect limpio a /auth/recovery
   → POST humano /auth/recovery/verify
   → verifyOtp({ token_hash, type: "recovery" })
-  → sesión recovery de Supabase + marker HttpOnly temporal
+  → sesión Supabase aislada hsl-recovery-auth + marker HttpOnly temporal
   → /reset-password
-  → updateUser({ password })
-  → signOut({ scope: "global" })
+  → Recovery auth.updateUser({ password })
+  → Recovery auth.signOut({ scope: "global" })
   → /login?passwordReset=success
 ```
 
@@ -122,19 +122,30 @@ seguro.
 Tras verificar, el servidor crea un marker `HttpOnly` sin email, UUID, token ni
 password, también con 15 minutos de vida y limitado a `/reset-password`. Este
 marker es una guardia del flujo de la aplicación, no una prueba criptográfica de
-identidad por sí solo. El formulario sólo se renderiza si existen a la vez esa
-guardia, claims verificadas con `getClaims()`, un `JWT.amr` que contiene
-`recovery` y un usuario Supabase cuyo `id` coincide con `claims.sub`. Una sesión
-normal + marker y una sesión Recovery sin marker se rechazan. La validación se
-repite en el POST antes de `updateUser()`.
+identidad por sí solo. El mismo POST crea una sesión Supabase con namespace
+`hsl-recovery-auth`, físicamente separado del Auth normal. `cookieOptions.name`
+es también el `storageKey` en la versión instalada de `@supabase/ssr`; no existe
+una configuración Auth paralela que pueda divergir.
 
-La sesión Recovery es una capacidad Auth restringida y nunca una sesión de
-producto HSL: no activa navegación privada, perfil, memberships, Presence ni
-admin. Si el marker caduca mientras el JWT Recovery sigue vivo,
-`/reset-password` ofrece una salida por POST que hace `signOut({ scope:
-"local" })` y limpia el estado HSL. Esta separación se aplica en la frontera
-web del navegador; no modifica RLS, Storage ni los contratos Bearer del
-launcher. El modelo y el QA manual se detallan en
+Todos los chunks de esa sesión usan `Path=/reset-password`, `HttpOnly`,
+`SameSite=Lax`, `Secure` en producción y 15 minutos de vida real. El adaptador
+impone ese máximo incluso cuando el paquete propone otro y conserva
+`maxAge=0`/`expires` en los borrados. El formulario sólo se renderiza si existen
+a la vez el marker y un usuario válido devuelto por `getUser()` del cliente
+Recovery. La validación se repite en el POST antes de `updateUser()`.
+
+`verifyOtp(type="recovery")` valida un token Recovery, pero HSL no utiliza el
+método de autenticación del JWT para clasificar la sesión resultante. La
+autoridad de procedencia es el namespace que sólo crea el endpoint aislado; un
+método `otp` es irrelevante y no se interpreta como Recovery.
+
+La sesión aislada no activa navegación privada, perfil, memberships, Presence
+ni admin. Si el marker caduca mientras la sesión Recovery sigue viva,
+`/reset-password` ofrece una salida por POST que hace logout local sobre ese
+cliente y limpia todos sus chunks. Una sesión HSL normal previa puede coexistir:
+verify no la sobrescribe y cancel no la cierra. Esta separación no modifica
+RLS, Storage ni los contratos Bearer del launcher. El modelo y el QA manual se
+detallan en
 [Recovery authorization boundary](auth-recovery-authorization-boundary.md).
 
 La actualización mantiene una taxonomía acotada y siempre conserva el formulario
@@ -150,8 +161,9 @@ marker, de modo que el usuario puede corregir el password y reintentar.
 
 Si la contraseña se actualiza pero falla `signOut({ scope: "global" })`, la UI
 no declara éxito: conserva markers efímeros para ofrecer un reintento que sólo
-completa la revocación. En éxito se eliminan los markers y la sesión web, no se
-inicia sesión automáticamente y se vuelve a Login.
+completa la revocación sobre la sesión Recovery. En éxito se eliminan staging,
+markers y todos los chunks `hsl-recovery-auth.*`; no se inicia sesión normal
+automáticamente y se vuelve a Login.
 
 Las páginas y respuestas sensibles son dinámicas/no-store y noindex. No se
 registran passwords, token hashes, cookies de recovery, tokens ni sesiones.
@@ -187,8 +199,8 @@ por la autoridad central: en un runtime loopback de desarrollo conserva
 
 ### Estado de implantación
 
-La clasificación product/recovery, las guardias de flujo, la validación
-local/server, la actualización y el logout global están implementados en código.
+El namespace Recovery aislado, las guardias de flujo, la validación server-side,
+la actualización y el logout global están implementados en código.
 La plantilla Reset password, las Redirect URLs y la Password Policy del proyecto
 Supabase ya estaban configuradas, y el flujo anterior completó un recovery real.
 No hay una migración Recovery pendiente: la separación de alcance es web y no

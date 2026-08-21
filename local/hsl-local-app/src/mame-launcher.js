@@ -194,7 +194,7 @@ function buildPackV2MameArgs(config, rom, mode) {
   args.push(...buildMameMutableArgs(mutableDirectories, cfgDirectory));
 
   if (mode === "competition") {
-    if (!run?.runRoot || !run?.pluginSearchDir || !run?.stagingPendingDir || run.pluginName !== pluginName) {
+    if (!run?.runRoot || !run?.pluginSearchDir || !run?.stagingCandidatesDir || run.pluginName !== pluginName) {
       throw new Error("Competicion v2 requiere preparar plugin/adaptador aislado antes de lanzar MAME.");
     }
 
@@ -322,7 +322,7 @@ function printLaunchSummary(launch) {
   if (launch.v2PluginRun) {
     console.log(`Run v2: ${launch.v2PluginRun.runId || launch.v2PluginRun.runRoot}`);
     console.log(`Pluginpath v2: ${buildPluginSearchPath(launch.v2PluginRun.pluginSearchDir)}`);
-    console.log(`Staging v2: ${launch.v2PluginRun.stagingPendingDir}`);
+    console.log(`Candidates v2: ${launch.v2PluginRun.stagingCandidatesDir}`);
   }
 
   console.log("");
@@ -361,8 +361,8 @@ function assertLaunchResources(config, launch) {
       throw new Error("No encuentro boot.lua en el workspace aislado de competicion v2.");
     }
 
-    if (!run?.stagingPendingDir || !fs.existsSync(run.stagingPendingDir) || !fs.statSync(run.stagingPendingDir).isDirectory()) {
-      throw new Error("No encuentro el staging preparado para competicion v2.");
+    if (!run?.stagingCandidatesDir || !fs.existsSync(run.stagingCandidatesDir) || !fs.statSync(run.stagingCandidatesDir).isDirectory()) {
+      throw new Error("No encuentro el directorio aislado de candidates para competicion v2.");
     }
   }
 }
