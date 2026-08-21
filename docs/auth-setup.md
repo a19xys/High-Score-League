@@ -67,7 +67,9 @@ Required character classes: lowercase, uppercase, digits
 Special characters required: no
 ```
 
-El código no confirma que esos ajustes remotos ya estén aplicados.
+En el entorno HSL actual estos ajustes remotos están configurados y se validaron
+mediante un recovery real. Como esta configuración vive fuera del código, una
+instalación nueva debe reproducirla manualmente con los valores anteriores.
 
 ## Recuperación de contraseña
 
@@ -173,11 +175,12 @@ query params.
 ### Estado de implantación
 
 La clasificación cerrada, las guardias de flujo, la validación local/server, la
-actualización y el logout global están implementados en código. Siguen pendientes
-de configuración y verificación externas el SMTP, la plantilla Reset password,
-las Redirect URLs y la Password Policy del proyecto Supabase. El repositorio no
-demuestra que esos ajustes estén aplicados ni que el recovery por email real se
-haya probado.
+actualización y el logout global están implementados en código. En el entorno
+HSL actual, el SMTP/configuración externa, la plantilla Reset password, las
+Redirect URLs y la Password Policy del proyecto Supabase están configurados. Se
+completó satisfactoriamente un recovery real por email a través del flujo normal
+descrito en este documento. Este estado operativo no sustituye las instrucciones
+manuales anteriores para reproducir una instalación nueva.
 
 ### Revocación global y launcher
 
@@ -189,9 +192,12 @@ necesiten refrescarlo; el launcher debe converger entonces a su estado existente
 **Requiere iniciar sesión**. Este flujo no añade integración directa, polling ni
 deep links al launcher.
 
-### QA manual pendiente
+### QA manual reutilizable
 
-Con una cuenta real y el SMTP/configuración remota preparados:
+El QA real del entorno HSL confirmó el recorrido normal desde la solicitud por
+email hasta el cambio de contraseña. No se documenta como demostrada ninguna
+variante adicional. Para una instalación nueva o una revalidación completa, con
+una cuenta real y el SMTP/configuración remota preparados:
 
 1. solicitar recovery y abrir el correo;
 2. confirmar que el GET inicial no consume el enlace y que la URL queda limpia;

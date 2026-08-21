@@ -65,6 +65,7 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 0029_profile_privacy_defaults.sql
 0030_week_benchmark_images.sql
 0031_launcher_packs.sql
+0032_profile_bootstrap_rls.sql
 ```
 
 En el Supabase remoto actual, `0023` y `0024` ya están aplicadas. No deben
@@ -87,13 +88,20 @@ schema y bucket → aplicar `0030` → verificar columna, constraint y tres poli
 → desplegar la web compatible → QA de crear/reemplazar/quitar/eliminar con un
 benchmark desechable.
 
-`0031_launcher_packs.sql` está incluida en Git, pero no se afirma aplicada en
-ningún Supabase remoto. Antes de desplegar el endpoint: verificar el estado real
-de migraciones, ejecutar el preflight de sólo lectura
+### Procedimiento para un entorno nuevo
+
+Antes de desplegar el endpoint de packs en un entorno nuevo: verificar el estado
+real de migraciones, ejecutar el preflight de sólo lectura
 `supabase/preflight/0031_launcher_packs.sql`, detenerse ante cualquier drift,
 aplicar `0031`, comprobar constraints/triggers/índice parcial/RLS y sólo después
 configurar R2 y desplegar. `0030` continúa con su estado histórico pendiente; no
 se deduce su aplicación por la mera presencia del archivo.
+
+`0032_profile_bootstrap_rls.sql` forma parte del inventario actual. Antes de
+aplicarla en un entorno nuevo, ejecutar
+`supabase/preflight/0032_profile_bootstrap_rls.sql`, comprobar sus dependencias y
+detenerse ante cualquier drift. Este checklist no afirma cuál es el estado
+remoto de `0032` en HSL.
 
 Comprobar despues:
 
@@ -138,6 +146,18 @@ Comprobar despues:
 - Crear después un bucket R2 privado y un token Object Read only limitado al
   bucket; configurar las cinco variables server-side y probar con un pack
   autorizado sólo tras desplegar. No reutilizar una credencial de escritura.
+
+### Estado conocido de producción HSL
+
+La migración `0031_launcher_packs.sql` está aplicada y el catálogo privado
+`launcher_packs` está operativo. El bucket R2 privado, la credencial web
+`Object Read only`, las variables de servidor y el endpoint de descarga están
+configurados y desplegados. El pack `space-invaders-s1-w1-r1` está publicado y
+la importación E2E real se completó correctamente.
+
+Este estado operativo no sustituye el procedimiento anterior para una
+instalación nueva, una restauración completa o un entorno distinto. No se
+incluyen credenciales, hashes, identificadores de cuenta ni URLs firmadas.
 
 ## 3. Realtime
 
@@ -291,8 +311,9 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
 
 Debe ejecutarse antes de cada despliegue y adaptarse a las migraciones que falten
 en el entorno destino. La aplicación remota de `0023`, `0024`,
-`0026_submission_detected_at_window.sql` y `0027_profile_anonymization.sql` está
-confirmada. No se ha verificado qué SHA web está desplegado actualmente.
+`0026_submission_detected_at_window.sql`, `0027_profile_anonymization.sql` y
+`0031_launcher_packs.sql` está confirmada. No se ha verificado qué SHA web está
+desplegado actualmente ni se afirma aquí el estado remoto de `0032`.
 
 Para `PROFILE-PRESENCE-1` el orden es estricto: (1) aplicar
 `0028_player_presence.sql`, (2) aplicar `0029_profile_privacy_defaults.sql`,
@@ -308,11 +329,12 @@ la web que selecciona `week_benchmarks.image_storage_path` hasta aplicarla y
 verificarla. La migración es aditiva y conserva `icon_key` para permitir un
 rollback temporal a la web anterior.
 
-Para `WEB-PACK-DISTRIBUTION-R2-1`, `0031`, el bucket, el token read-only, las
-variables de Vercel, el deploy y la prueba E2E real siguen pendientes. El orden
-operativo es preflight → migración → verificación RLS/constraints → R2 privado →
-env → deploy → alta/publicación de un pack autorizado → endpoint/HEAD/presign →
-importación desde launcher.
+Para `WEB-PACK-DISTRIBUTION-R2-1`, la operación de producción HSL ya está
+completada: `0031`, el catálogo, R2 privado, la credencial read-only, las
+variables, el endpoint, el pack real y el E2E están operativos. En un entorno
+nuevo se conserva el orden reutilizable: preflight → migración → verificación
+RLS/constraints → R2 privado → env → deploy → alta/publicación de un pack
+autorizado → endpoint/HEAD/presign → importación desde launcher.
 
 ## Roadmap no bloqueante para releases actuales
 

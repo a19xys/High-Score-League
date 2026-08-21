@@ -41,10 +41,10 @@ export async function resolveWeekLauncherPack(options: {
 }): Promise<WeekLauncherPackResult> {
   if (options.isSecret) return unavailableResult();
 
-  const admin = options.createAdminClient();
-  if (!admin) return failedResult();
-
   try {
+    const admin = options.createAdminClient();
+    if (!admin) return failedResult();
+
     const { data, error } = await admin
       .from("launcher_packs")
       .select("pack_id")

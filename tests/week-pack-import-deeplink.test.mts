@@ -128,6 +128,25 @@ test("catalog configuration, query and invalid identity failures close with one 
   }
 });
 
+test("admin client factory exceptions fail closed without leaking private details", async () => {
+  const result = await resolveWeekLauncherPack({
+    createAdminClient: () => {
+      throw new Error("private configuration detail");
+    },
+    isSecret: false,
+    weekId: WEEK_ID,
+  });
+
+  assert.deepEqual(result, {
+    launcherPackId: null,
+    warning: LAUNCHER_PACK_AVAILABILITY_WARNING,
+  });
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /private configuration detail|Supabase URL|service role|SQL|RLS|stack/i,
+  );
+});
+
 test("weekly UI exposes only the canonical deep link and no legacy or storage capability", async () => {
   const [view, detail, page, serverLookup, query, migration] = await Promise.all([
     read("components", "week-detail-view.tsx"),
