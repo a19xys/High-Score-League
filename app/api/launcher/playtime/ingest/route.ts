@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { validatePlayTimePayload } from "@/lib/playtime-contract";
-import { getProductRequestSession } from "@/lib/auth/request-client";
+import { createCookieOrBearerAuthenticatedClient } from "@/lib/auth/request-client";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { hasActiveProfile } from "@/lib/auth/active-profile";
 
 function errorResponse(error: string, status: number, code?: string) {
@@ -16,13 +17,24 @@ export async function POST(request: NextRequest) {
   }
   const validation = validatePlayTimePayload(payload);
   if (!validation.ok) return errorResponse(validation.error, 400, "INVALID_PAYLOAD");
-  const session = await getProductRequestSession(request);
-  if (session.status === "unavailable") return errorResponse("Supabase no está configurado.", 500, "NOT_CONFIGURED");
-  if (session.status !== "authenticated") {
+  const supabase = await createCookieOrBearerAuthenticatedClient(request);
+  if (!supabase) return errorResponse("Supabase no está configurado.", 500, "NOT_CONFIGURED");
+  const usesBearer = request.headers
+    .get("authorization")
+    ?.toLowerCase()
+    .startsWith("bearer ") === true;
+  let userId: string | null = null;
+  if (usesBearer) {
+    const { data, error } = await supabase.auth.getUser();
+    userId = error ? null : data.user?.id ?? null;
+  } else {
+    const identity = await getVerifiedProductIdentity(supabase.auth);
+    userId = identity.status === "product" ? identity.userId : null;
+  }
+  if (!userId) {
     return errorResponse("Necesitas una sesión válida.", 401, "AUTH_REQUIRED");
   }
-  const { supabase, user } = session;
-  const profileState = await hasActiveProfile(supabase, user.id);
+  const profileState = await hasActiveProfile(supabase, userId);
   if (profileState.error) {
     return errorResponse("No se pudo validar el perfil.", 500, "PROFILE_CHECK_FAILED");
   }

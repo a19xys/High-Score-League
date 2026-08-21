@@ -187,8 +187,8 @@ test("heartbeat and read routes authenticate canonically, are no-store and never
   assert.match(webRoute, /activity: "connected"/);
   assert.match(webRoute, /Cache-Control[\s\S]*no-store/);
   assert.doesNotMatch(webRoute, /playerId:\s*validation/);
-  assert.match(launcherRoute, /getBearerProductRequestSession/);
-  assert.doesNotMatch(launcherRoute, /supabase\.auth\.getUser\(\)/);
+  assert.match(launcherRoute, /createBearerAuthenticatedClient/);
+  assert.match(launcherRoute, /supabase\.auth\.getUser\(\)/);
   assert.match(launcherRoute, /export async function DELETE/);
   assert.doesNotMatch(launcherRoute, /payload\.playerId|validation\.value\.playerId|gameTitle/);
   assert.match(readRoute, /hasActiveProfile/);

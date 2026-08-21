@@ -8,7 +8,6 @@ import type {
   PublicHomePoll,
 } from "@/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { getRealLeagueChatMessages } from "./league-chat";
 import { getPublicHomePoll } from "./home-poll";
 import { getActiveRealSeason, mapSeasonRowToSeason } from "./seasons";
@@ -48,15 +47,6 @@ export type HomePageData = {
   homePoll: PublicHomePoll | null;
   homePollError: string | null;
 };
-
-async function getCurrentUserId() {
-  const supabase = await createSupabaseServerClient();
-  const identity = supabase
-    ? await getVerifiedProductIdentity(supabase.auth)
-    : null;
-
-  return identity?.status === "product" ? identity.userId : null;
-}
 
 async function getActiveSeasonMembership(
   seasonId: string | null,
@@ -119,36 +109,8 @@ function findUpcomingWeek(
 }
 
 export async function getHomePageData(
-  currentUserIdOverride?: string | null,
+  currentUserId: string,
 ): Promise<HomePageData> {
-  const currentUserId = currentUserIdOverride ?? await getCurrentUserId();
-
-  if (!currentUserId) {
-    return {
-      mode: "supabase",
-      season: null,
-      week: null,
-      game: null,
-      leaderboard: [],
-      benchmarks: [],
-      chatMessages: [],
-      canPostChat: false,
-      currentUserId: null,
-      chatError: null,
-      warning: null,
-      statusHelp: null,
-      activeWeekMessage: "Inicia sesión para ver la semana activa.",
-      activeSeasonMessage: "Inicia sesión para ver la temporada activa.",
-      activeSeasonMembership: null,
-      isActiveSeasonMember: false,
-      upcomingWeek: null,
-      seasonStandings: [],
-      seasonStandingsError: null,
-      homePoll: null,
-      homePollError: null,
-    };
-  }
-
   const supabase = await createSupabaseServerClient();
   const [
     activeWeekResult,

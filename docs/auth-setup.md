@@ -132,8 +132,9 @@ La sesión Recovery es una capacidad Auth restringida y nunca una sesión de
 producto HSL: no activa navegación privada, perfil, memberships, Presence ni
 admin. Si el marker caduca mientras el JWT Recovery sigue vivo,
 `/reset-password` ofrece una salida por POST que hace `signOut({ scope:
-"local" })` y limpia el estado HSL. El modelo web, RLS, Storage, Bearer y el QA
-operativo se detallan en
+"local" })` y limpia el estado HSL. Esta separación se aplica en la frontera
+web del navegador; no modifica RLS, Storage ni los contratos Bearer del
+launcher. El modelo y el QA manual se detallan en
 [Recovery authorization boundary](auth-recovery-authorization-boundary.md).
 
 La actualización mantiene una taxonomía acotada y siempre conserva el formulario
@@ -190,8 +191,8 @@ La clasificación product/recovery, las guardias de flujo, la validación
 local/server, la actualización y el logout global están implementados en código.
 La plantilla Reset password, las Redirect URLs y la Password Policy del proyecto
 Supabase ya estaban configuradas, y el flujo anterior completó un recovery real.
-La nueva frontera AMR/RLS de `0033` todavía requiere aplicación y QA remoto; no
-se considera validada por aquel QA anterior. Custom SMTP no está configurado.
+No hay una migración Recovery pendiente: la separación de alcance es web y no
+altera el esquema remoto. Custom SMTP no está configurado.
 
 ### Revocación global y launcher
 
@@ -206,10 +207,9 @@ deep links al launcher.
 ### QA manual reutilizable
 
 El QA real anterior confirmó el recorrido normal desde la solicitud por email
-hasta el cambio de contraseña, pero no la nueva frontera Recovery. La lista
-obligatoria actual está en
-[Recovery authorization boundary](auth-recovery-authorization-boundary.md#qa-remoto-pendiente).
-Para una instalación nueva, además de esa lista:
+hasta el cambio de contraseña. La lista browser-only vigente está en
+[Recovery authorization boundary](auth-recovery-authorization-boundary.md#qa-manual-pendiente).
+Para una instalación nueva, además:
 
 1. solicitar recovery y abrir el correo;
 2. confirmar que el GET inicial no consume el enlace y que la URL queda limpia;

@@ -1,6 +1,5 @@
 import type { Season, SeasonStanding, WeekSummary } from "@/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { getRealGames, mapGameRowToGame } from "./games";
 import { getUserSeasonMemberships } from "./season-memberships";
 import { getRealSeasonStandings } from "./season-standings";
@@ -25,23 +24,11 @@ export type SeasonDetailData = {
 
 export async function getSeasonDetailData(
   identifier: string,
-  currentUserIdOverride?: string | null,
+  currentUserId: string,
 ): Promise<SeasonDetailData | null> {
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
-    return null;
-  }
-
-  const identity =
-    currentUserIdOverride === undefined
-      ? await getVerifiedProductIdentity(supabase.auth)
-      : null;
-  const userId =
-    currentUserIdOverride ??
-    (identity?.status === "product" ? identity.userId : null);
-
-  if (!userId) {
     return null;
   }
 
@@ -127,7 +114,7 @@ export async function getSeasonDetailData(
     return status === "active" || status === "final_stretch";
   });
   const [memberships, standingsResult] = await Promise.all([
-    getUserSeasonMemberships(supabase, userId, [seasonRow.id]),
+    getUserSeasonMemberships(supabase, currentUserId, [seasonRow.id]),
     getRealSeasonStandings(seasonRow.id),
   ]);
   const standingsWarning = standingsResult.error

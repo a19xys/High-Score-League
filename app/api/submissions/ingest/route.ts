@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getProductRequestSession } from "@/lib/auth/request-client";
+import { createCookieOrBearerAuthenticatedClient } from "@/lib/auth/request-client";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { deriveSubmissionWindowAt } from "@/lib/submission-window";
 import type { SubmissionSource, WeekRow } from "@/types/supabase";
 import { hasActiveProfile } from "@/lib/auth/active-profile";
@@ -276,19 +277,31 @@ export async function POST(request: NextRequest) {
     return jsonError(validation.error, validation.status);
   }
 
-  const session = await getProductRequestSession(request);
+  const supabase = await createCookieOrBearerAuthenticatedClient(request);
 
-  if (session.status === "unavailable") {
+  if (!supabase) {
     return jsonError("Supabase no está configurado.", 500);
   }
 
-  if (session.status !== "authenticated") {
+  const usesBearer = request.headers
+    .get("authorization")
+    ?.toLowerCase()
+    .startsWith("bearer ") === true;
+  let userId: string | null = null;
+
+  if (usesBearer) {
+    const { data, error } = await supabase.auth.getUser();
+    userId = error ? null : data.user?.id ?? null;
+  } else {
+    const identity = await getVerifiedProductIdentity(supabase.auth);
+    userId = identity.status === "product" ? identity.userId : null;
+  }
+
+  if (!userId) {
     return jsonError("Necesitas una sesión válida para enviar puntuaciones.", 401);
   }
 
-  const { supabase, user } = session;
-
-  const profileState = await hasActiveProfile(supabase, user.id);
+  const profileState = await hasActiveProfile(supabase, userId);
 
   if (profileState.error) {
     return jsonCodeError(
@@ -312,7 +325,7 @@ export async function POST(request: NextRequest) {
     const { data: existing, error: duplicateError } = await supabase
       .from("submissions")
       .select("id,week_id,score,detected_at,submitted_at")
-      .eq("player_id", user.id)
+      .eq("player_id", userId)
       .eq("duplicate_key", input.duplicateKey)
       .maybeSingle<ExistingSubmission>();
 
@@ -363,7 +376,7 @@ export async function POST(request: NextRequest) {
     .from("season_memberships")
     .select("id")
     .eq("season_id", week.season_id)
-    .eq("player_id", user.id)
+    .eq("player_id", userId)
     .eq("status", "active")
     .maybeSingle<{ id: string }>();
 
@@ -410,7 +423,7 @@ export async function POST(request: NextRequest) {
     .from("submissions")
     .insert({
       week_id: input.weekId,
-      player_id: user.id,
+      player_id: userId,
       score: input.score,
       source: input.source,
       detected_at: input.detectedAt,
@@ -433,7 +446,7 @@ export async function POST(request: NextRequest) {
       const { data: existing, error: duplicateError } = await supabase
         .from("submissions")
         .select("id,week_id,score,detected_at,submitted_at")
-        .eq("player_id", user.id)
+        .eq("player_id", userId)
         .eq("duplicate_key", input.duplicateKey)
         .maybeSingle<ExistingSubmission>();
 

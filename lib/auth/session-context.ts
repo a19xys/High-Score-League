@@ -15,8 +15,8 @@ type UserResult = {
 };
 
 export type VerifiableAuthClient = {
-  getClaims(accessToken?: string): PromiseLike<ClaimsResult>;
-  getUser(accessToken?: string): PromiseLike<UserResult>;
+  getClaims(): PromiseLike<ClaimsResult>;
+  getUser(): PromiseLike<UserResult>;
 };
 
 export type VerifiedSessionContext =
@@ -112,32 +112,13 @@ export function classifyVerifiedSessionClaims(
     : { status: "product", userId: record.sub };
 }
 
-async function readClaims(
-  auth: VerifiableAuthClient,
-  accessToken?: string,
-) {
-  return accessToken === undefined
-    ? auth.getClaims()
-    : auth.getClaims(accessToken);
-}
-
-async function readUser(
-  auth: VerifiableAuthClient,
-  accessToken?: string,
-) {
-  return accessToken === undefined
-    ? auth.getUser()
-    : auth.getUser(accessToken);
-}
-
 export async function getVerifiedSessionContext(
   auth: VerifiableAuthClient,
-  accessToken?: string,
 ): Promise<VerifiedSessionContext> {
   let result: ClaimsResult;
 
   try {
-    result = await readClaims(auth, accessToken);
+    result = await auth.getClaims();
   } catch {
     return { status: "unavailable", userId: null };
   }
@@ -147,9 +128,7 @@ export async function getVerifiedSessionContext(
   }
 
   if (!result.data?.claims) {
-    return accessToken === undefined
-      ? { status: "signed-out", userId: null }
-      : { status: "invalid", userId: null };
+    return { status: "signed-out", userId: null };
   }
 
   return classifyVerifiedSessionClaims(result.data.claims);
@@ -158,7 +137,6 @@ export async function getVerifiedSessionContext(
 export async function getVerifiedIdentityForContext(
   auth: VerifiableAuthClient,
   context: VerifiedSessionContext,
-  accessToken?: string,
 ): Promise<VerifiedSessionIdentity> {
   if (context.status !== "product" && context.status !== "recovery") {
     return context;
@@ -167,7 +145,7 @@ export async function getVerifiedIdentityForContext(
   let result: UserResult;
 
   try {
-    result = await readUser(auth, accessToken);
+    result = await auth.getUser();
   } catch {
     return { status: "unavailable", userId: null };
   }
@@ -189,26 +167,19 @@ export async function getVerifiedIdentityForContext(
 
 export async function getVerifiedSessionIdentity(
   auth: VerifiableAuthClient,
-  accessToken?: string,
 ) {
-  const context = await getVerifiedSessionContext(auth, accessToken);
-  return getVerifiedIdentityForContext(auth, context, accessToken);
+  const context = await getVerifiedSessionContext(auth);
+  return getVerifiedIdentityForContext(auth, context);
 }
 
 export async function getVerifiedProductIdentity(
   auth: VerifiableAuthClient,
-  accessToken?: string,
 ): Promise<VerifiedProductIdentity> {
-  const context = await getVerifiedSessionContext(auth, accessToken);
+  const context = await getVerifiedSessionContext(auth);
 
   if (context.status !== "product") {
     return context;
   }
 
-  return getVerifiedIdentityForContext(auth, context, accessToken);
-}
-
-export function extractBearerAccessToken(authorization: string | null) {
-  const match = authorization?.match(/^Bearer ([^\s,]+)$/i);
-  return match?.[1] ?? null;
+  return getVerifiedIdentityForContext(auth, context);
 }

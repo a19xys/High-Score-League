@@ -34,27 +34,20 @@ de una revisión concreta.
 - `/supabase-test` y `/real-data-test` son diagnósticos protegidos para admin y
   no forman parte de la navegación pública.
 
-## AUTH-RECOVERY-AUTHORIZATION-BOUNDARY-1
+## AUTH-RECOVERY-SCOPE-REDUCTION-1
 
-Implementado localmente, pendiente de migración, despliegue y QA remoto:
+Recovery queda reducido a la frontera web del navegador:
 
-- `getClaims()` es la frontera canónica; `JWT.amr.method=recovery` clasifica una
-  capacidad Recovery y nunca una sesión de producto;
-- JWT verificado sin `amr` conserva compatibilidad con sesiones normales y
-  launcher existentes; AMR presente malformado falla cerrado;
-- `getServerSession()` distingue `recovery`; navegación privada, perfil,
-  memberships, Home, hover current user y Presence sólo aceptan `signed-in`;
+- `getClaims()` clasifica `JWT.amr.method=recovery` antes de que una página o
+  mutación web sensible acepte una sesión de producto;
+- `getServerSession()` distingue `recovery`; navegación privada, perfil, Home,
+  hover current user y Presence sólo aceptan `signed-in`;
 - reset exige marker + Recovery verificada + usuario coherente, repite el guard
-  en el POST y ofrece cancelación local cuando sólo sobrevive el JWT Recovery;
-- cookies y Bearer comparten la autoridad product, y las dependencias
-  service-role/R2 quedan detrás de ella;
-- `0033_recovery_session_authorization.sql` añade la autoridad PostgreSQL,
-  barreras RLS restrictivas derivadas del catálogo, Storage y guardas para RPCs
-  elevadas; su preflight read-only detecta drift futuro.
+  en el POST y ofrece cancelación local;
+- los endpoints Bearer del launcher conservan el modelo normal `auth.getUser()`;
+- no se añade schema, RLS, Storage ni una autoridad Recovery transversal.
 
-No se ha aplicado `0033` ni ejecutado el QA remoto. En particular sigue
-pendiente comprobar contra el proyecto HSL real que el refresh conserva el AMR
-`recovery`. Detalle operativo e inventarios en
+El QA pendiente es exclusivamente browser/web. Detalle y riesgo aceptado en
 [Recovery authorization boundary](auth-recovery-authorization-boundary.md).
 
 ## MEDIA-UPLOADS-1
@@ -194,16 +187,13 @@ Secuencia relevante del repositorio, en orden:
     packs. **Aplicada remotamente**.
 11. `0032_profile_bootstrap_rls.sql`: excepción estrecha para el
     `INSERT ... RETURNING` del perfil inicial. Estado remoto no afirmado aquí.
-12. `0033_recovery_session_authorization.sql`: separa Recovery de product en
-    Data API, Storage y RPCs elevadas. **Creada localmente; pendiente de
-    aplicación, preflight y QA remoto**.
 
 En un entorno nuevo se aplican todas las migraciones ausentes, en orden, antes
 de desplegar código que consulte sus columnas. En el entorno remoto actual no
 se deben volver a ejecutar `0023`, `0024`, `0026` ni `0027`: ya están aplicadas.
 El preflight de 0027 se conserva como verificación de solo lectura para otros
 entornos y `supabase/preflight/0030_week_benchmark_images.sql` valida el nuevo
-cambio sin escribir. No crear migraciones posteriores a `0033` salvo que
+cambio sin escribir. No crear migraciones posteriores a `0032` salvo que
 aparezca un nuevo conflicto real. La aplicación de una migración y el despliegue
 de una revisión web son estados distintos.
 

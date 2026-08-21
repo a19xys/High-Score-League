@@ -54,13 +54,10 @@ type HarnessOptions = {
   authClientConfigured?: boolean;
   catalog?: unknown;
   catalogError?: unknown;
-  claims?: unknown;
-  claimsError?: unknown;
   profileError?: string | null;
   storageConfigured?: boolean;
   throwAdminFactory?: boolean;
   throwBearerFactory?: boolean;
-  throwGetClaims?: boolean;
   throwGetUser?: boolean;
   user?: { id: string } | null;
   userError?: unknown;
@@ -76,17 +73,10 @@ function createHarness(options: HarnessOptions = {}) {
     authClientConfigured: true,
     catalog: publishedPack(),
     catalogError: null,
-    claims: {
-      role: "authenticated",
-      sub: "player-1",
-      amr: [{ method: "password", timestamp: 1 }],
-    },
-    claimsError: null,
     profileError: null,
     storageConfigured: true,
     throwAdminFactory: false,
     throwBearerFactory: false,
-    throwGetClaims: false,
     throwGetUser: false,
     user: { id: "player-1" },
     userError: null,
@@ -99,7 +89,6 @@ function createHarness(options: HarnessOptions = {}) {
     admin: 0,
     bearer: 0,
     catalog: 0,
-    getClaims: 0,
     getUser: 0,
     head: 0,
     membership: 0,
@@ -118,15 +107,6 @@ function createHarness(options: HarnessOptions = {}) {
       if (!settings.authClientConfigured) return null;
       return {
         auth: {
-          getClaims: async () => {
-            calls.getClaims += 1;
-            operationOrder.push("get-claims");
-            if (settings.throwGetClaims) throw new Error("private claims transport failure secret");
-            return {
-              data: settings.claims ? { claims: settings.claims } : null,
-              error: settings.claimsError,
-            };
-          },
           getUser: async () => {
             calls.getUser += 1;
             operationOrder.push("get-user");
@@ -284,7 +264,6 @@ test("Bearer ausente o malformado es 401 y no inicializa ningún backend", async
       admin: 0,
       bearer: 0,
       catalog: 0,
-      getClaims: 0,
       getUser: 0,
       head: 0,
       membership: 0,
@@ -296,11 +275,10 @@ test("Bearer ausente o malformado es 401 y no inicializa ningún backend", async
   }
 });
 
-test("factory bearer null/throw y fallos de claims/user son 503 sin filtrar detalles", async () => {
+test("factory bearer null/throw y getUser throw son 503 sin filtrar detalles", async () => {
   const cases = [
     createHarness({ authClientConfigured: false }),
     createHarness({ throwBearerFactory: true }),
-    createHarness({ throwGetClaims: true }),
     createHarness({ throwGetUser: true }),
   ];
 
@@ -326,8 +304,7 @@ test("factory bearer null/throw y fallos de claims/user son 503 sin filtrar deta
   }
   assert.equal(cases[0].calls.getUser, 0);
   assert.equal(cases[1].calls.getUser, 0);
-  assert.equal(cases[2].calls.getUser, 0);
-  assert.equal(cases[3].calls.getUser, 1);
+  assert.equal(cases[2].calls.getUser, 1);
 });
 
 test("helper bearer real conserva null cuando falta configuración Supabase", async () => {
@@ -461,7 +438,6 @@ test("happy path conserva el orden completo, TTL y descriptor exacto", async () 
   assert.equal(result.status, 200);
   assert.deepEqual(scenario.operationOrder, [
     "bearer-client",
-    "get-claims",
     "get-user",
     "profile",
     "admin-client",
@@ -476,28 +452,6 @@ test("happy path conserva el orden completo, TTL y descriptor exacto", async () 
     packId: PACK_ID,
     artifact: { sizeBytes: 8, sha256: SHA256, downloadUrl: DOWNLOAD_URL },
   });
-});
-
-test("recovery Bearer falla antes de perfil, service role y R2", async () => {
-  const scenario = createHarness({
-    claims: {
-      role: "authenticated",
-      sub: "player-1",
-      amr: [
-        { method: "recovery", timestamp: 1 },
-        { method: "token_refresh", timestamp: 2 },
-      ],
-    },
-  });
-
-  const result = await scenario.resolve();
-  assert.equal(result.status, 401);
-  assert.deepEqual(scenario.operationOrder, ["bearer-client", "get-claims"]);
-  assert.equal(scenario.calls.getUser, 0);
-  assert.equal(scenario.calls.profile, 0);
-  assert.equal(scenario.calls.admin, 0);
-  assert.equal(scenario.calls.storage, 0);
-  assert.equal(scenario.calls.catalog, 0);
 });
 
 test("HEAD precede al presign, valida tamaño y clasifica ausencia del objeto", async () => {

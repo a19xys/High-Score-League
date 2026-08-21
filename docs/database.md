@@ -3,27 +3,6 @@
 Este documento describe el esquema actual de Supabase. La app usa estas tablas
 como fuente real; las migraciones viven en `supabase/migrations/`.
 
-## Frontera de sesión de producto
-
-`0033_recovery_session_authorization.sql` separa una credencial Supabase
-Recovery de una sesión de producto HSL. `public.has_product_session()` inspecciona
-exclusivamente `auth.uid()`, `auth.role()` y el `amr` de `auth.jwt()`: acepta por
-compatibilidad una sesión verificada sin `amr`, niega cualquier AMR válido con
-`recovery` y falla cerrado si el claim presente está malformado.
-
-La migración no reemplaza las policies funcionales. Deriva del catálogo todas
-las tablas `public` con privilegios efectivos para `authenticated` y añade una
-policy `AS RESTRICTIVE FOR ALL` que exige `has_product_session()` tanto en
-`USING` como en `WITH CHECK`. También refuerza `has_active_profile()`,
-`is_admin()`, la RPC elevada `ingest_play_time_event()` y las operaciones
-autenticadas de `storage.objects` sobre `hsl-public-media`.
-
-El inventario de tablas, Storage y funciones `SECURITY DEFINER`, junto al
-preflight read-only que detecta futuras superficies sin barrera, se documenta en
-[Recovery authorization boundary](auth-recovery-authorization-boundary.md#postgresql-0033).
-`0033` está preparada localmente y pendiente de aplicación/verificación manual;
-este documento no afirma estado remoto.
-
 ## Tablas principales
 
 ### profiles

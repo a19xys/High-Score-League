@@ -29,7 +29,7 @@ export default async function SubmitPage() {
     );
   }
 
-  const activeWeek = await getActiveWeekDetailData();
+  const activeWeek = await getActiveWeekDetailData(auth.userId);
 
   return (
     <div className="space-y-6">

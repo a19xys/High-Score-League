@@ -123,11 +123,12 @@ test("archive root is a protected, fully mounted hash workspace", async () => {
     readFile(join(root, "components", "site-nav-client.tsx"), "utf8"),
   ]);
 
-  assert.match(pageSource, /hasServerSession/);
+  assert.match(pageSource, /getServerSession/);
+  assert.match(pageSource, /session\.status !== "signed-in"/);
   assert.match(pageSource, /section !== undefined/);
   assert.match(pageSource, /Promise\.all\(\[/);
   assert.match(pageSource, /getWeekPageData\(\)/);
-  assert.match(pageSource, /getSeasonPageData\(\)/);
+  assert.match(pageSource, /getSeasonPageData\(session\.userId\)/);
   assert.match(pageSource, /id: "weeks"[\s\S]*id: "seasons"/);
   assert.match(switcherSource, /useState<ArchiveSection>\("weeks"\)/);
   assert.match(switcherSource, /resolveArchiveSection\(window\.location\.hash\)/);

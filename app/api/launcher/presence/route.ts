@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getBearerProductRequestSession } from "@/lib/auth/request-client";
+import { createBearerAuthenticatedClient } from "@/lib/auth/request-client";
 import { clearPlayerPresence, commitPlayerPresence } from "@/lib/data/player-presence";
 import {
   validateLauncherPresencePayload,
@@ -30,8 +30,10 @@ async function readPayload(request: NextRequest) {
 }
 
 async function authenticated(request: NextRequest) {
-  const session = await getBearerProductRequestSession(request);
-  return session.status === "authenticated" ? session.user : null;
+  const supabase = createBearerAuthenticatedClient(request);
+  if (!supabase) return null;
+  const { data, error } = await supabase.auth.getUser();
+  return error || !data.user ? null : data.user;
 }
 
 export async function POST(request: NextRequest) {

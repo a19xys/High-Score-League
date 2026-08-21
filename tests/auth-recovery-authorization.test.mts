@@ -4,7 +4,6 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   classifyVerifiedSessionClaims,
-  extractBearerAccessToken,
   getVerifiedProductIdentity,
   getVerifiedSessionContext,
   getVerifiedSessionIdentity,
@@ -27,18 +26,18 @@ function fakeAuth(options: {
   user?: { id: string; email?: string } | null;
   userError?: unknown;
 }) {
-  const calls: Array<{ name: string; token?: string }> = [];
+  const calls: Array<{ name: string }> = [];
   const auth: VerifiableAuthClient = {
-    async getClaims(token?: string) {
-      calls.push({ name: "claims", token });
+    async getClaims() {
+      calls.push({ name: "claims" });
       if (options.claimsThrow) throw new Error("unavailable");
       return {
         data: options.claims ? { claims: options.claims } : null,
         error: options.claimsError ?? null,
       };
     },
-    async getUser(token?: string) {
-      calls.push({ name: "user", token });
+    async getUser() {
+      calls.push({ name: "user" });
       return {
         data: { user: options.user === undefined ? { id: "user-1" } : options.user },
         error: options.userError ?? null,
@@ -102,17 +101,16 @@ test("present malformed AMR and untrusted claims fail closed", () => {
   assert.equal(classifyVerifiedSessionClaims({ role: "authenticated" }).status, "invalid");
 });
 
-test("claims verification errors fail closed and explicit Bearer absence is invalid", async () => {
+test("claims verification errors fail closed and absent browser claims are signed out", async () => {
   const rejected = fakeAuth({ claimsError: new Error("invalid JWT") });
-  assert.equal((await getVerifiedSessionContext(rejected.auth, "token")).status, "invalid");
-  assert.deepEqual(rejected.calls, [{ name: "claims", token: "token" }]);
+  assert.equal((await getVerifiedSessionContext(rejected.auth)).status, "invalid");
+  assert.deepEqual(rejected.calls, [{ name: "claims" }]);
 
   const unavailable = fakeAuth({ claimsThrow: true });
   assert.equal((await getVerifiedSessionContext(unavailable.auth)).status, "unavailable");
 
   const absent = fakeAuth({ claims: null });
   assert.equal((await getVerifiedSessionContext(absent.auth)).status, "signed-out");
-  assert.equal((await getVerifiedSessionContext(absent.auth, "token")).status, "invalid");
 });
 
 test("product identity verifies claims before user and enforces sub coherence", async () => {
@@ -120,10 +118,10 @@ test("product identity verifies claims before user and enforces sub coherence", 
     claims: claims([{ method: "password", timestamp: 1 }]),
     user: { id: "user-1", email: "player@example.test" },
   });
-  assert.equal((await getVerifiedProductIdentity(valid.auth, "bearer-token")).status, "product");
+  assert.equal((await getVerifiedProductIdentity(valid.auth)).status, "product");
   assert.deepEqual(valid.calls, [
-    { name: "claims", token: "bearer-token" },
-    { name: "user", token: "bearer-token" },
+    { name: "claims" },
+    { name: "user" },
   ]);
 
   const mismatch = fakeAuth({
@@ -137,8 +135,8 @@ test("product boundaries reject recovery before requesting user data", async () 
   const recovery = fakeAuth({
     claims: claims([{ method: "recovery", timestamp: 1 }]),
   });
-  assert.equal((await getVerifiedProductIdentity(recovery.auth, "recovery-token")).status, "recovery");
-  assert.deepEqual(recovery.calls, [{ name: "claims", token: "recovery-token" }]);
+  assert.equal((await getVerifiedProductIdentity(recovery.auth)).status, "recovery");
+  assert.deepEqual(recovery.calls, [{ name: "claims" }]);
 
   const recoveryWorkflow = fakeAuth({
     claims: claims([{ method: "recovery", timestamp: 1 }]),
@@ -168,14 +166,6 @@ test("server session exposes only normal credentials as signed-in", async () => 
     email: null,
   });
   assert.deepEqual(recovery.calls.map((call) => call.name), ["claims"]);
-});
-
-test("Bearer parser accepts one strict token and rejects ambiguous headers", () => {
-  assert.equal(extractBearerAccessToken("Bearer abc.def.ghi"), "abc.def.ghi");
-  assert.equal(extractBearerAccessToken("bearer token"), "token");
-  for (const value of [null, "", "Bearer", "Bearer token extra", "Bearer a,b", "Basic token"]) {
-    assert.equal(extractBearerAccessToken(value), null);
-  }
 });
 
 test("Recovery-safe layout does not activate private navigation or Presence", async () => {
@@ -213,51 +203,30 @@ test("expired marker leaves a POST-only local exit from Recovery", async () => {
   );
 });
 
-test("SQL migration derives RLS coverage and guards Storage plus elevated RPCs", async () => {
-  const [migration, preflight] = await Promise.all([
-    source("supabase", "migrations", "0033_recovery_session_authorization.sql"),
-    source("supabase", "preflight", "0033_recovery_session_authorization.sql"),
-  ]);
-
-  assert.match(migration, /create or replace function public\.has_product_session\(\)/i);
-  assert.match(migration, /auth\.uid\(\).*auth\.role\(\)/s);
-  assert.match(migration, /request_claims -> 'amr'/);
-  assert.match(migration, /method_name = 'recovery'/);
-  assert.match(migration, /create policy hsl_product_session_barrier[\s\S]*as restrictive[\s\S]*for all[\s\S]*has_product_session/i);
-  assert.match(migration, /has_table_privilege\('authenticated', class\.oid/);
-  assert.match(migration, /on storage\.objects[\s\S]*hsl-public-media[\s\S]*has_product_session/i);
-  assert.match(migration, /create or replace function public\.has_active_profile\(\)[\s\S]*has_product_session/i);
-  assert.match(migration, /create or replace function public\.is_admin\(\)[\s\S]*has_product_session/i);
-  assert.match(migration, /ingest_play_time_event[\s\S]*product_session_required/i);
-  assert.match(migration, /has_function_privilege\('authenticated', proc\.oid, 'EXECUTE'\)/);
-
-  assert.match(preflight, /authenticated_relations/);
-  assert.match(preflight, /storage\.buckets/);
-  assert.match(preflight, /procedure\.prosecdef|proc\.prosecdef/);
-  assert.match(preflight, /authenticated_security_definer_without_product_guard/);
-  const executablePreflight = preflight.replace(/^--.*$/gm, "");
-  assert.doesNotMatch(
-    executablePreflight,
-    /^\s*(alter|create|delete|drop|grant|insert|revoke|truncate|update)\b/im,
-  );
-});
-
-test("service-role and R2 factories remain behind product authorization", async () => {
+test("dangerous web elevation remains behind product authorization", async () => {
   const sources = await Promise.all([
     source("app", "api", "profile", "anonymize", "route.ts"),
     source("app", "api", "presence", "web", "route.ts"),
-    source("app", "api", "players", "[username]", "presence", "route.ts"),
-    source("lib", "api", "launcher-pack-download.ts"),
   ]);
 
   for (const implementation of sources) {
     const authorityIndex = implementation.lastIndexOf("getVerifiedProductIdentity(");
     const elevationIndexes = [
       implementation.indexOf("createSupabaseAdminClient()"),
-      implementation.indexOf("dependencies.createAdminClient()"),
-      implementation.indexOf("dependencies.createStorage()"),
     ].filter((index) => index >= 0);
     assert.ok(authorityIndex >= 0);
     assert.ok(elevationIndexes.every((index) => index > authorityIndex));
+  }
+});
+
+test("dual cookie/Bearer mutations classify only the browser branch", async () => {
+  const sources = await Promise.all([
+    source("app", "api", "submissions", "ingest", "route.ts"),
+    source("app", "api", "launcher", "playtime", "ingest", "route.ts"),
+  ]);
+
+  for (const implementation of sources) {
+    assert.match(implementation, /if \(usesBearer\)[\s\S]*auth\.getUser\(\)/);
+    assert.match(implementation, /else \{[\s\S]*getVerifiedProductIdentity\(supabase\.auth\)/);
   }
 });

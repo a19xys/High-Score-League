@@ -4,7 +4,7 @@ import { ArchiveSectionSwitcher } from "@/components/archive/archive-section-swi
 import { AccessRequired } from "@/components/auth/access-required";
 import { SeasonsTable } from "@/components/seasons-table";
 import { WeeksTable } from "@/components/weeks-table";
-import { hasServerSession } from "@/lib/auth/session";
+import { getServerSession } from "@/lib/auth/session";
 import { getArchivePath } from "@/lib/archive";
 import { getSeasonPageData } from "@/lib/data/season-page";
 import { getWeekPageData } from "@/lib/data/week-page";
@@ -27,13 +27,15 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
     permanentRedirect(getArchivePath(section));
   }
 
-  if (!(await hasServerSession())) {
+  const session = await getServerSession();
+
+  if (session.status !== "signed-in") {
     return <AccessRequired />;
   }
 
   const [weekData, seasonData] = await Promise.all([
     getWeekPageData(),
-    getSeasonPageData(),
+    getSeasonPageData(session.userId),
   ]);
 
   return (

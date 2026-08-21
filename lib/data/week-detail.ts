@@ -9,7 +9,6 @@ import type {
   WeeklyResult,
 } from "@/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { getRealGames, mapGameRowToGame } from "./games";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
 import {
@@ -112,15 +111,6 @@ async function readRealWeekContext() {
     games: gamesResult.rows,
     error,
   };
-}
-
-async function getCurrentUserId() {
-  const supabase = await createSupabaseServerClient();
-  const identity = supabase
-    ? await getVerifiedProductIdentity(supabase.auth)
-    : null;
-
-  return identity?.status === "product" ? identity.userId : null;
 }
 
 function mergeSubmissionRows(
@@ -277,14 +267,8 @@ async function buildRealWeekDetail(
 
 export async function getWeekDetailData(
   weekId: string,
-  currentUserIdOverride?: string | null,
+  currentUserId: string,
 ): Promise<WeekDetailData | null> {
-  const currentUserId = currentUserIdOverride ?? await getCurrentUserId();
-
-  if (!currentUserId) {
-    return null;
-  }
-
   const context = await readRealWeekContext();
 
   if (context.error) {
@@ -328,17 +312,8 @@ export async function getWeekDetailData(
 }
 
 export async function getActiveWeekDetailData(
-  currentUserIdOverride?: string | null,
+  currentUserId: string,
 ): Promise<ActiveWeekResult> {
-  const currentUserId = currentUserIdOverride ?? await getCurrentUserId();
-
-  if (!currentUserId) {
-    return {
-      status: "empty",
-      message: "Inicia sesión para leer la semana activa.",
-    };
-  }
-
   const context = await readRealWeekContext();
 
   if (context.error) {

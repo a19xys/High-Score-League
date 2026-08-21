@@ -69,7 +69,6 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 0030_week_benchmark_images.sql
 0031_launcher_packs.sql
 0032_profile_bootstrap_rls.sql
-0033_recovery_session_authorization.sql
 ```
 
 En el Supabase remoto actual, `0023` y `0024` ya están aplicadas. No deben
@@ -106,14 +105,6 @@ aplicarla en un entorno nuevo, ejecutar
 `supabase/preflight/0032_profile_bootstrap_rls.sql`, comprobar sus dependencias y
 detenerse ante cualquier drift. Este checklist no afirma cuál es el estado
 remoto de `0032` en HSL.
-
-`0033_recovery_session_authorization.sql` depende expresamente de `0032`. El
-orden operativo es: código y tests verdes → aplicar migraciones anteriores
-pendientes → revisar/aplicar `0033` → ejecutar su preflight read-only y exigir
-cero findings → comprobar login normal → desplegar web → QA Recovery inmediato.
-No aplicar `0033` desde automatización de esta tarea ni asumir que su archivo
-local demuestra estado remoto. Véase
-[Recovery authorization boundary](auth-recovery-authorization-boundary.md).
 
 Comprobar despues:
 
@@ -158,12 +149,6 @@ Comprobar despues:
 - Crear después un bucket R2 privado y un token Object Read only limitado al
   bucket; configurar las cinco variables server-side y probar con un pack
   autorizado sólo tras desplegar. No reutilizar una credencial de escritura.
-- Antes de `0033`, confirmar que `0032` existe, no hay tablas `public` concedidas
-  a `authenticated` sin RLS y existen las RPCs que endurece. Después, ejecutar
-  `supabase/preflight/0033_recovery_session_authorization.sql`: todas las tablas
-  expuestas deben mostrar barrera restrictiva, cada bucket `hsl-*` debe quedar
-  cubierto, las RPC `SECURITY DEFINER` ejecutables deben estar guardadas y el
-  último result set debe devolver cero filas.
 
 ### Estado conocido de producción HSL
 
@@ -313,11 +298,10 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
 - Credenciales R2, bearer HSL y URLs presigned sólo en servidor/transporte; no
   registrarlas ni devolver object keys. El bucket de packs permanece privado.
 - Endpoints `/api/admin/*` protegidos por perfil admin.
-- Toda autorización de usuario verifica primero `getClaims()`; un AMR Recovery
-  nunca equivale a product, ni con cookies web ni con Bearer.
-- Las dependencias service role/R2 se construyen o usan sólo después de validar
-  product session. `hsl-public-media` conserva descargas CDN públicas pero niega
-  operaciones autenticadas a Recovery mediante RLS restrictiva.
+- Las fronteras web sensibles clasifican primero las claims del navegador; un
+  AMR Recovery no activa sesión privada ni mutaciones de producto en la web.
+- Los endpoints Bearer del launcher conservan su autenticación canónica mediante
+  `auth.getUser()` y su taxonomía de errores existente.
 - `/api/cron/process-schedule` protegido por `CRON_SECRET`.
 - `/api/submissions/ingest` no acepta `playerId` ni `submittedAt`.
 - Chat y cuestionarios no aceptan `authorId`, `messageType` ni `playerId`
@@ -349,13 +333,11 @@ Debe ejecutarse antes de cada despliegue y adaptarse a las migraciones que falte
 en el entorno destino. La aplicación remota de `0023`, `0024`,
 `0026_submission_detected_at_window.sql`, `0027_profile_anonymization.sql` y
 `0031_launcher_packs.sql` está confirmada. No se ha verificado qué SHA web está
-desplegado actualmente ni se afirma aquí el estado remoto de `0032` o `0033`.
+desplegado actualmente ni se afirma aquí el estado remoto de `0032`.
 
-Para `AUTH-RECOVERY-AUTHORIZATION-BOUNDARY-1`, `0033` y el preflight están
-preparados localmente. El QA real debe confirmar especialmente que un refresh
-conserva `amr=recovery`, y repetir el rechazo de Data API, Storage y Bearer sin
-imprimir tokens. Hasta completar aplicación, preflight, despliegue y ese QA, la
-nueva frontera no se considera operativa en remoto.
+Recovery se limita a la frontera web del navegador. Su QA posterior comprueba
+el workflow, la navegación desconectada y las páginas privadas; no requiere
+aplicar SQL ni probar Data API, Storage o Bearer con una credencial Recovery.
 
 Para `PROFILE-PRESENCE-1` el orden es estricto: (1) aplicar
 `0028_player_presence.sql`, (2) aplicar `0029_profile_privacy_defaults.sql`,

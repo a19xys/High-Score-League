@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getBearerProductRequestSession } from "@/lib/auth/request-client";
+import { createBearerAuthenticatedClient } from "@/lib/auth/request-client";
 import type { SeasonMembershipRow, WeekRow } from "@/types/supabase";
 
 export const dynamic = "force-dynamic";
@@ -31,13 +31,17 @@ export async function GET(request: NextRequest) {
     return jsonError("invalid_week", "weekId es obligatorio.", 400);
   }
 
-  const session = await getBearerProductRequestSession(request);
+  const supabase = createBearerAuthenticatedClient(request);
 
-  if (session.status !== "authenticated") {
+  if (!supabase) {
     return jsonError("unauthenticated", "Necesitas una sesion valida.", 401);
   }
 
-  const { supabase, user } = session;
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !userData.user) {
+    return jsonError("unauthenticated", "Necesitas una sesion valida.", 401);
+  }
 
   const { data: week, error: weekError } = await supabase
     .from("weeks")
@@ -57,7 +61,7 @@ export async function GET(request: NextRequest) {
     .from("season_memberships")
     .select("id,season_id,player_id,status,joined_at,created_at")
     .eq("season_id", week.season_id)
-    .eq("player_id", user.id)
+    .eq("player_id", userData.user.id)
     .eq("status", "active")
     .maybeSingle<SeasonMembershipRow>();
 

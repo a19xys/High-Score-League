@@ -7,10 +7,6 @@ import {
   validateLauncherPackCatalogRow,
 } from "../launcher-pack-distribution.ts";
 import type { LauncherPackStorage } from "../pack-storage/r2.ts";
-import {
-  extractBearerAccessToken,
-  getVerifiedProductIdentity,
-} from "../auth/session-context.ts";
 import { resolvePublicWeekVisibility } from "../public-week-visibility.ts";
 import { getDerivedWeekStatus } from "../week-status.ts";
 
@@ -19,11 +15,7 @@ const WEEK_COLUMNS = "id,season_id,game_id,week_number,status,public_start_at,pu
 
 export type LauncherPackBearerClient = {
   auth: {
-    getClaims(accessToken?: string): PromiseLike<{
-      data: { claims: unknown } | null;
-      error: unknown;
-    }>;
-    getUser(accessToken?: string): PromiseLike<{
+    getUser(): PromiseLike<{
       data: { user: { id: string } | null };
       error: unknown;
     }>;
@@ -158,10 +150,8 @@ export async function resolveLauncherPackDownload(
     return errorResult(400, "INVALID_PACK_ID", "El identificador del pack no es válido.");
   }
 
-  const accessToken = extractBearerAccessToken(
-    request.headers.get("authorization"),
-  );
-  if (!accessToken) {
+  const authorization = request.headers.get("authorization");
+  if (!authorization || !/^Bearer [^\s]+$/i.test(authorization)) {
     return errorResult(401, "AUTH_REQUIRED", "Necesitas una sesión válida.");
   }
 
@@ -175,22 +165,16 @@ export async function resolveLauncherPackDownload(
     return packAuthUnavailable();
   }
 
-  let identity: Awaited<ReturnType<typeof getVerifiedProductIdentity>>;
+  let authResult: Awaited<ReturnType<LauncherPackBearerClient["auth"]["getUser"]>>;
   try {
-    identity = await getVerifiedProductIdentity(
-      bearerClient.auth,
-      accessToken,
-    );
+    authResult = await bearerClient.auth.getUser();
   } catch {
     return packAuthUnavailable();
   }
-  if (identity.status === "unavailable") {
-    return packAuthUnavailable();
-  }
-  if (identity.status !== "product") {
+  if (authResult.error || !authResult.data.user) {
     return errorResult(401, "AUTH_REQUIRED", "Necesitas una sesión válida.");
   }
-  const userId = identity.userId;
+  const userId = authResult.data.user.id;
 
   let profileState: { active: boolean; error: string | null };
   try {
