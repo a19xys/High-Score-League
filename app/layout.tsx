@@ -126,7 +126,7 @@ export default async function RootLayout({
       </head>
       <body className={`${manrope.variable} ${sora.variable}`}>
         <WebPresenceHeartbeat enabled={session.status === "signed-in"} />
-        <SiteNav />
+        <SiteNav session={session} />
         <PlayerHoverCardProvider
           currentUserId={session.status === "signed-in" ? session.userId : null}
         >

@@ -3,6 +3,7 @@ import {
   type ProfileAuthData,
 } from "@/components/profile-dashboard";
 import { ensureProfileForCurrentUser } from "@/lib/auth/ensure-profile";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { getAdminCurrentWeek } from "@/lib/data/admin-weeks";
 import {
   emptyPlayerCompetitiveProfile,
@@ -61,9 +62,9 @@ export default async function ProfilePage() {
     );
   }
 
-  const { data: userData } = await supabase.auth.getUser();
+  const identity = await getVerifiedProductIdentity(supabase.auth);
 
-  if (!userData.user) {
+  if (identity.status !== "product") {
     return (
       <ProfileDashboard
         adminCenter={{ isAdmin: false }}
@@ -81,7 +82,7 @@ export default async function ProfilePage() {
     const { data: lifecycleProfile } = await admin
       .from("profiles")
       .select("anonymized_at")
-      .eq("id", userData.user.id)
+      .eq("id", identity.userId)
       .maybeSingle<{ anonymized_at: string | null }>();
 
     if (lifecycleProfile?.anonymized_at) {
@@ -90,7 +91,10 @@ export default async function ProfilePage() {
     }
   }
 
-  const profileResult = await ensureProfileForCurrentUser(supabase);
+  const profileResult = await ensureProfileForCurrentUser(
+    supabase,
+    identity.user,
+  );
 
   if (profileResult.status === "inaccessible") {
     await supabase.auth.signOut({ scope: "local" });
@@ -118,12 +122,12 @@ export default async function ProfilePage() {
   ]);
   const auth: ProfileAuthData = {
     status: "signed-in",
-    email: userData.user.email ?? "Email no disponible",
+    email: identity.user.email ?? "Email no disponible",
     profile,
     profileError:
       profileResult.status === "needs-input" ? profileResult.error : null,
-    metadataUsername: metadataString(userData.user.user_metadata.username).trim(),
-    metadataInitials: metadataString(userData.user.user_metadata.initials).trim(),
+    metadataUsername: metadataString(identity.user.user_metadata?.username).trim(),
+    metadataInitials: metadataString(identity.user.user_metadata?.initials).trim(),
   };
 
   return (

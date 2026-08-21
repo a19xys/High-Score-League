@@ -165,11 +165,11 @@ function createMemoryWeekCache(clock) {
     path: null,
     async initialize() { return { entries: [] }; },
     async remember(context, capability) {
-      entries.set(`${context.origin}|${context.deploymentKey}|${capability.weekId}`, { ...capability });
+      entries.set(`${context.origin}|${context.authorityKey}|${capability.weekId}`, { ...capability });
       return capability;
     },
     read(context, weekId) {
-      const entry = entries.get(`${context.origin}|${context.deploymentKey}|${weekId}`);
+      const entry = entries.get(`${context.origin}|${context.authorityKey}|${weekId}`);
       if (!entry) return null;
       return {
         ...entry,
@@ -180,7 +180,6 @@ function createMemoryWeekCache(clock) {
         source: "durable-cache",
       };
     },
-    resolveDeploymentKey() { return entries.size > 0 ? `${DEPLOYMENT.build}:${DEPLOYMENT.environment}:${DEPLOYMENT.apiVersion}` : null; },
     snapshot() { return { entries: [...entries.values()], measuredAt: new Date(clock.now()).toISOString() }; },
   };
 }

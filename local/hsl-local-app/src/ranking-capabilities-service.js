@@ -1,7 +1,8 @@
 const { isCommittedConnected, normalizeWebBaseUrl } = require("./connectivity-service");
 const {
-  deploymentFingerprintsMatch,
-  deploymentKey,
+  deploymentMetadataExactlyMatches,
+  isSupportedLauncherApiVersion,
+  launcherAuthorityKey,
   readHealthDeployment,
   readRankingDeployment,
 } = require("./deployment-fingerprint");
@@ -48,9 +49,10 @@ function createRankingCapabilitiesService(options = {}) {
   const cache = new Map();
   const transitions = [];
   let context = {
-    deploymentKey: deploymentKey(options.getConnectivityState()?.deployment),
+    authorityKey: launcherAuthorityKey(),
     fingerprint: "",
     generation: 0,
+    observedDeployment: { ...(options.getConnectivityState()?.deployment || {}) },
     webBaseUrl: null,
     weekIds: [],
   };
@@ -64,14 +66,17 @@ function createRankingCapabilitiesService(options = {}) {
   let previousEntries = {};
   let initialBatchAt = null;
   let lastForcedRefreshAt = null;
+  let deploymentMetadataChanges = 0;
   let lastRequest = {
     build: "unknown",
     checkedAt: null,
+    contractCompatible: null,
     contractVersion: null,
-    deploymentMatchesHealth: null,
     environment: "unknown",
     errorCode: null,
     httpStatus: null,
+    metadataMatchesHealth: null,
+    metadataMatchesHeaders: null,
     reason: "not-checked",
   };
 
@@ -84,7 +89,7 @@ function createRankingCapabilitiesService(options = {}) {
   }
 
   function cacheKey(weekId) {
-    return `${context.webBaseUrl || "missing"}|${context.deploymentKey}|${weekId}`;
+    return `${context.webBaseUrl || "missing"}|${context.authorityKey}|${weekId}`;
   }
 
   function publicEntry(entry, overrides = {}) {
@@ -249,13 +254,13 @@ function createRankingCapabilitiesService(options = {}) {
     return batches;
   }
 
-  function validateBatchResponse(payload, requests, webBaseUrl, expectedDeployment) {
+  function validateBatchResponse(payload, requests, webBaseUrl) {
     if (!payload || payload.version !== RANKING_CONTRACT_VERSION || !Array.isArray(payload.results)) {
       throw Object.assign(new Error("Invalid ranking response"), { reason: "invalid-response" });
     }
     const responseDeployment = readRankingDeployment(payload);
-    if (!deploymentFingerprintsMatch(expectedDeployment, responseDeployment)) {
-      throw Object.assign(new Error("Ranking deployment differs from health"), { reason: "deployment-mismatch", responseDeployment });
+    if (!isSupportedLauncherApiVersion(responseDeployment.apiVersion)) {
+      throw Object.assign(new Error("Unsupported ranking contract"), { reason: "unsupported-contract", responseDeployment });
     }
     const byRequestKey = new Map(payload.results.map((item) => [item?.requestKey, item]));
     return {
@@ -292,14 +297,31 @@ function createRankingCapabilitiesService(options = {}) {
       emit(reason);
       return Promise.resolve(snapshot());
     }
+    updateDeployment();
     if (inFlight) return inFlight;
     const candidates = Array.isArray(refreshOptions.weekIds)
       ? refreshOptions.weekIds.filter((weekId) => context.weekIds.includes(weekId))
       : context.weekIds;
-    const retryUnknownNow = ["connectivity-restored", "deployment-change"].includes(reason);
+    const retryUnknownNow = reason === "connectivity-restored";
     const weekIds = requestedWeekIds(candidates, Boolean(refreshOptions.force) || retryUnknownNow);
     const endpoint = rankingCapabilitiesEndpoint(context.webBaseUrl);
     if (!endpoint || weekIds.length === 0) {
+      scheduleUnknownRetry();
+      return Promise.resolve(snapshot());
+    }
+    const requestDeployment = { ...(connectivityState().deployment || {}) };
+    if (!isSupportedLauncherApiVersion(requestDeployment.apiVersion)) {
+      for (const weekId of weekIds) writeUnknown(weekId, "unsupported-contract");
+      lastRequest = {
+        ...lastRequest,
+        build: requestDeployment.build || "unknown",
+        checkedAt: new Date(nowImpl()).toISOString(),
+        contractCompatible: false,
+        contractVersion: Number(requestDeployment.apiVersion) || null,
+        environment: requestDeployment.environment || "unknown",
+        reason: "unsupported-contract",
+      };
+      emit(`${reason}:unsupported-contract`);
       scheduleUnknownRetry();
       return Promise.resolve(snapshot());
     }
@@ -308,8 +330,7 @@ function createRankingCapabilitiesService(options = {}) {
     const currentRequestGeneration = ++requestGeneration;
     const requestBaseUrl = context.webBaseUrl;
     const requestReachabilityGeneration = connectivityState().reachabilityGeneration;
-    const requestDeploymentGeneration = connectivityState().deploymentGeneration || 0;
-    const requestDeployment = { ...(connectivityState().deployment || {}) };
+    const requestAuthorityKey = context.authorityKey;
     const controller = new AbortController();
     activeController = controller;
     pendingIds = new Set(weekIds);
@@ -334,53 +355,57 @@ function createRankingCapabilitiesService(options = {}) {
           });
           options.onReachable?.("ranking-capabilities-response");
           const responseHeaderDeployment = readHealthDeployment(response);
-          const headersMatchHealth = deploymentFingerprintsMatch(requestDeployment, responseHeaderDeployment);
+          const headerContractCompatible = isSupportedLauncherApiVersion(responseHeaderDeployment.apiVersion);
+          const headerMetadataMatchesHealth = deploymentMetadataExactlyMatches(requestDeployment, responseHeaderDeployment);
           lastRequest = {
             build: responseHeaderDeployment.build,
             checkedAt: new Date(nowImpl()).toISOString(),
+            contractCompatible: headerContractCompatible,
             contractVersion: responseHeaderDeployment.apiVersion,
-            deploymentMatchesHealth: headersMatchHealth,
             environment: responseHeaderDeployment.environment,
             errorCode: null,
             httpStatus: response.status,
+            metadataMatchesHealth: headerMetadataMatchesHealth,
+            metadataMatchesHeaders: null,
             reason: response.ok ? null : `http-${response.status}`,
           };
-          if (!headersMatchHealth) throw Object.assign(new Error("Ranking headers differ from health"), { reason: "deployment-mismatch", responseDeployment: responseHeaderDeployment });
+          if (!headerContractCompatible) throw Object.assign(new Error("Unsupported ranking response headers"), { reason: "unsupported-contract", responseDeployment: responseHeaderDeployment });
           if (!response.ok) {
             const errorCode = await safeServiceErrorCode(response);
             lastRequest = { ...lastRequest, errorCode };
             throw Object.assign(new Error("Ranking endpoint unavailable"), { errorCode, reason: `http-${response.status}` });
           }
-          const validated = validateBatchResponse(await response.json(), requests, requestBaseUrl, requestDeployment);
-          if (!deploymentFingerprintsMatch(responseHeaderDeployment, validated.deployment)) {
-            throw Object.assign(new Error("Ranking body differs from response headers"), { reason: "deployment-mismatch", responseDeployment: validated.deployment });
-          }
+          const validated = validateBatchResponse(await response.json(), requests, requestBaseUrl);
+          const metadataMatchesHeaders = deploymentMetadataExactlyMatches(responseHeaderDeployment, validated.deployment);
           lastRequest = {
             ...lastRequest,
             build: validated.deployment.build,
+            contractCompatible: true,
             contractVersion: validated.deployment.apiVersion,
-            deploymentMatchesHealth: true,
             environment: validated.deployment.environment,
+            metadataMatchesHeaders,
           };
           allResults.push(...validated.results);
         }
         if (disposed || requestContextGeneration !== context.generation || currentRequestGeneration !== requestGeneration ||
-            requestBaseUrl !== context.webBaseUrl || requestReachabilityGeneration !== connectivityState().reachabilityGeneration ||
-            requestDeploymentGeneration !== (connectivityState().deploymentGeneration || 0) || !canQuery()) return snapshot();
+            requestBaseUrl !== context.webBaseUrl || requestAuthorityKey !== context.authorityKey ||
+            requestReachabilityGeneration !== connectivityState().reachabilityGeneration ||
+            !isSupportedLauncherApiVersion(connectivityState().deployment?.apiVersion) || !canQuery()) return snapshot();
         for (const result of allResults) writeConclusive(result);
       } catch (error) {
         const unchanged = requestContextGeneration === context.generation && currentRequestGeneration === requestGeneration &&
-          requestBaseUrl === context.webBaseUrl && requestReachabilityGeneration === connectivityState().reachabilityGeneration &&
-          requestDeploymentGeneration === (connectivityState().deploymentGeneration || 0);
+          requestBaseUrl === context.webBaseUrl && requestAuthorityKey === context.authorityKey &&
+          requestReachabilityGeneration === connectivityState().reachabilityGeneration &&
+          isSupportedLauncherApiVersion(connectivityState().deployment?.apiVersion);
         if (!disposed && unchanged) {
           const failureReason = controller.signal.aborted ? "timeout" : String(error?.reason || "temporary-failure");
           for (const weekId of weekIds) writeUnknown(weekId, failureReason);
-          if (failureReason === "deployment-mismatch") {
+          if (failureReason === "unsupported-contract") {
             lastRequest = {
               ...lastRequest,
               build: error?.responseDeployment?.build || "unknown",
+              contractCompatible: false,
               contractVersion: error?.responseDeployment?.apiVersion || null,
-              deploymentMatchesHealth: false,
               environment: error?.responseDeployment?.environment || "unknown",
             };
           }
@@ -425,17 +450,28 @@ function createRankingCapabilitiesService(options = {}) {
   function updateContext(input = {}) {
     const webBaseUrl = normalizeWebBaseUrl(input.webBaseUrl);
     const weekIds = [...new Set((input.packs || []).map((pack) => pack?.weekId).filter(validWeekId))].sort();
-    const currentDeploymentKey = deploymentKey(connectivityState().deployment);
-    const fingerprint = `${webBaseUrl || "missing"}|${currentDeploymentKey}|${weekIds.join("|")}`;
-    if (fingerprint === context.fingerprint) return snapshot();
-    return replaceContext({ deploymentKey: currentDeploymentKey, fingerprint, webBaseUrl, weekIds });
+    const authorityKey = launcherAuthorityKey();
+    const fingerprint = `${webBaseUrl || "missing"}|${authorityKey}|${weekIds.join("|")}`;
+    if (fingerprint === context.fingerprint) {
+      updateDeployment();
+      return snapshot();
+    }
+    return replaceContext({
+      authorityKey,
+      fingerprint,
+      observedDeployment: { ...(connectivityState().deployment || {}) },
+      webBaseUrl,
+      weekIds,
+    });
   }
 
   function updateDeployment() {
-    const currentDeploymentKey = deploymentKey(connectivityState().deployment);
-    if (currentDeploymentKey === context.deploymentKey) return snapshot();
-    const fingerprint = `${context.webBaseUrl || "missing"}|${currentDeploymentKey}|${context.weekIds.join("|")}`;
-    return replaceContext({ ...context, deploymentKey: currentDeploymentKey, fingerprint });
+    const observedDeployment = { ...(connectivityState().deployment || {}) };
+    if (!deploymentMetadataExactlyMatches(context.observedDeployment, observedDeployment)) {
+      deploymentMetadataChanges += 1;
+      context = { ...context, observedDeployment };
+    }
+    return snapshot();
   }
 
   async function ensureCapability(weekId) {
@@ -461,19 +497,28 @@ function createRankingCapabilitiesService(options = {}) {
       return {
         activeWeekId,
         active: activeWeekId ? entryFor(activeWeekId) : null,
+        authority: {
+          key: context.authorityKey,
+          origin: context.webBaseUrl,
+        },
         automaticTtlRefresh: false,
         available: entries.filter((item) => item.status === "available").map((item) => item.weekId),
         cache: cacheSummary(),
         checkedWeekIds: entries.filter((item) => ["available", "unavailable"].includes(item.status)).map((item) => item.weekId),
         configurationAvailable: Boolean(rankingCapabilitiesEndpoint(context.webBaseUrl)),
         context: {
+          authorityKey: context.authorityKey,
           contractVersion: RANKING_CONTRACT_VERSION,
-          deployment: context.deploymentKey,
           fingerprint: context.fingerprint,
           generation: context.generation,
           inFlight: Boolean(inFlight),
           weekCount: context.weekIds.length,
           webBaseUrl: context.webBaseUrl,
+        },
+        deployment: {
+          generation: Number(connectivityState().deploymentGeneration) || 0,
+          metadata: { ...context.observedDeployment },
+          metadataChanges: deploymentMetadataChanges,
         },
         endpoint: rankingCapabilitiesEndpoint(context.webBaseUrl),
         initialBatchAt,

@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { deriveCompetitionAccess } = require("./competition-access");
-const { getV2CaptureReadiness } = require("./mame-plugin-run");
+const { getV2CaptureReadiness, getV2CompetitionReadiness } = require("./mame-plugin-run");
 const { isMameVersionCompatible } = require("./mame-version");
 
 function exists(targetPath) {
@@ -43,6 +43,10 @@ function check(id, level, label, message, technicalDetails = []) {
 }
 
 function firstBlockingMessage(checks) {
+  for (const id of ["pack-valid", "runtime-shared", "mame-executable", "mame-working-dir", "rom-dir", "rom-file"]) {
+    const blocker = checks.find((item) => item.id === id && item.level === "error");
+    if (blocker) return blocker.message;
+  }
   return checks.find((item) => item.level === "error")?.message || null;
 }
 
@@ -134,6 +138,7 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, wee
   const isPackV2 = pack?.packVersion === 2 || pack?.contract?.version === 2 || config.requiresSharedMameRuntime === true;
   const sharedRuntime = config.sharedMameRuntime || {};
   const v2Capture = isPackV2 ? getV2CaptureReadiness(config) : null;
+  const v2Competition = isPackV2 ? getV2CompetitionReadiness(config) : null;
   const rom = pack?.rom || config.rom || null;
   const weekId = config.defaultWeekId || pack?.weekId || null;
   const pluginName = getPluginName(config);
@@ -315,6 +320,15 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, wee
           ]
         : v2Capture.errors
     ));
+    checks.push(check(
+      "competition-integrity-v2",
+      v2Competition.ok ? "ok" : v2Capture.ok ? "warning" : "error",
+      "Integridad",
+      v2Competition.ok
+        ? "Pack preparado para Competicion protegida local."
+        : "Este pack sigue siendo valido, pero no esta preparado para Competicion protegida.",
+      v2Competition.ok ? ["integrity.version=1"] : v2Competition.errors,
+    ));
   } else if (pluginName) {
     checks.push(check("plugin-name", "ok", "Plugin", `Plugin configurado: ${pluginName}.`));
   } else {
@@ -430,7 +444,7 @@ function evaluatePackReadiness({ config = {}, session = {}, membership = {}, wee
   );
   const hasRomDir = !isPackV2 || checks.find((item) => item.id === "rom-dir")?.level === "ok";
   const hasPlugin = isPackV2
-    ? Boolean(v2Capture?.ok)
+    ? Boolean(v2Competition?.ok)
     : Boolean(pluginName) && checks.find((item) => item.id === "plugin-folder")?.level !== "error";
   const hasSession = Boolean(session?.hasSession);
   const hasScope = Boolean(scope?.scopedQueueRoot);

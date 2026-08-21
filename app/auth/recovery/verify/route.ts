@@ -9,6 +9,7 @@ import {
   RECOVERY_STAGING_COOKIE,
   verifyRecoveryOtp,
 } from "@/lib/auth/password-recovery";
+import { getVerifiedSessionIdentity } from "@/lib/auth/session-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,20 @@ export async function POST(request: Request) {
     ? await verifyRecoveryOtp(supabase.auth, tokenHash)
     : false;
 
-  if (!verified) {
+  if (!supabase || !verified) {
+    const response = redirect(request, "/auth/recovery");
+    expireAllRecoveryState(response);
+    return response;
+  }
+
+  const recoveryIdentity = await getVerifiedSessionIdentity(supabase.auth);
+
+  if (recoveryIdentity.status !== "recovery") {
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      // Recovery state is expired below even if local Auth cleanup is unavailable.
+    }
     const response = redirect(request, "/auth/recovery");
     expireAllRecoveryState(response);
     return response;

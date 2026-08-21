@@ -149,7 +149,7 @@ test("0032 preflight is SELECT-only and reports dependencies, policies and orpha
 test("ensureProfile keeps canonical RETURNING and primary-key race convergence", async () => {
   const source = await read("lib", "auth", "ensure-profile.ts");
   const initialRead = source.indexOf('.from("profiles")');
-  const metadataRead = source.indexOf("userData.user.user_metadata.username");
+  const metadataRead = source.indexOf("user.user_metadata?.username");
   const validation = source.indexOf("validateUsername(username)");
   const insert = source.indexOf('.insert({');
 
@@ -157,11 +157,11 @@ test("ensureProfile keeps canonical RETURNING and primary-key race convergence",
   assert.ok(metadataRead < validation && validation < insert);
   assert.match(
     source,
-    /\.from\("profiles"\)[\s\S]*?\.select\(profileColumns\)[\s\S]*?\.eq\("id", userData\.user\.id\)[\s\S]*?\.maybeSingle\(\)/,
+    /\.from\("profiles"\)[\s\S]*?\.select\(profileColumns\)[\s\S]*?\.eq\("id", user\.id\)[\s\S]*?\.maybeSingle\(\)/,
   );
   assert.match(
     source,
-    /\.insert\(\{[\s\S]*?id: userData\.user\.id,[\s\S]*?username,[\s\S]*?initials,[\s\S]*?\}\)[\s\S]*?\.select\(profileColumns\)[\s\S]*?\.single\(\)/,
+    /\.insert\(\{[\s\S]*?id: user\.id,[\s\S]*?username,[\s\S]*?initials,[\s\S]*?\}\)[\s\S]*?\.select\(profileColumns\)[\s\S]*?\.single\(\)/,
   );
   assert.match(
     source,

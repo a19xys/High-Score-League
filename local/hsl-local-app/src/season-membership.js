@@ -1,6 +1,7 @@
 const { resolveCanonicalSessionResult } = require("./auth");
 const { executeCanonicalAuthenticatedRequest } = require("./authenticated-request");
 const { createMembershipCache } = require("./competitive-authority-cache");
+const { launcherAuthorityKey } = require("./deployment-fingerprint");
 const { normalizeWebBaseUrl, parseResponseText } = require("./submission-http");
 const { executeRemoteRequest } = require("./remote-request");
 const { parseRetryAfter, RETRYABLE_HTTP_STATUSES } = require("./submission-outcome");
@@ -299,7 +300,7 @@ function normalizeMembershipResponse(config, body, options = {}) {
 
 function membershipAuthorityContext(config, options = {}) {
   return {
-    deploymentKey: options.authorityContext?.deploymentKey || options.deploymentKey || "unknown:unknown:0",
+    authorityKey: options.authorityContext?.authorityKey || options.authorityKey || launcherAuthorityKey(),
     origin: options.authorityContext?.origin || config.webBaseUrl || null,
   };
 }

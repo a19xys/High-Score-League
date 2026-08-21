@@ -1,6 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
-import { getSupabaseEnv } from "@/lib/supabase/env";
+import { getBearerProductRequestSession } from "@/lib/auth/request-client";
 import type { SeasonMembershipRow, WeekRow } from "@/types/supabase";
 
 export const dynamic = "force-dynamic";
@@ -25,31 +24,6 @@ function jsonError(statusValue: string, message: string, status = 400) {
   );
 }
 
-function createAuthenticatedClient(request: NextRequest) {
-  const authorization = request.headers.get("authorization");
-  const env = getSupabaseEnv();
-
-  if (!authorization?.toLowerCase().startsWith("bearer ")) {
-    return null;
-  }
-
-  if (!env.isConfigured || !env.url || !env.anonKey) {
-    return null;
-  }
-
-  return createClient(env.url, env.anonKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-    global: {
-      headers: {
-        Authorization: authorization,
-      },
-    },
-  });
-}
-
 export async function GET(request: NextRequest) {
   const weekId = request.nextUrl.searchParams.get("weekId")?.trim();
 
@@ -57,17 +31,13 @@ export async function GET(request: NextRequest) {
     return jsonError("invalid_week", "weekId es obligatorio.", 400);
   }
 
-  const supabase = createAuthenticatedClient(request);
+  const session = await getBearerProductRequestSession(request);
 
-  if (!supabase) {
+  if (session.status !== "authenticated") {
     return jsonError("unauthenticated", "Necesitas una sesion valida.", 401);
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !userData.user) {
-    return jsonError("unauthenticated", "Necesitas una sesion valida.", 401);
-  }
+  const { supabase, user } = session;
 
   const { data: week, error: weekError } = await supabase
     .from("weeks")
@@ -87,7 +57,7 @@ export async function GET(request: NextRequest) {
     .from("season_memberships")
     .select("id,season_id,player_id,status,joined_at,created_at")
     .eq("season_id", week.season_id)
-    .eq("player_id", userData.user.id)
+    .eq("player_id", user.id)
     .eq("status", "active")
     .maybeSingle<SeasonMembershipRow>();
 

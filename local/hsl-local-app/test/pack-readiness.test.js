@@ -465,7 +465,7 @@ test("packVersion 2 sin ROM concreta bloquea practica y competicion", async () =
   });
 });
 
-test("packVersion 2 con adapter valido permite captura y competicion", async () => {
+test("packVersion 2 con adapter valido distingue loader de Competition protegida", async () => {
   await withTempDir(async (dir) => {
     const context = await createReadyFixture(dir);
     const sharedMame = path.join(dir, "runtime", "mame.exe");
@@ -509,12 +509,35 @@ test("packVersion 2 con adapter valido permite captura y competicion", async () 
       },
     };
 
+    const unprotected = evaluatePackReadiness(context);
+
+    assert.equal(unprotected.canPractice, true);
+    assert.equal(unprotected.canCapture, false);
+    assert.equal(unprotected.canPlayCompetition, false);
+    assert.equal(unprotected.status, "warning");
+    assert.ok(unprotected.checks.some((item) => item.id === "capture-v2" && item.level === "ok"));
+    assert.ok(unprotected.checks.some((item) => item.id === "competition-integrity-v2" && item.level === "warning"));
+
+    context.config.pack.contract.mame.profiles = {
+      practice: { cfgDir: null, launchArgs: [] },
+      competition: {
+        cfgDir: null,
+        launchArgs: [],
+        integrity: {
+          version: 1,
+          mameVersion: "0.287",
+          dips: [{ portTag: ":IN2", mask: 3, value: 0, label: "Lives", settingLabel: "3" }],
+        },
+      },
+    };
+    context.config.sharedMameRuntime.version = "0.287";
     const result = evaluatePackReadiness(context);
 
     assert.equal(result.canPractice, true);
     assert.equal(result.canCapture, true);
     assert.equal(result.canPlayCompetition, true);
     assert.ok(result.checks.some((item) => item.id === "capture-v2" && item.level === "ok"));
+    assert.ok(result.checks.some((item) => item.id === "competition-integrity-v2" && item.level === "ok"));
   });
 });
 

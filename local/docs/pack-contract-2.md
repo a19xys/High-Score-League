@@ -50,11 +50,14 @@ pero no sustituyen la autoridad competitiva de la web.
 
 - `pack.json`: contrato tecnico, jugable y competitivo.
 - `metadata.json`: presentacion local, textos, creditos, enlaces y assets.
-- `manifest.json`: integridad, versionado, checksums, instalacion y updates
-  futuros. No se valida de forma completa todavia.
+- `competition-manifest.json`: cobertura local determinista de los bytes que
+  pueden afectar una Competition protegida. Se valida antes de crear el run.
+- el descriptor/artefacto remoto de distribucion conserva su responsabilidad
+  independiente sobre descarga, instalacion y updates.
 
-`metadata.json` no debe convertirse en autoridad competitiva. `manifest.json`
-no debe contener secretos.
+`metadata.json` no debe convertirse en autoridad competitiva.
+`competition-manifest.json` no contiene secretos, timestamps ni rutas
+absolutas y todavia no es una firma ni una autoridad web.
 
 ## Rutas seguras
 
@@ -147,6 +150,10 @@ el pack y explicar su estado. Desde `LOCAL-SHARED-MAME-RUNTIME-1`, practica v2
 puede usar el runtime MAME compartido si esta configurado y `mame.romPath`
 existe. Desde `LOCAL-MAME-PACK-PLUGIN-LOADING-2`, competicion v2 prepara
 plugin/adaptador por ejecucion cuando el resto de requisitos estan listos.
+Desde `LOCAL-COMPETITION-INTEGRITY-1`, solo un pack que declara `integrity` v1,
+verifica su manifest y usa la version MAME exacta puede preparar una
+Competition protegida. Un pack v2 sin policy sigue siendo valido para la
+Biblioteca y Practica; no se migra ni se marca corrupto.
 
 ## Perfiles MAME opcionales
 
@@ -164,17 +171,55 @@ ajustar el lanzamiento por modo sin cambiar el runtime compartido:
         "launchArgs": []
       },
       "competition": {
-        "cfgPath": "cfg/competition",
-        "launchArgs": ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"]
+        "launchArgs": ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+        "integrity": {
+          "version": 1,
+          "mameVersion": "0.287",
+          "dips": [
+            {
+              "portTag": ":IN2",
+              "mask": 3,
+              "value": 0,
+              "label": "Lives",
+              "settingLabel": "3"
+            }
+          ]
+        }
       }
     }
   }
 }
 ```
 
-El launcher usa el `cfgPath` del perfil si existe, y concatena
-`mame.launchArgs` con los argumentos del perfil. Los argumentos siguen siendo
-una lista explicita de strings; no hay parseo de shell.
+En Practica, el launcher usa el `cfgPath` del perfil o `mame.cfgPath` como cfg
+persistente. En Competition protegida, el cfg efectivo siempre es
+`runRoot/cfg`; un `profiles.competition.cfgPath` opcional es solo seed
+manifestado y copiado. Nunca se usa vivo dentro del pack.
+
+El launcher concatena `mame.launchArgs` con los argumentos del perfil. Son una
+lista explicita de strings, sin parseo de shell. En Competition, `ctrlr`,
+rewind, state/save/load, cheats, speed/throttle, debugger, autoboot, console,
+HTTP y plugins permanecen bajo autoridad del launcher; esas familias no se
+prohiben globalmente a Practica.
+
+## Integrity y manifest competitivos v1
+
+El schema, canonicalizacion y limites completos estan documentados en
+`local/docs/competition-integrity-1.md`. En resumen:
+
+- `integrity.version` es exactamente 1 y `mameVersion` es exacta;
+- hay 1-32 DIP canonicos por `portTag + mask`, con value dentro de mask;
+- la cobertura deriva de pack, adapter, ROMs, scripts, artwork interactivo y
+  seed competitivo;
+- samples, metadata, assets y manual se excluyen solo cuando son salida de
+  audio o presentacion sin efecto sobre estado/captura;
+- paths, orden, size, SHA-256 y serializacion son canonicos.
+
+La ausencia de `integrity` es compatible. Readiness diferencia pack valido de
+pack listo para Competition protegida. Una modificacion no acompanada bloquea
+Competition y deja Practica disponible. Regenerar el manifest tras modificar
+el pack produce un hash coherente nuevo; `WEB-COMPETITION-INTEGRITY-1` debera
+compararlo con el valor publicado.
 
 ## Compatibilidad legacy
 
@@ -216,6 +261,8 @@ read_memory(helpers)
 build_event(config, tracker_state, result, plugin_version, detected_at, score, helpers)
 ```
 
-La app genera `config.lua` para la ejecucion, el plugin escribe en
+La app genera `config.lua` para la ejecucion, incluyendo la policy ya validada,
+y el plugin escribe en
 `userData/runtime/runs/<runId>/events/pending` y la GUI adopta luego al pending
-scoped.
+scoped. El core HSL, no el adapter, anade `competitionIntegrity`; eventos
+violados o sin evidencia valida van a rejected local y no disparan submit.

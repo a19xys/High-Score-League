@@ -17,6 +17,7 @@ const { prepareMame, stageProductMame } = require("../scripts/prepare-mame");
 const { validateProductPublicConfig } = require("../src/product-config");
 const { stageProductPlugin } = require("../scripts/stage-product-plugin");
 const { prepareV2CompetitionRun } = require("../src/mame-plugin-run");
+const { writeCompetitionManifest } = require("../src/competition-manifest");
 const { configureProductRuntime, resetProductRuntime } = require("../src/product-runtime");
 
 async function withTempDir(fn) {
@@ -280,8 +281,12 @@ test("packaged competition stages hsl-score from resources without checkout-rela
     }
     const packRoot = path.join(root, "pack");
     const adapterPath = path.join(packRoot, "scripts", "capture.lua");
+    const romDir = path.join(packRoot, "roms");
     await fsp.mkdir(path.dirname(adapterPath), { recursive: true });
+    await fsp.mkdir(romDir, { recursive: true });
     await fsp.writeFile(adapterPath, "return {}", "utf8");
+    await fsp.writeFile(path.join(romDir, "invaders.zip"), "fixture-rom", "utf8");
+    await fsp.writeFile(path.join(packRoot, "pack.json"), "{}\n", "utf8");
     const config = {
       appDir: path.join(root, "checkout-does-not-exist", "hsl-local-app"),
       packRoot,
@@ -300,16 +305,34 @@ test("packaged competition stages hsl-score from resources without checkout-rela
         contract: {
           version: 2,
           capture: { adapter: "scripts/capture.lua", adapterPath, mode: "plugin", pluginName: "hsl-score" },
+          mame: {
+            launchArgs: [],
+            romDir,
+            romPath: "roms",
+            profiles: {
+              practice: { cfgDir: null, launchArgs: [] },
+              competition: {
+                cfgDir: null,
+                launchArgs: [],
+                integrity: {
+                  version: 1,
+                  mameVersion: "0.287",
+                  dips: [{ portTag: ":IN2", mask: 3, value: 0, label: "Lives", settingLabel: "3" }],
+                },
+              },
+            },
+          },
         },
       },
     };
+    await writeCompetitionManifest(config.pack);
     configureProductRuntime({ isPackaged: true, resourcesPath });
     try {
       const run = await prepareV2CompetitionRun(config, {
         packKey: "pack_packaged",
         playerKey: "user_player",
         scopedQueueRoot: path.join(root, "queue"),
-      }, { runId: "run_packaged" });
+      }, { runId: "run_packaged", detectMameVersionImpl: () => "0.287" });
       assert.equal(run.copiedFiles.includes("init.lua"), true);
       assert.equal(run.config.v2PluginRun.pluginDir.startsWith(config.userDataDir), true);
       assert.equal(await fsp.readFile(path.join(run.pluginDir, "init.lua"), "utf8"), "return {}");

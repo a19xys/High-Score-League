@@ -1,22 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { validatePlayTimePayload } from "@/lib/playtime-contract";
-import { getSupabaseEnv } from "@/lib/supabase/env";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getProductRequestSession } from "@/lib/auth/request-client";
 import { hasActiveProfile } from "@/lib/auth/active-profile";
-
-async function authenticatedClient(request: NextRequest) {
-  const authorization = request.headers.get("authorization");
-  const env = getSupabaseEnv();
-  if (authorization?.toLowerCase().startsWith("bearer ")) {
-    if (!env.isConfigured || !env.url || !env.anonKey) return null;
-    return createClient(env.url, env.anonKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-      global: { headers: { Authorization: authorization } },
-    });
-  }
-  return createSupabaseServerClient();
-}
 
 function errorResponse(error: string, status: number, code?: string) {
   return NextResponse.json({ code, error, ok: false }, { status });
@@ -31,13 +16,13 @@ export async function POST(request: NextRequest) {
   }
   const validation = validatePlayTimePayload(payload);
   if (!validation.ok) return errorResponse(validation.error, 400, "INVALID_PAYLOAD");
-  const supabase = await authenticatedClient(request);
-  if (!supabase) return errorResponse("Supabase no está configurado.", 500, "NOT_CONFIGURED");
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const session = await getProductRequestSession(request);
+  if (session.status === "unavailable") return errorResponse("Supabase no está configurado.", 500, "NOT_CONFIGURED");
+  if (session.status !== "authenticated") {
     return errorResponse("Necesitas una sesión válida.", 401, "AUTH_REQUIRED");
   }
-  const profileState = await hasActiveProfile(supabase, userData.user.id);
+  const { supabase, user } = session;
+  const profileState = await hasActiveProfile(supabase, user.id);
   if (profileState.error) {
     return errorResponse("No se pudo validar el perfil.", 500, "PROFILE_CHECK_FAILED");
   }

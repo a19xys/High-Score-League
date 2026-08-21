@@ -3,6 +3,7 @@ import { createCookieAuthenticatedClient } from "@/lib/auth/request-client";
 import { commitPlayerPresence } from "@/lib/data/player-presence";
 import { validateWebPresencePayload } from "@/lib/presence-contract";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 export const dynamic = "force-dynamic";
 const MAX_REQUEST_BYTES = 2_048;
@@ -33,8 +34,8 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createCookieAuthenticatedClient();
   if (!supabase) return json({ ok: false, error: "Presence no está configurada." }, 503);
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) return json({ ok: false, error: "Necesitas una sesión válida." }, 401);
+  const identity = await getVerifiedProductIdentity(supabase.auth);
+  if (identity.status !== "product") return json({ ok: false, error: "Necesitas una sesión válida." }, 401);
 
   const admin = createSupabaseAdminClient();
   if (!admin) return json({ ok: false, error: "Presence no está configurada." }, 503);
@@ -42,11 +43,10 @@ export async function POST(request: NextRequest) {
     activity: "connected",
     clientId: validation.value.clientId,
     mode: null,
-    playerId: data.user.id,
+    playerId: identity.userId,
     source: "web",
     weekId: null,
   });
   if (committed.error) return json({ ok: false, error: "Presence no está disponible." }, 503);
   return json({ ok: true, private: committed.private });
 }
-

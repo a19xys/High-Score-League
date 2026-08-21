@@ -186,24 +186,7 @@ export default async function RealDataTestPage() {
     );
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { data: userData } = supabase
-    ? await supabase.auth.getUser()
-    : { data: { user: null } };
-
-  if (!userData.user) {
-    return (
-      <Card>
-        <CardHeader title="Datos reales" eyebrow="Diagnostico">
-          Esta pagina lee tablas protegidas por RLS. Inicia sesion para probar
-          `seasons`, `games` y `weeks`.
-        </CardHeader>
-        <Link className="font-semibold text-circuit hover:underline" href="/login">
-          Iniciar sesion
-        </Link>
-      </Card>
-    );
-  }
+  const supabase = auth.supabase;
 
   const [
     seasons,

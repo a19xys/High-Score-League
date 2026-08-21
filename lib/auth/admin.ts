@@ -1,10 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getVerifiedProductIdentity } from "./session-context";
 
 export type AdminAuthResult =
   | {
       ok: true;
       supabase: SupabaseClient;
+      user: {
+        id: string;
+        email?: string | null;
+        user_metadata?: Record<string, unknown>;
+      };
       userId: string;
       profile: { anonymized_at: string | null; is_admin: boolean };
     }
@@ -23,9 +29,9 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
     return { ok: false, status: 500, error: "Supabase no está configurado." };
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const identity = await getVerifiedProductIdentity(supabase.auth);
 
-  if (userError || !userData.user) {
+  if (identity.status !== "product") {
     return {
       ok: false,
       status: 401,
@@ -37,7 +43,7 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("is_admin,anonymized_at")
-    .eq("id", userData.user.id)
+    .eq("id", identity.userId)
     .maybeSingle<{ anonymized_at: string | null; is_admin: boolean }>();
 
   if (profileError) {
@@ -46,7 +52,7 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
       status: 500,
       error: "No se pudo validar el perfil admin.",
       supabase,
-      userId: userData.user.id,
+      userId: identity.userId,
     };
   }
 
@@ -56,14 +62,15 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
       status: 403,
       error: "Necesitas permisos de admin.",
       supabase,
-      userId: userData.user.id,
+      userId: identity.userId,
     };
   }
 
   return {
     ok: true,
     supabase,
-    userId: userData.user.id,
+    user: identity.user,
+    userId: identity.userId,
     profile,
   };
 }

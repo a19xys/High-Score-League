@@ -30,3 +30,16 @@ test("Lua writer gives same-second captures a monotonic collision-resistant suff
   assert.match(source, /%06d\.json/);
   assert.match(source, /not file_exists\(final_filename\) and not file_exists\(temporary_filename\)/);
 });
+
+test("Lua writer replaces adapter integrity evidence on a core-owned plain table", async () => {
+  const source = await fsp.readFile(writerPath, "utf8");
+  const adapterBuild = source.indexOf("local adapter_event = game.build_event");
+  const plainTable = source.indexOf("local event = {}", adapterBuild);
+  const skipForged = source.indexOf('if key ~= "competitionIntegrity"', plainTable);
+  const coreEvidence = source.indexOf("event.competitionIntegrity = integrity and integrity.evidence() or nil", skipForged);
+
+  assert.ok(adapterBuild >= 0);
+  assert.ok(plainTable > adapterBuild);
+  assert.ok(skipForged > plainTable);
+  assert.ok(coreEvidence > skipForged);
+});

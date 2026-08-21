@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createBearerAuthenticatedClient } from "@/lib/auth/request-client";
+import { getBearerProductRequestSession } from "@/lib/auth/request-client";
 import { clearPlayerPresence, commitPlayerPresence } from "@/lib/data/player-presence";
 import {
   validateLauncherPresencePayload,
@@ -30,10 +30,8 @@ async function readPayload(request: NextRequest) {
 }
 
 async function authenticated(request: NextRequest) {
-  const supabase = createBearerAuthenticatedClient(request);
-  if (!supabase) return null;
-  const { data, error } = await supabase.auth.getUser();
-  return error || !data.user ? null : data.user;
+  const session = await getBearerProductRequestSession(request);
+  return session.status === "authenticated" ? session.user : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -76,4 +74,3 @@ export async function DELETE(request: NextRequest) {
   if (cleared.error) return json({ ok: false, error: "Presence no está disponible." }, 503);
   return json({ ok: true });
 }
-

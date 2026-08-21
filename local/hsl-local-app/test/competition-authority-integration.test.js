@@ -6,7 +6,7 @@ const service = require("../gui/launcher-service");
 
 test("launcher proyecta la misma week capability en cards, detalle y gate de JUGAR", () => {
   service.setCompetitionAuthorityProvider({
-    getContext: () => ({ connected: false, deploymentKey: "build-a:production:1", origin: "https://hsl.example" }),
+    getContext: () => ({ authorityKey: "launcher-api:1", connected: false, origin: "https://hsl.example" }),
     getWeekCapability: (weekId) => ({
       canPlayCompetition: false,
       conclusive: true,

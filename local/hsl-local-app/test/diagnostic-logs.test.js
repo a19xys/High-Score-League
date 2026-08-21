@@ -114,17 +114,27 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
           watchSignals: 3,
         },
         weekCapabilities: {
+          authority: {
+            key: "launcher-api:1",
+            origin: "https://hsl.example",
+          },
           context: {
-            deploymentKey: "build-a:production:1",
+            authorityKey: "launcher-api:1",
             generation: 4,
             webBaseUrl: "https://hsl.example",
           },
-          lastAttemptResult: "failed",
-          lastFailureReason: "deployment-mismatch",
+          deployment: {
+            generation: 8,
+            metadata: { apiVersion: 1, build: "build-a", environment: "production" },
+          },
+          lastAttemptResult: "updated",
+          lastFailureReason: null,
           lastRequest: {
             Authorization: "Bearer secret-week-token",
-            deploymentMatch: false,
-            expectedDeployment: { apiVersion: 1, build: "build-a", environment: "production" },
+            contractCompatible: true,
+            healthDeployment: { apiVersion: 1, build: "build-a", environment: "production" },
+            metadataMatchesHealth: false,
+            metadataMatchesHeaders: true,
             receivedBodyDeployment: { apiVersion: 1, build: "build-b", environment: "production" },
             receivedHeaderDeployment: { apiVersion: 1, build: "build-b", environment: "production" },
             responseBody: { access_token: "must-not-persist" },
@@ -216,12 +226,16 @@ test("writeDiagnosticReport persists sanitized JSON with runtime context", async
     assert.equal(saved.scoreCapture.liveAdopted, 2);
     assert.equal(saved.scoreCapture.closeAdopted, 1);
     assert.equal(saved.scoreCapture.watching, false);
-    assert.equal(saved.weekCapabilities.context.deploymentKey, "build-a:production:1");
+    assert.equal(saved.weekCapabilities.authority.key, "launcher-api:1");
+    assert.equal(saved.weekCapabilities.context.authorityKey, "launcher-api:1");
     assert.equal(saved.weekCapabilities.context.generation, 4);
-    assert.equal(saved.weekCapabilities.lastAttemptResult, "failed");
-    assert.equal(saved.weekCapabilities.lastFailureReason, "deployment-mismatch");
-    assert.equal(saved.weekCapabilities.lastRequest.deploymentMatch, false);
-    assert.deepEqual(saved.weekCapabilities.lastRequest.expectedDeployment, { apiVersion: 1, build: "build-a", environment: "production" });
+    assert.equal(saved.weekCapabilities.deployment.generation, 8);
+    assert.equal(saved.weekCapabilities.deployment.metadata.build, "build-a");
+    assert.equal(saved.weekCapabilities.lastAttemptResult, "updated");
+    assert.equal(saved.weekCapabilities.lastFailureReason, null);
+    assert.equal(saved.weekCapabilities.lastRequest.contractCompatible, true);
+    assert.equal(saved.weekCapabilities.lastRequest.metadataMatchesHealth, false);
+    assert.deepEqual(saved.weekCapabilities.lastRequest.healthDeployment, { apiVersion: 1, build: "build-a", environment: "production" });
     assert.deepEqual(saved.weekCapabilities.lastRequest.receivedHeaderDeployment, { apiVersion: 1, build: "build-b", environment: "production" });
     assert.deepEqual(saved.weekCapabilities.lastRequest.receivedBodyDeployment, { apiVersion: 1, build: "build-b", environment: "production" });
     assert.equal(saved.weekCapabilities.lastRequest.Authorization, undefined);

@@ -27,6 +27,8 @@ const V2_RECOMMENDED_FIELDS = [
   "capture.adapter",
 ];
 const V2_MAME_PROFILE_MODES = ["practice", "competition"];
+const MAX_COMPETITION_DIPS = 32;
+const MAX_INTEGRITY_STRING_LENGTH = 128;
 
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -133,6 +135,95 @@ function validateLaunchArgsField(pack, field, errors) {
   }
 }
 
+function validateBoundedIntegrityString(value, field, errors, options = {}) {
+  const maximum = options.maximum || MAX_INTEGRITY_STRING_LENGTH;
+
+  if (typeof value !== "string" || value.trim() === "") {
+    errors.push(`pack.json ${field} debe ser un string no vacio`);
+    return null;
+  }
+
+  const normalized = value.trim();
+  if (normalized.length > maximum || /[\u0000-\u001f\u007f]/.test(value)) {
+    errors.push(`pack.json ${field} contiene caracteres no permitidos o es demasiado largo`);
+    return null;
+  }
+
+  return normalized;
+}
+
+function normalizeCompetitionIntegrity(value, errors) {
+  if (value === undefined) return null;
+  if (!isObject(value)) {
+    errors.push("pack.json mame.profiles.competition.integrity debe ser un objeto");
+    return null;
+  }
+  if (Object.keys(value).sort().join(",") !== "dips,mameVersion,version") {
+    errors.push("pack.json mame.profiles.competition.integrity contiene campos desconocidos");
+  }
+  if (value.version !== 1) {
+    errors.push("pack.json mame.profiles.competition.integrity.version debe ser exactamente 1");
+  }
+
+  const mameVersion = validateBoundedIntegrityString(
+    value.mameVersion,
+    "mame.profiles.competition.integrity.mameVersion",
+    errors,
+    { maximum: 32 },
+  );
+  if (mameVersion && !/^\d+\.\d+(?:\.\d+)?$/.test(mameVersion)) {
+    errors.push("pack.json mame.profiles.competition.integrity.mameVersion debe ser una version MAME exacta");
+  }
+  const dips = [];
+  const seen = new Set();
+
+  if (!Array.isArray(value.dips) || value.dips.length === 0) {
+    errors.push("pack.json mame.profiles.competition.integrity.dips debe ser un array no vacio");
+  } else if (value.dips.length > MAX_COMPETITION_DIPS) {
+    errors.push(`pack.json mame.profiles.competition.integrity.dips no puede superar ${MAX_COMPETITION_DIPS} entradas`);
+  } else {
+    value.dips.forEach((dip, index) => {
+      const prefix = `mame.profiles.competition.integrity.dips[${index}]`;
+      if (!isObject(dip)) {
+        errors.push(`pack.json ${prefix} debe ser un objeto`);
+        return;
+      }
+      if (Object.keys(dip).sort().join(",") !== "label,mask,portTag,settingLabel,value") {
+        errors.push(`pack.json ${prefix} contiene campos desconocidos`);
+      }
+      const portTag = validateBoundedIntegrityString(dip.portTag, `${prefix}.portTag`, errors);
+      const label = validateBoundedIntegrityString(dip.label, `${prefix}.label`, errors);
+      const settingLabel = validateBoundedIntegrityString(dip.settingLabel, `${prefix}.settingLabel`, errors);
+      const validMask = Number.isSafeInteger(dip.mask) && dip.mask > 0 && dip.mask <= 0xffffffff;
+      const validValue = Number.isSafeInteger(dip.value) && dip.value >= 0 && dip.value <= 0xffffffff;
+
+      if (!validMask) errors.push(`pack.json ${prefix}.mask debe ser un entero entre 1 y 0xffffffff`);
+      if (!validValue) errors.push(`pack.json ${prefix}.value debe ser un entero entre 0 y 0xffffffff`);
+      if (validMask && validValue && (BigInt(dip.value) & ~BigInt(dip.mask)) !== 0n) {
+        errors.push(`pack.json ${prefix}.value contiene bits fuera de mask`);
+      }
+
+      if (portTag && validMask) {
+        const key = `${portTag}\u0000${dip.mask}`;
+        if (seen.has(key)) errors.push(`pack.json ${prefix} duplica portTag + mask`);
+        seen.add(key);
+      }
+
+      if (portTag && label && settingLabel && validMask && validValue &&
+          (BigInt(dip.value) & ~BigInt(dip.mask)) === 0n) {
+        dips.push({ label, mask: dip.mask, portTag, settingLabel, value: dip.value });
+      }
+    });
+  }
+
+  dips.sort((left, right) => (left.portTag < right.portTag ? -1 : left.portTag > right.portTag ? 1 : left.mask - right.mask));
+  return {
+    dips,
+    mameVersion,
+    version: value.version,
+  };
+}
+
 function normalizeMameProfiles(pack, packRoot, errors) {
   const profiles = {};
 
@@ -148,6 +239,7 @@ function normalizeMameProfiles(pack, packRoot, errors) {
       profiles[mode] = {
         cfgDir: null,
         cfgPath: null,
+        integrity: null,
         launchArgs: [],
       };
       continue;
@@ -158,6 +250,7 @@ function normalizeMameProfiles(pack, packRoot, errors) {
       profiles[mode] = {
         cfgDir: null,
         cfgPath: null,
+        integrity: null,
         launchArgs: [],
       };
       continue;
@@ -165,9 +258,14 @@ function normalizeMameProfiles(pack, packRoot, errors) {
 
     const cfgPath = validateLocalPathField(pack, `mame.profiles.${mode}.cfgPath`, errors);
 
+    if (mode === "practice" && profile.integrity !== undefined) {
+      errors.push("pack.json mame.profiles.practice.integrity no esta permitido; integrity pertenece a competition");
+    }
+
     profiles[mode] = {
       cfgDir: resolvePackResourcePath(cfgPath, packRoot),
       cfgPath,
+      integrity: mode === "competition" ? normalizeCompetitionIntegrity(profile.integrity, errors) : null,
       launchArgs: validateLaunchArgsField(pack, `mame.profiles.${mode}.launchArgs`, errors),
     };
   }
@@ -361,10 +459,12 @@ function normalizePackContract(pack, options = {}) {
 }
 
 module.exports = {
+  MAX_COMPETITION_DIPS,
   V1_DEPRECATION_REASON,
   V1_DEPRECATION_WARNING,
   V2_RECOMMENDED_FIELDS,
   V2_REQUIRED_FIELDS,
   isUnsafePackRelativePath,
+  normalizeCompetitionIntegrity,
   normalizePackContract,
 };

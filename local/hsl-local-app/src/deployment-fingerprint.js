@@ -5,7 +5,7 @@ function normalizeFingerprintValue(value, fallback = "unknown") {
   return /^[A-Za-z0-9._-]{1,80}$/.test(normalized) ? normalized : fallback;
 }
 
-function deploymentKey(deployment = {}) {
+function diagnosticDeploymentKey(deployment = {}) {
   return [
     normalizeFingerprintValue(deployment.build),
     normalizeFingerprintValue(deployment.environment),
@@ -13,11 +13,23 @@ function deploymentKey(deployment = {}) {
   ].join(":");
 }
 
-function deploymentFingerprintsMatch(left = {}, right = {}) {
-  const leftBuild = normalizeFingerprintValue(left.build);
-  const rightBuild = normalizeFingerprintValue(right.build);
-  const buildKnown = leftBuild !== "unknown" && rightBuild !== "unknown";
-  return (!buildKnown || leftBuild === rightBuild) &&
+function launcherAuthorityKey(apiVersion = SUPPORTED_LAUNCHER_API_VERSION) {
+  const version = Number(apiVersion);
+  return Number.isInteger(version) && version > 0 ? `launcher-api:${version}` : null;
+}
+
+function isSupportedLauncherApiVersion(value) {
+  return Number(value) === SUPPORTED_LAUNCHER_API_VERSION;
+}
+
+function launcherContractsCompatible(...deployments) {
+  return deployments.length > 0 && deployments.every((deployment) => (
+    isSupportedLauncherApiVersion(deployment?.apiVersion)
+  ));
+}
+
+function deploymentMetadataExactlyMatches(left = {}, right = {}) {
+  return normalizeFingerprintValue(left.build) === normalizeFingerprintValue(right.build) &&
     normalizeFingerprintValue(left.environment) === normalizeFingerprintValue(right.environment) &&
     Number(left.apiVersion) === Number(right.apiVersion);
 }
@@ -40,8 +52,11 @@ function readRankingDeployment(payload = {}) {
 
 module.exports = {
   SUPPORTED_LAUNCHER_API_VERSION,
-  deploymentFingerprintsMatch,
-  deploymentKey,
+  diagnosticDeploymentKey,
+  deploymentMetadataExactlyMatches,
+  isSupportedLauncherApiVersion,
+  launcherAuthorityKey,
+  launcherContractsCompatible,
   normalizeFingerprintValue,
   readHealthDeployment,
   readRankingDeployment,

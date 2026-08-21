@@ -41,7 +41,7 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
     const connection = { deployment: {}, reachability: "connecting", reachabilityGeneration: 0 };
     const weekCache = createWeekCapabilityCache({ userDataDir });
     await weekCache.initialize();
-    await weekCache.remember({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, {
+    await weekCache.remember({ authorityKey: "launcher-api:1", origin: "https://hsl.example" }, {
       checkedAt: "2026-07-31T00:00:00.000Z",
       conclusive: true,
       derivedStatus: "active",
@@ -88,15 +88,14 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
     await weekService.initialize();
     weekService.updateContext({ packs: [{ weekId: "week-space-invaders" }], webBaseUrl: "https://hsl.example" });
     const startupGeneration = weekService.getState().generation;
-    assert.equal(weekService.getDiagnostics().context.deploymentKey, "build-a:production:1");
-    assert.equal(weekService.getDiagnostics().context.deploymentConfirmed, false);
+    assert.equal(weekService.getDiagnostics().context.authorityKey, "launcher-api:1");
     assert.equal(weekService.getCapability("week-space-invaders").publicState, "unknown");
     connection.deployment = { ...deployment };
     connection.reachability = "connected";
     connection.reachabilityGeneration = 8;
     weekService.updateDeployment();
     assert.equal(weekService.getState().generation, startupGeneration);
-    assert.equal(weekService.getDiagnostics().context.deploymentConfirmed, true);
+    assert.deepEqual(weekService.getDiagnostics().deployment.metadata, deployment);
 
     const config = {
       pack: {
@@ -114,13 +113,26 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
             adapter: "scripts/invaders.lua",
             adapterPath,
           },
-          mame: { romDir, launchArgs: [] },
+          mame: {
+            launchArgs: [],
+            profiles: {
+              competition: {
+                integrity: {
+                  dips: [{ mask: 1, portTag: "IN0", value: 0 }],
+                  mameVersion: "0.286",
+                  version: 1,
+                },
+              },
+            },
+            romDir,
+          },
         },
       },
       sharedMameRuntime: {
         available: true,
         configured: true,
         mameExecutablePath: path.join(runtimeRoot, "mame.exe"),
+        version: "0.286",
       },
       userDataDir,
     };
@@ -149,8 +161,8 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
     const result = await runCompetitionPlayPreflight({
       ensureFreshCapability: (weekId) => weekService.ensureFreshCapability(weekId),
       getAuthorityContext: () => ({
+        authorityKey: "launcher-api:1",
         connected: true,
-        deploymentKey: "build-a:production:1",
         origin: "https://hsl.example",
         reachabilityGeneration: 8,
       }),
@@ -158,9 +170,11 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
       launch: async () => {
         prepareCount += 1;
         const prepared = await prepareV2CompetitionRun(config, scope, {
+          detectMameVersionImpl: async () => "0.286",
           now: new Date("2026-08-01T00:00:00.000Z"),
           runId: "run_space_invaders",
           sourceDir,
+          verifyCompetitionManifestImpl: async () => ({ manifestSha256: "a".repeat(64) }),
         });
         assert.equal(prepared.runId, "run_space_invaders");
         const mame = await launchMameDetailed(prepared.config, "invaders", "competition", () => {
@@ -183,8 +197,8 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
 
     assert.equal(result.ok, true);
     assert.equal(weekService.getDiagnostics().lastRequest.httpStatus, 200);
-    assert.equal(weekService.getDiagnostics().lastRequest.deploymentMatch, true);
-    assert.deepEqual(weekService.getDiagnostics().lastRequest.expectedDeployment, deployment);
+    assert.equal(weekService.getDiagnostics().lastRequest.contractCompatible, true);
+    assert.deepEqual(weekService.getDiagnostics().lastRequest.healthDeployment, deployment);
     assert.equal(weekService.getCapability("week-space-invaders").publicState, "active");
     assert.equal(prepareCount, 1);
     assert.equal(spawnCount, 1);

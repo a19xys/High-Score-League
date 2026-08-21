@@ -8,6 +8,7 @@ import type {
   PublicHomePoll,
 } from "@/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { getRealLeagueChatMessages } from "./league-chat";
 import { getPublicHomePoll } from "./home-poll";
 import { getActiveRealSeason, mapSeasonRowToSeason } from "./seasons";
@@ -50,9 +51,11 @@ export type HomePageData = {
 
 async function getCurrentUserId() {
   const supabase = await createSupabaseServerClient();
-  const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+  const identity = supabase
+    ? await getVerifiedProductIdentity(supabase.auth)
+    : null;
 
-  return data.user?.id ?? null;
+  return identity?.status === "product" ? identity.userId : null;
 }
 
 async function getActiveSeasonMembership(

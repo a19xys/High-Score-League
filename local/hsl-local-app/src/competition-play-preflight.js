@@ -5,7 +5,7 @@ function normalizeAttemptPart(value) {
 function createCompetitionAttemptFingerprint(input = {}) {
   return {
     activeInstanceKey: normalizeAttemptPart(input.activeInstanceKey),
-    deploymentKey: normalizeAttemptPart(input.deploymentKey),
+    authorityKey: normalizeAttemptPart(input.authorityKey),
     origin: normalizeAttemptPart(input.origin),
     reachabilityGeneration: Number(input.reachabilityGeneration) || 0,
     userId: normalizeAttemptPart(input.userId),
@@ -16,7 +16,7 @@ function createCompetitionAttemptFingerprint(input = {}) {
 function competitionAttemptFromState(state = {}, authority = {}) {
   return createCompetitionAttemptFingerprint({
     activeInstanceKey: state.selection?.activeInstanceKey,
-    deploymentKey: authority.deploymentKey,
+    authorityKey: authority.authorityKey,
     origin: authority.origin,
     reachabilityGeneration: authority.reachabilityGeneration,
     userId: state.session?.userId,
@@ -27,7 +27,7 @@ function competitionAttemptFromState(state = {}, authority = {}) {
 function competitionAttemptFromLauncherContext(context = {}, authority = {}) {
   return createCompetitionAttemptFingerprint({
     activeInstanceKey: context.selection?.activeInstanceKey,
-    deploymentKey: authority.deploymentKey,
+    authorityKey: authority.authorityKey,
     origin: authority.origin,
     reachabilityGeneration: authority.reachabilityGeneration,
     userId: context.session?.userId,
@@ -38,7 +38,7 @@ function competitionAttemptFromLauncherContext(context = {}, authority = {}) {
 function competitionAttemptsMatch(left, right) {
   return Boolean(left && right)
     && left.activeInstanceKey === right.activeInstanceKey
-    && left.deploymentKey === right.deploymentKey
+    && left.authorityKey === right.authorityKey
     && left.origin === right.origin
     && left.reachabilityGeneration === right.reachabilityGeneration
     && left.userId === right.userId

@@ -36,6 +36,9 @@ local function default_config()
     -- En competicion v2 la app genera config.lua con "games/adapter.lua".
     gameModule = "games/invaders.lua",
 
+    -- Configurada exclusivamente por el launcher para runs protegidas.
+    competitionIntegrity = nil,
+
     enableFrameTracking = true,
     trackingIntervalFrames = 5,
 
@@ -68,6 +71,10 @@ local function apply_user_config(config, user_config)
 
   if type(user_config.debugEvent) == "boolean" then
     config.debugEvent = user_config.debugEvent
+  end
+
+  if type(user_config.competitionIntegrity) == "table" then
+    config.competitionIntegrity = user_config.competitionIntegrity
   end
 end
 

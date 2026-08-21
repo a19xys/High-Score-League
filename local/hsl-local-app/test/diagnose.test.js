@@ -262,7 +262,7 @@ test("diagnose reports packVersion 2 shared runtime and practice args", async ()
     assert.ok(hasEntry(report.sections.runtime, "OK", /mame\.exe compartido encontrado/));
     assert.ok(hasEntry(report.sections.mame, "OK", /runtime MAME compartido para practica/));
     assert.ok(hasEntry(report.sections.launcher, "OK", /practice v2 construye argumentos/));
-    assert.ok(hasEntry(report.sections.launcher, "INFO", /competition v2 permanece bloqueada/));
+    assert.ok(hasEntry(report.sections.launcher, "INFO", /competition v2 protegida permanece bloqueada/));
     assert.ok(hasEntry(report.sections.pack, "WARN", /cargador competitivo v2 no esta listo/));
   });
 });
@@ -315,7 +315,7 @@ test("diagnose reports packVersion 2 capture loader when adapter exists", async 
     const report = await buildDiagnoseReport(config);
 
     assert.ok(hasEntry(report.sections.pack, "OK", /cargador competitivo v2 disponible/));
-    assert.ok(hasEntry(report.sections.launcher, "OK", /competition v2 se prepara/));
+    assert.ok(hasEntry(report.sections.launcher, "INFO", /competition v2 protegida permanece bloqueada/));
     assert.equal(report.recommendations.some((item) => /LOCAL-MAME-PACK-PLUGIN-LOADING-2/.test(item)), false);
   });
 });

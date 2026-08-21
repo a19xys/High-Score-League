@@ -13,7 +13,7 @@ async function withTempDir(run) {
 }
 
 const deployment = { apiVersion: 1, build: "build-a", environment: "production" };
-function response(results, generatedAt = "2026-08-01T00:00:00.000Z", responseDeployment = deployment, version = 1) {
+function response(results, generatedAt = "2026-08-01T00:00:00.000Z", responseDeployment = deployment, version = 1, headerDeployment = responseDeployment) {
   return new Response(JSON.stringify({
     version,
     build: responseDeployment.build,
@@ -24,9 +24,9 @@ function response(results, generatedAt = "2026-08-01T00:00:00.000Z", responseDep
     status: 200,
     headers: {
       "content-type": "application/json",
-      "x-hsl-build": responseDeployment.build,
-      "x-hsl-environment": responseDeployment.environment,
-      "x-hsl-launcher-api-version": String(responseDeployment.apiVersion),
+      "x-hsl-build": headerDeployment.build,
+      "x-hsl-environment": headerDeployment.environment,
+      "x-hsl-launcher-api-version": String(headerDeployment.apiVersion),
     },
   });
 }
@@ -94,12 +94,11 @@ function createMemoryWeekCache(initialCapability) {
         source: "durable-cache",
       };
     },
-    resolveDeploymentKey() { return "build-a:production:1"; },
   };
 }
 
 async function seedWeekCache(cache, weekId, publicState, checkedAt = "2026-08-01T00:00:00.000Z") {
-  await cache.remember({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, {
+  await cache.remember({ authorityKey: "launcher-api:1", origin: "https://hsl.example" }, {
     checkedAt,
     conclusive: true,
     derivedStatus: publicState,
@@ -146,9 +145,8 @@ test("cache-first hidrata el mismo deployment y conserva ACTIVE/UNLINKED tras re
     });
     const startupGeneration = service.getState().generation;
     const cacheFirst = service.getDiagnostics();
-    assert.equal(cacheFirst.context.deploymentKey, "build-a:production:1");
-    assert.equal(cacheFirst.context.deploymentConfirmed, false);
-    assert.equal(cacheFirst.context.deployment.build, "unknown");
+    assert.equal(cacheFirst.context.authorityKey, "launcher-api:1");
+    assert.equal(cacheFirst.deployment.metadata.build, "unknown");
     assert.equal(service.getCapability("week-a").publicState, "unknown");
     assert.equal(service.getCapability("week-a").lastKnownPublicState, "active");
     service.subscribe((_state, reason) => transitions.push(reason));
@@ -159,8 +157,7 @@ test("cache-first hidrata el mismo deployment y conserva ACTIVE/UNLINKED tras re
     service.updateDeployment();
     const hydrated = service.getDiagnostics();
     assert.equal(service.getState().generation, startupGeneration);
-    assert.equal(hydrated.context.deploymentConfirmed, true);
-    assert.deepEqual(hydrated.context.deployment, deployment);
+    assert.deepEqual(hydrated.deployment.metadata, deployment);
     assert.deepEqual(cache.snapshot().entries.map((entry) => entry.key).sort(), originalKeys);
     assert.equal(transitions.includes("context-change"), false);
 
@@ -169,10 +166,10 @@ test("cache-first hidrata el mismo deployment y conserva ACTIVE/UNLINKED tras re
     assert.equal(service.getCapability("week-a").currentAuthority, true);
     assert.equal(service.getCapability("week-unlinked").publicState, "unlinked");
     assert.equal(service.getCapability("week-unlinked").currentAuthority, true);
-    assert.equal(cache.read({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, "week-a", now).checkedAt, "2026-08-01T00:02:00.000Z");
+    assert.equal(cache.read({ authorityKey: "launcher-api:1", origin: "https://hsl.example" }, "week-a", now).checkedAt, "2026-08-01T00:02:00.000Z");
     assert.deepEqual(cache.snapshot().entries.map((entry) => entry.key).sort(), originalKeys);
-    assert.equal(service.getDiagnostics().lastRequest.deploymentMatch, true);
-    assert.deepEqual(service.getDiagnostics().lastRequest.expectedDeployment, deployment);
+    assert.equal(service.getDiagnostics().lastRequest.contractCompatible, true);
+    assert.deepEqual(service.getDiagnostics().lastRequest.healthDeployment, deployment);
 
     connection.activity = "blurred";
     service.updateDeployment();
@@ -187,7 +184,7 @@ test("cache-first hidrata el mismo deployment y conserva ACTIVE/UNLINKED tras re
   });
 });
 
-test("health-first converge directamente al mismo deployment confirmado", async () => {
+test("health-first converge con autoridad estable y metadata diagnóstica", async () => {
   await withTempDir(async (userDataDir) => {
     const connection = { deployment: { ...deployment }, reachability: "connected", reachabilityGeneration: 1 };
     const service = createWeekCapabilitiesService({
@@ -202,11 +199,10 @@ test("health-first converge directamente al mismo deployment confirmado", async 
     await service.initialize();
     service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
     const generation = service.getState().generation;
-    assert.equal(service.getDiagnostics().context.deploymentConfirmed, true);
     await service.refresh("startup", { force: true });
     assert.equal(service.getState().generation, generation);
-    assert.equal(service.getDiagnostics().context.deploymentKey, "build-a:production:1");
-    assert.deepEqual(service.getDiagnostics().lastRequest.expectedDeployment, deployment);
+    assert.equal(service.getDiagnostics().context.authorityKey, "launcher-api:1");
+    assert.deepEqual(service.getDiagnostics().lastRequest.healthDeployment, deployment);
     assert.equal(service.getCapability("week-a").publicState, "active");
     assert.equal(service.getCapability("week-a").currentAuthority, true);
     service.stop();
@@ -241,8 +237,7 @@ test("una segunda apertura reutiliza cache, hidrata health same-key y renueva ch
     await second.initialize();
     second.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
     const generation = second.getState().generation;
-    assert.equal(second.getDiagnostics().context.deploymentKey, "build-a:production:1");
-    assert.equal(second.getDiagnostics().context.deploymentConfirmed, false);
+    assert.equal(second.getDiagnostics().context.authorityKey, "launcher-api:1");
     secondConnection.deployment = { ...deployment };
     secondConnection.reachability = "connected";
     secondConnection.reachabilityGeneration = 1;
@@ -256,7 +251,7 @@ test("una segunda apertura reutiliza cache, hidrata health same-key y renueva ch
   });
 });
 
-test("runRefresh no consulta con key durable y metadata de Connectivity sin confirmar", async () => {
+test("runRefresh bloquea una API sin confirmar pero no exige build", async () => {
   await withTempDir(async (userDataDir) => {
     let requests = 0;
     const cache = createWeekCapabilityCache({ userDataDir });
@@ -278,13 +273,13 @@ test("runRefresh no consulta con key durable y metadata de Connectivity sin conf
     service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
     const blocked = await service.ensureFreshCapability("week-a");
     assert.equal(blocked.ok, false);
-    assert.equal(blocked.reason, "deployment-unconfirmed");
+    assert.equal(blocked.reason, "unsupported-contract");
     assert.equal(requests, 0);
 
     const generation = service.getState().generation;
     connection.deployment = { ...deployment };
     service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
-    assert.equal(service.getDiagnostics().context.deploymentConfirmed, true);
+    assert.equal(service.getDiagnostics().context.authorityKey, "launcher-api:1");
     const recovered = await service.ensureFreshCapability("week-a");
     assert.equal(recovered.ok, true);
     assert.equal(requests, 1);
@@ -332,7 +327,7 @@ test("batch remoto queda durable y un fallo posterior no destruye la verdad", as
   });
 });
 
-test("una respuesta stale de week/deployment no adquiere autoridad", async () => {
+test("una respuesta in-flight compatible sobrevive build/environment change", async () => {
   await withTempDir(async (userDataDir) => {
     let resolveFetch;
     let aborted = 0;
@@ -353,28 +348,21 @@ test("una respuesta stale de week/deployment no adquiere autoridad", async () =>
     connection.deployment = deploymentB;
     connection.deploymentGeneration = 2;
     service.updateDeployment();
-    assert.equal(service.getState().generation, generationA + 1);
-    assert.equal(aborted, 1);
-    service.updateContext({ packs: [{ weekId: "week-b" }], webBaseUrl: "https://hsl.example" });
-    resolveFetch(response([{ requestKey: "week-0", weekId: "week-a", seasonId: "season-a", derivedStatus: "active", publicState: "active", reason: "week-active" }]));
-    await pending;
-    assert.equal(service.getCapability("week-b").publicState, "unknown");
-    assert.equal(service.getDiagnostics().lastAttemptResult, "stale");
-
-    const refreshedB = service.ensureFreshCapability("week-b");
+    assert.equal(service.getState().generation, generationA);
+    assert.equal(aborted, 0);
     resolveFetch(response([{
       requestKey: "week-0",
-      weekId: "week-b",
+      weekId: "week-a",
       seasonId: "season-a",
       derivedStatus: "active",
       publicState: "active",
       reason: "week-active",
     }], undefined, deploymentB));
-    const acceptedB = await refreshedB;
-    assert.equal(acceptedB.ok, true);
-    assert.equal(acceptedB.capability.publicState, "active");
-    assert.deepEqual(service.getDiagnostics().lastRequest.expectedDeployment, deploymentB);
-    assert.equal(service.getDiagnostics().lastRequest.deploymentMatch, true);
+    await pending;
+    assert.equal(service.getCapability("week-a").publicState, "active");
+    assert.equal(service.getDiagnostics().lastAttemptResult, "updated");
+    assert.deepEqual(service.getDiagnostics().deployment.metadata, deploymentB);
+    assert.equal(service.getDiagnostics().lastRequest.metadataMatchesHealth, false);
     service.stop();
   });
 });
@@ -396,7 +384,7 @@ test("un unico timeout lleva el estado local a apertura y cierre sin polling", a
       userDataDir,
     });
     await service.initialize();
-    await cache.remember({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, {
+    await cache.remember({ authorityKey: "launcher-api:1", origin: "https://hsl.example" }, {
       conclusive: true,
       finalDeadlineAt: "2026-08-03T00:00:00Z",
       publicStartAt: "2026-08-02T00:00:00Z",
@@ -432,7 +420,7 @@ test("freshness separa cache usable de cache fresca sin TTL destructivo", async 
     const connection = { deployment, reachability: "connected", reachabilityGeneration: 1 };
     const cache = require("../src/competitive-authority-cache").createWeekCapabilityCache({ userDataDir });
     await cache.initialize();
-    await cache.remember({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, {
+    await cache.remember({ authorityKey: "launcher-api:1", origin: "https://hsl.example" }, {
       checkedAt: "2026-08-01T00:01:30Z",
       conclusive: true,
       publicState: "inactive",
@@ -506,7 +494,7 @@ test("arranque conectado reemplaza ACTIVE durable antigua por CLOSED remota", as
     const connection = { deployment, reachability: "connected", reachabilityGeneration: 1 };
     const cache = require("../src/competitive-authority-cache").createWeekCapabilityCache({ userDataDir });
     await cache.initialize();
-    await cache.remember({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, {
+    await cache.remember({ authorityKey: "launcher-api:1", origin: "https://hsl.example" }, {
       checkedAt: "2026-08-01T00:00:00Z",
       conclusive: true,
       publicState: "active",
@@ -642,7 +630,7 @@ test("HTTP 404 y 503 conservan status, reason y diagnostico sin aceptar ACTIVE c
       const connection = { deployment, reachability: "connected", reachabilityGeneration: 1 };
       const cache = require("../src/competitive-authority-cache").createWeekCapabilityCache({ userDataDir });
       await cache.initialize();
-      await cache.remember({ deploymentKey: "build-a:production:1", origin: "https://hsl.example" }, {
+      await cache.remember({ authorityKey: "launcher-api:1", origin: "https://hsl.example" }, {
         checkedAt: "2026-08-01T00:00:00Z",
         conclusive: true,
         publicState: "active",
@@ -693,6 +681,15 @@ test("JSON, version y resultados incompletos fallan con motivos sanitizados", as
       response: (request) => response([resultFor(request)], undefined, deployment, 2),
     },
     {
+      expected: "unsupported-contract",
+      name: "launcher-api-header-version",
+      response: (request) => response([resultFor(request)], undefined, deployment, 1, {
+        apiVersion: 2,
+        build: "build-b",
+        environment: "production",
+      }),
+    },
+    {
       expected: "invalid-response",
       name: "missing-week",
       response: () => response([]),
@@ -717,14 +714,18 @@ test("JSON, version y resultados incompletos fallan con motivos sanitizados", as
   }
 });
 
-test("health stale reproduce deployment-mismatch y una huella resincronizada acepta ACTIVE", async () => {
+test("Health build A acepta Week build B y header/body con metadata distinta", async () => {
   await withTempDir(async (userDataDir) => {
     const currentDeployment = { apiVersion: 1, build: "build-b", environment: "production" };
+    const headerDeployment = { apiVersion: 1, build: "edge-build", environment: "preview" };
     const connection = { deployment: { ...deployment }, reachability: "connected", reachabilityGeneration: 1 };
+    let requests = 0;
     const service = createWeekCapabilitiesService({
       fetchImpl: async (_url, init) => {
+        requests += 1;
         const payload = JSON.parse(init.body);
-        return response(payload.requests.map((request) => resultFor(request)), undefined, currentDeployment);
+        return response(payload.requests.map((request) => resultFor(request)), undefined, currentDeployment, 1,
+          requests === 1 ? currentDeployment : headerDeployment);
       },
       getConnectivityState: () => connection,
       now: () => Date.parse("2026-08-01T00:00:00Z"),
@@ -733,17 +734,16 @@ test("health stale reproduce deployment-mismatch y una huella resincronizada ace
     await service.initialize();
     service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
 
-    const staleHealth = await service.ensureFreshCapability("week-a");
-    assert.equal(staleHealth.ok, false);
-    assert.equal(staleHealth.reason, "deployment-mismatch");
-    assert.equal(service.getDiagnostics().lastRequest.deploymentMatch, false);
+    const rolling = await service.ensureFreshCapability("week-a");
+    assert.equal(rolling.ok, true);
+    assert.equal(rolling.capability.publicState, "active");
+    assert.equal(service.getDiagnostics().lastRequest.contractCompatible, true);
+    assert.equal(service.getDiagnostics().lastRequest.metadataMatchesHealth, false);
 
-    connection.deployment = currentDeployment;
-    service.updateDeployment();
-    const resynchronized = await service.ensureFreshCapability("week-a");
-    assert.equal(resynchronized.ok, true);
-    assert.equal(resynchronized.capability.publicState, "active");
-    assert.equal(service.getDiagnostics().lastRequest.deploymentMatch, true);
+    const splitMetadata = await service.ensureFreshCapability("week-a");
+    assert.equal(splitMetadata.ok, true);
+    assert.equal(service.getDiagnostics().lastRequest.metadataMatchesHeaders, false);
+    assert.equal(service.getCapability("week-a").publicState, "active");
     service.stop();
   });
 });

@@ -1,5 +1,6 @@
 import type { Season, SeasonStanding, WeekSummary } from "@/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { getRealGames, mapGameRowToGame } from "./games";
 import { getUserSeasonMemberships } from "./season-memberships";
 import { getRealSeasonStandings } from "./season-standings";
@@ -32,8 +33,13 @@ export async function getSeasonDetailData(
     return null;
   }
 
+  const identity =
+    currentUserIdOverride === undefined
+      ? await getVerifiedProductIdentity(supabase.auth)
+      : null;
   const userId =
-    currentUserIdOverride ?? (await supabase.auth.getUser()).data.user?.id ?? null;
+    currentUserIdOverride ??
+    (identity?.status === "product" ? identity.userId : null);
 
   if (!userId) {
     return null;

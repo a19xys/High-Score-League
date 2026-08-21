@@ -60,7 +60,7 @@ function monitorFor(scope, watcher, overrides = {}) {
   });
 }
 
-function validEvent(score = 1230) {
+function validEvent(score = 1230, overrides = {}) {
   return {
     schemaVersion: 1,
     game: "Space Invaders",
@@ -70,7 +70,27 @@ function validEvent(score = 1230) {
     source: "mame_memory",
     mameVersion: "MAME 0.265",
     pluginVersion: "0.2.0",
+    ...overrides,
   };
+}
+
+function competitionGuard(overrides = {}) {
+  return {
+    version: 1,
+    guardVersion: 1,
+    runId: "run-a",
+    packId: "space-invaders-test",
+    manifestSha256: "a".repeat(64),
+    mameVersion: "0.287",
+    dips: [{ portTag: ":IN2", mask: 3, value: 0 }],
+    ...overrides,
+  };
+}
+
+function guardedEvent(violations = [], overrides = {}) {
+  return validEvent(1230, {
+    competitionIntegrity: { ...competitionGuard(), ...overrides, violations },
+  });
 }
 
 async function publishAtomically(dir, filename, event) {
@@ -423,5 +443,51 @@ test("offline capture remains durable and connectivity recovery sends it", async
   assert.deepEqual(await listJsonFiles(scope.scopedPendingDir), []);
   assert.deepEqual(await listJsonFiles(scope.sentDir), ["offline.json"]);
   assert.equal(runs, 1);
+  await monitor.close();
+});
+
+test("guarded run adopts clean evidence and locally rejects violations without submit signal", async (t) => {
+  const scope = await tempScope(t);
+  const watcher = fakeWatcher();
+  const submitSignals = [];
+  const monitor = monitorFor(scope, watcher, {
+    competitionGuard: competitionGuard(),
+    scopedRejectedDir: scope.rejectedDir,
+    onAdopted(event) { submitSignals.push(event); },
+  });
+  monitor.start();
+  await publishAtomically(scope.stagingPendingDir, "clean.json", guardedEvent([]));
+  await publishAtomically(scope.stagingPendingDir, "violated.json", guardedEvent(["pause"]));
+  watcher.emit();
+  await monitor.requestRescan();
+
+  assert.deepEqual(await listJsonFiles(scope.scopedPendingDir), ["clean.json"]);
+  assert.deepEqual(await listJsonFiles(scope.rejectedDir), ["violated.json"]);
+  assert.equal(submitSignals.length, 1);
+  assert.deepEqual(submitSignals[0].adopted.map((entry) => entry.filename), ["clean.json"]);
+  assert.equal(monitor.getDiagnostics().localRejected, 1);
+  assert.match(await fsp.readFile(path.join(scope.rejectedDir, "violated.json.rejected.txt"), "utf8"), /LOCAL_COMPETITION_INTEGRITY[\s\S]*pause/);
+  await monitor.close();
+});
+
+test("guarded run fails closed when evidence is missing or forged", async (t) => {
+  const scope = await tempScope(t);
+  const watcher = fakeWatcher();
+  let submitSignals = 0;
+  const monitor = monitorFor(scope, watcher, {
+    competitionGuard: competitionGuard(),
+    scopedRejectedDir: scope.rejectedDir,
+    onAdopted() { submitSignals += 1; },
+  });
+  monitor.start();
+  await publishAtomically(scope.stagingPendingDir, "missing.json", validEvent());
+  await publishAtomically(scope.stagingPendingDir, "forged.json", guardedEvent([], { runId: "run-forged" }));
+  watcher.emit();
+  await monitor.requestRescan();
+
+  assert.deepEqual(await listJsonFiles(scope.scopedPendingDir), []);
+  assert.deepEqual(await listJsonFiles(scope.rejectedDir), ["forged.json", "missing.json"]);
+  assert.equal(submitSignals, 0);
+  assert.equal(monitor.getDiagnostics().localRejected, 2);
   await monitor.close();
 });

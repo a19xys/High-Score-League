@@ -5,7 +5,7 @@ const {
 } = require("./connectivity-state");
 const {
   SUPPORTED_LAUNCHER_API_VERSION,
-  deploymentKey,
+  diagnosticDeploymentKey,
   readHealthDeployment,
 } = require("./deployment-fingerprint");
 
@@ -159,7 +159,7 @@ function createConnectivityService(options = {}) {
     const nextReachability = patch.reachability || state.reachability;
     const reachabilityChanged = nextReachability !== state.reachability;
     const nextDeployment = patch.deployment || state.deployment;
-    const deploymentChanged = deploymentKey(nextDeployment) !== deploymentKey(state.deployment);
+    const deploymentChanged = diagnosticDeploymentKey(nextDeployment) !== diagnosticDeploymentKey(state.deployment);
     if (reachabilityChanged) reachabilityGeneration += 1;
     if (deploymentChanged) deploymentGeneration += 1;
     state = {

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { votePublicHomePoll } from "@/lib/data/home-poll";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasActiveProfile } from "@/lib/auth/active-profile";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 function jsonError(error: string, status = 400, code?: string) {
   return NextResponse.json({ ok: false, code, error }, { status });
@@ -20,13 +21,13 @@ export async function POST(request: NextRequest) {
     return jsonError("Supabase no está configurado.", 500);
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const identity = await getVerifiedProductIdentity(supabase.auth);
 
-  if (userError || !userData.user) {
+  if (identity.status !== "product") {
     return jsonError("Necesitas iniciar sesión.", 401);
   }
 
-  const profileState = await hasActiveProfile(supabase, userData.user.id);
+  const profileState = await hasActiveProfile(supabase, identity.userId);
 
   if (profileState.error) {
     return jsonError("No se pudo validar el perfil.", 500, "PROFILE_CHECK_FAILED");
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
     return jsonError("Elige una opción válida.");
   }
 
-  const result = await votePublicHomePoll(supabase, userData.user.id, optionId);
+  const result = await votePublicHomePoll(supabase, identity.userId, optionId);
 
   if (!result.ok) {
     return jsonError(result.error ?? "No se pudo registrar tu voto.", result.status);

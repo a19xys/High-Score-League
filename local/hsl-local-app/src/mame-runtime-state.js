@@ -14,11 +14,12 @@ const MUTABLE_DIRECTORY_OPTIONS = Object.freeze({
 
 function resolveMameState(config = {}, options = {}) {
   if (!config.userDataDir) throw new Error("No se pudo resolver userDataDir para el estado mutable de MAME.");
-  const root = path.join(config.userDataDir, "runtime", "mame", "state");
+  const persistentRoot = path.join(config.userDataDir, "runtime", "mame", "state");
+  const root = options.runRoot ? path.resolve(options.runRoot) : persistentRoot;
   const directories = {
     root,
-    ini: options.runRoot ? path.join(options.runRoot, "ini") : path.join(root, "ini"),
-    home: options.runRoot || path.join(root, "home"),
+    ini: path.join(root, "ini"),
+    home: path.join(root, "home"),
     cfg: path.join(root, "cfg"),
     nvram: path.join(root, "nvram"),
     input: path.join(root, "inp"),

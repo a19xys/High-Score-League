@@ -1,4 +1,5 @@
 import type { SeasonSummary } from "@/types";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getUserSeasonMemberships } from "./season-memberships";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
@@ -21,9 +22,10 @@ function countWeeksBySeason(
 
 export async function getSeasonPageData(): Promise<SeasonPageData> {
   const supabase = await createSupabaseServerClient();
-  const { data: userData } = supabase
-    ? await supabase.auth.getUser()
-    : { data: { user: null } };
+  const identity = supabase
+    ? await getVerifiedProductIdentity(supabase.auth)
+    : null;
+  const currentUserId = identity?.status === "product" ? identity.userId : null;
 
   const [seasonsResult, weeksResult] = await Promise.all([
     getRealSeasons(),
@@ -45,10 +47,10 @@ export async function getSeasonPageData(): Promise<SeasonPageData> {
     (season) => season.status !== "draft",
   );
   const memberships =
-    supabase && userData.user
+    supabase && currentUserId
       ? await getUserSeasonMemberships(
           supabase,
-          userData.user.id,
+          currentUserId,
           visibleSeasonRows.map((season) => season.id),
         )
       : new Map();

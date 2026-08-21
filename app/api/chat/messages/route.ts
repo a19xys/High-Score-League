@@ -6,6 +6,7 @@ import {
 } from "@/lib/data/league-chat";
 import type { LeagueChatMessageRow } from "@/types/supabase";
 import { hasActiveProfile } from "@/lib/auth/active-profile";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 const chatMessageMaxLength = 65_536;
 
@@ -41,13 +42,13 @@ export async function GET() {
     return jsonError("No se pudo cargar el chat. Prueba a recargar la página.", 500);
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const identity = await getVerifiedProductIdentity(supabase.auth);
 
-  if (userError || !userData.user) {
+  if (identity.status !== "product") {
     return jsonError("Necesitas iniciar sesión para leer el chat.", 401);
   }
 
-  const profileState = await hasActiveProfile(supabase, userData.user.id);
+  const profileState = await hasActiveProfile(supabase, identity.userId);
 
   if (profileState.error) {
     return jsonError("No se pudo validar el perfil del chat.", 500);
@@ -102,13 +103,13 @@ export async function POST(request: NextRequest) {
     return jsonError(content.error);
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const identity = await getVerifiedProductIdentity(supabase.auth);
 
-  if (userError || !userData.user) {
+  if (identity.status !== "product") {
     return jsonError("Necesitas iniciar sesión para escribir en el chat.", 401);
   }
 
-  const profileState = await hasActiveProfile(supabase, userData.user.id);
+  const profileState = await hasActiveProfile(supabase, identity.userId);
 
   if (profileState.error) {
     return jsonError("No se pudo validar el perfil del chat.", 500);
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
     .from("league_chat_messages")
     .insert({
       message_type: "user",
-      author_id: userData.user.id,
+      author_id: identity.userId,
       content: content.content,
     })
     .select(

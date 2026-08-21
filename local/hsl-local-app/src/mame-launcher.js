@@ -75,8 +75,8 @@ function resolveLaunchRom(rom) {
   };
 }
 
-function validateLaunchArgs(launchArgs, label = "mame.launchArgs") {
-  return validatePackMameArguments(launchArgs, label);
+function validateLaunchArgs(launchArgs, label = "mame.launchArgs", mode = null) {
+  return validatePackMameArguments(launchArgs, label, mode ? { mode } : {});
 }
 
 function getPackV2ModeProfile(config, mode) {
@@ -144,18 +144,18 @@ function addPackV2ResourceArgs(args, config, mode, mameRoot) {
     args.push("-samplepath", samplepath);
   }
 
-  args.push(...validateLaunchArgs(mame.launchArgs));
-  args.push(...validateLaunchArgs(profile.launchArgs, `mame.profiles.${mode}.launchArgs`));
+  args.push(...validateLaunchArgs(mame.launchArgs, "mame.launchArgs", mode));
+  args.push(...validateLaunchArgs(profile.launchArgs, `mame.profiles.${mode}.launchArgs`, mode));
 
   if (mameRoot) {
     args.push(
       "-bgfx_path", path.join(mameRoot, "bgfx"),
       "-hlslpath", path.join(mameRoot, "hlsl"),
       "-hashpath", path.join(mameRoot, "hash"),
-      "-ctrlrpath", path.join(mameRoot, "ctrlr"),
       "-languagepath", path.join(mameRoot, "language"),
       "-fontpath", mameRoot,
     );
+    if (mode !== "competition") args.push("-ctrlrpath", path.join(mameRoot, "ctrlr"));
   }
 }
 
@@ -187,7 +187,7 @@ function buildPackV2MameArgs(config, rom, mode) {
   const mutableDirectories = resolveMameState(config, { runRoot: run?.runRoot || null });
   const mame = config.pack?.contract?.mame || {};
   const profile = getPackV2ModeProfile(config, mode);
-  const cfgDirectory = profile.cfgDir || mame.cfgDir || mutableDirectories.cfg;
+  const cfgDirectory = mode === "competition" ? mutableDirectories.cfg : profile.cfgDir || mame.cfgDir || mutableDirectories.cfg;
 
   addDefaultLaunchArgs(args);
   addPackV2ResourceArgs(args, config, mode, mameRoot);
@@ -198,7 +198,23 @@ function buildPackV2MameArgs(config, rom, mode) {
       throw new Error("Competicion v2 requiere preparar plugin/adaptador aislado antes de lanzar MAME.");
     }
 
+    const guard = run.integrity;
+    if (!guard || guard.version !== 1 || guard.mameVersion !== guard.observedMameVersion) {
+      throw new Error("Competicion v2 requiere una verificacion local de integrity v1 y MAME exacto antes de lanzar.");
+    }
+
     args.push(
+      "-ctrlrpath", run.ctrlrDir,
+      "-ctrlr", run.controllerName,
+      "-norewind",
+      "-noautosave",
+      "-nocheat",
+      "-noconsole",
+      "-nohttp",
+      "-throttle",
+      "-speed", "1",
+      "-norefreshspeed",
+      "-nosyncrefresh",
       "-pluginspath",
       buildPluginSearchPath(run.pluginSearchDir),
       "-plugins",
@@ -213,6 +229,14 @@ function buildPackV2MameArgs(config, rom, mode) {
   for (const [name, directory] of Object.entries(effectiveMutableDirectories)) {
     if (pathIsInside(directory, mameRoot)) {
       throw new Error(`La ruta mutable MAME ${name} no puede estar dentro del runtime instalado.`);
+    }
+  }
+  if (mode === "competition") {
+    const packRoot = config.pack?.packRoot;
+    const practiceStateRoot = path.join(config.userDataDir, "runtime", "mame", "state");
+    for (const [name, directory] of Object.entries(effectiveMutableDirectories)) {
+      if (packRoot && pathIsInside(directory, packRoot)) throw new Error(`La ruta mutable MAME ${name} de Competicion no puede estar dentro del pack.`);
+      if (pathIsInside(directory, practiceStateRoot)) throw new Error(`La ruta mutable MAME ${name} de Competicion no puede reutilizar el estado de Practica.`);
     }
   }
 

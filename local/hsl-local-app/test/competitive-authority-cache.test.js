@@ -4,6 +4,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  CACHE_SCHEMA_VERSION,
   createMembershipCache,
   createWeekCapabilityCache,
   membershipCachePath,
@@ -15,9 +16,34 @@ async function withTempDir(run) {
   try { return await run(root); } finally { await fsp.rm(root, { recursive: true, force: true }); }
 }
 
-const context = { deploymentKey: "build-a:production:1", origin: "https://hsl.example" };
+const context = { authorityKey: "launcher-api:1", origin: "https://hsl.example" };
 
-test("week cache es durable, avanza con el reloj y no mezcla origin/deployment", async () => {
+function weekEntry(key, overrides = {}) {
+  return {
+    checkedAt: "2026-08-01T00:00:00.000Z",
+    conclusive: true,
+    key,
+    publicState: "active",
+    reason: "week-active",
+    seasonId: "season-a",
+    seasonStatus: "active",
+    weekId: "week-a",
+    ...overrides,
+  };
+}
+
+function membershipEntry(key, overrides = {}) {
+  return {
+    checkedAt: "2026-08-01T00:00:00.000Z",
+    key,
+    seasonId: "season-a",
+    status: "member",
+    userId: "user-a",
+    ...overrides,
+  };
+}
+
+test("Week v2 es durable por origin + launcher API y no contiene build/environment", async () => {
   await withTempDir(async (userDataDir) => {
     const config = { userDataDir };
     const cache = createWeekCapabilityCache(config);
@@ -37,8 +63,10 @@ test("week cache es durable, avanza con el reloj y no mezcla origin/deployment",
     assert.equal(cache.read(context, "week-a", Date.parse("2026-08-01T12:00:00Z")).publicState, "inactive");
     assert.equal(cache.read(context, "week-a", Date.parse("2026-08-02T12:00:00Z")).publicState, "active");
     assert.equal(cache.read(context, "week-a", Date.parse("2026-08-03T00:00:00Z")).publicState, "closed");
-    assert.equal(cache.read({ ...context, deploymentKey: "build-b:production:1" }, "week-a"), null);
     assert.equal(cache.read({ ...context, origin: "https://other.example" }, "week-a"), null);
+    assert.deepEqual(cache.snapshot().entries.map((entry) => entry.key), [
+      "https://hsl.example|launcher-api:1|week:week-a",
+    ]);
 
     const restarted = createWeekCapabilityCache(config);
     await restarted.initialize();
@@ -47,7 +75,7 @@ test("week cache es durable, avanza con el reloj y no mezcla origin/deployment",
   });
 });
 
-test("membership cache conserva solo member/not_member y queda aislada por cuenta", async () => {
+test("Membership v2 conserva solo conclusiones y aísla cuenta, season y origin", async () => {
   await withTempDir(async (userDataDir) => {
     const config = { userDataDir };
     const cache = createMembershipCache(config);
@@ -56,9 +84,85 @@ test("membership cache conserva solo member/not_member y queda aislada por cuent
     await cache.remember(context, { checkedAt: "2026-08-01T00:01:00Z", seasonId: "season-a", status: "unknown", userId: "user-a" });
     assert.equal(cache.read(context, "user-a", "season-a").status, "member");
     assert.equal(cache.read(context, "user-b", "season-a"), null);
-    await cache.remember(context, { checkedAt: "2026-08-01T00:02:00Z", seasonId: "season-a", status: "not_member", userId: "user-a" });
-    assert.equal(cache.read(context, "user-a", "season-a").status, "not_member");
+    assert.equal(cache.read(context, "user-a", "season-b"), null);
+    assert.equal(cache.read({ ...context, origin: "https://other.example" }, "user-a", "season-a"), null);
+    assert.equal(cache.snapshot().entries[0].key, "https://hsl.example|launcher-api:1|user:user-a|season:season-a");
     assert.equal(cache.path, membershipCachePath(config));
+  });
+});
+
+test("cache Week v1 migra builds compatibles y converge en checkedAt más reciente", async () => {
+  await withTempDir(async (userDataDir) => {
+    const filePath = weekCachePath({ userDataDir });
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    await fsp.writeFile(filePath, JSON.stringify({
+      schemaVersion: 1,
+      entries: [
+        weekEntry("https://hsl.example|build-a:production:1|week:week-a"),
+        weekEntry("https://hsl.example|build-b:preview:1|week:week-a", {
+          checkedAt: "2026-08-02T00:00:00.000Z",
+          publicState: "closed",
+          reason: "week-closed",
+        }),
+        weekEntry("https://hsl.example|build-c:production:2|week:week-a", {
+          checkedAt: "2026-08-03T00:00:00.000Z",
+        }),
+        weekEntry("https://other.example|build-a:production:1|week:week-a", {
+          checkedAt: "2026-08-04T00:00:00.000Z",
+        }),
+      ],
+    }), "utf8");
+
+    const cache = createWeekCapabilityCache({ userDataDir });
+    const initialized = await cache.initialize();
+    assert.equal(initialized.schemaVersion, CACHE_SCHEMA_VERSION);
+    assert.equal(initialized.migration.status, "persisted");
+    assert.equal(initialized.migration.collisionCount, 1);
+    assert.equal(initialized.invalidEntryCount, 1);
+    assert.equal(cache.read(context, "week-a").publicState, "closed");
+    assert.equal(cache.read({ ...context, origin: "https://other.example" }, "week-a").publicState, "active");
+    const persisted = JSON.parse(await fsp.readFile(filePath, "utf8"));
+    assert.equal(persisted.schemaVersion, 2);
+    assert.equal(persisted.entries.some((entry) => entry.key.includes("build-")), false);
+  });
+});
+
+test("cache Membership v1 migra compatible, rechaza API incompatible y no cruza origins", async () => {
+  await withTempDir(async (userDataDir) => {
+    const filePath = membershipCachePath({ userDataDir });
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    await fsp.writeFile(filePath, JSON.stringify({
+      schemaVersion: 1,
+      entries: [
+        membershipEntry("https://hsl.example|build-a:production:1|user:user-a|season:season-a"),
+        membershipEntry("https://hsl.example|build-b:production:2|user:user-b|season:season-a", { userId: "user-b" }),
+        membershipEntry("https://other.example|build-a:production:1|user:user-a|season:season-a", { status: "not_member" }),
+      ],
+    }), "utf8");
+    const cache = createMembershipCache({ userDataDir });
+    await cache.initialize();
+    assert.equal(cache.read(context, "user-a", "season-a").status, "member");
+    assert.equal(cache.read(context, "user-b", "season-a"), null);
+    assert.equal(cache.read({ ...context, origin: "https://other.example" }, "user-a", "season-a").status, "not_member");
+  });
+});
+
+test("fallo de persistencia de migración no trunca legacy ni causa crash", async () => {
+  await withTempDir(async (userDataDir) => {
+    const filePath = weekCachePath({ userDataDir });
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    const legacy = {
+      schemaVersion: 1,
+      entries: [weekEntry("https://hsl.example|build-a:production:1|week:week-a")],
+    };
+    await fsp.writeFile(filePath, JSON.stringify(legacy), "utf8");
+    const cache = createWeekCapabilityCache({ userDataDir }, {
+      atomicWriteImpl: async () => { throw new Error("simulated-write-failure"); },
+    });
+    const initialized = await cache.initialize();
+    assert.equal(initialized.migration.status, "write-failed");
+    assert.equal(cache.read(context, "week-a").publicState, "active");
+    assert.deepEqual(JSON.parse(await fsp.readFile(filePath, "utf8")), legacy);
   });
 });
 
@@ -71,8 +175,14 @@ test("cache corrupta se ignora y se repara en la siguiente verdad concluyente", 
     const cache = createWeekCapabilityCache(config);
     const initial = await cache.initialize();
     assert.equal(initial.corrupt, true);
-    await cache.remember(context, { conclusive: true, publicState: "closed", reason: "week-closed", weekId: "week-a" });
-    assert.equal(JSON.parse(await fsp.readFile(filePath, "utf8")).schemaVersion, 1);
+    await cache.remember(context, {
+      checkedAt: "2026-08-01T00:00:00.000Z",
+      conclusive: true,
+      publicState: "closed",
+      reason: "week-closed",
+      weekId: "week-a",
+    });
+    assert.equal(JSON.parse(await fsp.readFile(filePath, "utf8")).schemaVersion, 2);
   });
 });
 

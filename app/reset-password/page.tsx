@@ -10,6 +10,7 @@ import {
   RECOVERY_AUTHORIZED_COOKIE,
   RECOVERY_LOGOUT_PENDING_COOKIE,
 } from "@/lib/auth/password-recovery";
+import { getVerifiedSessionIdentity } from "@/lib/auth/session-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -55,12 +56,12 @@ export default async function ResetPasswordPage({
   const logoutPending = hasRecoveryMarker(
     cookieStore.get(RECOVERY_LOGOUT_PENDING_COOKIE)?.value,
   );
-  const { data, error } = supabase
-    ? await supabase.auth.getUser()
-    : { data: { user: null }, error: new Error("unavailable") };
+  const identity = supabase
+    ? await getVerifiedSessionIdentity(supabase.auth)
+    : { status: "unavailable" as const };
   const recoveryAllowed = isAuthorizedRecoverySession(
     markerValue,
-    !error && Boolean(data.user),
+    identity.status,
   );
   const safeStatus =
     typeof status === "string" && allowedStatuses.has(status as ResetPasswordStatus)
@@ -91,6 +92,16 @@ export default async function ResetPasswordPage({
               >
                 Solicitar un nuevo enlace
               </Link>
+              {identity.status === "recovery" ? (
+                <form action="/reset-password/cancel" method="post">
+                  <button
+                    className="rounded-md border px-4 py-3 text-sm font-semibold theme-border theme-text focus:outline-none focus-visible:ring-2 focus-visible:ring-circuit"
+                    type="submit"
+                  >
+                    Salir de Recovery
+                  </button>
+                </form>
+              ) : null}
             </div>
           )}
         </Card>

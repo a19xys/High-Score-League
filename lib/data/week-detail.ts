@@ -9,6 +9,7 @@ import type {
   WeeklyResult,
 } from "@/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import { getRealGames, mapGameRowToGame } from "./games";
 import { getRealSeasons, mapSeasonRowToSeason } from "./seasons";
 import {
@@ -115,11 +116,11 @@ async function readRealWeekContext() {
 
 async function getCurrentUserId() {
   const supabase = await createSupabaseServerClient();
-  const { data: userData } = supabase
-    ? await supabase.auth.getUser()
-    : { data: { user: null } };
+  const identity = supabase
+    ? await getVerifiedProductIdentity(supabase.auth)
+    : null;
 
-  return userData.user?.id ?? null;
+  return identity?.status === "product" ? identity.userId : null;
 }
 
 function mergeSubmissionRows(

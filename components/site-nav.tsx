@@ -1,5 +1,6 @@
 import { getRealSeasons } from "@/lib/data/seasons";
 import { getRealWeeks } from "@/lib/data/weeks";
+import type { ServerSession } from "@/lib/auth/session";
 import { resolveMediaUrl } from "@/lib/media/resolver";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSynchronizedSeasonStatus, getSynchronizedWeekStatus } from "@/lib/week-status";
@@ -54,23 +55,21 @@ function getSignedOutNavData(): SiteNavData {
   };
 }
 
-export async function SiteNav() {
+export async function SiteNav({ session }: { session: ServerSession }) {
+  if (session.status !== "signed-in") {
+    return <SiteNavClient data={getSignedOutNavData()} />;
+  }
+
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
     return <SiteNavClient data={getSignedOutNavData()} />;
   }
 
-  const { data: userData } = await supabase.auth.getUser();
-
-  if (!userData.user) {
-    return <SiteNavClient data={getSignedOutNavData()} />;
-  }
-
   const { data: profile } = await supabase
     .from("profiles")
     .select("username,initials,avatar_url,avatar_storage_path")
-    .eq("id", userData.user.id)
+    .eq("id", session.userId)
     .maybeSingle<{
       username: string | null;
       initials: string | null;
@@ -85,7 +84,7 @@ export async function SiteNav() {
       storagePath: profile?.avatar_storage_path,
       legacyUrl: profile?.avatar_url,
     }),
-    email: userData.user.email ?? null,
+    email: session.email,
   };
 
   return <SiteNavClient data={await getSupabaseNavData(navProfile)} />;

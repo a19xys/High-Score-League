@@ -2464,7 +2464,9 @@ async function playCompetitionAction(options = {}) {
         packKey: scoped.scope.packKey,
         playerKey: scoped.scope.playerKey,
         runId: preparedRun.runId,
+        competitionGuard: preparedRun.integrity,
         scopedPendingDir: scoped.config.eventsPendingDirAbs,
+        scopedRejectedDir: scoped.config.eventsRejectedDirAbs,
         stagingPendingDir,
         onAdopted(event) {
           options.onScoreAdopted?.(event);
@@ -2555,6 +2557,9 @@ async function playCompetitionAction(options = {}) {
       ...(adoption.adopted.length > 0
         ? [`${adoption.adopted.length} captura(s) nueva(s) movida(s) a la cola de esta cuenta y pack.`]
         : ["No se detectaron capturas nuevas para adoptar."]),
+      ...(adoption.rejected?.length > 0
+        ? [`${adoption.rejected.length} captura(s) rechazada(s) localmente por integridad competitiva; no se enviaran.`]
+        : []),
       ...(savedLocallyLine ? [savedLocallyLine] : []),
       ...(legacyLine ? [legacyLine] : []),
     ],

@@ -1,17 +1,17 @@
 -- license:MIT
 -- High Score League - MAME Lua score event writer
--- v0.1.5: adapter module selected by config.lua for isolated v2 runs
+-- v0.2.0: integrity guard local para runs competitivas v2
 
 local exports = {
   name = "hsl-score",
-  version = "0.1.5",
+  version = "0.2.0",
   description = "High Score League score event writer",
   license = "MIT",
   author = { name = "High Score League" }
 }
 
 local hsl_score = exports
-local PLUGIN_VERSION = "0.1.5"
+local PLUGIN_VERSION = "0.2.0"
 
 -- MAME deberia llamar a set_folder(path) con la carpeta real del plugin.
 -- Dejamos este fallback para instalaciones sencillas.
@@ -54,6 +54,7 @@ function hsl_score.startplugin()
   local helpers_module = load_module("core/mame_helpers.lua")
   local tracking_module = load_module("core/tracking.lua")
   local writer_module = load_module("core/writer.lua")
+  local integrity_module = load_module("core/competition_integrity.lua")
   local menu_module = load_module("core/menu.lua")
 
   local config = config_module.load(plugin_folder, emu)
@@ -66,16 +67,24 @@ function hsl_score.startplugin()
   local paths = paths_module.create(plugin_folder, config)
   local helpers = helpers_module.create(emu, manager)
   local tracker = tracking_module.create(config, game, helpers)
-  local writer = writer_module.create(config, paths, json, helpers, tracker, game, PLUGIN_VERSION)
+  local integrity = integrity_module.create(config, helpers, emu, manager)
+  integrity.start()
+  if integrity.enabled then
+    emu.register_prestart(function()
+      integrity.prepare()
+    end)
+  end
+  local writer = writer_module.create(config, paths, json, helpers, tracker, game, PLUGIN_VERSION, integrity)
   local menu = menu_module.create(config, paths, helpers, tracker, writer, game, PLUGIN_VERSION)
 
   math.randomseed(os.time())
 
   emu.register_menu(menu.callback, menu.populate, "High Score League")
 
-  if config.enableFrameTracking then
+  if config.enableFrameTracking or integrity.enabled then
     emu.register_frame_done(function()
-      tracker.frame_tick()
+      if integrity.enabled then integrity.frame_tick() end
+      if config.enableFrameTracking then tracker.frame_tick() end
     end, "frame")
   end
 

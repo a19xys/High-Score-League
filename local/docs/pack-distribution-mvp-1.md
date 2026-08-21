@@ -309,7 +309,8 @@ No entra en este MVP:
 - selector de filtros/artwork/DIPs;
 - autofire;
 - bloqueo TAB/DIPs/save states/rewind/pause;
-- hardening anti-cheat.
+- autoridad server-side `WEB-COMPETITION-INTEGRITY-1` sobre el
+  `manifestSha256` y la evidence local ya generada.
 
 ## Instrucciones para primera competicion
 

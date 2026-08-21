@@ -33,7 +33,7 @@ async function getEventFileFreshness(filePath, options = {}) {
   };
 }
 
-async function readEventFile(dir, filename) {
+async function readEventFile(dir, filename, options = {}) {
   const safeName = path.basename(filename);
   const fullPath = path.join(dir, safeName);
   const raw = await fsp.readFile(fullPath, "utf8");
@@ -53,7 +53,7 @@ async function readEventFile(dir, filename) {
     };
   }
 
-  const validation = validateEvent(parsed);
+  const validation = validateEvent(parsed, options);
 
   return {
     filename: safeName,

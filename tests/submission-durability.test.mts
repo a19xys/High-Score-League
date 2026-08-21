@@ -90,7 +90,7 @@ test("ingest checks player-scoped duplicates before mutable week policy", async 
 
   assert.ok(duplicateLookup > 0 && duplicateLookup < weekLookup);
   assert.ok(weekLookup < membershipLookup && membershipLookup < historicalWindow && historicalWindow < insert);
-  assert.match(route, /\.eq\("player_id", userData\.user\.id\)[\s\S]*\.eq\("duplicate_key", input\.duplicateKey\)/);
+  assert.match(route, /\.eq\("player_id", user\.id\)[\s\S]*\.eq\("duplicate_key", input\.duplicateKey\)/);
   assert.match(route, /canonicalEventMatches[\s\S]*week_id[\s\S]*score[\s\S]*detected_at/);
   assert.match(route, /insertError\.code === "23505"[\s\S]*canonicalEventMatches/);
   assert.doesNotMatch(route, /getSynchronizedWeekStatus/);

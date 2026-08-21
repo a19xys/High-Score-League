@@ -5,6 +5,7 @@ import {
 } from "@/lib/account-anonymization";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,8 @@ function errorResponse(code: string, error: string, status: number, retryable = 
 
 export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
-  const admin = createSupabaseAdminClient();
 
-  if (!supabase || !admin) {
+  if (!supabase) {
     return errorResponse(
       "NOT_CONFIGURED",
       "La eliminación de cuenta no está disponible en este entorno.",
@@ -38,10 +38,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const identity = await getVerifiedProductIdentity(supabase.auth);
 
-  if (userError || !userData.user) {
+  if (identity.status !== "product") {
     return errorResponse("AUTH_REQUIRED", "Necesitas una sesión válida.", 401);
+  }
+
+  const admin = createSupabaseAdminClient();
+
+  if (!admin) {
+    return errorResponse(
+      "NOT_CONFIGURED",
+      "La eliminación de cuenta no está disponible en este entorno.",
+      503,
+      true,
+    );
   }
 
   let payload: unknown;
@@ -85,7 +96,7 @@ export async function POST(request: NextRequest) {
   const { data: profile, error: profileError } = await admin
     .from("profiles")
     .select("id,username,anonymized_at")
-    .eq("id", userData.user.id)
+    .eq("id", identity.userId)
     .maybeSingle<ProfileState>();
 
   if (profileError) {
@@ -110,7 +121,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await anonymizeAccount({ admin, userId: userData.user.id });
+    await anonymizeAccount({ admin, userId: identity.userId });
   } catch (caught) {
     if (caught instanceof AccountAnonymizationError) {
       return errorResponse(caught.code, caught.message, caught.status, caught.retryable);

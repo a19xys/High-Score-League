@@ -10,6 +10,7 @@ import {
   RECOVERY_STAGING_COOKIE,
   retryGlobalRecoverySignOut,
 } from "@/lib/auth/password-recovery";
+import { getVerifiedSessionIdentity } from "@/lib/auth/session-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -72,14 +73,6 @@ export async function POST(request: Request) {
     return response;
   }
 
-  const { data, error } = await supabase.auth.getUser();
-
-  if (error || !data.user) {
-    const response = redirect(request, "/reset-password?status=invalid");
-    expireRecoveryState(response);
-    return response;
-  }
-
   const logoutPending = hasRecoveryMarker(
     cookieStore.get(RECOVERY_LOGOUT_PENDING_COOKIE)?.value,
   );
@@ -95,6 +88,14 @@ export async function POST(request: Request) {
 
     const response = redirect(request, "/reset-password?status=logout-pending");
     retainLogoutRetryState(response);
+    return response;
+  }
+
+  const identity = await getVerifiedSessionIdentity(supabase.auth);
+
+  if (identity.status !== "recovery") {
+    const response = redirect(request, "/reset-password?status=invalid");
+    expireRecoveryState(response);
     return response;
   }
 

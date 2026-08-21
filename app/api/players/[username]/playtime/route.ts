@@ -4,6 +4,7 @@ import { usernamePattern } from "@/lib/auth/validation";
 import { resolvePlayerPlayTimeApi } from "@/lib/api/player-playtime";
 import { getPlayerPlayTimeSnapshot } from "@/lib/data/player-playtime";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,10 @@ export async function GET(
   const result = await resolvePlayerPlayTimeApi(username, {
     createClient: createSupabaseServerClient,
     getViewer: async (supabase) => {
-      const { data, error } = await supabase.auth.getUser();
-      if (error) return { status: "error" as const };
-      return data.user
-        ? { status: "signed-in" as const, userId: data.user.id }
+      const identity = await getVerifiedProductIdentity(supabase.auth);
+      if (identity.status === "unavailable") return { status: "error" as const };
+      return identity.status === "product"
+        ? { status: "signed-in" as const, userId: identity.userId }
         : { status: "signed-out" as const };
     },
     hasActiveProfile,

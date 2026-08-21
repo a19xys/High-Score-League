@@ -67,6 +67,13 @@ function validV2Pack(overrides = {}) {
   };
 }
 
+function integrityV1(dips = [
+  { portTag: ":IN2", mask: 8, value: 0, label: "Bonus Life", settingLabel: "1500" },
+  { portTag: ":IN2", mask: 3, value: 0, label: "Lives", settingLabel: "3" },
+]) {
+  return { version: 1, mameVersion: "0.287", dips };
+}
+
 test("v1 se valida y queda normalizado como deprecated", () => {
   const result = normalizePackContract(validV1Pack(), {
     packRoot: "C:/packs/space-invaders",
@@ -95,6 +102,7 @@ test("v2 valido queda current y normaliza rutas internas", async () => {
     assert.equal(result.normalized.contract.mame.romDir, path.join(dir, "roms"));
     assert.equal(result.normalized.contract.capture.adapter, "scripts/invaders.lua");
     assert.equal(result.normalized.contract.capture.adapterPath, path.join(dir, "scripts", "invaders.lua"));
+    assert.equal(result.normalized.contract.mame.profiles.competition.integrity, null);
   });
 });
 
@@ -113,8 +121,8 @@ test("v2 acepta el pack de referencia de Space Invaders con perfil competitivo c
             launchArgs: [],
           },
           competition: {
-            cfgPath: "cfg",
             launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+            integrity: integrityV1(),
           },
         },
       },
@@ -128,7 +136,11 @@ test("v2 acepta el pack de referencia de Space Invaders con perfil competitivo c
     assert.equal(result.normalized.contract.capture.adapter, "scripts/invaders.lua");
     assert.equal(result.normalized.contract.mame.profiles.practice.cfgPath, null);
     assert.deepEqual(result.normalized.contract.mame.profiles.practice.launchArgs, []);
-    assert.equal(result.normalized.contract.mame.profiles.competition.cfgPath, "cfg");
+    assert.equal(result.normalized.contract.mame.profiles.competition.cfgPath, null);
+    assert.deepEqual(result.normalized.contract.mame.profiles.competition.integrity.dips.map((dip) => [dip.portTag, dip.mask]), [
+      [":IN2", 3],
+      [":IN2", 8],
+    ]);
     assert.deepEqual(result.normalized.contract.mame.profiles.competition.launchArgs, [
       "-video",
       "bgfx",
@@ -251,4 +263,46 @@ test("v2 rechaza perfiles MAME inseguros", () => {
 
   assert.ok(result.errors.some((item) => /mame\.profiles\.competition\.cfgPath/.test(item)));
   assert.ok(result.errors.some((item) => /mame\.profiles\.competition\.launchArgs/.test(item)));
+});
+
+test("integrity v1 es compatible-opcional, valida limites y canonicaliza DIP", () => {
+  const legacy = normalizePackContract(validV2Pack());
+  assert.deepEqual(legacy.errors, []);
+  assert.equal(legacy.normalized.contract.mame.profiles.competition.integrity, null);
+
+  const valid = normalizePackContract(validV2Pack({
+    mame: {
+      ...validV2Pack().mame,
+      profiles: { competition: { integrity: integrityV1() } },
+    },
+  }));
+  assert.deepEqual(valid.errors, []);
+  assert.deepEqual(valid.normalized.contract.mame.profiles.competition.integrity.dips.map((dip) => dip.mask), [3, 8]);
+
+  for (const [name, integrity, pattern] of [
+    ["version", { ...integrityV1(), version: 2 }, /version debe ser exactamente 1/],
+    ["mameVersion", { ...integrityV1(), mameVersion: "" }, /mameVersion/],
+    ["mameVersion exacta", { ...integrityV1(), mameVersion: "MAME 0.287" }, /version MAME exacta/],
+    ["campo integrity desconocido", { ...integrityV1(), trusted: true }, /campos desconocidos/],
+    ["empty dips", { ...integrityV1(), dips: [] }, /array no vacio/],
+    ["mask zero", integrityV1([{ portTag: ":IN2", mask: 0, value: 0, label: "Lives", settingLabel: "3" }]), /mask/],
+    ["mask 33bit", integrityV1([{ portTag: ":IN2", mask: 0x100000000, value: 0, label: "Lives", settingLabel: "3" }]), /mask/],
+    ["outside mask", integrityV1([{ portTag: ":IN2", mask: 3, value: 8, label: "Lives", settingLabel: "3" }]), /fuera de mask/],
+    ["duplicate", integrityV1([
+      { portTag: ":IN2", mask: 3, value: 0, label: "Lives", settingLabel: "3" },
+      { portTag: ":IN2", mask: 3, value: 0, label: "Lives", settingLabel: "3" },
+    ]), /duplica/],
+    ["control label", integrityV1([{ portTag: ":IN2", mask: 3, value: 0, label: "Lives\n", settingLabel: "3" }]), /label/],
+    ["campo DIP desconocido", integrityV1([{ portTag: ":IN2", mask: 3, value: 0, label: "Lives", settingLabel: "3", path: "private" }]), /campos desconocidos/],
+  ]) {
+    const result = normalizePackContract(validV2Pack({
+      mame: { ...validV2Pack().mame, profiles: { competition: { integrity } } },
+    }));
+    assert.match(result.errors.join("\n"), pattern, name);
+  }
+
+  const practice = normalizePackContract(validV2Pack({
+    mame: { ...validV2Pack().mame, profiles: { practice: { integrity: integrityV1() } } },
+  }));
+  assert.match(practice.errors.join("\n"), /practice\.integrity no esta permitido/);
 });

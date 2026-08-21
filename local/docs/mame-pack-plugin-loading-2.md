@@ -3,6 +3,10 @@
 Implementacion inicial de carga segura de plugin/adaptador para competicion
 `packVersion: 2` con MAME compartido.
 
+> Estado actual: `LOCAL-COMPETITION-INTEGRITY-1` endurece esta preparacion con
+> manifest, MAME exacto, sandbox mutable completo, controller y evidencia. Las
+> reglas actuales prevalecen sobre las decisiones iniciales descritas aqui.
+
 ## Estrategia elegida
 
 Se eligio una variante de:
@@ -17,6 +21,7 @@ Por cada partida competitiva v2, la GUI crea:
 ```text
 userData/runtime/runs/<runId>/
   run.json
+  cfg/ ctrlr/ nvram/ inp/ sta/ snap/ diff/ comments/ share/ home/ ini/
   events/
     pending/
     failed/
@@ -39,20 +44,18 @@ copia a `games/adapter.lua`. La app genera `config.lua` para esa ejecucion con:
 ```lua
 outputDir = "<run>/events/pending"
 gameModule = "games/adapter.lua"
+competitionIntegrity = { ...policy validada por el launcher... }
 ```
 
 MAME se lanza con runtime compartido, recursos del pack y:
 
 ```text
--homepath <run>
--pluginspath <run>/plugins;<mame>/plugins -plugins -plugin hsl-score
+-homepath <run>/home -inipath <run>/ini
+-pluginspath <run>/plugins -plugins -plugin hsl-score
 ```
 
-El orden del `pluginspath` es intencionado: el run va primero para que
-`hsl-score` salga de la preparacion aislada, y el directorio `plugins` del MAME
-compartido va despues para que MAME encuentre su `boot.lua` base. Si se usa
-solo `<run>/plugins`, MAME arranca el juego pero no inicializa el gestor de
-plugins.
+La app copia al run únicamente `plugins/boot.lua` del runtime seleccionado y
+`hsl-score`; no expone el directorio global de plugins ni su `plugin.ini`.
 
 ## Por que no se eligieron otras opciones
 
@@ -91,11 +94,13 @@ preparacion de staging.
 ## Flujo de competicion v2
 
 1. La GUI valida sesion, membership y scope como antes.
-2. Prepara el plugin y adapter en `userData/runtime/runs/<runId>`.
-3. Lanza MAME compartido con recursos del pack y pluginpath del run.
-4. El plugin publica cada evento de forma atomica: escribe y cierra
+2. Verifica manifest y versión MAME exacta antes de crear el run.
+3. Prepara plugin, adapter, controller y estado mutable en
+   `userData/runtime/runs/<runId>`.
+4. Lanza MAME compartido con recursos del pack y pluginpath del run.
+5. El plugin publica cada evento de forma atomica: escribe y cierra
    `<nombre>.json.tmp`, y despues lo renombra a `<nombre>.json`.
-5. Un monitor ligado al run usa las notificaciones del filesystem como hints,
+6. Un monitor ligado al run usa las notificaciones del filesystem como hints,
    reenumera el staging y adopta los `.json` completos al scope mientras MAME
    sigue abierto:
 
@@ -103,9 +108,9 @@ preparacion de staging.
 userData/players/<playerKey>/packs/<packKey>/events/pending
 ```
 
-6. Cada adopcion durable no vacia solicita autoenvio con el trigger causal
-   `score-adopted`.
-7. Al cerrar MAME, la GUI detiene el watcher y ejecuta un rescan final completo
+7. Sólo una evidence limpia se adopta a pending y solicita autoenvio con
+   `score-adopted`; una run violada va a rejected local.
+8. Al cerrar MAME, la GUI detiene el watcher y ejecuta un rescan final completo
    que recupera cualquier notificacion perdida antes de finalizar el run.
 
 El staging por run empieza vacio, por lo que no hay capturas antiguas que
@@ -119,8 +124,8 @@ Detalles de publicacion, coalescencia, autoenvio y estados de producto:
 
 ## Practica v2
 
-Practica v2 sigue usando MAME compartido y recursos del pack, pero no anade
-`-plugins`, `-plugin` ni `-pluginspath`. No prepara staging competitivo.
+Practica v2 sigue usando MAME compartido y recursos del pack, añade
+`-noplugins` y no prepara staging ni monitor competitivo.
 
 ## Perfiles de lanzamiento
 
@@ -134,24 +139,28 @@ Practica v2 sigue usando MAME compartido y recursos del pack, pero no anade
     "launchArgs": [],
     "profiles": {
       "competition": {
-        "cfgPath": "cfg/competition",
-        "launchArgs": ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"]
+        "launchArgs": ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
+        "integrity": {
+          "version": 1,
+          "mameVersion": "0.287",
+          "dips": [
+            { "portTag": ":IN2", "mask": 3, "value": 0, "label": "Lives", "settingLabel": "3" }
+          ]
+        }
       }
     }
   }
 }
 ```
 
-El launcher usa `cfgPath` del perfil si existe; si no, usa `mame.cfgPath`.
-Tambien anade primero `mame.launchArgs` y despues los `launchArgs` del perfil.
-Esto permite aplicar filtros como `crt-geom` solo en competicion. En Space
-Invaders, MAME declara por defecto `Lives=3` y `Bonus Life=1500`; no se ha
-implementado bloqueo fuerte de menu TAB/DIPs.
+Práctica usa el cfg del perfil o `mame.cfgPath`. Competition siempre usa
+`runRoot/cfg`; su `cfgPath` opcional es sólo seed manifestado. El launcher
+anade primero `mame.launchArgs` y despues los `launchArgs` del perfil. Esto
+permite aplicar filtros como `crt-geom` solo en competicion.
 
 La referencia real de Space Invaders mantiene `crt-geom` solo en el perfil
-`competition`, no en practica. Sus archivos `cfg/default.cfg` e
-`cfg/invaders.cfg` auditados son autogenerados por MAME y no se consideran
-regla competitiva.
+`competition`, no usa seed, declara Lives=3/Bonus Life=1500 en `integrity` y
+deja el cfg personal exclusivamente a Práctica.
 
 ## Legacy v1
 
@@ -162,8 +171,7 @@ observacion en vivo.
 
 ## Limites conocidos
 
-Esto no es un sandbox anti-cheat completo para Lua. El adapter es codigo Lua
-ejecutado por MAME. La mitigacion implementada controla la ruta, copia el
-adapter a una zona preparada, controla `outputDir`, aisla staging por ejecucion
-y adopta solo desde ese staging. Hardening de adapters firmados/checksums queda
-para una tarea posterior.
+Esto no es una autoridad criptográfica independiente. El adapter está cubierto
+por el manifest y no puede escribir la evidencia core, pero un actor que
+modifique código local confiable o regenere pack+manifest todavía requiere la
+futura validación de `WEB-COMPETITION-INTEGRITY-1`.

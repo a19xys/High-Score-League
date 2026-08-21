@@ -123,9 +123,18 @@ Tras verificar, el servidor crea un marker `HttpOnly` sin email, UUID, token ni
 password, también con 15 minutos de vida y limitado a `/reset-password`. Este
 marker es una guardia del flujo de la aplicación, no una prueba criptográfica de
 identidad por sí solo. El formulario sólo se renderiza si existen a la vez esa
-guardia y una sesión Supabase confirmada mediante `getUser()`; Supabase Auth
-sigue siendo la autoridad de identidad. La validación de la política y la
-confirmación se repiten en el POST antes de `updateUser()`.
+guardia, claims verificadas con `getClaims()`, un `JWT.amr` que contiene
+`recovery` y un usuario Supabase cuyo `id` coincide con `claims.sub`. Una sesión
+normal + marker y una sesión Recovery sin marker se rechazan. La validación se
+repite en el POST antes de `updateUser()`.
+
+La sesión Recovery es una capacidad Auth restringida y nunca una sesión de
+producto HSL: no activa navegación privada, perfil, memberships, Presence ni
+admin. Si el marker caduca mientras el JWT Recovery sigue vivo,
+`/reset-password` ofrece una salida por POST que hace `signOut({ scope:
+"local" })` y limpia el estado HSL. El modelo web, RLS, Storage, Bearer y el QA
+operativo se detallan en
+[Recovery authorization boundary](auth-recovery-authorization-boundary.md).
 
 La actualización mantiene una taxonomía acotada y siempre conserva el formulario
 cuando el password no se ha cambiado:
@@ -177,13 +186,12 @@ por la autoridad central: en un runtime loopback de desarrollo conserva
 
 ### Estado de implantación
 
-La clasificación cerrada, las guardias de flujo, la validación local/server, la
-actualización y el logout global están implementados en código. En el entorno
-HSL actual, la plantilla Reset password, las Redirect URLs y la Password Policy
-del proyecto Supabase están configuradas. Se completó satisfactoriamente un
-recovery real por email con el proveedor integrado de Supabase. Custom SMTP no
-está configurado. Este estado operativo no sustituye las instrucciones manuales
-anteriores para reproducir una instalación nueva.
+La clasificación product/recovery, las guardias de flujo, la validación
+local/server, la actualización y el logout global están implementados en código.
+La plantilla Reset password, las Redirect URLs y la Password Policy del proyecto
+Supabase ya estaban configuradas, y el flujo anterior completó un recovery real.
+La nueva frontera AMR/RLS de `0033` todavía requiere aplicación y QA remoto; no
+se considera validada por aquel QA anterior. Custom SMTP no está configurado.
 
 ### Revocación global y launcher
 
@@ -197,10 +205,11 @@ deep links al launcher.
 
 ### QA manual reutilizable
 
-El QA real del entorno HSL confirmó el recorrido normal desde la solicitud por
-email hasta el cambio de contraseña. No se documenta como demostrada ninguna
-variante adicional. Para una instalación nueva o una revalidación completa, con
-una cuenta real y la configuración remota del proveedor de email preparada:
+El QA real anterior confirmó el recorrido normal desde la solicitud por email
+hasta el cambio de contraseña, pero no la nueva frontera Recovery. La lista
+obligatoria actual está en
+[Recovery authorization boundary](auth-recovery-authorization-boundary.md#qa-remoto-pendiente).
+Para una instalación nueva, además de esa lista:
 
 1. solicitar recovery y abrir el correo;
 2. confirmar que el GET inicial no consume el enlace y que la URL queda limpia;

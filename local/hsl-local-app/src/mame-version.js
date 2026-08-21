@@ -23,4 +23,26 @@ function isMameVersionCompatible(actual, minimum) {
   }
 }
 
-module.exports = { compareMameVersions, isMameVersionCompatible, parseMameVersion };
+function extractMameVersion(value) {
+  const match = String(value || "").match(/(?:^|\s)(\d+\.\d+(?:\.\d+)?)(?=\s|$|\()/);
+  return match ? match[1] : null;
+}
+
+function detectMameVersion(mameExecutablePath, options = {}) {
+  const execFileSyncImpl = options.execFileSyncImpl || require("node:child_process").execFileSync;
+  let output;
+  try {
+    output = execFileSyncImpl(mameExecutablePath, ["-version"], {
+      encoding: "utf8",
+      timeout: options.timeoutMs || 5000,
+      windowsHide: true,
+    });
+  } catch (error) {
+    throw new Error(`No se pudo comprobar la version exacta de MAME: ${error.message}`);
+  }
+  const version = extractMameVersion(output);
+  if (!version) throw new Error("MAME -version no devolvio una version reconocible.");
+  return version;
+}
+
+module.exports = { compareMameVersions, detectMameVersion, extractMameVersion, isMameVersionCompatible, parseMameVersion };

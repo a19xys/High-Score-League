@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { SeasonRow } from "@/types/supabase";
 import { hasActiveProfile } from "@/lib/auth/active-profile";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 
 function jsonError(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
@@ -21,13 +22,13 @@ export async function POST(_request: NextRequest, { params }: JoinRouteContext) 
     return jsonError("Supabase no está configurado.", 500);
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const identity = await getVerifiedProductIdentity(supabase.auth);
 
-  if (userError || !userData.user) {
+  if (identity.status !== "product") {
     return jsonError("Necesitas iniciar sesión para unirte a la temporada.", 401);
   }
 
-  const profileState = await hasActiveProfile(supabase, userData.user.id);
+  const profileState = await hasActiveProfile(supabase, identity.userId);
 
   if (profileState.error) {
     return jsonError("No se pudo validar el perfil.", 500);
@@ -59,7 +60,7 @@ export async function POST(_request: NextRequest, { params }: JoinRouteContext) 
     .from("season_memberships")
     .select("id,status")
     .eq("season_id", season.id)
-    .eq("player_id", userData.user.id)
+    .eq("player_id", identity.userId)
     .maybeSingle<{ id: string; status: "active" | "left" }>();
 
   if (existing) {
@@ -74,7 +75,7 @@ export async function POST(_request: NextRequest, { params }: JoinRouteContext) 
     .from("season_memberships")
     .insert({
       season_id: season.id,
-      player_id: userData.user.id,
+      player_id: identity.userId,
       status: "active",
     })
     .select("id,season_id,player_id,status,joined_at")

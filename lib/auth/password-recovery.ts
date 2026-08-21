@@ -1,4 +1,5 @@
 import { validateNewPassword } from "./validation.ts";
+import type { VerifiedSessionIdentity } from "./session-context.ts";
 
 export const RECOVERY_STAGING_COOKIE = "hsl_password_recovery_staged";
 export const RECOVERY_AUTHORIZED_COOKIE = "hsl_password_recovery_authorized";
@@ -103,9 +104,9 @@ export function hasRecoveryMarker(value: string | undefined) {
 
 export function isAuthorizedRecoverySession(
   markerValue: string | undefined,
-  hasAuthenticatedUser: boolean,
+  verifiedSessionStatus: VerifiedSessionIdentity["status"],
 ) {
-  return hasRecoveryMarker(markerValue) && hasAuthenticatedUser;
+  return hasRecoveryMarker(markerValue) && verifiedSessionStatus === "recovery";
 }
 
 function recoveryErrorShape(error: unknown): RecoveryErrorShape {

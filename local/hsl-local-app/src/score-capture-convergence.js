@@ -16,17 +16,21 @@ function createScoreCaptureConvergence(options = {}) {
     packKey: options.packKey,
     playerKey: options.playerKey,
     runId: options.runId,
+    competitionGuard: options.competitionGuard || null,
+    scopedRejectedDir: options.scopedRejectedDir || null,
     scopedPendingDir: options.scopedPendingDir,
     stagingPendingDir: options.stagingPendingDir,
   });
   if (!context.runId || !context.stagingPendingDir || !context.scopedPendingDir || !context.playerKey || !context.packKey) {
     throw new Error("El monitor de capturas requiere un contexto v2 completo y congelado.");
   }
+  if (context.competitionGuard && !context.scopedRejectedDir) throw new Error("El monitor protegido requiere una caja rejected scoped.");
 
   const adoptImpl = options.adoptImpl || adoptNewStagingEvents;
   const watchImpl = options.watchImpl || fs.watch;
   const now = options.now || (() => new Date().toISOString());
   const allAdopted = [];
+  const allRejected = [];
   let acceptingSignals = false;
   let closePromise = null;
   let scanPromise = null;
@@ -42,6 +46,7 @@ function createScoreCaptureConvergence(options = {}) {
     lastSubmitTrigger: null,
     lastWatchErrorCode: null,
     liveAdopted: 0,
+    localRejected: 0,
     rescanQueued: false,
     scanErrors: 0,
     scanInFlight: false,
@@ -101,8 +106,15 @@ function createScoreCaptureConvergence(options = {}) {
         context.scopedPendingDir,
         new Map(),
         0,
+        {
+          competitionGuard: context.competitionGuard,
+          scopedRejectedDir: context.scopedRejectedDir,
+        },
       );
       const adopted = Array.isArray(adoption?.adopted) ? adoption.adopted : [];
+      const rejected = Array.isArray(adoption?.rejected) ? adoption.rejected : [];
+      allRejected.push(...rejected);
+      if (rejected.length > 0) publishDiagnostics({ localRejected: diagnostics.localRejected + rejected.length });
       requestSubmit(adopted, phase);
       return adoption || { adopted: [], skippedLegacy: [] };
     } catch (error) {
@@ -181,6 +193,7 @@ function createScoreCaptureConvergence(options = {}) {
         return {
           adopted: [...allAdopted],
           diagnostics: null,
+          rejected: [...allRejected],
           skippedLegacy: [],
         };
       } finally {

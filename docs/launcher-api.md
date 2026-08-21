@@ -10,6 +10,21 @@ Devuelve `204`, body vacio y `Cache-Control: no-store, max-age=0` con headers:
 
 No requiere autenticacion ni consulta datos.
 
+`X-HSL-Build` y `X-HSL-Environment` son metadata diagnostica del deployment que
+respondio. Sirven para soporte, trazabilidad y smoke de despliegue, pero no
+identifican autoridad competitiva ni segmentan caches del launcher.
+
+`X-HSL-Launcher-Api-Version` es la frontera de compatibilidad contractual. Para
+el launcher actual, la autoridad remota estable es el origin exacto junto con
+`launcher-api:1`. Un rolling deployment puede hacer que Health y otro endpoint
+respondan desde builds o environments distintos; la respuesta sigue siendo
+funcionalmente valida si conserva el mismo origin, la version soportada y el
+contrato estructural del endpoint. Una version no soportada se rechaza.
+
+Un cambio breaking de cualquier contrato consumido por el launcher exige
+avanzar la version de Launcher API correspondiente; compartir accidentalmente
+el numero `1` no autoriza a introducir incompatibilidades.
+
 ## POST /api/launcher/ranking-capabilities
 
 Request:
@@ -84,8 +99,11 @@ $env:HSL_EXPECTED_DEPLOYMENT_SHA='<sha-esperado>'
 npm.cmd run test:launcher-api
 ```
 
-El script valida health, fingerprint, contrato, batch vacio, semana real y UUID
-inexistente. El weekId y SHA reales solo se pasan por entorno y no se guardan.
+El script valida health, metadata de deployment, contrato, batch vacio, semana
+real y UUID inexistente. Si se configura el SHA esperado, conserva la
+comparacion estricta como control de QA del deployment; esa comprobacion smoke
+no convierte el SHA en autoridad funcional. El weekId y SHA reales solo se
+pasan por entorno y no se guardan.
 
 ## Presence del launcher
 

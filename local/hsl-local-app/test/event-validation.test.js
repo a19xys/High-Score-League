@@ -79,3 +79,39 @@ test("validateEvent does not reject otherwise valid unknown ROMs", () => {
   assert.deepEqual(result.errors, []);
   assert.equal(result.normalizedGame, null);
 });
+
+function guard(overrides = {}) {
+  return {
+    version: 1,
+    guardVersion: 1,
+    runId: "run_test",
+    packId: "space-invaders-test",
+    manifestSha256: "a".repeat(64),
+    mameVersion: "0.287",
+    dips: [
+      { portTag: ":IN2", mask: 3, value: 0 },
+      { portTag: ":IN2", mask: 8, value: 0 },
+    ],
+    violations: [],
+    ...overrides,
+  };
+}
+
+test("guard v1 exige evidence completa y ligada al run sin endurecer eventos historicos", () => {
+  assert.deepEqual(validateEvent(validEvent()).errors, []);
+  assert.deepEqual(validateEvent(validEvent({ competitionIntegrity: guard() }), { competitionGuard: guard() }).errors, []);
+  assert.match(validateEvent(validEvent(), { competitionGuard: guard() }).errors.join("\n"), /competitionIntegrity debe ser un objeto/);
+  assert.match(validateEvent(validEvent({ competitionIntegrity: guard({ runId: "run_other" }) }), { competitionGuard: guard() }).errors.join("\n"), /runId no coincide/);
+  assert.match(validateEvent(validEvent({ competitionIntegrity: guard({ manifestSha256: "A".repeat(64) }) })).errors.join("\n"), /manifestSha256/);
+  assert.match(validateEvent(validEvent({ competitionIntegrity: guard({ dips: [
+    { portTag: ":IN2", mask: 8, value: 0 },
+    { portTag: ":IN2", mask: 3, value: 0 },
+  ] }) })).errors.join("\n"), /orden canonico/);
+  assert.match(validateEvent(validEvent({ competitionIntegrity: guard({ violations: ["pause", "pause"] }) })).errors.join("\n"), /deduplicado/);
+  assert.match(validateEvent(validEvent({ competitionIntegrity: guard({ violations: ["unknown"] }) })).errors.join("\n"), /codigo desconocido/);
+  assert.match(validateEvent(validEvent({ competitionIntegrity: guard({ trusted: true }) })).errors.join("\n"), /campos desconocidos/);
+  assert.match(validateEvent(validEvent({ competitionIntegrity: guard({ dips: [
+    { portTag: ":IN2", mask: 3, value: 0, path: "C:\\private" },
+    { portTag: ":IN2", mask: 8, value: 0 },
+  ] }) })).errors.join("\n"), /campos desconocidos/);
+});

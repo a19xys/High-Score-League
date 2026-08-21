@@ -17,6 +17,7 @@ import {
   type MediaSelection,
 } from "@/lib/media/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getVerifiedProductIdentity } from "@/lib/auth/session-context";
 import type { RealProfile } from "@/types/supabase";
 import type { ProfileAuthData } from "./profile-types";
 import { ProfileAvatarEditor } from "./profile-avatar-editor";
@@ -100,9 +101,9 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
       return;
     }
 
-    const { data: userData } = await supabase.auth.getUser();
+    const identity = await getVerifiedProductIdentity(supabase.auth);
 
-    if (!userData.user) {
+    if (identity.status !== "product") {
       setError("La sesión ha caducado. Vuelve a iniciar sesión.");
       return;
     }
@@ -118,7 +119,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
             selection: avatarSelection,
             currentStoragePath: avatarStoragePath,
             currentUrl: avatarUrl,
-            userId: userData.user.id,
+            userId: identity.userId,
           },
         ],
         persist: async ([avatar]) => {
@@ -135,14 +136,14 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
             ? await supabase
                 .from("profiles")
                 .update(payload)
-                .eq("id", userData.user.id)
+                .eq("id", identity.userId)
                 .select(
                   "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,presence_public,track_play_time,is_admin,anonymized_at,created_at,updated_at",
                 )
                 .single()
             : await supabase
                 .from("profiles")
-                .insert({ id: userData.user.id, ...payload })
+                .insert({ id: identity.userId, ...payload })
                 .select(
                   "id,username,initials,avatar_url,avatar_storage_path,bio,play_time_public,presence_public,track_play_time,is_admin,anonymized_at,created_at,updated_at",
                 )
@@ -169,7 +170,7 @@ export function ProfileEditor({ auth, onboarding = false }: ProfileEditorProps) 
       return;
     }
     invalidatePlayerProfilePreview({
-      playerId: userData.user.id,
+      playerId: identity.userId,
       usernames: [
         auth.profile?.username,
         auth.metadataUsername,

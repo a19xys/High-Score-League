@@ -4,7 +4,7 @@ import { AccessRequired } from "@/components/auth/access-required";
 import { PublicProfileView } from "@/components/profile/public-profile-view";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/state";
-import { hasServerSession } from "@/lib/auth/session";
+import { getServerSession } from "@/lib/auth/session";
 import { usernamePattern } from "@/lib/auth/validation";
 import {
   getPlayerCompetitiveProfile,
@@ -40,7 +40,9 @@ function ProfileUnavailable() {
 }
 
 export default async function PlayerPage({ params }: PlayerPageProps) {
-  if (!(await hasServerSession())) {
+  const session = await getServerSession();
+
+  if (session.status !== "signed-in") {
     return <AccessRequired />;
   }
 
@@ -66,13 +68,12 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     notFound();
   }
 
-  const { data: visitor } = await supabase.auth.getUser();
   const [competitive, playTimeResult, presence] = await Promise.all([
     getPlayerCompetitiveProfile(profileResult.profile.id, "public"),
     getPlayerPlayTimeSnapshot(
       supabase,
       username,
-      visitor.user?.id || "",
+      session.userId,
     ),
     getPlayerPresence(profileResult.profile.id),
   ]);

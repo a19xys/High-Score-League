@@ -30,6 +30,8 @@ export async function updateSupabaseSession(request: NextRequest) {
     },
   });
 
+  // Refresh SSR cookies only. Product authorization is performed downstream
+  // from verified claims; this call never grants access by itself.
   await supabase.auth.getUser();
 
   return response;

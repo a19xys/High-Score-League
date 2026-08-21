@@ -89,6 +89,12 @@ pack los declara. Si el perfil del modo declara `cfgPath`, sustituye a
 `mame.cfgPath` para ese lanzamiento. Los nombres de flags quedan pendientes de
 validacion final con MAME real antes de cerrar empaquetado.
 
+> Regla actual tras `LOCAL-COMPETITION-INTEGRITY-1`: lo anterior describe
+> Práctica. Competition protegida no usa nunca `<pack>/cfg` como cfg vivo;
+> siempre recibe `<run>/cfg`, y un `profiles.competition.cfgPath` opcional se
+> copia sólo como seed manifestado. MAME 0.287 y los nombres de flags se
+> validaron con el runtime real.
+
 ## Practica y competicion
 
 Practica v2 queda disponible cuando:
@@ -103,6 +109,9 @@ capa de esa preparacion queda implementada en:
 ```text
 LOCAL-MAME-PACK-PLUGIN-LOADING-2
 ```
+
+La capa vigente añade `LOCAL-COMPETITION-INTEGRITY-1`: manifest local, versión
+MAME exacta, controller, sandbox completo y rechazo local de evidence violada.
 
 ## Compatibilidad v1
 

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RealProfile } from "@/types/supabase";
+import { getVerifiedProductIdentity } from "./session-context";
 import {
   humanizeSupabaseError,
   normalizeInitials,
@@ -53,25 +54,43 @@ function humanizeProfileInsertError(error: SupabaseMutationError) {
 
 export async function ensureProfileForCurrentUser(
   supabase: SupabaseClient,
+  verifiedUser?: {
+    id: string;
+    user_metadata?: Record<string, unknown>;
+  },
 ): Promise<EnsureProfileResult> {
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const identity = verifiedUser
+    ? null
+    : await getVerifiedProductIdentity(supabase.auth);
 
-  if (userError) {
+  if (identity?.status === "unavailable") {
     return {
       status: "needs-input",
       profile: null,
-      error: humanizeSupabaseError(userError.message),
+      error: "No se pudo verificar la sesión.",
     };
   }
 
-  if (!userData.user) {
+  if (identity && identity.status !== "product") {
+    return identity.status === "recovery"
+      ? {
+          status: "inaccessible",
+          profile: null,
+          error: "Recovery no es una sesión de producto.",
+        }
+      : { status: "signed-out", profile: null, error: null };
+  }
+
+  const user = verifiedUser ?? (identity?.status === "product" ? identity.user : null);
+
+  if (!user) {
     return { status: "signed-out", profile: null, error: null };
   }
 
   const { data: existingProfile, error: existingError } = await supabase
     .from("profiles")
     .select(profileColumns)
-    .eq("id", userData.user.id)
+    .eq("id", user.id)
     .maybeSingle();
 
   if (existingError) {
@@ -90,9 +109,9 @@ export async function ensureProfileForCurrentUser(
     };
   }
 
-  const username = metadataString(userData.user.user_metadata.username).trim();
+  const username = metadataString(user.user_metadata?.username).trim();
   const initials = normalizeInitials(
-    metadataString(userData.user.user_metadata.initials),
+    metadataString(user.user_metadata?.initials),
   );
   const usernameError = validateUsername(username);
   const initialsError = validateInitials(initials);
@@ -111,7 +130,7 @@ export async function ensureProfileForCurrentUser(
   const { data: createdProfile, error: insertError } = await supabase
     .from("profiles")
     .insert({
-      id: userData.user.id,
+      id: user.id,
       username,
       initials,
     })
@@ -123,7 +142,7 @@ export async function ensureProfileForCurrentUser(
       const { data: profileAfterRace, error: profileAfterRaceError } = await supabase
         .from("profiles")
         .select(profileColumns)
-        .eq("id", userData.user.id)
+        .eq("id", user.id)
         .maybeSingle();
 
       if (profileAfterRace) {

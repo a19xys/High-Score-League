@@ -2,7 +2,7 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { getAuthState } = require("./auth");
 const { buildMameArgs, DEFAULT_PLUGIN_NAME } = require("./mame-launcher");
-const { getV2CaptureReadiness } = require("./mame-plugin-run");
+const { getV2CaptureReadiness, getV2CompetitionReadiness } = require("./mame-plugin-run");
 const { resolveScopedQueue } = require("./scoped-queue");
 const { readSharedMameRuntime } = require("./shared-mame-runtime");
 
@@ -404,6 +404,7 @@ async function buildDiagnoseReport(config) {
 
   if (config.pack?.contract?.version === 2) {
     const captureReadiness = getV2CaptureReadiness(config);
+    const competitionReadiness = getV2CompetitionReadiness(config);
 
     if (sharedMameRuntime?.available) {
       add(report, "mame", "OK", "packVersion 2 usara runtime MAME compartido para practica", sharedMameRuntime.mameExecutablePath);
@@ -457,20 +458,16 @@ async function buildDiagnoseReport(config) {
     add(
       report,
       "launcher",
-      captureReadiness.ok ? "OK" : "INFO",
-      captureReadiness.ok
-        ? "competition v2 se prepara con plugin/adaptador aislado al lanzar"
-        : "competition v2 permanece bloqueada hasta corregir adapter/plugin/staging",
-      captureReadiness.ok
+      competitionReadiness.ok ? "OK" : "INFO",
+      competitionReadiness.ok
+        ? "competition v2 protegida se prepara con plugin/adaptador aislado al lanzar"
+        : "competition v2 protegida permanece bloqueada hasta corregir integrity/adapter/plugin",
+      competitionReadiness.ok
         ? [
             "La GUI crea userData/runtime/runs/<runId> por ejecucion.",
             "El plugin escribe primero en staging de la ejecucion.",
           ]
-        : [
-            `capture.mode=${config.pack.contract.capture?.mode || "ausente"}`,
-            `capture.pluginName=${config.pack.contract.capture?.pluginName || "ausente"}`,
-            `capture.adapter=${config.pack.contract.capture?.adapter || "ausente"}`,
-          ]
+        : competitionReadiness.errors
     );
   } else if (!config.mame || typeof config.mame !== "object") {
     add(report, "mame", "INFO", "No hay MAME activo en config global ni pack cargado");

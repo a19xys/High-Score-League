@@ -91,26 +91,24 @@ export default async function SupabaseTestPage() {
     );
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { data: userData } = supabase
-    ? await supabase.auth.getUser()
-    : { data: { user: null } };
+  const supabase = auth.supabase;
+  const user = auth.user;
   const profileResponse =
-    supabase && userData.user
+    user
       ? await supabase
           .from("profiles")
           .select("id,username,initials,avatar_url,is_admin,anonymized_at,created_at,updated_at")
-          .eq("id", userData.user.id)
+          .eq("id", user.id)
           .maybeSingle()
       : { data: null, error: null };
   const realProfile = (profileResponse.data ?? null) as RealProfile | null;
   const metadataUsername =
-    typeof userData.user?.user_metadata.username === "string"
-      ? userData.user.user_metadata.username
+    typeof user.user_metadata?.username === "string"
+      ? user.user_metadata.username
       : null;
   const metadataInitials =
-    typeof userData.user?.user_metadata.initials === "string"
-      ? userData.user.user_metadata.initials
+    typeof user.user_metadata?.initials === "string"
+      ? user.user_metadata.initials
       : null;
   const metadataMatchesProfile =
     realProfile && metadataUsername && metadataInitials
@@ -200,10 +198,10 @@ export default async function SupabaseTestPage() {
               Sesión
             </p>
             <p className="mt-2 font-semibold theme-text">
-              {userData.user ? "Activa" : "Sin sesión"}
+              Activa
             </p>
             <p className="mt-1 text-sm theme-text-muted">
-              {userData.user?.email ?? "No autenticado"}
+              {user.email ?? "Sin email"}
             </p>
           </div>
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
@@ -222,7 +220,7 @@ export default async function SupabaseTestPage() {
               User ID
             </p>
             <p className="mt-2 break-all text-sm font-semibold theme-text">
-              {userData.user?.id ?? "-"}
+              {user.id}
             </p>
           </div>
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
@@ -241,9 +239,7 @@ export default async function SupabaseTestPage() {
                   ? realProfile.is_admin
                     ? "Admin"
                     : "Jugador"
-                  : userData.user
-                    ? "Falta perfil o RLS lo oculta"
-                    : "Inicia sesión para comprobar perfil"}
+                  : "Falta perfil o RLS lo oculta"}
             </p>
           </div>
           <div className="rounded-lg border p-4 theme-border theme-surface-muted">
@@ -262,7 +258,7 @@ export default async function SupabaseTestPage() {
             </p>
           </div>
         </div>
-        {!userData.user && (hasErrors || hasZeroVisibleRows) ? (
+        {hasErrors || hasZeroVisibleRows ? (
           <p className="mt-4 text-sm theme-text-muted">
             Si RLS bloquea lecturas sin sesión, es esperable hasta iniciar sesión o
             definir políticas públicas de lectura.

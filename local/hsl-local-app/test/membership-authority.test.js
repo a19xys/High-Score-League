@@ -36,7 +36,7 @@ function response(status, body) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
-const authorityContext = { deploymentKey: "build-a:production:1", origin: "https://hsl.example" };
+const authorityContext = { authorityKey: "launcher-api:1", origin: "https://hsl.example" };
 const weekCapability = { publicState: "active", seasonId: "season-a", weekId: "week-a" };
 
 test("member concluyente sobrevive timeout/offline y nunca autoriza otra cuenta", async () => {
@@ -88,6 +88,26 @@ test("not_member online sustituye member durable", async () => {
     const offline = await checkSeasonMembership(base, { hasSession: true, userId: "user-a" }, { ...common, deferRemote: true });
     assert.equal(offline.status, "not_member");
     assert.equal(offline.canPlayCompetition, false);
+  });
+});
+
+test("member durable obtenido en build A permanece bajo build B compatible", async () => {
+  await withTempDir(async (userDataDir) => {
+    const base = config(userDataDir);
+    await checkSeasonMembership(base, { hasSession: true, userId: "user-a" }, {
+      authorityContext: { ...authorityContext, deployment: { apiVersion: 1, build: "build-a", environment: "production" } },
+      fetchImpl: async () => response(200, { status: "member", seasonId: "season-a", weekId: "week-a" }),
+      sessionResult: session("user-a"),
+      weekCapability,
+    });
+    const underBuildB = await checkSeasonMembership(base, { hasSession: true, userId: "user-a" }, {
+      authorityContext: { ...authorityContext, deployment: { apiVersion: 1, build: "build-b", environment: "preview" } },
+      deferRemote: true,
+      sessionResult: session("user-a"),
+      weekCapability,
+    });
+    assert.equal(underBuildB.status, "member");
+    assert.equal(underBuildB.effectiveSource, "durable-cache");
   });
 });
 

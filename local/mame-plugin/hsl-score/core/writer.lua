@@ -1,6 +1,6 @@
 local M = {}
 
-function M.create(config, paths, json, helpers, tracker, game, plugin_version)
+function M.create(config, paths, json, helpers, tracker, game, plugin_version, integrity)
   local writer = {}
   local capture_sequence = 0
 
@@ -56,7 +56,22 @@ function M.create(config, paths, json, helpers, tracker, game, plugin_version)
 
     local detected_at = paths.now_iso()
     local score = tracker.get_capture_score(result)
-    local event = game.build_event(config, tracker.state, result, plugin_version, detected_at, score, helpers)
+    local adapter_event = game.build_event(config, tracker.state, result, plugin_version, detected_at, score, helpers)
+
+    if type(adapter_event) ~= "table" then
+      return publication_error("el adapter no devolvio un evento")
+    end
+
+    -- Copiamos a una tabla normal controlada por el core para que un adapter
+    -- con metatable no pueda interceptar la asignacion de evidencia.
+    local event = {}
+    for key, value in pairs(adapter_event) do
+      if key ~= "competitionIntegrity" then event[key] = value end
+    end
+
+    -- El adapter pertenece al pack. La evidencia pertenece al core HSL y
+    -- siempre sobrescribe cualquier campo que el adapter intente aportar.
+    event.competitionIntegrity = integrity and integrity.evidence() or nil
 
     if config.debugEvent and event.debug then
       event.debug.reason = reason or "manual_capture"

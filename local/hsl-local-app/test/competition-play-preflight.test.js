@@ -23,8 +23,8 @@ function state(overrides = {}) {
 
 function authority(overrides = {}) {
   return {
+    authorityKey: "launcher-api:1",
     connected: true,
-    deploymentKey: "build-a:production:1",
     origin: "https://hsl.example",
     reachabilityGeneration: 4,
     ...overrides,
@@ -49,6 +49,22 @@ test("preflight online ACTIVE lanza una vez con fingerprint congelado", async ()
   });
   assert.equal(result.ok, true);
   assert.equal(checks, 1);
+  assert.equal(launches, 1);
+});
+
+test("cambiar build/environment compatible durante preflight no cambia la competición", async () => {
+  let launches = 0;
+  let deployment = { apiVersion: 1, build: "build-a", environment: "production" };
+  const result = await runCompetitionPlayPreflight({
+    ensureFreshCapability: async () => {
+      deployment = { apiVersion: 1, build: "build-b", environment: "preview" };
+      return { ok: true };
+    },
+    getAuthorityContext: () => ({ ...authority(), deployment }),
+    getState: async () => state(),
+    launch: async () => { launches += 1; return { ok: true }; },
+  });
+  assert.equal(result.ok, true);
   assert.equal(launches, 1);
 });
 
@@ -164,17 +180,17 @@ test("fallo temporal online no usa ACTIVE cacheada ni inventa reautenticacion", 
   assert.equal(launches, 0);
 });
 
-test("deployment mismatch bloquea antes de launch y conserva la causa tecnica", async () => {
+test("API incompatible bloquea antes de launch y conserva la causa técnica", async () => {
   let launches = 0;
   const result = await runCompetitionPlayPreflight({
-    ensureFreshCapability: async () => ({ ok: false, reason: "deployment-mismatch" }),
+    ensureFreshCapability: async () => ({ ok: false, reason: "unsupported-contract" }),
     getAuthorityContext: () => authority(),
     getState: async () => state(),
     launch: async () => { launches += 1; return { ok: true }; },
   });
   assert.equal(result.reason, "week-refresh-failed");
-  assert.equal(result.cause, "deployment-mismatch");
-  assert.deepEqual(result.technicalDetails, ["week-refresh-failed", "cause=deployment-mismatch"]);
+  assert.equal(result.cause, "unsupported-contract");
+  assert.deepEqual(result.technicalDetails, ["week-refresh-failed", "cause=unsupported-contract"]);
   assert.equal(launches, 0);
 });
 
@@ -196,7 +212,7 @@ for (const mutation of [
   { label: "pack", state: { selection: { activeInstanceKey: "pack-b" } } },
   { label: "cuenta", state: { session: { hasSession: true, userId: "user-b" } } },
   { label: "week", state: { game: { weekId: "week-b" }, weekCapability: { publicState: "active", weekId: "week-b" } } },
-  { label: "deployment", authority: { deploymentKey: "build-b:production:1" } },
+  { label: "autoridad API", authority: { authorityKey: "launcher-api:2" } },
   { label: "origin", authority: { origin: "https://other-hsl.example" } },
   { label: "generación de conectividad", authority: { reachabilityGeneration: 5 } },
 ]) {
