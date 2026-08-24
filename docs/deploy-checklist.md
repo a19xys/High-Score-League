@@ -109,8 +109,8 @@ aplicarla en un entorno nuevo, ejecutar
 detenerse ante cualquier drift. Este checklist no afirma cuál es el estado
 remoto de `0032` en HSL.
 
-`0034_competition_integrity.sql` está implementada localmente pero NO aplicada
-en producción. Antes de cualquier web compatible, ejecutar el preflight
+`0034_competition_integrity.sql` está implementada y endurecida localmente pero
+NO aplicada en producción. Antes de cualquier web compatible, ejecutar el preflight
 SELECT-only `supabase/preflight/0034_competition_integrity.sql`, revisar drift y
 aplicar/verificar la migration en una operación autorizada. Si la web nueva se
 despliega antes por error, ingest debe responder 503 y conservar pending, nunca
@@ -372,9 +372,12 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
 Debe ejecutarse antes de cada despliegue y adaptarse a las migraciones que falten
 en el entorno destino. La aplicación remota de `0023`, `0024`,
 `0026_submission_detected_at_window.sql`, `0027_profile_anonymization.sql` y
-`0031_launcher_packs.sql` está confirmada. No se ha verificado qué SHA web está
-desplegado actualmente ni se afirma aquí el estado remoto de `0032`. `0034` no
-se ha aplicado, no se ha desplegado y no se ha probado contra producción.
+`0031_launcher_packs.sql` está confirmada. El 24 de agosto de 2026 el health de
+Production acreditó el build compatible `eb32837a1cac`; r1 seguía published y
+la ausencia de tabla/columnas confirmó que `0034` no estaba aplicada. La
+operación E2E se detuvo antes de toda mutación por falta de canal SQL aislado y
+credencial R2 write. Véase `docs/competition-integrity-e2e-1.md`. No se afirma
+aquí el estado remoto de `0032`.
 
 Recovery se limita a una sesión Supabase aislada en la frontera web del
 navegador. No requiere aplicar SQL ni probar Data API o Storage. Después del

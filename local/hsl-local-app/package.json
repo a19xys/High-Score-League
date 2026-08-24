@@ -1,6 +1,6 @@
 {
   "name": "hsl-local-app",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "High Score League local event reader",
   "main": "gui/main.js",

@@ -97,7 +97,7 @@ test("stable Electron 43 and electron-builder 26 are pinned", () => {
 });
 
 test("Windows updater packaging contract is explicit, stable and never publishes locally", () => {
-  assert.equal(packageMetadata.version, "0.3.0");
+  assert.equal(packageMetadata.version, "0.3.1");
   assert.equal(packageLock.version, packageMetadata.version);
   assert.equal(packageLock.packages[""].version, packageMetadata.version);
   assert.equal(packageMetadata.dependencies["electron-updater"], "6.8.9");

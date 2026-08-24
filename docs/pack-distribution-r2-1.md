@@ -131,13 +131,18 @@ La frontera distingue una respuesta normal de Auth que rechaza la credencial
 (`503`). Reiniciar sesión no se presenta como solución para una avería o
 configuración incompleta del servidor.
 
-## Operación pendiente
+## Estado operativo y siguiente revisión
 
-Esta implementación no crea infraestructura ni publica packs. El operador debe,
-en este orden: verificar el schema remoto, ejecutar el preflight 0031, aplicar
-la migración 0031, verificar constraints/RLS, crear un bucket privado, crear un
-token Object Read only limitado al bucket, configurar las cinco variables en
-Vercel, desplegar, subir un pack autorizado mediante un flujo operativo futuro,
+La infraestructura read-only, `0031`, el catálogo y Space Invaders r1 están
+operativos en HSL. El 24 de agosto de 2026 se preparó y verificó localmente el
+artifact `space-invaders-s1-w1-r2`, pero no se subió ni se creó su draft porque
+no había una credencial R2 write separada disponible. Véase
+`docs/competition-integrity-e2e-1.md`.
+
+En un entorno nuevo se conserva el orden reutilizable: verificar schema,
+ejecutar el preflight 0031, aplicar la migración, verificar constraints/RLS,
+crear bucket privado y token Object Read only, configurar Vercel, desplegar,
+subir un pack autorizado mediante una credencial publisher separada,
 crear/publicar su draft y probar descriptor, HEAD, presign e importación E2E.
 
 No hay CORS, uploader, presigned PUT, UI admin, subida multipart, revocación

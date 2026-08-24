@@ -90,7 +90,33 @@ test("private week policy is fixed v1, fingerprinted and frozen monotonically", 
   assert.doesNotMatch(policyGuard, /from public\.submissions|competition_integrity_version = 2/i);
   assert.match(sql, /enable row level security/i);
   assert.match(sql, /week_competition_policies_admin_all[\s\S]*public\.is_admin\(\)/i);
-  assert.match(sql, /revoke all on table public\.week_competition_policies from public, anon/i);
+  assert.match(sql, /revoke all on table public\.week_competition_policies from public, anon, authenticated/i);
+});
+
+test("authenticated policy admins cannot write DB-owned identity or lifecycle columns", async () => {
+  const sql = await read("supabase", "migrations", "0034_competition_integrity.sql");
+  const grants = sql.slice(
+    sql.indexOf("revoke all on table public.week_competition_policies"),
+    sql.indexOf("create policy week_competition_policies_admin_all"),
+  );
+  assert.match(grants, /grant select, delete on table public\.week_competition_policies to authenticated/i);
+  assert.match(grants, /grant insert \([\s\S]*week_id[\s\S]*launcher_pack_id[\s\S]*dips[\s\S]*\) on public\.week_competition_policies to authenticated/i);
+  assert.match(grants, /grant update \([\s\S]*launcher_pack_id[\s\S]*dips[\s\S]*\) on public\.week_competition_policies to authenticated/i);
+  assert.doesNotMatch(grants, /grant (?:select, )?insert(?:, update)? on table public\.week_competition_policies to authenticated/i);
+  assert.doesNotMatch(grants, /grant update on table public\.week_competition_policies to authenticated/i);
+  for (const dbOwned of ["policy_fingerprint", "frozen_at", "created_at", "updated_at"]) {
+    assert.doesNotMatch(grants, new RegExp(`grant (?:insert|update) \\([\\s\\S]*${dbOwned}`, "i"));
+  }
+  const updateGrant = grants.slice(grants.indexOf("grant update ("));
+  assert.doesNotMatch(updateGrant, /week_id/i);
+
+  const insertGuard = sql.slice(
+    sql.indexOf("create or replace function public.guard_submission_competition_integrity"),
+    sql.indexOf("create trigger submissions_guard_competition_integrity"),
+  );
+  assert.match(insertGuard, /security definer/i);
+  assert.match(insertGuard, /set frozen_at = statement_timestamp\(\)/i);
+  assert.doesNotMatch(insertGuard, /set role authenticated/i);
 });
 
 test("policy fingerprint covers the full contract and excludes lifecycle timestamps", async () => {
@@ -222,6 +248,7 @@ test("0034 preflight is SELECT-only and inventories dependencies, policies, gran
     "role_table_grants", "pg_indexes", "pg_constraint", "information_schema.triggers",
   ]) assert.match(sql, new RegExp(dependency.replace(/[().]/g, "\\$&"), "i"));
   assert.match(sql, /tablename in \('launcher_packs', 'submissions', 'week_competition_policies'\)/i);
+  assert.match(sql, /table_name in \('submissions', 'week_competition_policies'\)[\s\S]*column_privileges/i);
   assert.doesNotMatch(sql, /^\s*(alter|create|delete|do|drop|grant|insert|revoke|truncate|update)\s/im);
 });
 

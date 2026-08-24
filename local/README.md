@@ -326,6 +326,10 @@ Fields such as `defaultWeekId` and MAME paths still belong to `pack.json` in the
 external-pack model. See
 [`docs/global-hsl-origin-1.md`](docs/global-hsl-origin-1.md).
 
+The locally packaged Competition Integrity E2E candidate is `0.3.1`. It passed
+the Windows packaging and packaged smoke checks on 24 August 2026, but it has
+not been tagged, staged, released or published.
+
 ## Modo desarrollo: app desde repo + pack externo
 
 This is a temporary development bridge until there is a real installed Launcher

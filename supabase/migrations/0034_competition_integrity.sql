@@ -476,8 +476,33 @@ for each row execute function public.guard_submission_competition_history();
 
 alter table public.week_competition_policies enable row level security;
 
-revoke all on table public.week_competition_policies from public, anon;
-grant select, insert, update, delete on table public.week_competition_policies to authenticated;
+revoke all on table public.week_competition_policies from public, anon, authenticated;
+grant select, delete on table public.week_competition_policies to authenticated;
+grant insert (
+  week_id,
+  policy_version,
+  mode,
+  launcher_pack_id,
+  evidence_version,
+  guard_version,
+  rom_name,
+  mame_version,
+  plugin_version,
+  source,
+  dips
+) on public.week_competition_policies to authenticated;
+grant update (
+  policy_version,
+  mode,
+  launcher_pack_id,
+  evidence_version,
+  guard_version,
+  rom_name,
+  mame_version,
+  plugin_version,
+  source,
+  dips
+) on public.week_competition_policies to authenticated;
 grant select on table public.week_competition_policies to service_role;
 
 create policy week_competition_policies_admin_all

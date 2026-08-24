@@ -64,9 +64,9 @@ order by table_name, grantee, privilege_type;
 select grantee, table_name, column_name, privilege_type
 from information_schema.column_privileges
 where table_schema = 'public'
-  and table_name = 'submissions'
+  and table_name in ('submissions', 'week_competition_policies')
   and grantee in ('anon', 'authenticated', 'service_role')
-order by grantee, column_name, privilege_type;
+order by table_name, grantee, column_name, privilege_type;
 
 select schemaname, tablename, indexname, indexdef
 from pg_indexes

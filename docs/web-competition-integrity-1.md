@@ -172,6 +172,13 @@ Esta implementación no aplica `0034`, no cambia R2, no publica r2, no desactiva
 r1 y no realiza submissions productivas. La validación RLS real queda para un
 entorno Supabase local/E2E autorizado.
 
+El intento productivo del 24 de agosto de 2026 acreditó el build web compatible,
+r1 published, una ventana de week abierta y la ausencia real de `0034`. Se
+detuvo antes de toda mutación porque no existía un canal SQL aislado ni una
+credencial R2 write disponible. El microfix de grants, el candidato launcher
+`0.3.1` y el artifact r2 quedaron verificados localmente; el detalle está en
+`docs/competition-integrity-e2e-1.md`.
+
 La prueba E2E deberá enfrentar dos sesiones sobre una policy unfrozen: INSERT
 primero debe congelar A y hacer fallar UPDATE A→B; UPDATE primero debe confirmar
 B y hacer que el INSERT con fingerprint A falle/reintente. Nunca se acepta una
