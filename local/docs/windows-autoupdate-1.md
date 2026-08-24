@@ -99,6 +99,8 @@ private: false
 
 `dist:win` ejecuta después `validate:update-artifacts`, un validador offline que comprueba provider/owner/repo/channel, ausencia de claves de credenciales, versión, SHA-512, tamaño cuando existe, blockmap y correspondencia con el instalador real. Compara hashes en vez de asumir que el nombre local bonito coincide con el `safeArtifactName` usado en metadata GitHub.
 
+El NSIS actual es assisted para una instalación nueva y permite elegir carpeta y acceso directo de escritorio, pero no convierte el auto-update en interactivo. electron-builder persiste `InstallLocation=$INSTDIR`, lo recupera al detectar la instalación per-user y aplica `skipPageIfUpdated` a Directory; la página HSL de shortcut también aborta para `${isUpdated}`. Por ello una actualización aceptada conserva la ubicación canónica y no vuelve a preguntar dónde instalar ni qué shortcut crear. El hook `customInstallMode` fuerza Current User sin ofrecer All Users. La configuración y el E2E manual pendiente están documentados en [Windows installer experience 1](windows-installer-experience-1.md).
+
 El soporte diferencial queda preparado con blockmaps y `disableDifferentialDownload=false`, pero es best-effort: si no se puede usar el blockmap anterior, electron-updater puede descargar el instalador completo. No se configura `previousBlockmapBaseUrlOverride`.
 
 ## Seguridad e invariante del monorepo

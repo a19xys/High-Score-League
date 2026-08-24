@@ -28,6 +28,7 @@ const {
   writeRuntimeIntegrityManifest,
 } = require("../src/product-runtime-integrity");
 const { configureProductRuntime, resetProductRuntime } = require("../src/product-runtime");
+const { getWindowsInstallationDirName } = require("../node_modules/app-builder-lib/out/targets/targetUtil");
 
 async function withTempDir(fn) {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-packaging-foundation-"));
@@ -63,17 +64,23 @@ async function createExtractedRuntime(runtimeRoot, marker = "fixture") {
   await fsp.writeFile(path.join(runtimeRoot, "stock-marker.txt"), marker, "utf8");
 }
 
-test("package metadata makes the GUI the product entry point", () => {
+test("package metadata makes the GUI the product entry point with an assisted per-user installer", () => {
   assert.equal(packageMetadata.main, "gui/main.js");
   assert.equal(packageMetadata.scripts.gui, "electron .");
   assert.equal(builder.appId, "com.highscoreleague.launcher");
   assert.equal(builder.productName, "High Score League");
   assert.equal(builder.asar, true);
   assert.deepEqual(builder.win.target, [{ target: "nsis", arch: ["x64"] }]);
-  assert.equal(builder.nsis.oneClick, true);
+  assert.equal(builder.nsis.oneClick, false);
   assert.equal(builder.nsis.perMachine, false);
+  assert.equal(builder.nsis.allowElevation, false);
+  assert.equal(builder.nsis.allowToChangeInstallationDirectory, true);
   assert.equal(builder.nsis.include, "build/installer.nsh");
   assert.equal(builder.nsis.deleteAppDataOnUninstall, false);
+  assert.equal(builder.nsis.createDesktopShortcut, true);
+  assert.equal(builder.nsis.createStartMenuShortcut, true);
+  assert.equal(builder.nsis.shortcutName, "High Score League");
+  assert.equal(builder.nsis.script, undefined);
   assert.match(builder.nsis.artifactName, /High Score League Setup/);
   const mameRuntime = readMameRuntimeManifest();
   const mameResource = builder.extraResources.find((entry) => entry.to === path.posix.join("mame", mameRuntime.version));
@@ -88,6 +95,57 @@ test("NSIS registra y elimina el protocolo deep-link por usuario con quoting seg
   assert.match(include, /'"\$INSTDIR\\High Score League\.exe" "%1"'/);
   assert.match(include, /DeleteRegKey HKCU "Software\\Classes\\highscoreleague"/);
   assert.doesNotMatch(include, /HKLM|requestSingleInstanceLock|electron \.|npm run gui/i);
+});
+
+test("NSIS fuerza Current User y conserva todos los colores nativos de MUI2", async () => {
+  const include = await fsp.readFile(path.join(__dirname, "..", builder.nsis.include), "utf8");
+  assert.match(include, /!macro customInstallMode\s+StrCpy \$isForceCurrentInstall "1"\s+!macroend/);
+  assert.doesNotMatch(include, /MUI_(?:BGCOLOR|TEXTCOLOR|INSTFILESPAGE_COLORS|DIRECTORYPAGE_BGCOLOR)|AppsUseLightTheme|SetCtlColors/i);
+  assert.doesNotMatch(include, /preInit|RequestExecutionLevel|InstallLocation|LocalAppData|ProgramFiles/i);
+});
+
+test("NSIS ofrece el acceso directo de escritorio marcado por defecto y respeta la elección", async () => {
+  const include = await fsp.readFile(path.join(__dirname, "..", builder.nsis.include), "utf8");
+  assert.match(include, /!macro customPageAfterChangeDir\s+Page custom hslDesktopShortcutPageCreate hslDesktopShortcutPageLeave\s+!macroend/);
+  assert.match(include, /Function hslDesktopShortcutPageCreate[\s\S]*\$\{If\} \$\{isUpdated\}\s+Abort[\s\S]*FunctionEnd/);
+  assert.match(include, /\$\{NSD_CreateCheckbox\}[^\n]*"Crear acceso directo en el escritorio"/);
+  assert.match(include, /\$\{NSD_Check\} \$hslDesktopShortcutCheckbox/);
+  assert.match(include, /Function hslDesktopShortcutPageLeave[\s\S]*\$\{NSD_GetState\} \$hslDesktopShortcutCheckbox \$0[\s\S]*StrCpy \$hslCreateDesktopShortcut "0"/);
+  assert.match(include, /!undef isNoDesktopShortcut\s+!define isNoDesktopShortcut `"" hslIsNoDesktopShortcut ""`/);
+  assert.match(include, /!macro _hslIsNoDesktopShortcut[\s\S]*StrCmp "\$hslCreateDesktopShortcut" "0"/);
+});
+
+test("assisted conserva el subdirectorio canónico del one-click anterior", async () => {
+  const appInfo = {
+    productFilename: builder.win.executableName,
+    sanitizedName: packageMetadata.name,
+  };
+  assert.equal(getWindowsInstallationDirName(appInfo, false), "hsl-local-app");
+  assert.equal(getWindowsInstallationDirName(appInfo, true), "High Score League");
+
+  const include = await fsp.readFile(path.join(__dirname, "..", builder.nsis.include), "utf8");
+  assert.match(include, /!undef APP_FILENAME\s+!define APP_FILENAME "\$\{APP_PACKAGE_NAME\}"/);
+  assert.doesNotMatch(include, /[A-Z]:\\|InstallLocation|LocalAppData|ProgramFiles/i);
+});
+
+test("electron-builder 26 assisted conserva Directory, Current User, InstallLocation y updates silenciosos", async () => {
+  const templatesDir = path.join(__dirname, "..", "node_modules", "app-builder-lib", "templates", "nsis");
+  const [assisted, multiUserUi, multiUser, installer] = await Promise.all([
+    fsp.readFile(path.join(templatesDir, "assistedInstaller.nsh"), "utf8"),
+    fsp.readFile(path.join(templatesDir, "multiUserUi.nsh"), "utf8"),
+    fsp.readFile(path.join(templatesDir, "multiUser.nsh"), "utf8"),
+    fsp.readFile(path.join(templatesDir, "include", "installer.nsh"), "utf8"),
+  ]);
+
+  assert.match(assisted, /!insertmacro skipPageIfUpdated\s+!insertmacro MUI_PAGE_DIRECTORY/);
+  assert.match(assisted, /!ifmacrodef customPageAfterChangeDir\s+!insertmacro customPageAfterChangeDir\s+!endif\s+!insertmacro MUI_PAGE_INSTFILES/);
+  assert.match(assisted, /Function instFilesPre[\s\S]*\$\{StrContains\} \$0 "\$\{APP_FILENAME\}" \$INSTDIR[\s\S]*StrCpy \$INSTDIR "\$INSTDIR\\\$\{APP_FILENAME\}"[\s\S]*FunctionEnd/);
+  assert.match(multiUserUi, /!insertmacro customInstallMode/);
+  assert.match(multiUserUi, /\$isForceCurrentInstall == "1"[\s\S]*!insertmacro setInstallModePerUser[\s\S]*Abort/);
+  assert.match(multiUser, /ReadRegStr \$perUserInstallationFolder HKCU "\$\{INSTALL_REGISTRY_KEY\}" InstallLocation[\s\S]*StrCpy \$INSTDIR \$perUserInstallationFolder/);
+  assert.match(multiUser, /FOLDERID_UserProgramFiles[\s\S]*SHGetKnownFolderPath[\s\S]*StrCpy \$INSTDIR "\$0\\\$\{APP_FILENAME\}"/);
+  assert.match(installer, /WriteRegStr SHELL_CONTEXT "\$\{INSTALL_REGISTRY_KEY\}" InstallLocation "\$INSTDIR"/);
+  assert.match(installer, /\$\{ifNot\} \$\{isNoDesktopShortcut\}[\s\S]*CreateShortCut "\$newDesktopLink" "\$appExe"/);
 });
 
 test("stable Electron 43 and electron-builder 26 are pinned", () => {

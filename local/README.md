@@ -42,6 +42,8 @@ Implemented shared MAME runtime notes:
 [`docs/shared-mame-runtime-1.md`](docs/shared-mame-runtime-1.md).
 Windows packaging foundation:
 [`docs/windows-packaging-foundation-1.md`](docs/windows-packaging-foundation-1.md).
+Windows assisted installer, configurable directory and shortcut options:
+[`docs/windows-installer-experience-1.md`](docs/windows-installer-experience-1.md).
 Windows auto-update architecture and release contract:
 [`docs/windows-autoupdate-1.md`](docs/windows-autoupdate-1.md).
 Current local Competition Integrity closure and frozen WEB handoff contract:

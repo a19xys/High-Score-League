@@ -52,10 +52,10 @@ module.exports = {
   },
   nsis: {
     include: "build/installer.nsh",
-    oneClick: true,
+    oneClick: false,
     perMachine: false,
     allowElevation: false,
-    allowToChangeInstallationDirectory: false,
+    allowToChangeInstallationDirectory: true,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
     shortcutName: "High Score League",

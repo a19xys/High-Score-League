@@ -11,7 +11,7 @@ windows-release-stage.yml / build (contents: read)
                          └─ mode=stage: job mínimo (contents: write)
                             preflight → draft → upload → verificación remota
 
-QA humano con el installer exacto del draft
+QA humano con el installer exacto del draft, incluida ubicación custom y upgrade sin Directory
 
 windows-release-publish.yml / publish (contents: write, actions: read)
   Environment → provenance → artifact exacto → revalidación → publish → post-verificación

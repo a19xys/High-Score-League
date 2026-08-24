@@ -16,7 +16,7 @@ npm run dist:win
 
 `prepare:package` no reutiliza ese árbol extraído de desarrollo: vuelve a verificar el SFX y crea desde cero `.cache/product/mame/<version>/runtime`. `electron-builder` toma MAME exclusivamente de ese staging de producto, cuya versión se deriva del mismo manifest. Así, una modificación previa de cualquiera de los dos árboles de caché no pasa silenciosamente a la distribución. `.cache` y `dist` están ignorados por Git.
 
-`package:win` genera `dist/win-unpacked` como build rápido de smoke y no exige configuración updater. `dist:win` genera el instalador NSIS x64 per-user y one-click `High Score League Setup <version>.exe`, su blockmap, `latest.yml` y `win-unpacked/resources/app-update.yml`; después valida offline hashes y contrato GitHub. Ambos scripts usan `--publish never`. El código queda en ASAR. MAME y el plugin son `extraResources`.
+`package:win` genera `dist/win-unpacked` como build rápido de smoke y no exige configuración updater. `dist:win` genera el instalador NSIS x64 assisted y per-user `High Score League Setup <version>.exe`, su blockmap, `latest.yml` y `win-unpacked/resources/app-update.yml`; después valida offline hashes y contrato GitHub. La instalación nueva permite elegir carpeta y decidir si crea el acceso directo de escritorio, marcado por defecto, sin ofrecer All Users ni elevación. Una actualización reutiliza `InstallLocation` sin mostrar Directory ni Opciones. Todas las páginas usan los colores nativos de NSIS/Windows. Ambos scripts usan `--publish never`. El código queda en ASAR. MAME y el plugin son `extraResources`. El contrato y su QA están documentados en [Windows installer experience 1](windows-installer-experience-1.md).
 
 La configuración pública inmutable vive en `product-public-config.json` y se valida al cargar la configuración de electron-builder. Solo contiene HSL origin, Supabase URL y publishable key. El build rechaza `sb_secret_*` y JWT `service_role`.
 
@@ -49,7 +49,9 @@ Desde `0.2.0`, la instalación NSIS incorpora `electron-updater` 6.8.9 y metadat
 
 ## Checklist manual Windows
 
-- Ejecutar `dist:win`, instalar `High Score League Setup <version>.exe` y confirmar GUI, nombre, icono y versión (no CLI).
+- Ejecutar `dist:win`, instalar `High Score League Setup <version>.exe` y confirmar Directory, ausencia de All Users/UAC, GUI, nombre, icono y versión (no CLI).
+- Repetir en una carpeta personalizada escribible y confirmar ejecutable, deep link, shortcuts y uninstaller en la instalación canónica.
+- Confirmar que el checkbox de escritorio aparece marcado, y que al desmarcarlo no se crea ese shortcut.
 - Primer arranque: login sin `config.json`, Biblioteca disponible y runtime bundled 0.287 sin pedir `mame.exe`.
 - Práctica v2: ROM, artwork y samples correctos; `hsl-score` y plugins stock desactivados.
 - Competición v2: run aislado, adapter/config correctos, solo `hsl-score`, captura y eventos en staging HSL.
