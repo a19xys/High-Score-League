@@ -10,8 +10,10 @@ cada cliente se documenta fuera de la documentación web.
 POST /api/submissions/ingest
 ```
 
-Requiere sesión Supabase válida. El endpoint usa la anon key y RLS; no usa
-`service_role`.
+Requiere sesión Supabase válida. La anon key se usa sólo para Auth y perfil. Las
+consultas de policy/pack, duplicate e INSERT usan `service_role` exclusivamente
+en servidor; esa credencial nunca se envía al cliente. `0034` revoca INSERT
+directo a `authenticated`.
 
 `playerId` no se acepta desde cliente. `player_id` se deriva siempre del usuario
 autenticado.
@@ -59,6 +61,12 @@ Campos:
 - `rawEvent`: opcional, debe ser objeto JSON.
 - `duplicateKey`: opcional, no vacío si se envía.
 - `isHidden`: opcional.
+
+En una week Protected, `rawEvent.localEvent.competitionIntegrity` v2 es
+obligatorio y se valida contra `week_competition_policies` y `launcher_packs`.
+La evidence ausente o v1, provenance no productiva o cualquier mismatch
+canónico devuelve 409 sin INSERT. Véase el contrato completo y el límite de no
+atestation en [WEB Competition Integrity 1](web-competition-integrity-1.md).
 
 ## Ventana histórica
 
@@ -127,8 +135,9 @@ sigue siendo la comprobacion definitiva antes de aceptar una submission.
 
 ## Respuesta de duplicado
 
-Si `duplicateKey` ya existe para el jugador y sus campos canónicos (`weekId`,
-`score`, `detectedAt`) coinciden, el endpoint no crea una segunda submission:
+Si `duplicateKey` ya existe para el jugador y sus campos canónicos coinciden,
+el endpoint no crea una segunda submission. Protected compara además pack,
+manifest, version, run, candidate, ROM, MAME y source:
 
 ```json
 {
@@ -141,8 +150,10 @@ Si `duplicateKey` ya existe para el jugador y sus campos canónicos (`weekId`,
 }
 ```
 
-Esta comprobación ocurre antes de volver a validar semana o membership, por lo
-que un evento ya aceptado continúa respondiendo como duplicado tras el cierre.
+Esta comprobación ocurre después de cargar week/policy/pack y validar evidence,
+pero antes de membership y ventana mutables. Un evento ya aceptado continúa
+respondiendo como duplicado tras el cierre o con el pack publicado en estado
+`disabled`.
 La misma clave con campos distintos devuelve `DUPLICATE_KEY_CONFLICT`.
 
 ## Errores comunes
@@ -151,14 +162,16 @@ La misma clave con campos distintos devuelve `DUPLICATE_KEY_CONFLICT`.
 - `404` con `code = "WEEK_NOT_FOUND"`: la semana no existe o no es visible.
 - `409` con un código `WEEK_*_AT_DETECTION`: la captura quedó fuera de ventana.
 - `409` con `code = "DUPLICATE_KEY_CONFLICT"`: colisión canónica de idempotencia.
-- `409` con `code = "SUBMISSION_POLICY_REJECTED"`: API y RLS discrepan; requiere
-  diagnóstico técnico.
+- `409` con `code = "COMPETITION_*"`: la captura contradice una autoridad
+  canónica válida; rechazo terminal sin acusación de conducta fraudulenta.
 
 - `401`: no hay sesión válida.
 - `400`: payload inválido.
 - `404`, `403` o `409` sin `code`: respuesta legacy ambigua; el cliente debe
   conservar el evento pendiente.
-- `500`: error controlado de Supabase o configuración.
+- `503` con `COMPETITION_AUTHORITY_UNAVAILABLE`: migration/config/policy/pack no
+  están disponibles o son incoherentes; conservar pending y reintentar.
+- otros `5xx`: error temporal controlado; conservar pending.
 
 No se devuelven detalles internos sensibles del insert.
 

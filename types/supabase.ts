@@ -77,11 +77,34 @@ export type LauncherPackRow = {
   week_id: string;
   size_bytes: number;
   sha256: string;
+  competition_manifest_sha256?: string | null;
   object_key: string;
   status: "draft" | "published" | "disabled";
   published_at: string | null;
   created_at?: string;
   updated_at?: string;
+};
+
+export type CompetitionDip = {
+  portTag: string;
+  mask: number;
+  value: number;
+};
+
+export type WeekCompetitionPolicyRow = {
+  week_id: string;
+  policy_version: 1;
+  mode: "protected_v2";
+  launcher_pack_id: string;
+  evidence_version: 2;
+  guard_version: 2;
+  rom_name: string;
+  mame_version: string;
+  plugin_version: string;
+  source: "mame_memory";
+  dips: CompetitionDip[];
+  created_at: string;
+  updated_at: string;
 };
 
 export type SubmissionSource =
@@ -109,6 +132,12 @@ export type SubmissionRow = {
   mame_version: string | null;
   client_version: string | null;
   duplicate_key: string | null;
+  raw_event?: Record<string, unknown> | null;
+  launcher_pack_id?: string | null;
+  competition_integrity_version?: 2 | null;
+  competition_manifest_sha256?: string | null;
+  competition_run_id?: string | null;
+  competition_candidate_id?: string | null;
   profiles?: RealProfile | RealProfile[] | null;
 };
 

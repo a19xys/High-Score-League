@@ -80,26 +80,36 @@ test("future skew is exactly ten minutes and injectable", () => {
   );
 });
 
-test("ingest checks player-scoped duplicates before mutable week policy", async () => {
-  const route = await readFile(join(process.cwd(), "app/api/submissions/ingest/route.ts"), "utf8");
-  const duplicateLookup = route.indexOf('.from("submissions")');
-  const weekLookup = route.indexOf('.from("weeks")');
-  const membershipLookup = route.indexOf('.from("season_memberships")');
-  const historicalWindow = route.indexOf("deriveSubmissionWindowAt(week, input.detectedAt)");
-  const insert = route.indexOf('.from("submissions")', duplicateLookup + 1);
+test("ingest validates server authority before duplicate and mutable acceptance gates", async () => {
+  const [route, resolver, validator] = await Promise.all([
+    readFile(join(process.cwd(), "app/api/submissions/ingest/route.ts"), "utf8"),
+    readFile(join(process.cwd(), "lib/api/submission-ingest.ts"), "utf8"),
+    readFile(join(process.cwd(), "lib/submissions/competition-integrity.ts"), "utf8"),
+  ]);
+  const weekLookup = resolver.indexOf("dependencies.loadWeek");
+  const policyLookup = resolver.indexOf("dependencies.loadPolicy");
+  const packLookup = resolver.indexOf("dependencies.loadPack");
+  const evidenceValidation = resolver.indexOf("validateProtectedCompetitionSubmission({", packLookup);
+  const duplicateLookup = resolver.indexOf("dependencies.findDuplicate");
+  const membershipLookup = resolver.indexOf("dependencies.loadMembership");
+  const historicalWindow = resolver.indexOf("deriveSubmissionWindowAt(week, input.detectedAt");
+  const insert = resolver.indexOf("dependencies.insertSubmission");
 
-  assert.ok(duplicateLookup > 0 && duplicateLookup < weekLookup);
-  assert.ok(weekLookup < membershipLookup && membershipLookup < historicalWindow && historicalWindow < insert);
-  assert.match(route, /\.eq\("player_id", userId\)[\s\S]*\.eq\("duplicate_key", input\.duplicateKey\)/);
-  assert.match(route, /canonicalEventMatches[\s\S]*week_id[\s\S]*score[\s\S]*detected_at/);
-  assert.match(route, /insertError\.code === "23505"[\s\S]*canonicalEventMatches/);
-  assert.doesNotMatch(route, /getSynchronizedWeekStatus/);
+  assert.ok(weekLookup > 0 && weekLookup < policyLookup);
+  assert.ok(policyLookup < packLookup && packLookup < evidenceValidation);
+  assert.ok(evidenceValidation < duplicateLookup && duplicateLookup < membershipLookup);
+  assert.ok(membershipLookup < historicalWindow && historicalWindow < insert);
+  assert.match(route, /resolveSubmissionIngest/);
+  assert.match(route, /createSupabaseAdminClient/);
+  assert.doesNotMatch(route, /\.from\(|\.insert\(/);
+  assert.match(resolver, /effectiveDuplicateKey = protectedIdentity\?\.duplicateKey/);
+  assert.match(resolver, /errorCode\(insert\.value\.error\) === "23505"/);
+  assert.match(validator, /deriveCompetitionDuplicateKey/);
+  assert.doesNotMatch(resolver, /getSynchronizedWeekStatus/);
   for (const code of [
     "WEEK_NOT_FOUND", "WEEK_GAME_NOT_ASSIGNED", "NOT_SEASON_MEMBER",
-    "WEEK_WINDOW_UNAVAILABLE", "WEEK_NOT_OPEN_AT_DETECTION",
-    "WEEK_CLOSED_AT_DETECTION", "DETECTED_AT_IN_FUTURE",
-    "DUPLICATE_KEY_CONFLICT", "SUBMISSION_POLICY_REJECTED",
-  ]) assert.match(route, new RegExp(code));
+    "DUPLICATE_KEY_CONFLICT", "COMPETITION_AUTHORITY_UNAVAILABLE",
+  ]) assert.match(resolver, new RegExp(code));
 });
 
 test("migration scopes idempotency by player and mirrors detectedAt without current time/status", async () => {

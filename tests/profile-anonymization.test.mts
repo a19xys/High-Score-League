@@ -104,7 +104,10 @@ test("the DB barrier protects the last active admin", async () => {
 });
 
 test("the DB barrier preserves history and removes only personal telemetry", async () => {
-  const sql = await read("supabase", "migrations", "0027_profile_anonymization.sql");
+  const [sql, integritySql] = await Promise.all([
+    read("supabase", "migrations", "0027_profile_anonymization.sql"),
+    read("supabase", "migrations", "0034_competition_integrity.sql"),
+  ]);
 
   assert.match(
     sql,
@@ -119,6 +122,17 @@ test("the DB barrier preserves history and removes only personal telemetry", asy
     /update public\.season_memberships[\s\S]*set status = 'left'[\s\S]*season\.status = 'active'/i,
   );
   assert.doesNotMatch(sql, /rom_name = null/i);
+  const replacement = integritySql.slice(
+    integritySql.indexOf("create or replace function public.anonymize_profile_account"),
+  );
+  assert.match(
+    replacement,
+    /raw_event = null[\s\S]*duplicate_key = null[\s\S]*competition_run_id = null[\s\S]*competition_candidate_id = null/i,
+  );
+  assert.doesNotMatch(
+    replacement,
+    /launcher_pack_id = null|competition_integrity_version = null|competition_manifest_sha256 = null/i,
+  );
 });
 
 test("chat content is preserved except for the exact generated join message", async () => {
@@ -224,19 +238,23 @@ test("historical mappers retain tombstones while disabling profile interaction",
 });
 
 test("all mutation APIs explicitly require an active profile", async () => {
-  const routes = await Promise.all([
+  const [routes, submissionResolver] = await Promise.all([
+    Promise.all([
     read("app", "api", "submissions", "ingest", "route.ts"),
     read("app", "api", "launcher", "playtime", "ingest", "route.ts"),
     read("app", "api", "seasons", "[seasonId]", "join", "route.ts"),
     read("app", "api", "home-poll", "vote", "route.ts"),
     read("app", "api", "chat", "messages", "route.ts"),
     read("app", "api", "chat", "messages", "[messageId]", "route.ts"),
+    ]),
+    read("lib", "api", "submission-ingest.ts"),
   ]);
 
   routes.forEach((source) => {
     assert.match(source, /hasActiveProfile/);
-    assert.match(source, /!profileState\.active/);
   });
+  routes.slice(1).forEach((source) => assert.match(source, /!profileState\.active/));
+  assert.match(submissionResolver, /!profile\.value\.active/);
 });
 
 test("profile lifecycle never sends a tombstone into onboarding", async () => {

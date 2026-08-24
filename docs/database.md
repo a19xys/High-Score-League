@@ -134,6 +134,12 @@ esas identidades con `game_id` ni usa `games.download_url`. `object_key` es
 generated/stored y deriva siempre como
 `packs/v1/<pack_id>/<sha256>.hslpack.zip`.
 
+`0034_competition_integrity.sql` añade
+`competition_manifest_sha256`: el hash del ZIP permanece en `sha256` y el hash
+del `competition-manifest.json` se conserva por separado. Puede ser `NULL` para
+revisiones legacy, pero una policy Protected exige 64 hex lowercase. Tras la
+primera publicación, ambos hashes, tamaño, week e identidad son inmutables.
+
 El lifecycle comienza en `draft`; el primer cambio a `published` fija
 `published_at`. Desde entonces identidad, semana, tamaño, hash, object key y
 fecha de publicación son inmutables, sólo se permite `published ↔ disabled` y
@@ -145,6 +151,19 @@ La FK apunta de `launcher_packs.week_id` a `weeks.id` con `on delete restrict`;
 a jugadores autenticados: sólo admins pueden gestionar el catálogo y el
 endpoint server-side lo consulta con service role. Esto evita revelar mediante
 un `pack_id` descriptivo el juego de una semana futura.
+
+### week_competition_policies
+
+`0034` crea esta autoridad técnica privada. Ausencia de fila significa week
+legacy; presencia fija `policy_version=1`, `protected_v2`, evidence/guard v2,
+pack de la misma week, ROM, MAME, plugin, source `mame_memory` y DIPs canónicos.
+Un admin puede prepararla con un pack draft, pero ingest sólo acepta packs que
+alguna vez fueron publicados; `published` y `disabled` son identidades
+históricas válidas.
+
+La policy puede corregirse o borrarse antes de la primera submission Protected.
+Después queda congelada por trigger. RLS no ofrece lectura a jugadores normales;
+admins gestionan mediante `is_admin()` y el endpoint la consulta con service role.
 
 ### submissions
 
@@ -162,6 +181,10 @@ control:
 - `rom_name`, `mame_version`, `client_version`: contexto técnico del evento.
 - `raw_event`: payload original para depuración y auditoría.
 - `duplicate_key`: clave de idempotencia para reintentos.
+- `launcher_pack_id`, `competition_integrity_version` y
+  `competition_manifest_sha256`: identidad canónica Protected validada por WEB.
+- `competition_run_id` y `competition_candidate_id`: identidad técnica por run;
+  obligatoria en INSERT y limpiada durante anonimización.
 - `screenshot_path`: ruta opcional de captura en Storage.
 - `screenshot_mime_type`: tipo MIME informado para la captura optimizada.
 - `screenshot_size_bytes`: tamaño final de la captura en bytes, si se conoce.
@@ -169,6 +192,14 @@ control:
 Las capturas son opcionales desde `0002_submission_events.sql`. El flujo web
 vigente de integración es `POST /api/submissions/ingest`; `/submit` queda como
 herramienta legacy/interna para admins y su botón de envío está deshabilitado.
+
+Desde `0034`, `authenticated` no tiene privilegio ni policy de INSERT directo,
+incluidos admins. La única frontera productiva normal es el endpoint, que
+autentica al usuario y persiste con service role después de validar. Un trigger
+DB comprueba la fila normalizada contra policy/pack como defensa en profundidad;
+no vuelve a interpretar la evidence JSON. La unicidad histórica de
+`(player_id, duplicate_key)` se conserva y se añade un índice parcial de
+candidate Protected.
 
 La API permite registrar puntuaciones aunque no superen el récord personal. La
 mejor puntuación semanal de cada jugador se calcula desde esta tabla, mientras
@@ -573,7 +604,8 @@ Aplicar todas las migraciones ausentes de `supabase/migrations/` en orden
 numérico, no sólo `0001_initial_schema.sql`, y verificar después tablas,
 constraints, RLS, Realtime y Storage. `0023` debe preceder a `0024`, `0024` a
 `0025`, `0025` a `0026`, `0026` a `0027`, `0027` a `0028`, `0028` a `0029`,
-`0029` a `0030`, `0030` a `0031` y `0031` a `0032`.
+`0029` a `0030`, `0030` a `0031`, `0031` a `0032` y `0032` a `0034`.
+`0033` quedó retirada históricamente y no se reutiliza.
 
 En el entorno remoto actual `0023_profile_bio_max_length.sql` y
 `0024_media_uploads.sql` ya están aplicadas. También está confirmado que
@@ -583,6 +615,8 @@ no debe modificarse, renombrarse, duplicarse ni reaplicarse.
 migraciones `0028` a `0031` están en el repositorio. La nueva
 `0032_profile_bootstrap_rls.sql` queda pendiente de aplicación manual en
 Supabase; su presencia local no demuestra que esté aplicada remotamente.
+`0034_competition_integrity.sql` también queda pendiente: esta implementación
+no aplica la migration ni configura ninguna policy real.
 
 Para verificar una instalación antes de aplicarla, ejecutar el preflight SELECT-only de
 `supabase/preflight/0027_profile_anonymization.sql`. La propia migración aborta
@@ -596,6 +630,11 @@ Antes de 0032, ejecutar `supabase/preflight/0032_profile_bootstrap_rls.sql`. Es
 estrictamente read-only: inventaría `profiles`, `has_active_profile()`, RLS y las
 policies SELECT/INSERT/UPDATE, y cuenta identidades de `auth.users` sin fila de
 perfil sin exponer emails, tokens, hashes ni metadata completa.
+
+Antes de 0034, ejecutar `supabase/preflight/0034_competition_integrity.sql`.
+Es SELECT-only e inventaría dependencias, columnas, policies, grants,
+constraints y triggers. La presencia del archivo no demuestra que la barrera
+de INSERT se haya activado remotamente.
 
 `retired_profile_usernames` conserva únicamente SHA-256 de
 `lower(trim(username))` y no concede lectura a usuarios normales. Esto evita

@@ -69,7 +69,10 @@ Antes de desplegar, aplicar en orden todas las migraciones de
 0030_week_benchmark_images.sql
 0031_launcher_packs.sql
 0032_profile_bootstrap_rls.sql
+0034_competition_integrity.sql
 ```
+
+`0033` quedó retirada históricamente. No crearla ni reutilizar su identidad.
 
 En el Supabase remoto actual, `0023` y `0024` ya están aplicadas. No deben
 repetirse. `0026_submission_detected_at_window.sql` también existe y está
@@ -105,6 +108,13 @@ aplicarla en un entorno nuevo, ejecutar
 `supabase/preflight/0032_profile_bootstrap_rls.sql`, comprobar sus dependencias y
 detenerse ante cualquier drift. Este checklist no afirma cuál es el estado
 remoto de `0032` en HSL.
+
+`0034_competition_integrity.sql` está implementada localmente pero NO aplicada
+en producción. Antes de cualquier web compatible, ejecutar el preflight
+SELECT-only `supabase/preflight/0034_competition_integrity.sql`, revisar drift y
+aplicar/verificar la migration en una operación autorizada. Si la web nueva se
+despliega antes por error, ingest debe responder 503 y conservar pending, nunca
+aceptar el evento como legacy.
 
 Comprobar despues:
 
@@ -149,6 +159,14 @@ Comprobar despues:
 - Crear después un bucket R2 privado y un token Object Read only limitado al
   bucket; configurar las cinco variables server-side y probar con un pack
   autorizado sólo tras desplegar. No reutilizar una credencial de escritura.
+- Antes de `0034`, inventariar las policies/grants de `submissions`, confirmar
+  `0031`, el índice de duplicate de `0026`, `is_admin()` y `set_updated_at()`.
+  Después, verificar manifest, policy privada, FK pack/week, freeze, columnas,
+  candidate index, DB guard y ausencia de INSERT para `authenticated`.
+- Probar en Supabase local o staging: JWT normal → INSERT directo falla;
+  service role + row normalizada → pasa; Protected incompleta → DB guard falla;
+  legacy sin policy → sólo backend server-side. No usar producción como banco
+  de pruebas.
 
 ### Estado conocido de producción HSL
 
@@ -280,6 +298,11 @@ Submissions:
 - confirmar que una captura válida sincronizada tras cierre/publicación se
   acepta y que final stretch fuerza ocultación;
 - repetir la misma `duplicateKey` tras cierre y confirmar `duplicate: true`.
+- para Protected, comprobar missing/v1/developer evidence y todos los mismatch
+  canónicos como 409 terminal; configuración/policy/pack no disponibles deben
+  ser 5xx retryable;
+- confirmar retry exacto con pack `disabled`, sin imponer antigüedad máxima;
+- confirmar que el INSERT REST directo con JWT autenticado queda revocado.
 
 Diagnostico:
 
@@ -306,6 +329,10 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
   `auth.getUser()` y su taxonomía de errores existente.
 - `/api/cron/process-schedule` protegido por `CRON_SECRET`.
 - `/api/submissions/ingest` no acepta `playerId` ni `submittedAt`.
+- `/api/submissions/ingest` usa la sesión sólo para identidad/perfil y mantiene
+  `SUPABASE_SERVICE_ROLE_KEY` exclusivamente en la frontera server-side.
+- `authenticated`, incluido admin, no puede insertar directamente en
+  `public.submissions`; futuras importaciones admin requieren backend explícito.
 - Chat y cuestionarios no aceptan `authorId`, `messageType` ni `playerId`
   desde cliente.
 - Usuarios normales no pueden modificar juegos, temporadas, semanas,
@@ -335,7 +362,8 @@ Debe ejecutarse antes de cada despliegue y adaptarse a las migraciones que falte
 en el entorno destino. La aplicación remota de `0023`, `0024`,
 `0026_submission_detected_at_window.sql`, `0027_profile_anonymization.sql` y
 `0031_launcher_packs.sql` está confirmada. No se ha verificado qué SHA web está
-desplegado actualmente ni se afirma aquí el estado remoto de `0032`.
+desplegado actualmente ni se afirma aquí el estado remoto de `0032`. `0034` no
+se ha aplicado, no se ha desplegado y no se ha probado contra producción.
 
 Recovery se limita a una sesión Supabase aislada en la frontera web del
 navegador. No requiere aplicar SQL ni probar Data API o Storage. Después del

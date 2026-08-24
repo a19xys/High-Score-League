@@ -58,6 +58,35 @@ test("408, 425, 429 and 5xx remain pending and retryable", () => {
   }
 });
 
+test("WEB Integrity mismatches are terminal 409 while authority failures remain pending", () => {
+  for (const code of [
+    "COMPETITION_INTEGRITY_REQUIRED",
+    "COMPETITION_EVIDENCE_INVALID",
+    "COMPETITION_PROVENANCE_INVALID",
+    "COMPETITION_PLAYER_MISMATCH",
+    "COMPETITION_PACK_MISMATCH",
+    "COMPETITION_MANIFEST_MISMATCH",
+    "COMPETITION_ARTIFACT_MISMATCH",
+    "COMPETITION_POLICY_MISMATCH",
+    "COMPETITION_EVENT_BINDING_MISMATCH",
+    "COMPETITION_DUPLICATE_KEY_MISMATCH",
+  ]) {
+    const outcome = classifySubmissionHttpResult({ status: 409, body: { ok: false, code } });
+    assert.equal(outcome.outcome, "rejected-domain", code);
+    assert.equal(outcome.preservePending, false, code);
+    assert.equal(outcome.terminal, true, code);
+  }
+
+  const unavailable = classifySubmissionHttpResult({
+    status: 503,
+    body: { ok: false, code: "COMPETITION_AUTHORITY_UNAVAILABLE" },
+  });
+  assert.equal(unavailable.outcome, "retryable-http");
+  assert.equal(unavailable.preservePending, true);
+  assert.equal(unavailable.retryable, true);
+  assert.equal(unavailable.terminal, false);
+});
+
 test("Retry-After accepts seconds or dates with 5s-15m bounds and rejects disproportionate values", () => {
   const nowMs = Date.parse("2026-07-17T00:00:00Z");
   assert.equal(parseRetryAfter("1", { nowMs }), 5000);

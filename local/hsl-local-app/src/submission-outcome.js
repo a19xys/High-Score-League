@@ -14,6 +14,18 @@ const REJECTED_DOMAIN_CODES = new Set([
   "WEEK_NOT_OPEN_AT_DETECTION",
   "WEEK_WINDOW_UNAVAILABLE",
 ]);
+const COMPETITION_REJECTED_CODES = new Set([
+  "COMPETITION_ARTIFACT_MISMATCH",
+  "COMPETITION_DUPLICATE_KEY_MISMATCH",
+  "COMPETITION_EVENT_BINDING_MISMATCH",
+  "COMPETITION_EVIDENCE_INVALID",
+  "COMPETITION_INTEGRITY_REQUIRED",
+  "COMPETITION_MANIFEST_MISMATCH",
+  "COMPETITION_PACK_MISMATCH",
+  "COMPETITION_PLAYER_MISMATCH",
+  "COMPETITION_POLICY_MISMATCH",
+  "COMPETITION_PROVENANCE_INVALID",
+]);
 const FAILED_TECHNICAL_CODES = new Set([
   "DUPLICATE_KEY_CONFLICT",
   "SUBMISSION_POLICY_REJECTED",
@@ -95,6 +107,18 @@ function classifySubmissionHttpResult(input = {}) {
     });
   }
 
+  if (status === 409 && domainCode && COMPETITION_REJECTED_CODES.has(domainCode)) {
+    return baseOutcome({
+      domainCode,
+      httpStatus: status,
+      outcome: "rejected-domain",
+      playerMessage: "Esta captura no coincide con la politica competitiva de la semana y se conserva como rechazada.",
+      preservePending: false,
+      technicalReason: `competition-${domainCode.toLowerCase()}`,
+      terminal: true,
+    });
+  }
+
   if (domainCode && FAILED_TECHNICAL_CODES.has(domainCode)) {
     return baseOutcome({
       domainCode,
@@ -165,6 +189,7 @@ function classifySubmissionRequestFailure(failure = {}) {
 
 module.exports = {
   AMBIGUOUS_HTTP_STATUSES,
+  COMPETITION_REJECTED_CODES,
   FAILED_TECHNICAL_CODES,
   MAX_RETRY_AFTER_MS,
   MIN_RETRY_AFTER_MS,

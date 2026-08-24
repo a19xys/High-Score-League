@@ -9,7 +9,8 @@ la web describa el estado interno de ningún cliente concreto.
 ```text
 cliente autenticado
   → POST /api/submissions/ingest
-  → validación de sesión, payload, semana y membership
+  → validación de sesión, perfil y autoridad competitiva server-side
+  → INSERT normalizado con service role sólo en servidor
   → public.submissions
 ```
 
@@ -77,9 +78,10 @@ La captura se acepta desde `public_start_at` (incluido) hasta
 ocurrió dentro de esa ventana; se toleran 10 minutos de adelanto de reloj y no
 se impone antigüedad máxima.
 
-La API acepta `rom` como metadato opcional, pero el código actual no comprueba
-que coincida con una ROM esperada del catálogo. Esa ausencia no se corrige en
-esta tarea documental.
+En una week legacy, `rom` conserva su semántica histórica. Cuando existe una
+fila en `week_competition_policies`, ROM, MAME, plugin, source, DIPs, pack,
+manifest y artifact se comparan contra la policy y `launcher_packs` canónicos.
+El contrato completo está en [WEB Competition Integrity 1](web-competition-integrity-1.md).
 
 ## Reintentos e idempotencia
 
@@ -90,6 +92,11 @@ responde `ok: true`, `duplicate: true` y no crea una segunda fila. La clave debe
 incluir suficiente contexto para no colisionar entre jugador, semana, juego,
 puntuación y momento detectado.
 
+Para Protected v2, WEB no confía en la clave recibida: deriva `playerBinding`,
+recalcula `hsl:v2` con week, binding, pack, manifest, run y candidate, compara
+el input y persiste siempre el resultado server-side. Un segundo índice impide
+reutilizar el mismo candidate dentro del mismo jugador, pack y run.
+
 El launcher conserva respuestas temporales o ambiguas en `pending`, anomalías
 técnicas en `failed` y rechazos de dominio conclusivos en una caja interna
 `rejected`. Esta última mantiene el JSON original y una nota saneada, pero no se
@@ -98,9 +105,11 @@ se reclasifican una sola vez a `pending` para poder obtener el nuevo código.
 
 ## Seguridad
 
-El cliente usa una sesión de usuario y nunca `service_role`. La API deriva
-`player_id`, fuerza `submitted_at`, aplica RLS y no devuelve detalles internos
-del insert. La comprobación de membership dentro del endpoint es definitiva;
+El cliente usa una sesión de usuario y nunca recibe `service_role`. La API usa
+la sesión para Auth y perfil, deriva `player_id`, fuerza `submitted_at` y crea
+un cliente admin únicamente dentro del servidor para policy, duplicate e
+INSERT. `0034` revoca INSERT directo a `authenticated`, incluido admin, y añade
+un guard DB sobre la fila normalizada. La comprobación de membership dentro del endpoint es definitiva;
 `GET /api/local/season-membership?weekId=...` sólo ofrece una comprobación
 previa de UX para integraciones que la necesiten.
 
@@ -124,6 +133,8 @@ competitivo y de su procedencia. Limpia `raw_event`, `mame_version`,
 `client_version` y `duplicate_key`, que son metadata técnica prescindible y
 podrían identificar el entorno del usuario. Conservar `rom_name` permite auditar
 la ROM asociada a la captura sin mantener versión de cliente ni payload crudo.
+En Protected también conserva pack, versión de Integrity y manifest canónicos,
+pero limpia run y candidate, que identifican una ejecución individual.
 
 Los historiales proyectan el tombstone `DEL` sin enlace, avatar, bio ni hover.
 El UUID estable evita romper resultados y rankings. La API de ingest exige un
