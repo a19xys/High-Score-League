@@ -205,6 +205,7 @@ test("a transient five-to-four catalog is an exact structural topology change", 
 test("shared status authority incrementally synchronizes badges and beacons", async () => {
   const { syncLibraryPackCardState } = await import(moduleUrl("library-card-sync.js"));
   const cases = [
+    [pack({ revisionStatus: "outdated" }), "ACTUALIZACIÓN DISPONIBLE", "week-status--warning", "warning", "Practice sigue disponible; Competition requiere actualizar este pack."],
     [pack({ status: "error" }), "REQUIERE ATENCION", "week-status--error", "error", "Este pack esta incompleto o no es valido."],
     [pack({ weekCapability: { publicState: "active" } }), "ACTIVA", "week-status--ready", "success", "La semana competitiva esta activa."],
     [pack({ weekCapability: { publicState: "inactive" } }), "INACTIVA", "week-status--warning", "warning", "La semana competitiva todavia no esta activa."],

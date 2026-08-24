@@ -1,6 +1,10 @@
 const ACCESS_REASONS = Object.freeze({
   LOCAL_PACK: "local-pack-unavailable",
   LOCAL_CAPTURE: "local-capture-unavailable",
+  LOCAL_INTEGRITY: "local-integrity-unavailable",
+  PACK_UPDATE_REQUIRED: "pack-update-required",
+  PACK_CURRENTNESS_UNKNOWN: "pack-currentness-unknown",
+  PACK_PROVENANCE_UNVERIFIED: "pack-provenance-unverified",
   NO_ACCOUNT: "no-account",
   REQUIRES_LOGIN: "requires-login",
   MEMBERSHIP_NOT_MEMBER: "not-member",
@@ -23,6 +27,8 @@ function deriveCompetitionAccess({
     && local.protectedCompetitionReady === true
     && local.hasCompetitionScope === true
     && local.hasWeek === true;
+  const revisionManaged = local.revisionManaged === true;
+  const revisionStatus = local.revisionStatus || "unknown";
   const hasStableIdentity = session.hasSession === true && Boolean(session.userId);
   const requiresLogin = session.requiresLogin === true;
   const membershipStatus = membership.effectiveStatus || membership.status || "unknown";
@@ -36,8 +42,20 @@ function deriveCompetitionAccess({
   if (!canPractice) {
     reason = ACCESS_REASONS.LOCAL_PACK;
     reasonCategory = "local";
-  } else if (local.protectedCompetitionReady !== true || local.hasCompetitionScope !== true || local.hasWeek !== true) {
+  } else if (revisionManaged && revisionStatus === "outdated") {
+    reason = ACCESS_REASONS.PACK_UPDATE_REQUIRED;
+    reasonCategory = "pack-revision";
+  } else if (revisionManaged && revisionStatus === "unknown") {
+    reason = ACCESS_REASONS.PACK_CURRENTNESS_UNKNOWN;
+    reasonCategory = "pack-revision";
+  } else if (revisionManaged && revisionStatus === "current-unverified") {
+    reason = ACCESS_REASONS.PACK_PROVENANCE_UNVERIFIED;
+    reasonCategory = "pack-revision";
+  } else if (local.captureReady === false) {
     reason = ACCESS_REASONS.LOCAL_CAPTURE;
+    reasonCategory = "local";
+  } else if (local.protectedCompetitionReady !== true || local.hasCompetitionScope !== true || local.hasWeek !== true) {
+    reason = ACCESS_REASONS.LOCAL_INTEGRITY;
     reasonCategory = "local";
   } else if (requiresLogin) {
     reason = ACCESS_REASONS.REQUIRES_LOGIN;
@@ -77,6 +95,8 @@ function deriveCompetitionAccess({
     canSubmitNow,
     hasStableIdentity,
     membershipStatus,
+    revisionManaged,
+    revisionStatus,
     reason,
     reasonCategory,
     requiresLogin,

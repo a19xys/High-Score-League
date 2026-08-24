@@ -8,6 +8,7 @@ const {
   readPackDirectory,
 } = require("./pack-directory");
 const { loadPackFromDir } = require("./pack");
+const { isRevisionManagedPack } = require("./pack-revision-status");
 
 function hashId(value, prefix) {
   return `${prefix}_${crypto.createHash("sha1").update(value).digest("hex").slice(0, 14)}`;
@@ -126,6 +127,7 @@ function buildLibraryPackItem(directory, packDir, packResult) {
     packVersion: pack.packVersion || null,
     publisher: pack.metadata?.publisher || null,
     replacement: pack.replacement || null,
+    revisionManaged: isRevisionManagedPack(pack),
     rom: pack.rom || null,
     seasonId: pack.seasonId || null,
     seasonName: pack.seasonName || null,
@@ -291,7 +293,7 @@ async function scanDirectory(directoryState, options = {}) {
       continue;
     }
 
-    if (entry.name.startsWith(".hsl-import-")) {
+    if ([".hsl-import-", ".hsl-update-", ".hsl-update-backup-"].some((prefix) => entry.name.startsWith(prefix))) {
       continue;
     }
 

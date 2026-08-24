@@ -124,7 +124,8 @@ async function isRegularPackManifest(directoryPath, options = {}) {
 }
 
 function inspectableDirectoryEntry(entry) {
-  return entry.isDirectory() && !entry.isSymbolicLink() && !entry.name.startsWith(".hsl-import-");
+  return entry.isDirectory() && !entry.isSymbolicLink()
+    && ![".hsl-import-", ".hsl-update-", ".hsl-update-backup-"].some((prefix) => entry.name.startsWith(prefix));
 }
 
 async function findDirectPackChildren(directoryPath, entries, options = {}) {

@@ -7,9 +7,11 @@ const {
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
   clampSidebarWidth,
+  migrateLibraryFavoriteKey,
   readLibraryFavorites,
   readLibraryPreferences,
   toggleLibraryFavorite,
+  writeLibraryFavorites,
   writeLibraryPreferences,
 } = require("../src/library-preferences");
 const { playerPreferenceScope } = require("../src/preference-scope");
@@ -192,6 +194,25 @@ test("favoritos corruptos por cuenta no crashean y caen a vacio", async () => {
     assert.deepEqual(favorites.favorites, {});
     assert.equal(favorites.scope, "player");
     assert.equal(favorites.warnings.length, 1);
+  });
+});
+
+test("migración de favorito old→target es local, deduplicada e idempotente", async () => {
+  await withTempDir(async (dir) => {
+    const localConfig = config(dir);
+    const sessionA = { hasSession: true, userId: "user-a" };
+    const sessionB = { hasSession: true, userId: "user-b" };
+    await writeLibraryFavorites(localConfig, {}, { old: true, untouched: true });
+    await writeLibraryFavorites(localConfig, sessionA, { old: true, target: true, other: true });
+    await writeLibraryFavorites(localConfig, sessionB, { other: true });
+
+    const first = await migrateLibraryFavoriteKey(localConfig, "old", "target", { now: "2026-08-24T10:00:00.000Z" });
+    const second = await migrateLibraryFavoriteKey(localConfig, "old", "target", { now: "2026-08-24T10:00:01.000Z" });
+    assert.equal(first.changedFiles, 2);
+    assert.equal(second.changedFiles, 0);
+    assert.deepEqual((await readLibraryFavorites(localConfig)).favorites, { target: true, untouched: true });
+    assert.deepEqual((await readLibraryFavorites(localConfig, sessionA)).favorites, { target: true, other: true });
+    assert.deepEqual((await readLibraryFavorites(localConfig, sessionB)).favorites, { other: true });
   });
 });
 

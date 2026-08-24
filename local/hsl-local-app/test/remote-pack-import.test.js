@@ -418,6 +418,7 @@ test("product path traduce carreras, identidad y ZIP inválido sin excepciones c
     const bytes = Buffer.from("fake zip");
     const expected = new Map([
       ["duplicate_pack_id", "remote-error"],
+      ["destination_collision", "installation-conflict"],
       ["unexpected_pack_id", "unexpected-pack-id"],
       ["invalid_pack", "invalid-pack"],
     ]);

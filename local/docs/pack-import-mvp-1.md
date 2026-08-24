@@ -207,7 +207,6 @@ servicios GUI seguros y devuelve el estado actualizado cuando termina.
 
 - catalogo remoto;
 - descarga desde web;
-- updater;
 - sobrescritura de packs;
 - desinstalacion;
 - firmas;
@@ -216,3 +215,12 @@ servicios GUI seguros y devuelve el estado actualizado cuando termina.
 - watcher automatico;
 - empaquetar MAME;
 - ranking embebido.
+
+## Frontera con la actualización remota
+
+La importación manual conserva este contrato: una colisión es un conflicto y
+nunca autoriza overwrite. La actualización de una revisión publicada utiliza
+una primitiva separada, con descriptor oficial, staging, backup, journal y
+recovery sobre el mismo final path. Sus temporales `.hsl-update-*` y
+`.hsl-update-backup-*`, al igual que `.hsl-import-*`, quedan fuera del scanner.
+Véase [`remote-pack-revision-import-1.md`](remote-pack-revision-import-1.md).

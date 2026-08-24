@@ -111,6 +111,35 @@ async function seedWeekCache(cache, weekId, publicState, checkedAt = "2026-08-01
   });
 }
 
+test("publishedPackId conserva absent/null/string y un valor inválido queda unknown", async (t) => {
+  const cases = [
+    { name: "absent", decorate: (value) => value, expectedOwn: false },
+    { name: "null", decorate: (value) => ({ ...value, publishedPackId: null }), expectedOwn: true, expected: null },
+    { name: "string", decorate: (value) => ({ ...value, publishedPackId: "space-invaders-s1-w1-r2" }), expectedOwn: true, expected: "space-invaders-s1-w1-r2" },
+    { name: "invalid", decorate: (value) => ({ ...value, publishedPackId: "bad pack id" }), expectedOwn: false },
+  ];
+  for (const fixture of cases) {
+    await t.test(fixture.name, async () => withTempDir(async (userDataDir) => {
+      const connection = { deployment, reachability: "connected", reachabilityGeneration: 1 };
+      const service = createWeekCapabilitiesService({
+        fetchImpl: async (_url, init) => {
+          const request = JSON.parse(init.body).requests[0];
+          return response([fixture.decorate(resultFor(request))]);
+        },
+        getConnectivityState: () => connection,
+        userDataDir,
+      });
+      await service.initialize();
+      service.updateContext({ packs: [{ weekId: "week-a" }], webBaseUrl: "https://hsl.example" });
+      const refreshed = await service.ensureFreshCapability("week-a");
+      assert.equal(refreshed.ok, true);
+      assert.equal(Object.hasOwn(refreshed.capability, "publishedPackId"), fixture.expectedOwn);
+      if (fixture.expectedOwn) assert.equal(refreshed.capability.publishedPackId, fixture.expected);
+      service.stop();
+    }));
+  }
+});
+
 test("cache-first hidrata el mismo deployment y conserva ACTIVE/UNLINKED tras refresh", async () => {
   await withTempDir(async (userDataDir) => {
     const now = Date.parse("2026-08-01T00:02:00.000Z");

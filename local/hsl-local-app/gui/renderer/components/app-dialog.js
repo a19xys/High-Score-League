@@ -186,10 +186,37 @@ function renderPackDeepLinkDialog(dialog) {
     { action: "accept-pack-deeplink", label: "Añadir pack", variant: "primary" },
   ];
 
-  if (dialog.alreadyInstalled) {
+  if (dialog.status === "already-current") {
     eyebrow = "Biblioteca";
-    title = "Pack ya instalado";
-    description = "Este pack ya está en tu biblioteca.";
+    title = "Pack actualizado";
+    description = "Este pack ya está actualizado.";
+    buttons = [{ action: "cancel-pack-deeplink", autofocus: true, label: "Aceptar", variant: "primary" }];
+  } else if (dialog.status === "update-available") {
+    const gameTitle = dialog.title || "este juego";
+    eyebrow = "Actualización disponible";
+    title = `Hay una nueva versión de ${gameTitle}.`;
+    description = "Para competir debes actualizarla.";
+    buttons = [
+      { action: "cancel-pack-deeplink", autofocus: true, label: "Cancelar", variant: "secondary" },
+      { action: "accept-pack-deeplink", label: "Actualizar", variant: "primary" },
+    ];
+  } else if (dialog.status === "current-unverified") {
+    eyebrow = "Verificar pack";
+    title = "Verifica este pack";
+    description = "Descarga y compara el artifact oficial para habilitar Competition.";
+    buttons = [
+      { action: "cancel-pack-deeplink", autofocus: true, label: "Cancelar", variant: "secondary" },
+      { action: "accept-pack-deeplink", label: "Verificar / Actualizar", variant: "primary" },
+    ];
+  } else if (dialog.status === "revision-conflict") {
+    eyebrow = "Biblioteca";
+    title = "Conflicto de revisiones";
+    description = "Hay varias revisiones locales de esta familia. Revísalas antes de actualizar.";
+    buttons = [{ action: "cancel-pack-deeplink", autofocus: true, label: "Aceptar", variant: "primary" }];
+  } else if (dialog.status === "target-not-current") {
+    eyebrow = "Actualización disponible";
+    title = "Hay una versión más reciente disponible";
+    description = "Vuelve a abrir el enlace actual desde High Score League.";
     buttons = [{ action: "cancel-pack-deeplink", autofocus: true, label: "Aceptar", variant: "primary" }];
   } else if (!dialog.libraryReady) {
     eyebrow = "Biblioteca";
@@ -219,16 +246,23 @@ function renderPackDeepLinkDialog(dialog) {
 
 function renderPackDeepLinkResultDialog(dialog) {
   const copies = {
+    "already-current": ["Pack actualizado", "Este pack ya está actualizado."],
     "already-installed": ["Pack ya instalado", "Este pack ya está en tu biblioteca."],
     cancelled: ["Importación cancelada", "No se ha instalado nada."],
     "download-integrity-failed": ["No se pudo verificar el pack", "No se pudo verificar el pack descargado. No se ha instalado nada."],
     imported: ["Pack añadido", "El pack se ha añadido a tu biblioteca."],
+    "installation-conflict": ["Conflicto de instalación", "El pack es válido, pero su carpeta entra en conflicto con otra instalación."],
     "invalid-pack": ["Pack no válido", "El archivo descargado no es un pack válido. No se ha instalado nada."],
     offline: ["Sin conexión", "Necesitas conexión a Internet para importar este pack."],
+    "operation-busy": ["Actualización en espera", "Cierra MAME o espera a que termine la otra operación para actualizar."],
     "pack-unavailable": ["Pack no disponible", "Este pack no está disponible para importar ahora."],
     "remote-error": ["No se pudo importar", "No se pudo preparar este pack para importarlo ahora."],
     "requires-login": ["Inicia sesión", "Inicia sesión en el launcher para importar este pack."],
+    "revision-conflict": ["Conflicto de revisiones", "Hay varias revisiones locales de esta familia. Revísalas antes de actualizar."],
+    "target-not-current": ["Actualización disponible", "Hay una versión más reciente disponible."],
     "unexpected-pack-id": ["Pack incorrecto", "El archivo recibido no corresponde al pack solicitado. No se ha instalado nada."],
+    "updated": ["Pack actualizado", "El juego se ha actualizado."],
+    "verified": ["Pack verificado", "Este pack se ha verificado desde High Score League."],
   };
   const [title, description] = copies[dialog.status] || copies["remote-error"];
   const titleId = "app-dialog-pack-deeplink-result-title";

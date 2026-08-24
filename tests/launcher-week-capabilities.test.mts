@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
+  buildPublishedPackMap,
   buildLauncherWeekResults,
   LAUNCHER_WEEK_BATCH_LIMIT,
   resolvePublicWeekCapability,
@@ -19,6 +20,7 @@ import {
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const baseWeek = {
   id: "week-a",
+  week_number: 1,
   season_id: "season-a",
   game_id: "game-a",
   status: "active",
@@ -125,16 +127,64 @@ test("batch conserva correlacion, fechas publicas y no contiene informacion pers
   assert.equal(results[0].canPlayCompetition, true);
   assert.equal(results[0].publicStartAt, baseWeek.public_start_at);
   assert.equal(results[0].seasonStatus, "active");
+  assert.equal(results[0].publishedPackId, null);
   assert.equal(results[1].weekId, "week-a");
   assert.equal(results[2].publicState, "unlinked");
   assert.equal(results[2].reason, "not-found");
   assert.doesNotMatch(JSON.stringify(results), /user|email|membership|token|score/i);
 });
 
+test("publishedPackId es aditivo, trivalente y usa la misma frontera pública", () => {
+  const published = new Map([["week-a", "space-invaders-s1-w1-r2"]]);
+  const current = buildLauncherWeekResults({
+    requests: [{ requestKey: "current", weekId: "week-a" }],
+    weeks: [baseWeek],
+    seasons: [{ id: "season-a", status: "active" }],
+    publishedPackIds: published,
+    currentActiveWeekNumbers: new Map([["season-a", 1]]),
+    now,
+  });
+  assert.equal(current[0].publishedPackId, "space-invaders-s1-w1-r2");
+
+  const knownWithoutPack = buildLauncherWeekResults({
+    requests: [{ requestKey: "none", weekId: "week-a" }],
+    weeks: [baseWeek],
+    seasons: [{ id: "season-a", status: "active" }],
+    publishedPackIds: new Map(),
+    currentActiveWeekNumbers: new Map([["season-a", 1]]),
+    now,
+  });
+  assert.equal(knownWithoutPack[0].publishedPackId, null);
+
+  const hidden = buildLauncherWeekResults({
+    requests: [{ requestKey: "future", weekId: "week-future" }],
+    weeks: [{ ...baseWeek, id: "week-future", week_number: 2, public_start_at: "2026-08-03T00:00:00Z" }],
+    seasons: [{ id: "season-a", status: "active" }],
+    publishedPackIds: new Map([["week-future", "must-not-leak"]]),
+    currentActiveWeekNumbers: new Map([["season-a", 1]]),
+    now,
+  });
+  assert.equal(hidden[0].publishedPackId, null);
+});
+
+test("mapa de packs publicados rechaza filas inválidas, duplicadas o fuera de visibilidad", () => {
+  const revealable = new Set(["week-a"]);
+  assert.equal(buildPublishedPackMap([{ week_id: "week-a", pack_id: "pack-r2" }], revealable)?.get("week-a"), "pack-r2");
+  assert.equal(buildPublishedPackMap([{ week_id: "week-private", pack_id: "private-pack" }], revealable), null);
+  assert.equal(buildPublishedPackMap([{ week_id: "week-a", pack_id: "bad pack" }], revealable), null);
+  assert.equal(buildPublishedPackMap([
+    { week_id: "week-a", pack_id: "pack-r2" },
+    { week_id: "week-a", pack_id: "pack-r3" },
+  ], revealable), null);
+});
+
 test("endpoint usa autoridad compartida y weekly_results batch, es publico y no-store", async () => {
   const route = await readFile(join(root, "app", "api", "launcher", "week-capabilities", "route.ts"), "utf8");
   assert.match(route, /from\("weekly_results"\)\.select\("week_id"\)\.in\("week_id", weekIds\)/);
   assert.match(route, /officialResultWeekIds/);
+  assert.match(route, /from\("launcher_packs"\)\.select\("week_id,pack_id"\)[\s\S]*\.eq\("status", "published"\)/);
+  assert.match(route, /WEEK_PACK_QUERY_FAILED[\s\S]*503/);
+  assert.match(route, /launcherWeekIsPubliclyRevealable/);
   assert.match(route, /getLauncherDeploymentHeaders/);
   assert.match(route, /Cache-Control.*no-store/);
   assert.match(route, /MAX_REQUEST_BYTES/);

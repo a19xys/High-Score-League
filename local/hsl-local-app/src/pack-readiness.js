@@ -3,6 +3,7 @@ const path = require("node:path");
 const { deriveCompetitionAccess } = require("./competition-access");
 const { getV2CaptureReadiness, getV2CompetitionReadiness } = require("./mame-plugin-run");
 const { isMameVersionCompatible } = require("./mame-version");
+const { derivePackRevisionStatus, isRevisionManagedPack } = require("./pack-revision-status");
 
 function exists(targetPath) {
   return Boolean(targetPath) && fs.existsSync(targetPath);
@@ -457,13 +458,39 @@ function evaluatePackReadiness({
   const canPractice = !hasDuplicateConflict && !hasPackErrors && hasMame && hasRom && hasRomDir;
   const canCapture = hasPlugin;
   const protectedCompetitionReady = Boolean(isPackV2 && v2Competition?.ok);
+  const revisionManaged = isRevisionManagedPack(pack || {});
+  const revision = derivePackRevisionStatus({
+    capability: weekCapability,
+    localPackId: pack?.packId,
+    pack,
+    provenanceMode: v2Competition?.provenance?.mode,
+    revisionManaged,
+  });
+  if (revisionManaged) {
+    const copies = {
+      current: "El pack coincide con la revisión publicada y su provenance está verificada.",
+      outdated: "Hay una actualización disponible; Practice continúa disponible.",
+      "current-unverified": "El pack coincide con la revisión publicada, pero falta verificar su provenance oficial.",
+      unknown: "No se pudo confirmar la revisión publicada actual.",
+    };
+    checks.push(check(
+      "pack-revision",
+      revision.status === "current" ? "ok" : "warning",
+      "Revisión",
+      copies[revision.status],
+      [revision.publishedPackId ? `publishedPackId=${revision.publishedPackId}` : null],
+    ));
+  }
   const competitionAccess = deriveCompetitionAccess({
     local: {
+      captureReady: isPackV2 ? Boolean(v2Capture?.ok) : Boolean(hasPlugin),
       protectedCompetitionReady,
       canPractice,
       canSubmitLocally: Boolean(hasSession && hasScope && hasWeek && config.webBaseUrl),
       hasCompetitionScope: hasScope,
       hasWeek,
+      revisionManaged,
+      revisionStatus: revision.status,
     },
     membership,
     session,
@@ -502,6 +529,9 @@ function evaluatePackReadiness({
     status: effectiveStatus,
     title: buildTitle(effectiveStatus),
     protectedCompetitionReady,
+    publishedPackId: revision.publishedPackId,
+    revisionManaged,
+    revisionStatus: revision.status,
     warnings,
   };
 }

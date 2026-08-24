@@ -535,11 +535,20 @@ test("packVersion 2 con adapter valido distingue loader de Competition protegida
     context.config.sharedMameRuntime.version = "0.287";
     context.config.sharedMameRuntime.source = "external/dev";
     await fsp.writeFile(path.join(context.config.packRoot, "competition-manifest.json"), "{}\n", "utf8");
-    const result = evaluatePackReadiness({ ...context, developerOverride: true });
+    const result = evaluatePackReadiness({
+      ...context,
+      developerOverride: true,
+      weekCapability: {
+        ...context.weekCapability,
+        currentConclusive: true,
+        publishedPackId: context.config.pack.packId,
+      },
+    });
 
     assert.equal(result.canPractice, true);
     assert.equal(result.canCapture, true);
-    assert.equal(result.canPlayCompetition, true);
+    assert.equal(result.canPlayCompetition, false);
+    assert.equal(result.revisionStatus, "current-unverified");
     assert.ok(result.checks.some((item) => item.id === "capture-v2" && item.level === "ok"));
     assert.ok(result.checks.some((item) => item.id === "competition-integrity-v2" && item.level === "ok"));
   });

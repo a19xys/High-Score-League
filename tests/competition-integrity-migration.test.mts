@@ -38,19 +38,31 @@ function referencePolicyFingerprint(overrides: Record<string, unknown> = {}) {
   return createHash("sha256").update(JSON.stringify(contract), "utf8").digest("hex");
 }
 
-test("0034 is deliberate and retired 0033 does not reappear", async () => {
-  const [migrations, preflights, sql] = await Promise.all([
+test("0034 permanece canónica, 0035 endurece EXECUTE y no aparece 0036", async () => {
+  const [migrations, preflights, sql, lockdown, preflight] = await Promise.all([
     readdir(join(root, "supabase", "migrations")),
     readdir(join(root, "supabase", "preflight")),
     read("supabase", "migrations", "0034_competition_integrity.sql"),
+    read("supabase", "migrations", "0035_competition_integrity_rpc_lockdown.sql"),
+    read("supabase", "preflight", "0034_competition_integrity.sql"),
   ]);
   assert.ok(migrations.includes("0034_competition_integrity.sql"));
   assert.ok(preflights.includes("0034_competition_integrity.sql"));
   assert.equal(migrations.some((name) => name.startsWith("0033")), false);
   assert.equal(preflights.some((name) => name.startsWith("0033")), false);
-  assert.equal(migrations.some((name) => name.startsWith("0035")), false);
+  assert.ok(migrations.includes("0035_competition_integrity_rpc_lockdown.sql"));
   assert.equal(preflights.some((name) => name.startsWith("0035")), false);
+  assert.equal(migrations.some((name) => name.startsWith("0036")), false);
+  assert.equal(preflights.some((name) => name.startsWith("0036")), false);
   assert.match(sql, /0033 was historically retired[\s\S]*0034 is deliberate/i);
+  assert.equal(lockdown.trim(), `revoke execute
+on function public.guard_submission_competition_integrity()
+from public, anon, authenticated;
+
+grant execute
+on function public.guard_submission_competition_integrity()
+to service_role;`);
+  assert.match(preflight, /select version, name[\s\S]*version in \([\s\S]*'0034'[\s\S]*'0035'[\s\S]*or name in \('0034_competition_integrity', '0035_competition_integrity_rpc_lockdown'\)/i);
 });
 
 test("launcher pack manifest is canonical, nullable for legacy and immutable after publication", async () => {

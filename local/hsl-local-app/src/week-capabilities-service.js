@@ -1,5 +1,6 @@
 const { isCommittedConnected, normalizeWebBaseUrl } = require("./connectivity-service");
 const { createWeekCapabilityCache } = require("./competitive-authority-cache");
+const { isRemotePackId } = require("./pack-deeplink");
 const {
   deploymentMetadataExactlyMatches,
   isSupportedLauncherApiVersion,
@@ -339,6 +340,8 @@ function createWeekCapabilitiesService(options = {}) {
       if (!result || result.weekId !== request.weekId || !["inactive", "active", "closed", "unlinked"].includes(result.publicState)) {
         throw Object.assign(new Error("Incomplete week capability response"), { reason: "invalid-response" });
       }
+      const publishedPackKnown = Object.hasOwn(result, "publishedPackId")
+        && (result.publishedPackId === null || isRemotePackId(result.publishedPackId));
       return {
         canPlayCompetition: result.publicState === "active",
         checkedAt: new Date(now()).toISOString(),
@@ -348,6 +351,7 @@ function createWeekCapabilitiesService(options = {}) {
         publicFreezeAt: result.publicFreezeAt || null,
         publicStartAt: result.publicStartAt || null,
         publicState: result.publicState,
+        ...(publishedPackKnown ? { publishedPackId: result.publishedPackId } : {}),
         rawStatus: result.rawStatus || null,
         reason: result.reason || "server-result",
         seasonId: result.seasonId || null,
@@ -512,6 +516,9 @@ function createWeekCapabilitiesService(options = {}) {
             receivedBodyDeployment: publicDeployment(validated.bodyDeployment),
             responseResults: validated.capabilities.map((capability) => ({
               publicState: capability.publicState,
+              ...(Object.hasOwn(capability, "publishedPackId")
+                ? { publishedPackId: capability.publishedPackId }
+                : {}),
               weekId: capability.weekId,
             })),
           });

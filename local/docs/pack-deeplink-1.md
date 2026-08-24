@@ -166,3 +166,18 @@ Usar un installer local en una cuenta o VM desechable; no publicar el artefacto 
 9. Desinstalar y confirmar que `reg query HKCU\Software\Classes\highscoreleague /s` ya no encuentra la clave.
 
 El launcher `0.3.0` ya está publicado y se validó el updater real `0.2.0 → 0.3.0`. Cumplida esa condición, la web puede exponer el deep link mediante `WEB-PACK-IMPORT-DEEPLINK-1`; el navegador transporta únicamente el `packId` publicado y el launcher conserva la autoridad de descarga e importación.
+
+## Extensión: actualización de una familia local
+
+El protocolo no cambia. Cuando el `packId` solicitado es el
+`publishedPackId` actual de una week ya representada en la Biblioteca, el
+launcher compara identidades exactas y usa `weekId + gameId` como familia; no
+interpreta números ni sufijos del identificador.
+
+Una revisión old produce `update-available` y sólo descarga después de que el
+jugador pulse **Actualizar**. Cancelar conserva old para Practice. El target ya
+instalado y con provenance produce `already-current` y cero descargas; si fue
+instalado manualmente, la ruta oficial descarga y verifica el artifact antes de
+crear provenance. Copias locales ambiguas producen `revision-conflict` sin
+elegir ni borrar carpetas. La implementación completa está en
+[`remote-pack-revision-import-1.md`](remote-pack-revision-import-1.md).

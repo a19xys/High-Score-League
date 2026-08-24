@@ -166,6 +166,18 @@ El runtime bundled y el plugin staging contienen manifests launcher-owned de
 bytes críticos que se revalidan antes de Competición. El runtime externo se
 reserva para QA dev con MAME exacto.
 
+Para un pack Protected revision-managed, provenance no basta por sí sola: una
+nueva Competition exige además que una autoridad WEB actual confirme
+`publishedPackId === local.packId`. El estado old, manual/unverified o
+desconocido sigue siendo válido para Biblioteca y Practice, pero no inicia
+Competition. `packId` identifica el artifact inmutable y `weekId + gameId` la
+familia de actualización; el contrato no contiene un número de revisión.
+
+El replacement remoto no mezcla bytes entre packs. No copia cfg de Practice,
+seed de Competition, scripts, plugin o ROM old sobre target. El estado mutable
+externalizado bajo `userData/runtime` sobrevive; ante un path mutable aún
+interno sin contrato explícito, prevalecen los bytes target.
+
 ## Pack de referencia
 
 Space Invaders conserva `space-invaders-s1-w1-r1`, MAME 0.287, Lives=3, Bonus

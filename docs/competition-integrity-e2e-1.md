@@ -1,6 +1,6 @@
 # Competition Integrity E2E 1
 
-## Resultado
+## Resultado de la primera ejecución
 
 La ejecución del 24 de agosto de 2026 quedó bloqueada antes de la primera
 mutación remota. No había un canal SQL capaz de aplicar y registrar únicamente
@@ -17,6 +17,24 @@ Por tanto, el estado productivo observado se conserva:
   columnas de pack/submission.
 - r2 no se subió a R2, no se creó como draft y no se publicó.
 - r1 no se deshabilitó, no se creó/congeló una policy y no hubo submission QA.
+
+## Estado productivo vigente antes del cierre local de revisiones
+
+Las tareas posteriores completaron por un canal autorizado parte del estado que
+la primera ejecución dejó pendiente. Antes de
+`LOCAL-REMOTE-PACK-REVISION-IMPORT-1` se verificó:
+
+- `0034_competition_integrity` aplicada;
+- `0035_competition_integrity_rpc_lockdown` aplicada;
+- Space Invaders r1 `published`;
+- el artifact exacto r2 ya almacenado y su catálogo `disabled`;
+- ausencia de `week_competition_policy` para Space Invaders;
+- cero submissions Protected procedentes de ese E2E.
+
+La tarea local de actualización no cambió ninguno de esos estados: no ejecutó
+migrations, no modificó Supabase/R2, no publicó r2 y no creó policy ni
+submission. El fichero Git de `0035` refleja exactamente el microfix remoto ya
+aplicado, sin crear `0036`.
 
 ## Cambios locales
 
@@ -92,3 +110,10 @@ Para reanudar hacen falta, sin cambiar el alcance:
 Hasta entonces no deben afirmarse como completados el upload, draft, switch,
 policy, import remoto, MAME real, offline/restart, ingest, duplicate, negativos
 productivos ni invalidación administrativa.
+
+La lista anterior describe el bloqueo histórico de la primera ejecución. La
+reanudación productiva restante debe partir del estado vigente de la sección
+anterior y no repetir upload o migrations ya realizados. La validación local de
+reemplazo r1→r2 se documenta en
+`local/docs/remote-pack-revision-import-1.md`; rotar un pack después del freeze
+de policy sigue pendiente de `WEB-COMPETITION-PACK-REVISION-ROTATION-1`.

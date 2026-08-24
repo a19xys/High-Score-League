@@ -392,10 +392,12 @@ test("directorio inaccesible devuelve estado especifico y copy de jugador", asyn
   assert.doesNotMatch(result.directory.warnings[0], /EACCES|permission denied/);
 });
 
-test("escaneo ignora directorios temporales de importacion", async () => {
+test("escaneo ignora directorios temporales de importacion y actualización", async () => {
   await withTempDir(async (dir) => {
     const libraryRoot = path.join(dir, "library");
     await writeJson(path.join(libraryRoot, ".hsl-import-pending", "pack.json"), validV2Pack());
+    await writeJson(path.join(libraryRoot, ".hsl-update-0123456789abcdef01234567", "pack.json"), validV2Pack());
+    await writeJson(path.join(libraryRoot, ".hsl-update-backup-0123456789abcdef01234567", "pack.json"), validV2Pack());
     await setPackDirectory(config(dir), libraryRoot);
 
     const library = await scanPackLibrary(config(dir));

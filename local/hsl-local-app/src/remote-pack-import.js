@@ -289,6 +289,7 @@ function classifyImporterResult(result) {
     return result.alreadyInstalled ? "already-installed" : "imported";
   }
   if (result?.code === "duplicate_pack_id") return "already-installed";
+  if (result?.code === "destination_collision") return "installation-conflict";
   if (result?.code === "unexpected_pack_id") return "unexpected-pack-id";
   if (["pack_directory_unconfigured", "pack_directory_unavailable"].includes(result?.code)) {
     return "library-unavailable";
@@ -300,6 +301,7 @@ function classifyDownloadFailure(error) {
   const mappings = {
     cancelled: "cancelled",
     duplicate_pack_id: "already-installed",
+    destination_collision: "installation-conflict",
     download_integrity_failed: "download-integrity-failed",
     offline: "offline",
     pack_unavailable: "pack-unavailable",
@@ -394,7 +396,7 @@ async function executeRemotePackImport(options = {}) {
       });
     } catch (error) {
       if (!new Set(["duplicate_pack_id", "destination_collision"]).has(error?.code)) throw error;
-      importResult = { code: "duplicate_pack_id", ok: false, collisionCode: error.code };
+      importResult = { code: error.code, ok: false, collisionCode: error.code };
     }
     const status = classifyImporterResult(importResult);
     const provenance = status === "imported"

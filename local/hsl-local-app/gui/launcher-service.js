@@ -1,4 +1,5 @@
 const fsp = require("node:fs/promises");
+const fs = require("node:fs");
 const path = require("node:path");
 const {
   readKnownAccounts,
@@ -64,6 +65,7 @@ const {
   readLibraryFavorites,
   readLibraryPreferences,
   publicLibraryPreferences,
+  migrateLibraryFavoriteKey,
   toggleLibraryFavorite,
   writeLibraryPreferences,
 } = require("../src/library-preferences");
@@ -87,7 +89,10 @@ const { submitAll } = require("../src/submission-service");
 const { combineAbortSignals } = require("../src/remote-request");
 const { isRemotePackId } = require("../src/pack-deeplink");
 const { executeRemotePackImport } = require("../src/remote-pack-import");
+const { executeRemotePackUpdate, recoverPackUpdates } = require("../src/remote-pack-update");
 const { readPackProvenanceReceipt } = require("../src/pack-provenance");
+const { COMPETITION_MANIFEST_FILENAME, sha256 } = require("../src/competition-manifest");
+const { derivePackRevisionStatus, isRevisionManagedPack } = require("../src/pack-revision-status");
 const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
 const {
   applyScopedQueue,
@@ -163,6 +168,74 @@ let accountProfileSync = null;
 let playTimeSync = null;
 let presenceLifecycleProvider = null;
 let presenceAccountLifecycleProvider = null;
+let activePackFilesystemOperation = null;
+let activeMameRunCount = 0;
+let activeMameLaunchReservationCount = 0;
+
+async function withPackFilesystemOperation(kind, operation, options = {}) {
+  if (options.skipOperationGuard === true) return operation();
+  if (activePackFilesystemOperation || activeMameRunCount > 0 || activeMameLaunchReservationCount > 0) {
+    const error = new Error(activePackFilesystemOperation
+      ? "Ya hay otra operación de packs en curso."
+      : "Cierra MAME antes de modificar la Biblioteca.");
+    error.code = "pack_operation_busy";
+    throw error;
+  }
+  activePackFilesystemOperation = kind;
+  try { return await operation(); }
+  finally { activePackFilesystemOperation = null; }
+}
+
+async function withMameLaunchReservation(operation, onBlocked) {
+  if (activePackFilesystemOperation) return onBlocked(activePackFilesystemOperation);
+  activeMameLaunchReservationCount += 1;
+  try { return await operation(); }
+  finally { activeMameLaunchReservationCount = Math.max(0, activeMameLaunchReservationCount - 1); }
+}
+
+function createMameUpdateBlockLifecycle() {
+  let counted = false;
+  return {
+    onSpawn() {
+      if (!counted) {
+        counted = true;
+        activeMameRunCount += 1;
+      }
+    },
+    onClose() {
+      if (counted) {
+        counted = false;
+        activeMameRunCount = Math.max(0, activeMameRunCount - 1);
+      }
+    },
+  };
+}
+
+function deriveLibraryPackRevision(pack, capability, config) {
+  const revisionManaged = isRevisionManagedPack(pack || {});
+  let provenanceVerified = false;
+  if (revisionManaged && pack?.packId && pack?.packDir) {
+    try {
+      const manifestSha256 = sha256(fs.readFileSync(path.join(pack.packDir, COMPETITION_MANIFEST_FILENAME)));
+      provenanceVerified = readPackProvenanceReceipt(config, pack.packId, {
+        competitionManifestSha256: manifestSha256,
+      }).ok;
+    } catch {}
+  }
+  const revision = derivePackRevisionStatus({
+    capability,
+    localPackId: pack?.packId,
+    provenanceVerified,
+    revisionManaged,
+  });
+  return {
+    ...pack,
+    publishedPackId: revision.publishedPackId,
+    revisionManaged,
+    revisionReason: revision.reason,
+    revisionStatus: revision.status,
+  };
+}
 const librarySnapshotAuthority = createLibrarySnapshotAuthority({ scan: scanPackLibrary });
 const playTimeRecorder = createPlayTimeRecorder();
 const launcherClientVersion = require("../package.json").version;
@@ -1381,7 +1454,7 @@ async function stateFromContext(context) {
       warnings: libraryFavorites.warnings || [],
     },
     packs: library.packs.map((pack) => ({
-      ...pack,
+      ...deriveLibraryPackRevision(pack, getWeekCapability(pack.weekId), baseConfig),
       favorite: pack.duplicatePackId ? false : Boolean(favoriteMap[pack.favoriteKey]),
       favoriteDisabled: Boolean(pack.duplicatePackId),
       weekCapability: getWeekCapability(pack.weekId),
@@ -1553,16 +1626,32 @@ async function runAutoSyncIfEligible(context, options = {}) {
 
 function applyCompetitionAuthorityState(state) {
   if (!state || typeof state !== "object") return state;
-  const packs = (state.library?.packs || []).map((pack) => ({ ...pack, weekCapability: getWeekCapability(pack.weekId) }));
+  const config = loadRuntimeConfig();
+  const packs = (state.library?.packs || []).map((pack) => {
+    const capability = getWeekCapability(pack.weekId);
+    return { ...deriveLibraryPackRevision(pack, capability, config), weekCapability: capability };
+  });
   const weekCapability = getWeekCapability(state.game?.weekId || state.membership?.weekId || null);
-  const readiness = state.readiness || {};
+  const activePack = state.selection?.activeInstanceKey
+    ? packs.find((pack) => pack.instanceKey === state.selection.activeInstanceKey) || state.activePack
+    : state.activePack;
+  const activeRevision = deriveLibraryPackRevision(activePack || {}, weekCapability, config);
+  const readiness = {
+    ...(state.readiness || {}),
+    publishedPackId: activeRevision.publishedPackId,
+    revisionManaged: activeRevision.revisionManaged,
+    revisionStatus: activeRevision.revisionStatus,
+  };
   const competitionAccess = deriveCompetitionAccess({
     local: {
-      canCapture: readiness.canCapture === true,
+      captureReady: readiness.canCapture === true,
       canPractice: readiness.canPractice === true,
       canSubmitLocally: readiness.localSubmissionReady === true,
       hasCompetitionScope: readiness.localCompetitionReady === true,
       hasWeek: Boolean(state.game?.weekId),
+      protectedCompetitionReady: readiness.protectedCompetitionReady === true,
+      revisionManaged: readiness.revisionManaged === true,
+      revisionStatus: readiness.revisionStatus,
     },
     membership: state.membership,
     session: state.session,
@@ -1570,8 +1659,15 @@ function applyCompetitionAuthorityState(state) {
   });
   return {
     ...state,
+    activePack: activePack ? activeRevision : null,
     competitionAccess,
-    game: state.game ? { ...state.game, weekCapability } : null,
+    game: state.game ? {
+      ...state.game,
+      publishedPackId: activeRevision.publishedPackId,
+      revisionManaged: activeRevision.revisionManaged,
+      revisionStatus: activeRevision.revisionStatus,
+      weekCapability,
+    } : null,
     library: state.library ? { ...state.library, packs } : state.library,
     readiness: {
       ...readiness,
@@ -2387,6 +2483,23 @@ async function runDiagnose(options = {}) {
 }
 
 async function playCompetitionAction(options = {}) {
+  return withMameLaunchReservation(
+    () => playCompetitionActionReserved(options),
+    async () => ({
+      action: "play-competition",
+      lines: ["Espera a que termine la importación o actualización del pack antes de abrir MAME."],
+      ok: false,
+      reason: "pack-operation-busy",
+      summary: "Hay una operación de packs en curso.",
+      state: await getLauncherState({
+        deferRemoteMembership: true,
+        ...(options.config ? { config: options.config } : {}),
+      }),
+    }),
+  );
+}
+
+async function playCompetitionActionReserved(options = {}) {
   const readState = (stateOptions = {}) => getLauncherState({
     ...stateOptions,
     ...(options.config ? { config: options.config } : {}),
@@ -2496,6 +2609,7 @@ async function playCompetitionAction(options = {}) {
   const startedAtMs = Date.now();
   let mameSpawned = false;
   const mameLifecycle = combineMameLifecycles([
+    createMameUpdateBlockLifecycle(),
     options.playTimeRecorder
       ? createMameOperationLifecycle(context, "competition", {
           playTimeRecorder: options.playTimeRecorder,
@@ -2600,6 +2714,26 @@ async function playCompetition(options = {}) {
 }
 
 async function playPractice(options = {}) {
+  return withMameLaunchReservation(
+    () => playPracticeReserved(options),
+    async () => ({
+      action: "practice",
+      launchAttempted: false,
+      lines: ["Espera a que termine la importación o actualización del pack antes de abrir MAME."],
+      mameSpawned: false,
+      ok: false,
+      phase: "preflight-rejected",
+      reason: "pack-operation-busy",
+      summary: "Hay una operación de packs en curso.",
+      state: await getLauncherState({
+        deferRemoteMembership: true,
+        ...(options.config ? { config: options.config } : {}),
+      }),
+    }),
+  );
+}
+
+async function playPracticeReserved(options = {}) {
   await ensureRememberedPackLoaded(options.config || null);
   const readState = (stateOptions = {}) => getLauncherState({
     ...stateOptions,
@@ -2636,6 +2770,7 @@ async function playPractice(options = {}) {
 
   let mameSpawned = false;
   const mameLifecycle = combineMameLifecycles([
+    createMameUpdateBlockLifecycle(),
     options.playTimeRecorder
       ? createMameOperationLifecycle(context, "practice", {
           playTimeRecorder: options.playTimeRecorder,
@@ -3117,8 +3252,11 @@ async function activateImportedPack(imported, config, options = {}) {
 }
 
 function importPackErrorResponse(error, options, config) {
-  const isKnown = error instanceof PackImportError;
-  const summary = isKnown
+  const isBusy = error?.code === "pack_operation_busy";
+  const isKnown = error instanceof PackImportError || isBusy;
+  const summary = isBusy
+    ? PACK_DEEP_LINK_PRODUCT_COPY["operation-busy"]
+    : isKnown
     ? error.message
     : "No se pudo completar la importacion. No se ha instalado nada.";
 
@@ -3128,7 +3266,7 @@ function importPackErrorResponse(error, options, config) {
     lines: [
       summary,
       "No se ha instalado nada.",
-      ...(isKnown ? error.details || [] : [normalizeMessage(error)]),
+      ...(isBusy ? [] : isKnown ? error.details || [] : [normalizeMessage(error)]),
     ],
     ok: false,
     summary,
@@ -3140,7 +3278,11 @@ async function importPackFromZipForGui(zipPath, options = {}) {
   const config = options.config || loadRuntimeConfig();
 
   try {
-    const imported = await importPackZip(zipPath, config, options.importOptions || {});
+    const imported = await withPackFilesystemOperation(
+      "manual-import",
+      () => importPackZip(zipPath, config, options.importOptions || {}),
+      options,
+    );
     return activateImportedPack(imported, config, options);
   } catch (error) {
     const response = importPackErrorResponse(error, options, config);
@@ -3153,7 +3295,11 @@ async function importPackFromFolderForGui(folderPath, options = {}) {
   const config = options.config || loadRuntimeConfig();
 
   try {
-    const imported = await importPackFolder(folderPath, config, options.importOptions || {});
+    const imported = await withPackFilesystemOperation(
+      "manual-import",
+      () => importPackFolder(folderPath, config, options.importOptions || {}),
+      options,
+    );
     return activateImportedPack(imported, config, options);
   } catch (error) {
     const response = importPackErrorResponse(error, options, config);
@@ -3163,17 +3309,23 @@ async function importPackFromFolderForGui(folderPath, options = {}) {
 }
 
 const PACK_DEEP_LINK_PRODUCT_COPY = Object.freeze({
-  "already-installed": "Este pack ya está en tu biblioteca.",
+  "already-current": "Este pack ya está actualizado.",
   cancelled: "La importación del pack se ha cancelado.",
   "download-integrity-failed": "No se pudo verificar el pack descargado. No se ha instalado nada.",
   imported: "El pack se ha añadido a tu biblioteca.",
+  "installation-conflict": "El pack es válido, pero su carpeta de instalación entra en conflicto con otra existente.",
   "invalid-pack": "El archivo descargado no es un pack válido. No se ha instalado nada.",
   "library-unavailable": "Elige dónde quieres guardar los packs antes de continuar.",
+  "operation-busy": "Cierra MAME o espera a que termine la otra operación para actualizar.",
   offline: "Necesitas conexión a Internet para importar este pack.",
   "pack-unavailable": "Este pack no está disponible para importar ahora.",
   "remote-error": "No se pudo preparar este pack para importarlo ahora.",
   "requires-login": "Inicia sesión en el launcher para importar este pack.",
+  "revision-conflict": "Hay varias revisiones locales de esta familia. Revísalas antes de actualizar.",
+  "target-not-current": "Hay una versión más reciente disponible.",
   "unexpected-pack-id": "El archivo recibido no corresponde al pack solicitado. No se ha instalado nada.",
+  updated: "El pack se ha actualizado.",
+  verified: "Este pack se ha verificado desde High Score League.",
 });
 
 async function inspectPackDeepLinkLocalState(packId, options = {}) {
@@ -3182,9 +3334,59 @@ async function inspectPackDeepLinkLocalState(packId, options = {}) {
   }
   const config = options.config || loadRuntimeConfig();
   const library = await librarySnapshotAuthority.refresh(config);
+  const packs = library.packs.filter((pack) => pack.packId && pack.weekId && pack.gameId);
+  const exact = packs.filter((pack) => pack.packId === packId);
+  const candidateWeekIds = [...new Set(packs.map((pack) => pack.weekId))];
+  const exactFamilies = exact.flatMap((target) => packs.filter((pack) => (
+    pack.weekId === target.weekId && pack.gameId === target.gameId && pack.packId !== target.packId
+  )));
+  if (exact.length > 1 || exactFamilies.length > 0) {
+    return { candidateWeekIds, libraryReady: library.directory?.available === true, packId, status: "revision-conflict" };
+  }
+  if (exact.length === 1) {
+    const target = exact[0];
+    const capability = getWeekCapability(target.weekId);
+    if (Object.hasOwn(capability || {}, "publishedPackId")
+        && capability.publishedPackId
+        && capability.publishedPackId !== packId) {
+      return { candidateWeekIds, libraryReady: true, packId, status: "target-not-current", targetPackId: capability.publishedPackId };
+    }
+    return {
+      candidateWeekIds,
+      exactPack: target,
+      libraryReady: library.directory?.available === true,
+      packId,
+      status: deriveLibraryPackRevision(target, capability, config).revisionStatus === "current"
+        ? "already-current"
+        : "current-unverified",
+    };
+  }
+  const oldCandidates = packs.filter((pack) => getWeekCapability(pack.weekId)?.publishedPackId === packId);
+  const families = new Map();
+  for (const pack of oldCandidates) {
+    const key = `${pack.weekId}|${pack.gameId}`;
+    if (!families.has(key)) families.set(key, []);
+    families.get(key).push(pack);
+  }
+  if (families.size > 1 || [...families.values()].some((family) => family.length !== 1)) {
+    return { candidateWeekIds, libraryReady: library.directory?.available === true, packId, status: "revision-conflict" };
+  }
+  if (families.size === 1) {
+    const oldPack = [...families.values()][0][0];
+    return {
+      candidateWeekIds,
+      libraryReady: library.directory?.available === true,
+      oldPack,
+      packId,
+      status: "update-available",
+      title: oldPack.title,
+    };
+  }
   return {
-    alreadyInstalled: library.packs.some((pack) => pack.packId === packId),
+    candidateWeekIds,
     libraryReady: library.directory?.available === true,
+    packId,
+    status: "normal-import",
   };
 }
 
@@ -3193,7 +3395,7 @@ async function packDeepLinkProductResponse(status, options = {}) {
   return {
     action: "import-pack-deeplink",
     lines: [PACK_DEEP_LINK_PRODUCT_COPY[status] || PACK_DEEP_LINK_PRODUCT_COPY["remote-error"]],
-    ok: ["already-installed", "imported"].includes(status),
+    ok: ["already-current", "imported", "updated", "verified"].includes(status),
     state: options.state === undefined
       ? await getLauncherState(stateOptionsForAction(options, config))
       : options.state,
@@ -3205,8 +3407,8 @@ async function packDeepLinkProductResponse(status, options = {}) {
 async function importPackFromDeepLinkForGui(packId, options = {}) {
   const config = options.config || loadRuntimeConfig();
   const local = await inspectPackDeepLinkLocalState(packId, { config });
-  if (local.alreadyInstalled && readPackProvenanceReceipt(config, packId).ok) {
-    return packDeepLinkProductResponse("already-installed", { ...options, config });
+  if (["already-current", "revision-conflict", "target-not-current"].includes(local.status)) {
+    return packDeepLinkProductResponse(local.status, { ...options, config });
   }
   if (!local.libraryReady) return packDeepLinkProductResponse("library-unavailable", { ...options, config });
 
@@ -3217,7 +3419,37 @@ async function importPackFromDeepLinkForGui(packId, options = {}) {
 
   const combined = combineAbortSignals([getRemoteOperationSignal(), options.signal]);
   try {
-    const result = await executeRemotePackImport({
+    return await withPackFilesystemOperation(local.status === "update-available" ? "remote-update" : "remote-import", async () => {
+      if (local.status === "update-available") {
+        const result = await executeRemotePackUpdate({
+          config,
+          downloadTimeoutMs: options.downloadTimeoutMs,
+          ensureFreshCapability: (weekId) => competitionAuthorityProvider?.ensureFreshCapability?.(weekId),
+          fetchImpl,
+          hslOrigin: config.hslOrigin,
+          importOptions: options.importOptions,
+          isOperationBlocked: () => activeMameRunCount > 0,
+          maxPackBytes: options.maxPackBytes,
+          nowMs: options.nowMs,
+          oldPack: local.oldPack,
+          onBookkeeping: (journal) => completePackUpdateBookkeeping(config, journal),
+          onPhase: options.onPhase,
+          packId,
+          requestPackDescriptorImpl: options.requestPackDescriptorImpl,
+          downloadPackArtifactImpl: options.downloadPackArtifactImpl,
+          resolveSession: ({ force }) => (options.resolveSessionResultImpl || resolveCanonicalSessionResult)(config, {
+            connected: true,
+            force,
+          }),
+          signal: combined.signal,
+          stagePackZipForUpdateImpl: options.stagePackZipForUpdateImpl,
+          targetPackId: packId,
+          tempBaseDir: options.tempBaseDir,
+          timeoutMs: options.descriptorTimeoutMs,
+        });
+        return packDeepLinkProductResponse(result.status, { ...options, config });
+      }
+      const result = await executeRemotePackImport({
       config,
       downloadTimeoutMs: options.downloadTimeoutMs,
       fetchImpl,
@@ -3225,6 +3457,7 @@ async function importPackFromDeepLinkForGui(packId, options = {}) {
       importZip: (zipPath, importOptions) => importPackFromZipForGui(zipPath, {
         config,
         importOptions,
+        skipOperationGuard: true,
       }),
       maxPackBytes: options.maxPackBytes,
       nowMs: options.nowMs,
@@ -3238,15 +3471,43 @@ async function importPackFromDeepLinkForGui(packId, options = {}) {
       tempBaseDir: options.tempBaseDir,
       timeoutMs: options.descriptorTimeoutMs,
     });
-    const status = PACK_DEEP_LINK_PRODUCT_COPY[result.status] ? result.status : "remote-error";
+    const status = result.status === "already-installed" && local.status === "current-unverified"
+      ? "verified"
+      : PACK_DEEP_LINK_PRODUCT_COPY[result.status] ? result.status : "remote-error";
     return packDeepLinkProductResponse(status, {
       ...options,
       config,
       state: result.importResult?.state,
     });
+    });
+  } catch (error) {
+    if (error?.code === "pack_operation_busy") {
+      return packDeepLinkProductResponse("operation-busy", { ...options, config });
+    }
+    throw error;
   } finally {
     combined.dispose();
   }
+}
+
+async function completePackUpdateBookkeeping(config, journal) {
+  await migrateLibraryFavoriteKey(config, journal.oldPackId, journal.targetPackId);
+  const library = await librarySnapshotAuthority.refresh(config);
+  const target = library.packs.find((pack) => pack.packId === journal.targetPackId
+    && path.basename(pack.packDir) === journal.packBasename);
+  if (!target) throw new Error("La revisión actualizada aún no aparece en la Biblioteca.");
+  if (activeLibrarySelection?.packDir
+      && normalizedPath(activeLibrarySelection.packDir) === normalizedPath(target.packDir)) {
+    materializeLibrarySelection(target, library.directory.path, "update-recovery");
+  }
+  return target;
+}
+
+async function recoverPackUpdatesForGui(options = {}) {
+  const config = options.config || loadRuntimeConfig();
+  return recoverPackUpdates(config, {
+    onBookkeeping: (journal) => completePackUpdateBookkeeping(config, journal),
+  });
 }
 
 async function chooseSharedMameRuntimeFromGui(mameExecutablePath, options = {}) {
@@ -3603,6 +3864,7 @@ module.exports = {
   playPractice,
   readPackForGui,
   recheckSeasonMembership,
+  recoverPackUpdatesForGui,
   removeKnownAccountFromGui,
   requestAccountProfileSync,
   requestPlayTimeSync,

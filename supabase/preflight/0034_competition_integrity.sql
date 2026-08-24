@@ -19,9 +19,10 @@ select
     'public.compute_week_competition_policy_fingerprint(smallint,text,uuid,text,smallint,smallint,text,text,text,text,jsonb)'
   ) as policy_fingerprint_function;
 
-select version
+select version, name
 from supabase_migrations.schema_migrations
-where version in ('0026', '0027', '0031', '0032', '0033', '0034')
+where version in ('0026', '0027', '0031', '0032', '0033', '0034', '0035')
+   or name in ('0034_competition_integrity', '0035_competition_integrity_rpc_lockdown')
 order by version;
 
 select table_name, column_name, data_type, is_nullable

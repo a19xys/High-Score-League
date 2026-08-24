@@ -5,8 +5,10 @@ const {
   launcherAuthorityKey,
 } = require("./deployment-fingerprint");
 const { atomicWriteJson } = require("./secure-session-storage");
+const { isRemotePackId } = require("./pack-deeplink");
 
-const CACHE_SCHEMA_VERSION = 2;
+const CACHE_SCHEMA_VERSION = 3;
+const PREVIOUS_CACHE_SCHEMA_VERSION = 2;
 const LEGACY_CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_ENTRY_LIMIT = 250;
 const identifierPattern = /^[A-Za-z0-9._:-]{1,256}$/;
@@ -117,6 +119,8 @@ function normalizeWeekEntry(entry, parsed) {
   const checkedAt = safeIso(entry?.checkedAt);
   const weekId = safePart(entry?.weekId);
   if (!parsed || !checkedAt || entry?.conclusive !== true || weekId !== parsed.weekId || !publicWeekStates.has(entry?.publicState)) return null;
+  const publishedPackKnown = Object.hasOwn(entry || {}, "publishedPackId")
+    && (entry.publishedPackId === null || isRemotePackId(entry.publishedPackId));
   return {
     canPlayCompetition: entry.publicState === "active",
     checkedAt,
@@ -126,6 +130,7 @@ function normalizeWeekEntry(entry, parsed) {
     publicFreezeAt: safeIso(entry.publicFreezeAt),
     publicStartAt: safeIso(entry.publicStartAt),
     publicState: entry.publicState,
+    ...(publishedPackKnown ? { publishedPackId: entry.publishedPackId } : {}),
     rawStatus: safePart(entry.rawStatus),
     reason: safePart(entry.reason),
     seasonId: safePart(entry.seasonId),
@@ -213,14 +218,19 @@ function createJsonAuthorityCache(options = {}) {
         corrupt = invalidEntryCount > 0;
         return snapshot();
       }
-      if (parsed.schemaVersion !== LEGACY_CACHE_SCHEMA_VERSION) throw new Error("unsupported-cache-schema");
-      const normalized = parsed.entries.map(options.migrateLegacyEntry).filter(Boolean);
+      if (![LEGACY_CACHE_SCHEMA_VERSION, PREVIOUS_CACHE_SCHEMA_VERSION].includes(parsed.schemaVersion)) {
+        throw new Error("unsupported-cache-schema");
+      }
+      const migrateEntry = parsed.schemaVersion === LEGACY_CACHE_SCHEMA_VERSION
+        ? options.migrateLegacyEntry
+        : options.normalizeCurrentEntry;
+      const normalized = parsed.entries.map(migrateEntry).filter(Boolean);
       invalidEntryCount = parsed.entries.length - normalized.length;
       const migrated = newestEntries(normalized, entryLimit);
       entries = migrated.entries;
       migration = {
         collisionCount: migrated.collisionCount,
-        from: LEGACY_CACHE_SCHEMA_VERSION,
+        from: parsed.schemaVersion,
         migratedEntries: entries.length,
         status: "validated",
         to: CACHE_SCHEMA_VERSION,
@@ -374,6 +384,7 @@ function createMembershipCache(config = {}, options = {}) {
 module.exports = {
   CACHE_SCHEMA_VERSION,
   LEGACY_CACHE_SCHEMA_VERSION,
+  PREVIOUS_CACHE_SCHEMA_VERSION,
   authorityContextKey,
   createMembershipCache,
   createWeekCapabilityCache,

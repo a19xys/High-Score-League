@@ -614,7 +614,8 @@ Aplicar todas las migraciones ausentes de `supabase/migrations/` en orden
 numérico, no sólo `0001_initial_schema.sql`, y verificar después tablas,
 constraints, RLS, Realtime y Storage. `0023` debe preceder a `0024`, `0024` a
 `0025`, `0025` a `0026`, `0026` a `0027`, `0027` a `0028`, `0028` a `0029`,
-`0029` a `0030`, `0030` a `0031`, `0031` a `0032` y `0032` a `0034`.
+`0029` a `0030`, `0030` a `0031`, `0031` a `0032`, `0032` a `0034` y `0034`
+a `0035`.
 `0033` quedó retirada históricamente y no se reutiliza.
 
 En el entorno remoto actual `0023_profile_bio_max_length.sql` y
@@ -625,8 +626,10 @@ no debe modificarse, renombrarse, duplicarse ni reaplicarse.
 migraciones `0028` a `0031` están en el repositorio. La nueva
 `0032_profile_bootstrap_rls.sql` queda pendiente de aplicación manual en
 Supabase; su presencia local no demuestra que esté aplicada remotamente.
-`0034_competition_integrity.sql` también queda pendiente: esta implementación
-no aplica la migration ni configura ninguna policy real.
+`0034_competition_integrity.sql` y el microfix
+`0035_competition_integrity_rpc_lockdown.sql` están aplicados en producción.
+La ausencia de una `week_competition_policy` concreta sigue siendo distinta del
+estado de las migrations y no debe inferirse a partir de él.
 
 Para verificar una instalación antes de aplicarla, ejecutar el preflight SELECT-only de
 `supabase/preflight/0027_profile_anonymization.sql`. La propia migración aborta
@@ -644,8 +647,9 @@ perfil sin exponer emails, tokens, hashes ni metadata completa.
 Antes de 0034, ejecutar `supabase/preflight/0034_competition_integrity.sql`.
 Es SELECT-only e inventaría dependencias, fingerprint/freeze, columnas,
 policies, grants de tabla y columna, constraints, índices y triggers. La
-presencia del archivo no demuestra que esas barreras se hayan activado
-remotamente.
+presencia del archivo no demuestra por sí sola el estado remoto. El preflight
+acepta tanto versiones numéricas como los nombres canónicos de `0034` y `0035`,
+porque el historial productivo usa version timestamp + name.
 
 `retired_profile_usernames` conserva únicamente SHA-256 de
 `lower(trim(username))` y no concede lectura a usuarios normales. Esto evita

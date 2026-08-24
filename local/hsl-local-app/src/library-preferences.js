@@ -266,6 +266,40 @@ async function toggleLibraryFavorite(config = {}, packKey, options = {}) {
   return writeLibraryFavorites(config, session, favorites, options);
 }
 
+async function migrateLibraryFavoriteKey(config = {}, oldPackId, targetPackId, options = {}) {
+  if (!config.userDataDir || typeof oldPackId !== "string" || typeof targetPackId !== "string" || oldPackId === targetPackId) {
+    return { changedFiles: 0 };
+  }
+  const candidates = [path.join(config.userDataDir, "library", "favorites.json")];
+  try {
+    const playersDir = path.join(config.userDataDir, "players");
+    const entries = await fsp.readdir(playersDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.isSymbolicLink()) {
+        candidates.push(path.join(playersDir, entry.name, "preferences", "favorites.json"));
+      }
+    }
+  } catch {}
+
+  let changedFiles = 0;
+  for (const filePath of candidates) {
+    let parsed;
+    try { parsed = JSON.parse(await fsp.readFile(filePath, "utf8")); }
+    catch { continue; }
+    if (!parsed?.favorites || typeof parsed.favorites !== "object" || Array.isArray(parsed.favorites) || parsed.favorites[oldPackId] !== true) continue;
+    const favorites = { ...parsed.favorites, [targetPackId]: true };
+    delete favorites[oldPackId];
+    await (options.atomicWriteImpl || atomicWriteJson)(filePath, {
+      ...parsed,
+      favorites,
+      schemaVersion: 1,
+      updatedAt: options.now || new Date().toISOString(),
+    });
+    changedFiles += 1;
+  }
+  return { changedFiles };
+}
+
 module.exports = {
   DEFAULT_LIBRARY_VIEW,
   DEFAULT_LIBRARY_SORT_BY,
@@ -282,6 +316,7 @@ module.exports = {
   normalizeLibrarySortBy,
   normalizeLibrarySortDirection,
   normalizeLibraryView,
+  migrateLibraryFavoriteKey,
   publicLibraryPreferences,
   readLibraryFavorites,
   readLibraryPreferences,

@@ -60,6 +60,32 @@ test("un pack local roto bloquea tambien PRACTICAR", () => {
   assert.equal(access.reasonCategory, "local");
 });
 
+test("Protected distingue current, outdated, unknown y current-unverified sin bloquear Practice", () => {
+  const cases = [
+    ["current", true, "competition-ready"],
+    ["outdated", false, "pack-update-required"],
+    ["unknown", false, "pack-currentness-unknown"],
+    ["current-unverified", false, "pack-provenance-unverified"],
+  ];
+  for (const [revisionStatus, canPlayCompetition, reason] of cases) {
+    const result = deriveCompetitionAccess(ready({
+      local: {
+        canPractice: true,
+        canSubmitLocally: true,
+        captureReady: true,
+        hasCompetitionScope: true,
+        hasWeek: true,
+        protectedCompetitionReady: true,
+        revisionManaged: true,
+        revisionStatus,
+      },
+    }));
+    assert.equal(result.canPractice, true, revisionStatus);
+    assert.equal(result.canPlayCompetition, canPlayCompetition, revisionStatus);
+    assert.equal(result.reason, reason, revisionStatus);
+  }
+});
+
 test("freshness distingue autoridad online caducada de conocimiento durable offline", () => {
   for (const publicState of ["active", "closed"]) {
     const stale = deriveCompetitionAccess(ready({

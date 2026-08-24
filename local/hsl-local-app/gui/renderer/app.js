@@ -1360,7 +1360,9 @@ async function cancelPresentedPackImportIntent() {
 
 async function acceptPresentedPackImportIntent() {
   const dialog = store.getState().activeDialog;
-  if (dialog?.type !== "pack-deeplink" || dialog.alreadyInstalled || !dialog.libraryReady) return;
+  if (dialog?.type !== "pack-deeplink"
+      || ["already-current", "revision-conflict", "target-not-current"].includes(dialog.status)
+      || !dialog.libraryReady) return;
   store.setState({ activeDialog: null });
   const response = await runAction(
     "accept-pack-deeplink",
@@ -1373,10 +1375,11 @@ async function acceptPresentedPackImportIntent() {
         if (result?.status === "library-unavailable") {
           return {
             activeDialog: packImportIntentDialog({
-              alreadyInstalled: false,
               intentId: dialog.intentId,
               libraryReady: false,
               packId: dialog.packId,
+              status: dialog.status,
+              title: dialog.title,
             }),
           };
         }

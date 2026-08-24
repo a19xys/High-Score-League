@@ -46,7 +46,7 @@ function membershipEntry(key, overrides = {}) {
   };
 }
 
-test("Week v2 es durable por origin + launcher API y no contiene build/environment", async () => {
+test("Week v3 es durable por origin + launcher API y no contiene build/environment", async () => {
   await withTempDir(async (userDataDir) => {
     const config = { userDataDir };
     const cache = createWeekCapabilityCache(config);
@@ -185,7 +185,7 @@ test("cache Week v1 migra builds compatibles y converge en checkedAt más recien
     assert.equal(cache.read(context, "week-a").publicState, "closed");
     assert.equal(cache.read({ ...context, origin: "https://other.example" }, "week-a").publicState, "active");
     const persisted = JSON.parse(await fsp.readFile(filePath, "utf8"));
-    assert.equal(persisted.schemaVersion, 2);
+    assert.equal(persisted.schemaVersion, CACHE_SCHEMA_VERSION);
     assert.equal(persisted.entries.some((entry) => entry.key.includes("build-")), false);
   });
 });
@@ -245,7 +245,38 @@ test("cache corrupta se ignora y se repara en la siguiente verdad concluyente", 
       reason: "week-closed",
       weekId: "week-a",
     });
-    assert.equal(JSON.parse(await fsp.readFile(filePath, "utf8")).schemaVersion, 2);
+    assert.equal(JSON.parse(await fsp.readFile(filePath, "utf8")).schemaVersion, CACHE_SCHEMA_VERSION);
+  });
+});
+
+test("cache Week v2 migra publishedPackId ausente como autoridad desconocida", async () => {
+  await withTempDir(async (userDataDir) => {
+    const filePath = weekCachePath({ userDataDir });
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    await fsp.writeFile(filePath, JSON.stringify({
+      schemaVersion: 2,
+      entries: [weekEntry("https://hsl.example|launcher-api:1|week:week-a")],
+    }), "utf8");
+    const cache = createWeekCapabilityCache({ userDataDir });
+    const initialized = await cache.initialize();
+    const entry = cache.read(context, "week-a");
+    assert.equal(initialized.migration.from, 2);
+    assert.equal(initialized.migration.to, CACHE_SCHEMA_VERSION);
+    assert.equal(Object.hasOwn(entry, "publishedPackId"), false);
+    assert.equal(JSON.parse(await fsp.readFile(filePath, "utf8")).schemaVersion, CACHE_SCHEMA_VERSION);
+  });
+});
+
+test("cache Week v3 conserva publishedPackId null/string y descarta valor inválido", async () => {
+  await withTempDir(async (userDataDir) => {
+    const cache = createWeekCapabilityCache({ userDataDir });
+    await cache.initialize();
+    await cache.remember(context, weekEntry(null, { publishedPackId: null }));
+    assert.equal(cache.read(context, "week-a").publishedPackId, null);
+    await cache.remember(context, weekEntry(null, { publishedPackId: "space-invaders-s1-w1-r2" }));
+    assert.equal(cache.read(context, "week-a").publishedPackId, "space-invaders-s1-w1-r2");
+    await cache.remember(context, weekEntry(null, { publishedPackId: "bad pack id" }));
+    assert.equal(Object.hasOwn(cache.read(context, "week-a"), "publishedPackId"), false);
   });
 });
 

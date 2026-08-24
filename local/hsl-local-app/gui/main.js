@@ -30,6 +30,7 @@ const {
 const { installSingleInstancePolicy } = require("./single-instance");
 const {
   createPackDeepLinkAdditionalData,
+  normalizedPackImportIntent,
   parsePackDeepLinkArgv,
 } = require("../src/pack-deeplink");
 const { createPackDeepLinkCoordinator } = require("../src/pack-deeplink-coordinator");
@@ -994,15 +995,43 @@ async function showImportFolderDialog(event) {
 async function getPendingPackImportIntent() {
   const intent = packDeepLinkCoordinator.peek();
   if (!intent) return null;
-  const local = await service.inspectPackDeepLinkLocalState(intent.packId);
+  let local = await service.inspectPackDeepLinkLocalState(intent.packId);
+  if (isCommittedConnected(connectivity?.getState?.() || {})) {
+    for (const weekId of local.candidateWeekIds || []) {
+      const refreshed = await weekCapabilities.ensureFreshCapability(weekId, "pack-deeplink-discovery");
+      if (refreshed?.ok && refreshed.capability?.publishedPackId === intent.packId) break;
+    }
+    local = await service.inspectPackDeepLinkLocalState(intent.packId);
+  }
   const current = packDeepLinkCoordinator.peek();
   if (!current || current.intentId !== intent.intentId) return null;
   return {
-    alreadyInstalled: local.alreadyInstalled === true,
     intentId: intent.intentId,
     libraryReady: local.libraryReady === true,
     packId: intent.packId,
+    status: local.status || "normal-import",
+    title: local.title || null,
   };
+}
+
+async function activateLibraryPackWithRevisionDiscovery(packId) {
+  let result = await service.activateLibraryPack(packId, { deferRemoteMembership: true });
+  const weekId = result.state?.activePack?.weekId || result.state?.game?.weekId;
+  if (result.ok && weekId && isCommittedConnected(connectivity?.getState?.() || {})) {
+    await weekCapabilities.ensureFreshCapability(weekId, "library-pack-interaction");
+    result = {
+      ...result,
+      state: syncRemoteContext(
+        await service.getLauncherState({ deferRemoteMembership: true }),
+        { refreshWeekCapabilities: false },
+      ),
+    };
+  }
+  const active = result.state?.activePack;
+  if (active?.revisionStatus === "outdated" && active.publishedPackId) {
+    packDeepLinkCoordinator.enqueue(normalizedPackImportIntent(active.publishedPackId));
+  }
+  return result;
 }
 
 async function acceptPendingPackImportIntent(event, intentId) {
@@ -1274,9 +1303,7 @@ function registerIpc() {
     }))
   )));
   registerLauncherStateHandler("launcher:use-library-pack", (_event, packId) => withMembershipContextMutation("pack-change", () => (
-    withRemoteContext(service.activateLibraryPack(packId, {
-      deferRemoteMembership: true,
-    }))
+    withRemoteContext(activateLibraryPackWithRevisionDiscovery(packId))
   )));
   registerLauncherStateHandler("launcher:open-membership-url", async () => {
     const state = await service.getLauncherState({ deferRemoteMembership: true });
@@ -1441,6 +1468,9 @@ function registerIpc() {
         ),
       })),
     });
+    if (result?.reason === "pack-update-required" && result.state?.weekCapability?.publishedPackId) {
+      packDeepLinkCoordinator.enqueue(normalizedPackImportIntent(result.state.weekCapability.publishedPackId));
+    }
     await publishCompletedMameState(result, "competition");
     return result;
   });
@@ -1520,10 +1550,12 @@ if (!hasSingleInstanceLock) {
     initializeRemoteServices();
     registerIpc();
     const competitionRecoveryPromise = reconcileCompetitionRuns(loadConfig()).catch(() => []);
+    const packUpdateRecoveryPromise = service.recoverPackUpdatesForGui().catch(() => []);
     localStartupPromise = Promise.all([
       service.migrateRememberedSessionsForGui(),
       weekAuthorityStartupPromise,
       competitionRecoveryPromise,
+      packUpdateRecoveryPromise,
     ])
       .then(async () => {
         const startupSession = await service.getAuthStateForGui();

@@ -1,4 +1,6 @@
 import { deriveCurrentCompetitionWeekState } from "./current-competition-week.ts";
+import { isLauncherPackId } from "./launcher-pack-distribution.ts";
+import { resolvePublicWeekVisibility } from "./public-week-visibility.ts";
 
 export const LAUNCHER_WEEK_CONTRACT_VERSION = 1;
 export const LAUNCHER_WEEK_BATCH_LIMIT = 100;
@@ -14,6 +16,7 @@ type WeekInput = {
   id: string;
   season_id: string;
   game_id: string | null;
+  week_number?: number;
   status: string;
   public_start_at: string | null;
   public_freeze_at: string | null;
@@ -21,6 +24,10 @@ type WeekInput = {
 };
 
 type SeasonInput = { id: string; status: string };
+
+export function validPublishedPackId(value: unknown): value is string {
+  return isLauncherPackId(value);
+}
 
 export function validLauncherWeekIdentifier(value: unknown): value is string {
   return typeof value === "string"
@@ -77,11 +84,46 @@ export function resolvePublicWeekCapability(
   });
 }
 
+export function launcherWeekIsPubliclyRevealable(
+  week: WeekInput | null,
+  season: SeasonInput | null,
+  options: { hasOfficialResults?: boolean; now?: Date; currentActiveWeekNumber?: number | null } = {},
+) {
+  const capability = resolvePublicWeekCapability(week, season, options);
+  if (!week || !season || !("derivedStatus" in capability)) return false;
+  return resolvePublicWeekVisibility({
+    currentActiveWeekNumber: options.currentActiveWeekNumber,
+    derivedStatus: capability.derivedStatus,
+    season,
+    week: {
+      game_id: week.game_id,
+      status: week.status,
+      week_number: Number(week.week_number) || 0,
+    },
+  }).status === "available";
+}
+
+export function buildPublishedPackMap(rows: unknown[], revealableWeekIds: ReadonlySet<string>) {
+  const publishedPackIds = new Map<string, string>();
+  for (const raw of rows) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const row = raw as { pack_id?: unknown; week_id?: unknown };
+    if (typeof row.week_id !== "string" || !revealableWeekIds.has(row.week_id) || !validPublishedPackId(row.pack_id)) {
+      return null;
+    }
+    if (publishedPackIds.has(row.week_id)) return null;
+    publishedPackIds.set(row.week_id, row.pack_id);
+  }
+  return publishedPackIds;
+}
+
 export function buildLauncherWeekResults(options: {
   requests: LauncherWeekRequest[];
   weeks: WeekInput[];
   seasons: SeasonInput[];
   officialResultWeekIds?: ReadonlySet<string>;
+  publishedPackIds?: ReadonlyMap<string, string>;
+  currentActiveWeekNumbers?: ReadonlyMap<string, number>;
   now?: Date;
 }) {
   const weeks = new Map(options.weeks.map((week) => [week.id, week]));
@@ -96,12 +138,24 @@ export function buildLauncherWeekResults(options: {
         now: options.now,
       },
     );
+    const revealable = launcherWeekIsPubliclyRevealable(
+      week,
+      week ? seasons.get(week.season_id) || null : null,
+      {
+        currentActiveWeekNumber: week
+          ? options.currentActiveWeekNumbers?.get(week.season_id) ?? null
+          : null,
+        hasOfficialResults: Boolean(week && options.officialResultWeekIds?.has(week.id)),
+        now: options.now,
+      },
+    );
     return {
       requestKey: request.requestKey,
       weekId: request.weekId,
       seasonId: week?.season_id || null,
       derivedStatus: "derivedStatus" in resolved ? resolved.derivedStatus : null,
       publicState: resolved.publicState,
+      publishedPackId: revealable ? options.publishedPackIds?.get(request.weekId) || null : null,
       canPlayCompetition: resolved.publicState === "active",
       publicStartAt: week?.public_start_at || null,
       publicFreezeAt: week?.public_freeze_at || null,

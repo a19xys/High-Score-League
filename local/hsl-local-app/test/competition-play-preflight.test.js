@@ -10,6 +10,7 @@ const {
 
 function state(overrides = {}) {
   return {
+    activePack: { packId: "pack-artifact-a", revisionManaged: false, title: "Game A" },
     competitionAccess: { canPlayCompetition: true },
     game: { weekId: "week-a" },
     membership: { effectiveStatus: "member", status: "member" },
@@ -208,7 +209,29 @@ test("offline confirmado usa la autoridad durable sin request remoto", async () 
   assert.equal(launches, 1);
 });
 
+test("Protected offline no acepta cache durable y conserva Practice", async () => {
+  let checks = 0;
+  let launches = 0;
+  const managed = state({
+    activePack: { packId: "pack-artifact-a", revisionManaged: true, title: "Game A" },
+    readiness: { canPractice: true, revisionManaged: true },
+  });
+  const result = await runCompetitionPlayPreflight({
+    ensureFreshCapability: async () => { checks += 1; return { ok: true }; },
+    getAuthorityContext: () => authority({ connected: false }),
+    getState: async () => managed,
+    launch: async () => { launches += 1; return { ok: true }; },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "pack-currentness-unknown");
+  assert.equal(result.state.readiness.canPractice, true);
+  assert.match(result.lines[0], /Conéctate a High Score League/);
+  assert.equal(checks, 0);
+  assert.equal(launches, 0);
+});
+
 for (const mutation of [
+  { label: "packId en el mismo path", state: { activePack: { packId: "pack-artifact-b", revisionManaged: false, title: "Game A" } } },
   { label: "pack", state: { selection: { activeInstanceKey: "pack-b" } } },
   { label: "cuenta", state: { session: { hasSession: true, userId: "user-b" } } },
   { label: "week", state: { game: { weekId: "week-b" }, weekCapability: { publicState: "active", weekId: "week-b" } } },

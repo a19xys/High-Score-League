@@ -60,8 +60,9 @@ lee con el cliente service-role existente. La relación apunta desde
 que el catálogo privado no filtra nombres de semanas futuras.
 
 `disabled` impide nuevas resoluciones y descargas, pero no revoca copias que ya
-estén instaladas. Revocación local y actualización competitiva quedan fuera de
-este MVP.
+estén instaladas. El launcher puede detectar y reemplazar una copia old cuando
+la week expone otro `publishedPackId`; un pack disabled nunca se anuncia como
+vigente.
 
 ## Visibilidad y privacidad
 
@@ -70,6 +71,13 @@ inexistentes, draft, disabled, semanas futuras/secretas, temporadas draft o
 semanas sin juego convergen al mismo `404`, sin consultar R2. Packs y ranking
 dependen de la misma primitiva de visibilidad pública; no hay una segunda lista
 de estados. Membership no gobierna la instalación o práctica.
+
+`POST /api/launcher/week-capabilities` reutiliza esa misma visibilidad para
+añadir `publishedPackId` a su contrato v1. Devuelve string sólo para el pack
+published revelable, `null` cuando una respuesta actual confirma que no existe,
+y omite la propiedad al leer autoridad anterior/desconocida. Un fallo al
+consultar `launcher_packs` produce 5xx y no fabrica `null`. No expone object key,
+hash, manifest ni URL R2.
 
 ## R2 privado
 
@@ -134,10 +142,11 @@ configuración incompleta del servidor.
 ## Estado operativo y siguiente revisión
 
 La infraestructura read-only, `0031`, el catálogo y Space Invaders r1 están
-operativos en HSL. El 24 de agosto de 2026 se preparó y verificó localmente el
-artifact `space-invaders-s1-w1-r2`, pero no se subió ni se creó su draft porque
-no había una credencial R2 write separada disponible. Véase
-`docs/competition-integrity-e2e-1.md`.
+operativos en HSL. El artifact exacto `space-invaders-s1-w1-r2` está almacenado
+en R2 y su fila está `disabled`; r1 continúa `published`. La actualización local
+se validó contra una copia del artifact sin cambiar esos estados ni volver a
+subir bytes. Véanse `docs/competition-integrity-e2e-1.md` y
+`local/docs/remote-pack-revision-import-1.md`.
 
 En un entorno nuevo se conserva el orden reutilizable: verificar schema,
 ejecutar el preflight 0031, aplicar la migración, verificar constraints/RLS,

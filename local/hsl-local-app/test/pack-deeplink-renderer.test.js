@@ -42,13 +42,14 @@ test("presentación deep-link espera busy, MAME, modal, overlay y actualización
   assert.equal(isPackImportUiStable(stableState(), { themeWrites: true }), false);
 });
 
-test("intent renderer sólo conserva id, packId y dos flags locales", async () => {
+test("intent renderer sólo conserva identidad y clasificación local cerrada", async () => {
   const { normalizePackImportIntent, packImportIntentDialog } = await ui();
   const value = {
-    alreadyInstalled: false,
     intentId: "93cfad43-c925-4b38-b8fb-8058bf77431d",
     libraryReady: true,
     packId: "space-invaders",
+    status: "normal-import",
+    title: null,
   };
   assert.deepEqual(normalizePackImportIntent(value), value);
   assert.deepEqual(packImportIntentDialog(value), { ...value, type: "pack-deeplink" });
@@ -59,17 +60,19 @@ test("intent renderer sólo conserva id, packId y dos flags locales", async () =
 test("diálogos deep-link son modales accesibles y tienen acciones de producto", async () => {
   const { renderAppDialog } = await import(pathToFileURL(path.join(rendererRoot, "components", "app-dialog.js")).href);
   const base = {
-    alreadyInstalled: false,
     intentId: "intent-1",
     libraryReady: true,
     packId: "space-invaders",
+    status: "normal-import",
+    title: null,
     type: "pack-deeplink",
   };
   const confirm = renderAppDialog({ activeDialog: base });
-  const installed = renderAppDialog({ activeDialog: { ...base, alreadyInstalled: true } });
+  const installed = renderAppDialog({ activeDialog: { ...base, status: "already-current" } });
+  const update = renderAppDialog({ activeDialog: { ...base, status: "update-available", title: "Space Invaders" } });
   const library = renderAppDialog({ activeDialog: { ...base, libraryReady: false } });
   const success = renderAppDialog({ activeDialog: { status: "imported", type: "pack-deeplink-result" } });
-  for (const html of [confirm, installed, library, success]) {
+  for (const html of [confirm, installed, update, library, success]) {
     assert.match(html, /role="dialog"/);
     assert.match(html, /aria-modal="true"/);
     assert.match(html, /data-dialog-initial-focus/);
@@ -77,7 +80,9 @@ test("diálogos deep-link son modales accesibles y tienen acciones de producto",
   assert.match(confirm, /¿Quieres añadir este pack a tu biblioteca\?/);
   assert.match(confirm, /data-action="cancel-pack-deeplink"/);
   assert.match(confirm, /data-action="accept-pack-deeplink"/);
-  assert.match(installed, /Pack ya instalado/);
+  assert.match(installed, /Pack actualizado/);
+  assert.match(update, /Hay una nueva versión de Space Invaders/);
+  assert.match(update, /Actualizar/);
   assert.match(library, /data-action="choose-pack-deeplink-library"/);
   assert.match(success, /Pack añadido/);
 });

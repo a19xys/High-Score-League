@@ -1,4 +1,10 @@
 const STATUS_PRESENTATIONS = Object.freeze({
+  update: Object.freeze({
+    className: "week-status--warning",
+    signalTone: "warning",
+    label: "ACTUALIZACIÓN DISPONIBLE",
+    title: "Practice sigue disponible; Competition requiere actualizar este pack.",
+  }),
   active: Object.freeze({
     className: "week-status--ready",
     signalTone: "success",
@@ -47,6 +53,7 @@ export const LIBRARY_PACK_STATUS_TONES = Object.freeze(
 
 export function deriveLibraryPackStatus(pack = {}) {
   if (pack.status === "error") return STATUS_PRESENTATIONS.error;
+  if (pack.revisionStatus === "outdated") return STATUS_PRESENTATIONS.update;
   const state = pack.weekCapability?.publicState || (pack.weekId ? "unknown" : "unlinked");
   return STATUS_PRESENTATIONS[state] || STATUS_PRESENTATIONS.unknown;
 }

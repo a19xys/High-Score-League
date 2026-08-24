@@ -11,6 +11,7 @@ const { isUnsafePackRelativePath } = require("./pack-contract");
 const { verifyCompetitionManifest } = require("./competition-manifest");
 
 const IMPORT_TEMP_PREFIX = ".hsl-import-";
+const UPDATE_TEMP_PREFIX = ".hsl-update-";
 const DEFAULT_IMPORT_LIMITS = Object.freeze({
   maxEntries: 4096,
   maxFileSize: 1024 * 1024 * 1024,
@@ -699,7 +700,9 @@ async function findInstalledPackById(packDirectoryPath, packId, options = {}) {
   const entries = await fsp.readdir(packDirectoryPath, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith(IMPORT_TEMP_PREFIX)) {
+    if (!entry.isDirectory() || [IMPORT_TEMP_PREFIX, UPDATE_TEMP_PREFIX, ".hsl-update-backup-"].some(
+      (prefix) => entry.name.startsWith(prefix),
+    )) {
       continue;
     }
 
@@ -728,13 +731,13 @@ async function finalizeImport(tempDir, packDirectoryPath, pack, sourcePath) {
   const destinationName = createSafeInstallFolderName(pack, pack.metadata || {}, sourcePath);
   const finalPackDir = path.join(packDirectoryPath, destinationName);
 
-  if (await pathExists(finalPackDir)) {
-    throw importError("destination_collision", "Ya existe un pack instalado en esa carpeta.");
-  }
-
   const duplicate = await findInstalledPackById(packDirectoryPath, pack.packId);
   if (duplicate) {
     throw importError("duplicate_pack_id", "Ya tienes instalado un pack con el mismo packId.");
+  }
+
+  if (await pathExists(finalPackDir)) {
+    throw importError("destination_collision", "Ya existe un pack instalado en esa carpeta.");
   }
 
   await fsp.rename(tempDir, finalPackDir);
@@ -893,6 +896,31 @@ async function inspectPackZipForProvenance(zipPath, config, options = {}) {
   }
 }
 
+async function stagePackZipForUpdate(zipPath, stagingDir, options = {}) {
+  const sourcePath = path.resolve(zipPath);
+  const resolvedStagingDir = path.resolve(stagingDir);
+  if (await pathExists(resolvedStagingDir)) {
+    throw importError("update_staging_collision", "No se pudo preparar el staging de actualización.");
+  }
+  const inspection = await readZipEntries(sourcePath, options);
+  const zipRoot = detectPackRootInZip(inspection.entries);
+  try {
+    await extractZipRootToDirectory(sourcePath, resolvedStagingDir, zipRoot, options);
+    const validated = await validateTemporaryPackInstall(resolvedStagingDir, options);
+    const manifest = await verifyCompetitionManifest(validated.pack);
+    return {
+      limits: inspection.limits,
+      manifest,
+      pack: validated.pack,
+      stagingDir: resolvedStagingDir,
+      warnings: validated.warnings,
+    };
+  } catch (error) {
+    await cleanupFailedImport(resolvedStagingDir);
+    throw error;
+  }
+}
+
 async function findInstalledPackByIdForConfig(config, packId) {
   const packDirectoryPath = await resolveConfiguredPackDirectory(config);
   return findInstalledPackById(packDirectoryPath, packId);
@@ -901,6 +929,7 @@ async function findInstalledPackByIdForConfig(config, packId) {
 module.exports = {
   DEFAULT_IMPORT_LIMITS,
   IMPORT_TEMP_PREFIX,
+  UPDATE_TEMP_PREFIX,
   PackImportError,
   cleanupFailedImport,
   copyFolderContentsSafe,
@@ -912,6 +941,7 @@ module.exports = {
   importPackFromZip,
   inspectImportSource,
   inspectPackZipForProvenance,
+  stagePackZipForUpdate,
   normalizeZipEntryName,
   validateTemporaryPackInstall,
 };

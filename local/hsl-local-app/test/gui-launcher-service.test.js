@@ -34,6 +34,7 @@ const {
   runAutoSyncIfEligible,
   runDiagnose,
   setLibraryPreferencesFromGui,
+  setCompetitionAuthorityProvider,
   summarizeDiagnoseReport,
   toggleLibraryFavoriteFromGui,
 } = require("../gui/launcher-service");
@@ -43,7 +44,7 @@ const { createPlayTimeStore } = require("../src/playtime-store");
 const { scanPackLibrary } = require("../src/pack-library");
 const { readLibrarySelection, writeLibrarySelection } = require("../src/library-selection");
 const { writeLastOpenedPack } = require("../src/recent-packs");
-const { writeCompetitionManifest } = require("../src/competition-manifest");
+const { verifyCompetitionManifest, writeCompetitionManifest } = require("../src/competition-manifest");
 const { writePackProvenanceReceipt } = require("../src/pack-provenance");
 const { loadPackFromDir } = require("../src/pack");
 const { createSessionResult } = require("../src/session-result");
@@ -3421,9 +3422,81 @@ test("deep link ya instalado se resuelve por librarySnapshotAuthority y hace cer
       config,
       fetchImpl: async () => { fetches += 1; throw new Error("network must not run"); },
     });
-    assert.deepEqual(local, { alreadyInstalled: true, libraryReady: true });
-    assert.equal(result.status, "already-installed");
+    assert.equal(local.libraryReady, true);
+    assert.equal(local.packId, "remote-pack");
+    assert.equal(local.status, "already-current");
+    assert.equal(local.exactPack.packId, "remote-pack");
+    assert.equal(result.status, "already-current");
     assert.equal(fetches, 0);
+  });
+});
+
+test("deep link clasifica old→target, target manual/verificado y dual local sin parsear packId", async () => {
+  await withTempDir(async (dir) => {
+    const config = { hslOrigin: "https://high-score-league.example", userDataDir: path.join(dir, "userData") };
+    const libraryRoot = path.join(dir, "library");
+    const oldDir = path.join(libraryRoot, "Space Invaders");
+    const targetDir = path.join(libraryRoot, "Manual Target");
+    const oldPackId = "opaque-old-artifact";
+    const targetPackId = "opaque-current-artifact";
+    const protectedMame = {
+      ...validV2Pack().mame,
+      profiles: {
+        practice: { launchArgs: [] },
+        competition: { launchArgs: [], integrity: { version: 1, mameVersion: "0.287", dips: [] } },
+      },
+    };
+    const protectedCapture = {
+      ...validV2Pack().capture,
+      automatic: { version: 1, strategy: "fixture-v1" },
+    };
+    await writeValidV2PackDir(oldDir, { capture: protectedCapture, mame: protectedMame, packId: oldPackId });
+    await fsp.mkdir(path.join(oldDir, "artwork"), { recursive: true });
+    const loadedOld = loadPackFromDir(oldDir);
+    await writeCompetitionManifest(loadedOld.pack);
+    await setPackDirectory(config, libraryRoot);
+    setCompetitionAuthorityProvider({
+      getWeekCapability: () => ({
+        currentConclusive: true,
+        publicState: "active",
+        publishedPackId: targetPackId,
+        weekId: "week-1",
+      }),
+    });
+    try {
+      const oldBytes = await fsp.readFile(path.join(oldDir, "pack.json"));
+      const update = await inspectPackDeepLinkLocalState(targetPackId, { config });
+      assert.equal(update.status, "update-available");
+      assert.equal(update.oldPack.packId, oldPackId);
+      assert.deepEqual(await fsp.readFile(path.join(oldDir, "pack.json")), oldBytes);
+
+      await writeValidV2PackDir(targetDir, { capture: protectedCapture, mame: protectedMame, packId: targetPackId });
+      await fsp.mkdir(path.join(targetDir, "artwork"), { recursive: true });
+      const loadedTarget = loadPackFromDir(targetDir);
+      await writeCompetitionManifest(loadedTarget.pack);
+      resetLibrarySnapshotAuthorityForTests();
+      const dual = await inspectPackDeepLinkLocalState(targetPackId, { config });
+      assert.equal(dual.status, "revision-conflict");
+
+      await fsp.rm(oldDir, { recursive: true, force: true });
+      resetLibrarySnapshotAuthorityForTests();
+      const manual = await inspectPackDeepLinkLocalState(targetPackId, { config });
+      assert.equal(manual.status, "current-unverified");
+
+      const manifest = await verifyCompetitionManifest(loadPackFromDir(targetDir).pack);
+      await writePackProvenanceReceipt(config, {
+        artifactSha256: "a".repeat(64),
+        artifactSizeBytes: 123,
+        competitionManifestSha256: manifest.manifestSha256,
+        packId: targetPackId,
+      });
+      resetLibrarySnapshotAuthorityForTests();
+      const current = await inspectPackDeepLinkLocalState(targetPackId, { config });
+      assert.equal(current.status, "already-current");
+    } finally {
+      setCompetitionAuthorityProvider(null);
+      resetLibrarySnapshotAuthorityForTests();
+    }
   });
 });
 

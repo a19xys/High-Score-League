@@ -10,6 +10,7 @@ const { setPackDirectory } = require("../src/pack-directory");
 const { createPlayTimeRecorder } = require("../src/playtime-recorder");
 const { createPlayTimeStore } = require("../src/playtime-store");
 const { publishPostMameConvergence } = require("../src/post-operation-convergence");
+const { createSessionResult } = require("../src/session-result");
 const service = require("../gui/launcher-service");
 
 const PLAYER_KEY = "user_player-one";
@@ -230,4 +231,66 @@ test("a failed spawn records no Playtime and never qualifies for post-MAME conve
   const summary = await store.readSummary();
   assert.equal(summary.games[GAME_ID].totalSeconds, 2_820);
   assert.equal((await store.listPending()).length, 0);
+});
+
+test("MAME vivo bloquea importaciones sin cerrarlo y una importación viva bloquea nuevos lanzamientos", async (t) => {
+  const { config } = await fixture(t, "pack-operation-race");
+  let closeMame;
+  let notifySpawned;
+  const spawned = new Promise((resolve) => { notifySpawned = resolve; });
+  const close = new Promise((resolve) => { closeMame = resolve; });
+  const play = service.playPractice({
+    config,
+    launchMameImpl: async (_config, _rom, _mode, _spawn, lifecycle) => {
+      await lifecycle.onSpawn();
+      notifySpawned();
+      await close;
+      await lifecycle.onClose(0);
+      return 0;
+    },
+  });
+  await spawned;
+  const blockedImport = await service.importPackFromFolderForGui(path.join(config.appDir, "must-not-be-read"), {
+    config,
+    includeState: false,
+  });
+  assert.equal(blockedImport.ok, false);
+  assert.equal(blockedImport.code, "pack_operation_busy");
+  closeMame();
+  assert.equal((await play).mameSpawned, true, "la operación bloqueada no mata MAME");
+
+  let releaseDescriptor;
+  let notifyDescriptor;
+  const descriptorEntered = new Promise((resolve) => { notifyDescriptor = resolve; });
+  const descriptorRelease = new Promise((resolve) => { releaseDescriptor = resolve; });
+  const remoteImport = service.importPackFromDeepLinkForGui("remote-pack", {
+    config: { ...config, hslOrigin: "https://high-score-league.example" },
+    fetchImpl: async () => {
+      notifyDescriptor();
+      await descriptorRelease;
+      return new Response("unavailable", { status: 404 });
+    },
+    resolveSessionResultImpl: async () => createSessionResult({
+      sessionRevision: 1,
+      status: "valid",
+      storedSession: {
+        providerFingerprint: null,
+        schemaVersion: 1,
+        session: { access_token: "token", expires_at: 2_000_000_000, refresh_token: "refresh" },
+        supabaseUrl: config.supabaseUrl,
+        user: { id: "player-one" },
+      },
+    }),
+  });
+  await descriptorEntered;
+  let launchCalls = 0;
+  const blockedPlay = await service.playPractice({
+    config,
+    launchMameImpl: async () => { launchCalls += 1; return 0; },
+  });
+  assert.equal(blockedPlay.reason, "pack-operation-busy");
+  assert.equal(blockedPlay.mameSpawned, false);
+  assert.equal(launchCalls, 0);
+  releaseDescriptor();
+  await remoteImport;
 });
