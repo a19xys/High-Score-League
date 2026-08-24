@@ -68,6 +68,11 @@ La evidence ausente o v1, provenance no productiva o cualquier mismatch
 canónico devuelve 409 sin INSERT. Véase el contrato completo y el límite de no
 atestation en [WEB Competition Integrity 1](web-competition-integrity-1.md).
 
+WEB lee también `policy_fingerprint` y `frozen_at`. El fingerprint no procede
+de LOCAL: lo calcula la DB sobre la policy completa y se persiste como
+`competition_policy_fingerprint`. Durante INSERT, el trigger bloquea policy y
+pack, vuelve a comparar esa identidad y congela atómicamente la primera score.
+
 ## Ventana histórica
 
 - antes de `public_start_at`: rechazo `WEEK_NOT_OPEN_AT_DETECTION`;
@@ -137,7 +142,7 @@ sigue siendo la comprobacion definitiva antes de aceptar una submission.
 
 Si `duplicateKey` ya existe para el jugador y sus campos canónicos coinciden,
 el endpoint no crea una segunda submission. Protected compara además pack,
-manifest, version, run, candidate, ROM, MAME y source:
+manifest, policy fingerprint, version, run, candidate, ROM, MAME y source:
 
 ```json
 {
@@ -171,6 +176,8 @@ La misma clave con campos distintos devuelve `DUPLICATE_KEY_CONFLICT`.
   conservar el evento pendiente.
 - `503` con `COMPETITION_AUTHORITY_UNAVAILABLE`: migration/config/policy/pack no
   están disponibles o son incoherentes; conservar pending y reintentar.
+- `503` con `COMPETITION_AUTHORITY_CHANGED`: la policy cambió entre validación
+  y persistencia; conservar pending y volver a leer la autoridad en el retry.
 - otros `5xx`: error temporal controlado; conservar pending.
 
 No se devuelven detalles internos sensibles del insert.

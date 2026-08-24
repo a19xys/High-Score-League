@@ -81,6 +81,9 @@ se impone antigüedad máxima.
 En una week legacy, `rom` conserva su semántica histórica. Cuando existe una
 fila en `week_competition_policies`, ROM, MAME, plugin, source, DIPs, pack,
 manifest y artifact se comparan contra la policy y `launcher_packs` canónicos.
+La DB deriva un `policy_fingerprint` de ese contrato completo; WEB persiste la
+copia exacta en `competition_policy_fingerprint` y el INSERT la revalida bajo
+row lock antes de fijar `frozen_at` atómicamente.
 El contrato completo está en [WEB Competition Integrity 1](web-competition-integrity-1.md).
 
 ## Reintentos e idempotencia
@@ -108,8 +111,9 @@ se reclasifican una sola vez a `pending` para poder obtener el nuevo código.
 El cliente usa una sesión de usuario y nunca recibe `service_role`. La API usa
 la sesión para Auth y perfil, deriva `player_id`, fuerza `submitted_at` y crea
 un cliente admin únicamente dentro del servidor para policy, duplicate e
-INSERT. `0034` revoca INSERT directo a `authenticated`, incluido admin, y añade
-un guard DB sobre la fila normalizada. La comprobación de membership dentro del endpoint es definitiva;
+INSERT. `0034` revoca INSERT y DELETE directo a `authenticated`, limita UPDATE
+admin a `is_valid`/`is_hidden` y añade guards DB para INSERT e historial
+Protected. La comprobación de membership dentro del endpoint es definitiva;
 `GET /api/local/season-membership?weekId=...` sólo ofrece una comprobación
 previa de UX para integraciones que la necesiten.
 
@@ -133,8 +137,9 @@ competitivo y de su procedencia. Limpia `raw_event`, `mame_version`,
 `client_version` y `duplicate_key`, que son metadata técnica prescindible y
 podrían identificar el entorno del usuario. Conservar `rom_name` permite auditar
 la ROM asociada a la captura sin mantener versión de cliente ni payload crudo.
-En Protected también conserva pack, versión de Integrity y manifest canónicos,
-pero limpia run y candidate, que identifican una ejecución individual.
+En Protected también conserva pack, versión de Integrity, manifest y policy
+fingerprint canónicos, pero limpia run y candidate, que identifican una
+ejecución individual.
 
 Los historiales proyectan el tombstone `DEL` sin enlace, avatar, bio ni hover.
 El UUID estable evita romper resultados y rankings. La API de ingest exige un

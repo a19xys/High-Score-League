@@ -141,10 +141,11 @@ revisiones legacy, pero una policy Protected exige 64 hex lowercase. Tras la
 primera publicación, ambos hashes, tamaño, week e identidad son inmutables.
 
 El lifecycle comienza en `draft`; el primer cambio a `published` fija
-`published_at`. Desde entonces identidad, semana, tamaño, hash, object key y
-fecha de publicación son inmutables, sólo se permite `published ↔ disabled` y
-la fila no puede borrarse. Los drafts nunca publicados sí pueden corregirse o
-borrarse. Un índice único parcial limita a uno los packs `published` por semana.
+`published_at`. Desde entonces identidad, semana, tamaño, hashes, object key y
+fecha de publicación son inmutables. Un target de policy unfrozen no puede
+pasar de `published` a `disabled`; tras el freeze sí puede deshabilitarse como
+identidad histórica. La fila publicada no puede borrarse. Los drafts nunca
+publicados sí pueden corregirse o borrarse.
 
 La FK apunta de `launcher_packs.week_id` a `weeks.id` con `on delete restrict`;
 `weeks` no recibe `launcher_pack_id`. RLS no concede lectura general a `anon` ni
@@ -157,13 +158,19 @@ un `pack_id` descriptivo el juego de una semana futura.
 `0034` crea esta autoridad técnica privada. Ausencia de fila significa week
 legacy; presencia fija `policy_version=1`, `protected_v2`, evidence/guard v2,
 pack de la misma week, ROM, MAME, plugin, source `mame_memory` y DIPs canónicos.
-Un admin puede prepararla con un pack draft, pero ingest sólo acepta packs que
-alguna vez fueron publicados; `published` y `disabled` son identidades
-históricas válidas.
+Un admin puede prepararla con un pack draft o published. Un pack disabled no
+puede ser target nuevo ni retarget. Ingest exige `published` para la primera
+score; una vez frozen, `published` y `disabled` son identidades históricas
+válidas.
 
 La policy puede corregirse o borrarse antes de la primera submission Protected.
-Después queda congelada por trigger. RLS no ofrece lectura a jugadores normales;
-admins gestionan mediante `is_admin()` y el endpoint la consulta con service role.
+La DB calcula `policy_fingerprint` desde policy version, mode, week, pack,
+evidence/guard, ROM, MAME, plugin, source y DIPs; timestamps no forman parte del
+hash. El primer INSERT Protected adquiere row locks, compara ese fingerprint y
+fija `frozen_at` en el mismo statement. Después la policy no puede cambiar ni
+borrarse, incluso si desaparecen sus submissions. RLS no ofrece lectura a
+jugadores normales; admins gestionan mediante `is_admin()` y el endpoint la
+consulta con service role.
 
 ### submissions
 
@@ -196,8 +203,11 @@ herramienta legacy/interna para admins y su botón de envío está deshabilitado
 Desde `0034`, `authenticated` no tiene privilegio ni policy de INSERT directo,
 incluidos admins. La única frontera productiva normal es el endpoint, que
 autentica al usuario y persiste con service role después de validar. Un trigger
-DB comprueba la fila normalizada contra policy/pack como defensa en profundidad;
-no vuelve a interpretar la evidence JSON. La unicidad histórica de
+DB comprueba la fila normalizada y `competition_policy_fingerprint` contra
+policy/pack como defensa en profundidad; no vuelve a interpretar la evidence
+JSON. Un segundo trigger hace inmutable el historial canónico Protected, permite
+moderación mediante `is_valid`/`is_hidden` y admite únicamente el scrub técnico
+monotónico de anonimización. La unicidad histórica de
 `(player_id, duplicate_key)` se conserva y se añade un índice parcial de
 candidate Protected.
 
@@ -442,11 +452,11 @@ Todas las tablas principales tienen Row Level Security activado.
 - `launcher_packs`: catálogo privado sin lectura general para `anon` ni
   autenticados; una única policy permite gestión a `public.is_admin()` y el
   resolver server-side usa service role.
-- `submissions`: usuarios autenticados pueden leer submissions visibles y
-  válidas; cada jugador puede leer las propias aunque estén ocultas; el insert
-  propio exige membership activa y `detected_at` dentro de apertura/deadline,
-  con ocultación obligatoria tras freeze. La política no usa `now()` ni el
-  estado actual de la semana; admins pueden gestionar todo.
+- `submissions`: usuarios autenticados pueden leer según las policies de
+  visibilidad y los admins pueden leer todas. Desde `0034` no existe INSERT ni
+  DELETE autenticado; UPDATE se concede sólo sobre `is_valid` e `is_hidden` y
+  exige `is_admin()`. Ingest normal usa backend server-only y el service role
+  conserva DML para anonimización u operaciones privilegiadas.
 - `weekly_results`: usuarios autenticados pueden leer; solo admins pueden
   insertar, actualizar o borrar.
 - `season_memberships`: usuarios autenticados pueden leer memberships; cada
@@ -632,9 +642,10 @@ policies SELECT/INSERT/UPDATE, y cuenta identidades de `auth.users` sin fila de
 perfil sin exponer emails, tokens, hashes ni metadata completa.
 
 Antes de 0034, ejecutar `supabase/preflight/0034_competition_integrity.sql`.
-Es SELECT-only e inventaría dependencias, columnas, policies, grants,
-constraints y triggers. La presencia del archivo no demuestra que la barrera
-de INSERT se haya activado remotamente.
+Es SELECT-only e inventaría dependencias, fingerprint/freeze, columnas,
+policies, grants de tabla y columna, constraints, índices y triggers. La
+presencia del archivo no demuestra que esas barreras se hayan activado
+remotamente.
 
 `retired_profile_usernames` conserva únicamente SHA-256 de
 `lower(trim(username))` y no concede lectura a usuarios normales. Esto evita

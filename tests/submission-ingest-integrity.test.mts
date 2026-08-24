@@ -14,6 +14,7 @@ import {
   DUPLICATE_KEY,
   MANIFEST_SHA256,
   PACK_ID,
+  POLICY_FINGERPRINT,
   protectedPayload,
   RUN_ID,
   SEASON_ID,
@@ -51,6 +52,7 @@ function existingProtected(overrides: Partial<ExistingSubmission> = {}): Existin
     launcher_pack_id: PACK_ID,
     competition_integrity_version: 2,
     competition_manifest_sha256: MANIFEST_SHA256,
+    competition_policy_fingerprint: POLICY_FINGERPRINT,
     competition_run_id: RUN_ID,
     competition_candidate_id: CANDIDATE_ID,
     ...overrides,
@@ -116,6 +118,7 @@ test("Protected ingest validates authority before duplicate, membership, window 
     launcher_pack_id: PACK_ID,
     competition_integrity_version: 2,
     competition_manifest_sha256: MANIFEST_SHA256,
+    competition_policy_fingerprint: POLICY_FINGERPRINT,
     competition_run_id: RUN_ID,
     competition_candidate_id: CANDIDATE_ID,
   });
@@ -160,8 +163,10 @@ test("authority and rolling-deploy failures are 503 retryable boundaries with ze
     ["policy table missing", { loadPolicy: async () => ({ data: null, error: { code: "42P01" } }) }],
     ["policy query throws", { loadPolicy: async () => { throw new Error("db-down"); } }],
     ["malformed policy", { loadPolicy: async () => ({ data: { ...competitionPolicyRow(), mode: "other" }, error: null }) }],
+    ["malformed policy fingerprint", { loadPolicy: async () => ({ data: { ...competitionPolicyRow(), policy_fingerprint: "invalid" }, error: null }) }],
     ["pack catalog down", { loadPack: async () => ({ data: null, error: { code: "XX000" } }) }],
     ["draft pack", { loadPack: async () => ({ data: competitionPackRow("draft"), error: null }) }],
+    ["disabled unfrozen pack", { loadPack: async () => ({ data: competitionPackRow("disabled"), error: null }) }],
     ["manifest missing", { loadPack: async () => ({ data: { ...competitionPackRow(), competition_manifest_sha256: null }, error: null }) }],
   ];
   for (const [name, overrides] of cases) {
@@ -197,12 +202,17 @@ test("policy absence preserves legacy but never silently downgrades an explicit 
   assert.equal(legacyState.inserted.length, 1);
   assert.equal(legacyState.inserted[0].competition_integrity_version, null);
   assert.equal(legacyState.inserted[0].launcher_pack_id, null);
+  assert.equal(legacyState.inserted[0].competition_policy_fingerprint, null);
   assert.equal(legacyState.inserted[0].raw_event, null);
   assert.equal(legacyState.inserted[0].duplicate_key, legacyPayload.duplicateKey);
 });
 
 test("exact Protected duplicate succeeds before mutable membership/window even after pack disable", async () => {
   const state = fixture({
+    loadPolicy: async () => ({
+      data: competitionPolicyRow("2026-08-21T10:00:02.000Z"),
+      error: null,
+    }),
     loadPack: async () => ({ data: competitionPackRow("disabled"), error: null }),
     loadMembership: async () => { throw new Error("must-not-run"); },
   });
@@ -217,6 +227,15 @@ test("exact Protected duplicate succeeds before mutable membership/window even a
 test("same duplicate key with different canonical identity is a terminal conflict", async () => {
   const state = fixture();
   state.setDuplicate(existingProtected({ competition_candidate_id: "another_candidate" }));
+  const response = await resolveSubmissionIngest(protectedPayload(), state.dependencies);
+  assert.equal(response.status, 409);
+  assert.equal(response.body.code, "DUPLICATE_KEY_CONFLICT");
+  assert.equal(state.inserted.length, 0);
+});
+
+test("same duplicate key with a different policy fingerprint is never duplicate success", async () => {
+  const state = fixture();
+  state.setDuplicate(existingProtected({ competition_policy_fingerprint: "e".repeat(64) }));
   const response = await resolveSubmissionIngest(protectedPayload(), state.dependencies);
   assert.equal(response.status, 409);
   assert.equal(response.body.code, "DUPLICATE_KEY_CONFLICT");
@@ -259,4 +278,14 @@ test("a 23505 race is confirmed only by rereading an exact canonical duplicate",
   assert.equal(response.status, 200);
   assert.equal(response.body.duplicate, true);
   assert.equal(lookup, 2);
+});
+
+test("a stale policy fingerprint race returns a retryable authority change", async () => {
+  const state = fixture({
+    insertSubmission: async () => ({ data: null, error: { code: "40001" } }),
+  });
+  const response = await resolveSubmissionIngest(protectedPayload(), state.dependencies);
+  assert.equal(response.status, 503);
+  assert.equal(response.body.code, "COMPETITION_AUTHORITY_CHANGED");
+  assert.equal(state.calls.filter((call) => call === "duplicate").length, 1);
 });

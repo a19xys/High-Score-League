@@ -66,6 +66,7 @@ export type ExistingSubmission = {
   launcher_pack_id: string | null;
   competition_integrity_version: number | null;
   competition_manifest_sha256: string | null;
+  competition_policy_fingerprint: string | null;
   competition_run_id: string | null;
   competition_candidate_id: string | null;
 };
@@ -87,6 +88,7 @@ export type SubmissionInsertRow = {
   launcher_pack_id: string | null;
   competition_integrity_version: 2 | null;
   competition_manifest_sha256: string | null;
+  competition_policy_fingerprint: string | null;
   competition_run_id: string | null;
   competition_candidate_id: string | null;
 };
@@ -217,12 +219,14 @@ function canonicalDuplicateMatches(
     return existing.competition_integrity_version === null
       && existing.launcher_pack_id === null
       && existing.competition_manifest_sha256 === null
+      && existing.competition_policy_fingerprint === null
       && existing.competition_run_id === null
       && existing.competition_candidate_id === null;
   }
   return existing.launcher_pack_id === protectedIdentity.launcherPackId
     && existing.competition_integrity_version === 2
     && existing.competition_manifest_sha256 === protectedIdentity.competitionManifestSha256
+    && existing.competition_policy_fingerprint === protectedIdentity.competitionPolicyFingerprint
     && existing.competition_run_id === protectedIdentity.competitionRunId
     && existing.competition_candidate_id === protectedIdentity.competitionCandidateId
     && existing.rom_name === input.romName
@@ -362,6 +366,7 @@ export async function resolveSubmissionIngest(
     launcher_pack_id: protectedIdentity?.launcherPackId ?? null,
     competition_integrity_version: protectedIdentity?.competitionIntegrityVersion ?? null,
     competition_manifest_sha256: protectedIdentity?.competitionManifestSha256 ?? null,
+    competition_policy_fingerprint: protectedIdentity?.competitionPolicyFingerprint ?? null,
     competition_run_id: protectedIdentity?.competitionRunId ?? null,
     competition_candidate_id: protectedIdentity?.competitionCandidateId ?? null,
   };
@@ -369,6 +374,13 @@ export async function resolveSubmissionIngest(
   const insert = await safeCall(() => dependencies.insertSubmission(adminClient, row));
   if (!insert.ok) return errorResult(503, "SUBMISSION_DATABASE_ERROR", "No se pudo guardar la submission.");
   if (insert.value.error) {
+    if (errorCode(insert.value.error) === "40001") {
+      return errorResult(
+        503,
+        "COMPETITION_AUTHORITY_CHANGED",
+        "La autoridad competitiva cambió mientras se guardaba la submission.",
+      );
+    }
     if (errorCode(insert.value.error) === "23505" && effectiveDuplicateKey) {
       const duplicate = await safeCall(() => dependencies.findDuplicate(adminClient, userId, effectiveDuplicateKey));
       if (duplicate.ok && !duplicate.value.error && duplicate.value.data) {
@@ -402,9 +414,9 @@ export async function resolveSubmissionIngest(
 }
 
 const WEEK_COLUMNS = "id,season_id,game_id,week_number,status,public_start_at,public_freeze_at,final_deadline_at,reveal_at,rules_summary,created_at,updated_at";
-const POLICY_COLUMNS = "week_id,policy_version,mode,launcher_pack_id,evidence_version,guard_version,rom_name,mame_version,plugin_version,source,dips,created_at,updated_at";
+const POLICY_COLUMNS = "week_id,policy_version,mode,launcher_pack_id,evidence_version,guard_version,rom_name,mame_version,plugin_version,source,dips,policy_fingerprint,frozen_at,created_at,updated_at";
 const PACK_COLUMNS = "pack_id,week_id,size_bytes,sha256,competition_manifest_sha256,status,published_at";
-const DUPLICATE_COLUMNS = "id,week_id,player_id,score,source,detected_at,submitted_at,rom_name,mame_version,duplicate_key,launcher_pack_id,competition_integrity_version,competition_manifest_sha256,competition_run_id,competition_candidate_id";
+const DUPLICATE_COLUMNS = "id,week_id,player_id,score,source,detected_at,submitted_at,rom_name,mame_version,duplicate_key,launcher_pack_id,competition_integrity_version,competition_manifest_sha256,competition_policy_fingerprint,competition_run_id,competition_candidate_id";
 
 export async function loadSubmissionWeek(client: unknown, weekId: string): Promise<QueryResult<WeekRow>> {
   const response = await (client as SupabaseClient)

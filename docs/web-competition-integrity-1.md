@@ -40,22 +40,27 @@ reutilizar una identidad anterior. La migración añade:
 - la tabla privada `week_competition_policies`, donde ausencia significa legacy
   y presencia significa `protected_v2`;
 - identidad Protected normalizada en `submissions`: pack, version 2, manifest,
-  run y candidate;
+  policy fingerprint, run y candidate;
 - unicidad parcial de candidate por jugador, pack y run;
 - un guard de INSERT sobre la fila normalizada;
-- revocación de INSERT directo a `authenticated` y retirada de las antiguas
-  policies de INSERT normal/admin.
+- revocación de INSERT directo a `authenticated`, UPDATE limitado a
+  `is_valid`/`is_hidden`, ausencia de DELETE autenticado y retirada de las
+  antiguas policies amplias.
 
 La policy referencia `(launcher_pack_id, week_id)` de `launcher_packs`. Puede
-prepararse mientras el pack está `draft`, pero ingest no lo acepta hasta que
-`published_at` exista. Un pack `disabled` que fue publicado sigue acreditando
-capturas offline históricas. El manifest, artifact e identidad quedan
-inmutables tras la primera publicación.
+prepararse mientras el pack está `draft`; un pack `disabled` no puede ser un
+target nuevo ni un retarget. La primera submission exige pack `published`.
+Después del freeze, ese target puede pasar a `disabled` y sigue acreditando
+capturas offline históricas. Un target publicado no puede deshabilitarse antes
+del freeze: primero hay que retargetear o borrar la policy.
 
 Antes de la primera submission Protected de una week, su policy puede
-corregirse o borrarse. Después, el trigger bloquea UPDATE y DELETE. Un futuro
-hotfix tras scores aceptadas requerirá un diseño explícito de revision history;
-no se simula con mutaciones retroactivas.
+corregirse o borrarse. `policy_fingerprint` es un SHA-256 DB-owned de todos sus
+campos canónicos, incluidos plugin y DIPs, pero no de timestamps. La primera
+submission bloquea la policy y el pack, comprueba ese fingerprint y fija
+`frozen_at` dentro del mismo statement. Desde entonces los campos canónicos y
+DELETE quedan bloqueados permanentemente, aunque luego se borren todas las
+submissions. Un futuro hotfix requerirá revision history explícita.
 
 ## Validación server-side
 
@@ -69,6 +74,12 @@ parse → Auth → perfil activo → admin client
 → duplicate exacto
 → membership → ventana histórica → INSERT server-only
 ```
+
+El INSERT persiste `competition_policy_fingerprint`. Si la policy cambia entre
+la lectura WEB y el lock DB, el trigger emite una señal de serialización y WEB
+responde `503 COMPETITION_AUTHORITY_CHANGED`; el launcher conserva pending y el
+siguiente intento vuelve a leer la autoridad. El freeze se revierte junto con
+el INSERT si cualquier constraint posterior aborta el statement.
 
 La evidence v2 exige keys exactas, `guardVersion = 2`, provenance
 `remote_verified`, hashes válidos, `violations = []`, DIPs exactos y canónicos,
@@ -114,15 +125,17 @@ Una contradicción contra policy y pack válidos devuelve 409 con un código
 no coincide con la policy técnica.
 
 Un fallo de configuración, tabla aún no migrada, query de policy/pack, service
-role ausente, pack draft o autoridad canónica malformada devuelve 5xx, en
-particular `COMPETITION_AUTHORITY_UNAVAILABLE`. El launcher conserva el pending
-y reintenta; una avería WEB no se clasifica como partida inválida.
+role ausente, pack draft/disabled no válido para el estado de freeze o autoridad
+canónica malformada devuelve 5xx. Una carrera usa
+`COMPETITION_AUTHORITY_CHANGED`; el resto puede usar
+`COMPETITION_AUTHORITY_UNAVAILABLE`. El launcher conserva pending y reintenta.
 
 ## Privacidad
 
 La anonimización conserva `launcher_pack_id`,
-`competition_integrity_version` y `competition_manifest_sha256`, porque forman
-parte del historial competitivo. Limpia `competition_run_id`,
+`competition_integrity_version`, `competition_manifest_sha256` y
+`competition_policy_fingerprint`, porque forman parte del historial
+competitivo. Limpia `competition_run_id`,
 `competition_candidate_id`, `raw_event`, versiones técnicas y duplicate key.
 El guard de INSERT exige run/candidate completos; ambos sólo pueden quedar
 `NULL` juntos como estado sanitizado posterior.
@@ -142,10 +155,12 @@ Orden de referencia para r1 → r2:
 
 1. Subir y verificar el artifact r2.
 2. Crear `launcher_packs` r2 como draft con artifact y manifest canónicos.
-3. Verificar preflight, constraints, RLS y endpoint.
-4. En una operación coherente, pasar r1 a disabled, publicar r2 y crear la
-   policy Protected r2.
-5. Validar descriptor/import, MAME real, offline/restart y una submission E2E.
+3. Preparar la policy Protected apuntando al draft r2 y verificar preflight,
+   constraints, RLS y endpoint.
+4. Pasar r1 —que no es target de esa policy— a disabled.
+5. Publicar r2.
+6. Validar descriptor/import, MAME real, offline/restart y una primera
+   submission E2E que fije `frozen_at`.
 
 Los datos de referencia son `space-invaders-s1-w1-r2`, manifest
 `782a2ca4b8a818dd44ec6279951022c9e6c804b5e7051877d6a762753bd02d53`, ROM
@@ -156,3 +171,8 @@ han escrito remotamente.
 Esta implementación no aplica `0034`, no cambia R2, no publica r2, no desactiva
 r1 y no realiza submissions productivas. La validación RLS real queda para un
 entorno Supabase local/E2E autorizado.
+
+La prueba E2E deberá enfrentar dos sesiones sobre una policy unfrozen: INSERT
+primero debe congelar A y hacer fallar UPDATE A→B; UPDATE primero debe confirmar
+B y hacer que el INSERT con fingerprint A falle/reintente. Nunca se acepta una
+row validada con A dejando B como policy final.

@@ -8,6 +8,7 @@ export const PLAYER_BINDING = "905e441e7f335c2f293a0518329b2733f8f5dcd2f118644f2
 export const MANIFEST_SHA256 = "a".repeat(64);
 export const ARTIFACT_SHA256 = "b".repeat(64);
 export const RUN_INPUT_SHA256 = "c".repeat(64);
+export const POLICY_FINGERPRINT = "f".repeat(64);
 export const DUPLICATE_KEY = "hsl:v2:40e1b6c29cabc144f1d9c3c31fbc91fad36fddb474b1ccc36fa04b756e8eafea";
 export const DETECTED_AT = "2026-08-21T10:00:01.000Z";
 export const DIPS = [
@@ -15,7 +16,7 @@ export const DIPS = [
   { portTag: ":IN2", mask: 8, value: 0 },
 ];
 
-export function competitionPolicyRow() {
+export function competitionPolicyRow(frozenAt: string | null = null) {
   return {
     week_id: WEEK_ID,
     policy_version: 1,
@@ -28,6 +29,8 @@ export function competitionPolicyRow() {
     plugin_version: "0.4.0",
     source: "mame_memory",
     dips: structuredClone(DIPS),
+    policy_fingerprint: POLICY_FINGERPRINT,
+    frozen_at: frozenAt,
     created_at: "2026-08-20T10:00:00.000Z",
     updated_at: "2026-08-20T10:00:00.000Z",
   };

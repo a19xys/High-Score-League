@@ -103,6 +103,8 @@ export type WeekCompetitionPolicyRow = {
   plugin_version: string;
   source: "mame_memory";
   dips: CompetitionDip[];
+  policy_fingerprint: string;
+  frozen_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -136,6 +138,7 @@ export type SubmissionRow = {
   launcher_pack_id?: string | null;
   competition_integrity_version?: 2 | null;
   competition_manifest_sha256?: string | null;
+  competition_policy_fingerprint?: string | null;
   competition_run_id?: string | null;
   competition_candidate_id?: string | null;
   profiles?: RealProfile | RealProfile[] | null;

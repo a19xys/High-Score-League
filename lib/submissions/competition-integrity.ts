@@ -61,6 +61,8 @@ export type CompetitionPolicy = {
   pluginVersion: string;
   source: "mame_memory";
   dips: CompetitionDip[];
+  policyFingerprint: string;
+  frozenAt: string | null;
 };
 
 export type CompetitionPackAuthority = {
@@ -93,6 +95,7 @@ export type ProtectedSubmissionIdentity = {
   launcherPackId: string;
   competitionIntegrityVersion: 2;
   competitionManifestSha256: string;
+  competitionPolicyFingerprint: string;
   competitionRunId: string;
   competitionCandidateId: string;
   duplicateKey: string;
@@ -200,6 +203,12 @@ export function validateCompetitionPolicyRow(
       || !boundedString(row.mame_version, 32)
       || !boundedString(row.plugin_version, 32)
       || row.source !== "mame_memory"
+      || typeof row.policy_fingerprint !== "string"
+      || !SHA256_PATTERN.test(row.policy_fingerprint)
+      || (row.frozen_at !== null
+        && (typeof row.frozen_at !== "string"
+          || !row.frozen_at
+          || Number.isNaN(new Date(row.frozen_at).getTime())))
       || !dips) {
     return null;
   }
@@ -215,6 +224,8 @@ export function validateCompetitionPolicyRow(
     pluginVersion: row.plugin_version,
     source: "mame_memory",
     dips,
+    policyFingerprint: row.policy_fingerprint,
+    frozenAt: row.frozen_at as string | null,
   };
 }
 
@@ -224,6 +235,10 @@ export function validateCompetitionPackAuthority(
 ): CompetitionPackAuthority | null {
   const row = objectValue(value);
   const sizeBytes = Number(row?.size_bytes);
+  const status = String(row?.status);
+  const statusIsValid = policy.frozenAt === null
+    ? status === "published"
+    : ["published", "disabled"].includes(status);
   if (!row
       || row.pack_id !== policy.launcherPackId
       || row.week_id !== policy.weekId
@@ -231,7 +246,7 @@ export function validateCompetitionPackAuthority(
       || typeof row.sha256 !== "string" || !SHA256_PATTERN.test(row.sha256)
       || typeof row.competition_manifest_sha256 !== "string"
       || !SHA256_PATTERN.test(row.competition_manifest_sha256)
-      || !["published", "disabled"].includes(String(row.status))
+      || !statusIsValid
       || typeof row.published_at !== "string" || !row.published_at
       || Number.isNaN(new Date(row.published_at).getTime())) {
     return null;
@@ -363,6 +378,7 @@ export function validateProtectedCompetitionSubmission(options: {
       launcherPackId: authority.pack.packId,
       competitionIntegrityVersion: 2,
       competitionManifestSha256: authority.pack.competitionManifestSha256,
+      competitionPolicyFingerprint: authority.policy.policyFingerprint,
       competitionRunId: evidence.runId,
       competitionCandidateId: event.candidateId as string,
       duplicateKey,

@@ -49,7 +49,9 @@ establece `published_at` en base de datos. Tras publicar, `pack_id`, `week_id`,
 `size_bytes`, `sha256`, `object_key` y `published_at` son inmutables; sólo se
 permite `published ↔ disabled`. Un draft puede borrarse, pero una fila publicada
 alguna vez no. Un índice parcial permite como máximo un pack `published` por
-semana.
+semana. Desde `0034`, un pack que es target de una policy competitiva todavía
+unfrozen no puede pasar a `disabled`; después de `frozen_at` sí, conservando su
+identidad histórica para ingest offline.
 
 RLS no ofrece ninguna policy general a usuarios normales ni a `anon`. Sólo la
 policy basada en `public.is_admin()` permite gestión autenticada; el endpoint

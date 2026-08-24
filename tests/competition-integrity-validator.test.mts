@@ -19,6 +19,7 @@ import {
   MANIFEST_SHA256,
   PACK_ID,
   PLAYER_BINDING,
+  POLICY_FINGERPRINT,
   protectedPayload,
   RUN_ID,
   USER_ID,
@@ -26,7 +27,10 @@ import {
 } from "./fixtures/competition-integrity-v2.mts";
 
 function validatedAuthority(status: "published" | "disabled" = "published") {
-  const policy = validateCompetitionPolicyRow(competitionPolicyRow(), WEEK_ID);
+  const policy = validateCompetitionPolicyRow(
+    competitionPolicyRow(status === "disabled" ? "2026-08-21T10:00:02.000Z" : null),
+    WEEK_ID,
+  );
   assert.ok(policy);
   const pack = validateCompetitionPackAuthority(competitionPackRow(status), policy);
   assert.ok(pack);
@@ -81,6 +85,7 @@ test("a canonical Protected v2 fixture validates and transport clientVersion may
       launcherPackId: PACK_ID,
       competitionIntegrityVersion: 2,
       competitionManifestSha256: MANIFEST_SHA256,
+      competitionPolicyFingerprint: POLICY_FINGERPRINT,
       competitionRunId: RUN_ID,
       competitionCandidateId: CANDIDATE_ID,
       duplicateKey: DUPLICATE_KEY,
@@ -158,12 +163,20 @@ test("every known violation makes a productive Protected submission ineligible",
 test("policy and pack authority reject malformed, cross-week, draft and manifest-less rows", () => {
   assert.equal(validateCompetitionPolicyRow({ ...competitionPolicyRow(), dips: [...DIPS].reverse() }, WEEK_ID), null);
   assert.equal(validateCompetitionPolicyRow({ ...competitionPolicyRow(), week_id: "other" }, WEEK_ID), null);
+  assert.equal(validateCompetitionPolicyRow({ ...competitionPolicyRow(), policy_fingerprint: "invalid" }, WEEK_ID), null);
+  assert.equal(validateCompetitionPolicyRow({ ...competitionPolicyRow(), frozen_at: "invalid" }, WEEK_ID), null);
   const policy = validateCompetitionPolicyRow(competitionPolicyRow(), WEEK_ID);
   assert.ok(policy);
   assert.equal(validateCompetitionPackAuthority(competitionPackRow("draft"), policy), null);
+  assert.equal(validateCompetitionPackAuthority(competitionPackRow("disabled"), policy), null);
   assert.equal(validateCompetitionPackAuthority({ ...competitionPackRow(), competition_manifest_sha256: null }, policy), null);
   assert.equal(validateCompetitionPackAuthority({ ...competitionPackRow(), sha256: "d" }, policy), null);
-  assert.ok(validateCompetitionPackAuthority(competitionPackRow("disabled"), policy));
+  const frozenPolicy = validateCompetitionPolicyRow(
+    competitionPolicyRow("2026-08-21T10:00:02.000Z"),
+    WEEK_ID,
+  );
+  assert.ok(frozenPolicy);
+  assert.ok(validateCompetitionPackAuthority(competitionPackRow("disabled"), frozenPolicy));
   assert.equal(competitionPackRow().sha256, ARTIFACT_SHA256);
 });
 

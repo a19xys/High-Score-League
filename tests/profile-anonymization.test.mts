@@ -131,7 +131,7 @@ test("the DB barrier preserves history and removes only personal telemetry", asy
   );
   assert.doesNotMatch(
     replacement,
-    /launcher_pack_id = null|competition_integrity_version = null|competition_manifest_sha256 = null/i,
+    /launcher_pack_id = null|competition_integrity_version = null|competition_manifest_sha256 = null|competition_policy_fingerprint = null/i,
   );
 });
 

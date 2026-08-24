@@ -85,6 +85,15 @@ test("WEB Integrity mismatches are terminal 409 while authority failures remain 
   assert.equal(unavailable.preservePending, true);
   assert.equal(unavailable.retryable, true);
   assert.equal(unavailable.terminal, false);
+
+  const authorityChanged = classifySubmissionHttpResult({
+    status: 503,
+    body: { ok: false, code: "COMPETITION_AUTHORITY_CHANGED" },
+  });
+  assert.equal(authorityChanged.outcome, "retryable-http");
+  assert.equal(authorityChanged.preservePending, true);
+  assert.equal(authorityChanged.retryable, true);
+  assert.equal(authorityChanged.terminal, false);
 });
 
 test("Retry-After accepts seconds or dates with 5s-15m bounds and rejects disproportionate values", () => {

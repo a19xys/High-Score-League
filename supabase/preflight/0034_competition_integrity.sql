@@ -11,7 +11,13 @@ select
   to_regprocedure('public.is_admin()') as is_admin_function,
   to_regprocedure('public.set_updated_at()') as set_updated_at_function,
   to_regprocedure('public.anonymize_profile_account(uuid)') as anonymization_function,
-  to_regprocedure('public.guard_launcher_pack_lifecycle()') as launcher_pack_guard;
+  to_regprocedure('public.guard_launcher_pack_lifecycle()') as launcher_pack_guard,
+  to_regprocedure('public.guard_week_competition_policy()') as competition_policy_guard,
+  to_regprocedure('public.guard_submission_competition_integrity()') as submission_insert_guard,
+  to_regprocedure('public.guard_submission_competition_history()') as submission_history_guard,
+  to_regprocedure(
+    'public.compute_week_competition_policy_fingerprint(smallint,text,uuid,text,smallint,smallint,text,text,text,text,jsonb)'
+  ) as policy_fingerprint_function;
 
 select version
 from supabase_migrations.schema_migrations
@@ -30,10 +36,15 @@ where table_schema = 'public'
     (table_name = 'submissions' and column_name in (
       'week_id', 'player_id', 'detected_at', 'duplicate_key',
       'launcher_pack_id', 'competition_integrity_version',
-      'competition_manifest_sha256', 'competition_run_id',
+      'competition_manifest_sha256', 'competition_policy_fingerprint', 'competition_run_id',
       'competition_candidate_id'
     ))
-    or table_name = 'week_competition_policies'
+    or
+    (table_name = 'week_competition_policies' and column_name in (
+      'week_id', 'policy_version', 'mode', 'launcher_pack_id', 'evidence_version',
+      'guard_version', 'rom_name', 'mame_version', 'plugin_version', 'source', 'dips',
+      'policy_fingerprint', 'frozen_at', 'created_at', 'updated_at'
+    ))
   )
 order by table_name, ordinal_position;
 
@@ -49,6 +60,13 @@ where table_schema = 'public'
   and table_name in ('submissions', 'week_competition_policies')
   and grantee in ('anon', 'authenticated', 'service_role')
 order by table_name, grantee, privilege_type;
+
+select grantee, table_name, column_name, privilege_type
+from information_schema.column_privileges
+where table_schema = 'public'
+  and table_name = 'submissions'
+  and grantee in ('anon', 'authenticated', 'service_role')
+order by grantee, column_name, privilege_type;
 
 select schemaname, tablename, indexname, indexdef
 from pg_indexes

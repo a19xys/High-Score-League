@@ -161,12 +161,21 @@ Comprobar despues:
   autorizado sólo tras desplegar. No reutilizar una credencial de escritura.
 - Antes de `0034`, inventariar las policies/grants de `submissions`, confirmar
   `0031`, el índice de duplicate de `0026`, `is_admin()` y `set_updated_at()`.
-  Después, verificar manifest, policy privada, FK pack/week, freeze, columnas,
-  candidate index, DB guard y ausencia de INSERT para `authenticated`.
+  Después, verificar manifest, policy privada, FK pack/week, fingerprint
+  DB-owned, `frozen_at`, row locks, candidate index, guards de INSERT/UPDATE,
+  ausencia de INSERT/DELETE autenticado y UPDATE sólo para
+  `is_valid`/`is_hidden`.
 - Probar en Supabase local o staging: JWT normal → INSERT directo falla;
   service role + row normalizada → pasa; Protected incompleta → DB guard falla;
   legacy sin policy → sólo backend server-side. No usar producción como banco
   de pruebas.
+- Probar dos sesiones concurrentes sobre una policy unfrozen. Si INSERT gana,
+  debe congelar A y UPDATE A→B debe fallar. Si UPDATE gana, el INSERT con
+  fingerprint A debe fallar como authority changed/retryable. Borrar después
+  todas las submissions fixture no puede permitir UPDATE ni DELETE de policy.
+- Verificar status de packs: policy nueva/retarget a disabled falla; published
+  target unfrozen no puede deshabilitarse; frozen sí permite disabled y un
+  duplicate exacto continúa devolviendo éxito.
 
 ### Estado conocido de producción HSL
 
@@ -333,6 +342,8 @@ Si se decide retirarlas mas adelante, hacerlo en una tarea posterior.
   `SUPABASE_SERVICE_ROLE_KEY` exclusivamente en la frontera server-side.
 - `authenticated`, incluido admin, no puede insertar directamente en
   `public.submissions`; futuras importaciones admin requieren backend explícito.
+- Los admins autenticados sólo actualizan `is_valid` e `is_hidden` y no pueden
+  borrar submissions ni modificar identidad Protected canónica.
 - Chat y cuestionarios no aceptan `authorId`, `messageType` ni `playerId`
   desde cliente.
 - Usuarios normales no pueden modificar juegos, temporadas, semanas,
