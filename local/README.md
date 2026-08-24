@@ -8,9 +8,10 @@ It is separate from the main web app.
 - `hsl-local-app/`: Node.js CLI that reads local JSON events, validates them,
   manages the pending/sent/failed queues, signs in with Supabase Auth, and sends
   submissions to the web ingest endpoint.
-- `mame-plugin/hsl-score/`: MAME Lua plugin that currently supports Space
-  Invaders (`invaders`), reads the score from memory, tracks basic rollover, and
-  writes JSON events into `events/pending`.
+- `mame-plugin/hsl-score/`: generic MAME Lua capture/runtime core. Game-specific
+  adapters such as Space Invaders own memory, score and attempt semantics; a
+  protected run writes candidates privately and only the app finalizer may
+  promote receipt-backed events into a scoped pending queue.
 - `mame-plugin/hsl-score/events/`: queue folders used by the local app.
 - `pack.example.json`: example metadata for a downloadable game/week pack.
 - `pack.v2.example.json`: current lightweight pack contract example based on
@@ -43,6 +44,8 @@ Windows packaging foundation:
 [`docs/windows-packaging-foundation-1.md`](docs/windows-packaging-foundation-1.md).
 Windows auto-update architecture and release contract:
 [`docs/windows-autoupdate-1.md`](docs/windows-autoupdate-1.md).
+Current local Competition Integrity closure and frozen WEB handoff contract:
+[`docs/local-competition-integrity-closure-1.md`](docs/local-competition-integrity-closure-1.md).
 Manual Windows Build → Stage → Publish pipeline and operator checklist:
 [`docs/windows-release-pipeline-1.md`](docs/windows-release-pipeline-1.md).
 

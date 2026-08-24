@@ -87,6 +87,7 @@ const { submitAll } = require("../src/submission-service");
 const { combineAbortSignals } = require("../src/remote-request");
 const { isRemotePackId } = require("../src/pack-deeplink");
 const { executeRemotePackImport } = require("../src/remote-pack-import");
+const { readPackProvenanceReceipt } = require("../src/pack-provenance");
 const { moveFileSafe, readFailureNote, restoreBoxToPending } = require("../src/file-queue");
 const {
   applyScopedQueue,
@@ -2524,7 +2525,8 @@ async function playCompetitionAction(options = {}) {
   const exitCode = Number.isInteger(captured.result) ? captured.result : captured.result?.exitCode ?? captured.exitCode;
   const mameOutputLines = summarizeMameOutput(captured.result);
   const adoption = isPackV2
-    ? await (options.finalizeCompetitionRunImpl || finalizeCompetitionRun)(preparedRun, {
+      ? await (options.finalizeCompetitionRunImpl || finalizeCompetitionRun)(preparedRun, {
+        scopedQueueRoot: scoped.scope.scopedQueueRoot,
         scopedPendingDir: scoped.config.eventsPendingDirAbs,
         scopedRejectedDir: scoped.config.eventsRejectedDirAbs,
       }, { exitCode })
@@ -3203,7 +3205,9 @@ async function packDeepLinkProductResponse(status, options = {}) {
 async function importPackFromDeepLinkForGui(packId, options = {}) {
   const config = options.config || loadRuntimeConfig();
   const local = await inspectPackDeepLinkLocalState(packId, { config });
-  if (local.alreadyInstalled) return packDeepLinkProductResponse("already-installed", { ...options, config });
+  if (local.alreadyInstalled && readPackProvenanceReceipt(config, packId).ok) {
+    return packDeepLinkProductResponse("already-installed", { ...options, config });
+  }
   if (!local.libraryReady) return packDeepLinkProductResponse("library-unavailable", { ...options, config });
 
   const fetchImpl = options.fetchImpl || remotePackImportFetchImpl;

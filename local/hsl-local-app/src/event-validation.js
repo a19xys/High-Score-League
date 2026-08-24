@@ -9,7 +9,7 @@ const ALLOWED_SOURCES = new Set([
 ]);
 const COMPETITION_VIOLATIONS = Object.freeze([
   "dip_changed", "pause", "state_save", "state_load", "machine_reset",
-  "menu_opened", "speed_changed", "throttle_changed", "integrity_unavailable",
+  "menu_opened", "speed_changed", "throttle_changed", "run_input_changed", "integrity_unavailable",
 ]);
 const COMPETITION_VIOLATION_SET = new Set(COMPETITION_VIOLATIONS);
 
@@ -74,11 +74,16 @@ function validateCompetitionIntegrity(integrity, expected = null) {
   if (!integrity || typeof integrity !== "object" || Array.isArray(integrity)) {
     return { errors: ["competitionIntegrity debe ser un objeto"], normalized: null };
   }
-  if (Object.keys(integrity).sort().join(",") !== "dips,event,guardVersion,mameVersion,manifestSha256,packId,pluginVersion,provenance,runId,version,violations") {
+  const version = integrity.version;
+  const v1Fields = "dips,event,guardVersion,mameVersion,manifestSha256,packId,pluginVersion,provenance,runId,version,violations";
+  const v2Fields = "captureClientVersion,dips,event,guardVersion,mameVersion,manifestSha256,packId,playerBinding,pluginVersion,provenance,runId,runInputManifestSha256,version,violations,weekId";
+  const actualFields = Object.keys(integrity).sort().join(",");
+  if ((version === 1 && actualFields !== v1Fields) || (version === 2 && actualFields !== v2Fields)
+      || ![1, 2].includes(version)) {
     errors.push("competitionIntegrity contiene campos desconocidos");
   }
-  if (integrity.version !== 1) errors.push("competitionIntegrity.version debe ser 1");
-  if (integrity.guardVersion !== 1) errors.push("competitionIntegrity.guardVersion debe ser 1");
+  if (![1, 2].includes(version)) errors.push("competitionIntegrity.version debe ser 1 o 2");
+  if (integrity.guardVersion !== version) errors.push(`competitionIntegrity.guardVersion debe ser ${version}`);
   if (!isBoundedString(integrity.runId)) errors.push("competitionIntegrity.runId es invalido");
   if (!isBoundedString(integrity.packId)) errors.push("competitionIntegrity.packId es invalido");
   if (typeof integrity.manifestSha256 !== "string" || !/^[0-9a-f]{64}$/.test(integrity.manifestSha256)) {
@@ -86,6 +91,16 @@ function validateCompetitionIntegrity(integrity, expected = null) {
   }
   if (!isBoundedString(integrity.mameVersion, 32)) errors.push("competitionIntegrity.mameVersion es invalido");
   if (!isBoundedString(integrity.pluginVersion, 32)) errors.push("competitionIntegrity.pluginVersion es invalido");
+  if (version === 2) {
+    if (!isBoundedString(integrity.weekId)) errors.push("competitionIntegrity.weekId es invalido");
+    if (typeof integrity.playerBinding !== "string" || !/^[0-9a-f]{64}$/.test(integrity.playerBinding)) {
+      errors.push("competitionIntegrity.playerBinding es invalido");
+    }
+    if (!isBoundedString(integrity.captureClientVersion, 32)) errors.push("competitionIntegrity.captureClientVersion es invalido");
+    if (typeof integrity.runInputManifestSha256 !== "string" || !/^[0-9a-f]{64}$/.test(integrity.runInputManifestSha256)) {
+      errors.push("competitionIntegrity.runInputManifestSha256 es invalido");
+    }
+  }
 
   const provenance = validateCompetitionProvenance(integrity.provenance, expected?.provenance || null);
   errors.push(...provenance.errors);
@@ -140,7 +155,9 @@ function validateCompetitionIntegrity(integrity, expected = null) {
   }
 
   if (expected) {
-    for (const field of ["runId", "packId", "manifestSha256", "mameVersion", "pluginVersion"]) {
+    const boundFields = ["runId", "packId", "manifestSha256", "mameVersion", "pluginVersion"];
+    if (version === 2) boundFields.push("weekId", "playerBinding", "captureClientVersion", "runInputManifestSha256");
+    for (const field of boundFields) {
       if (expected[field] !== undefined && integrity[field] !== expected[field]) errors.push(`competitionIntegrity.${field} no coincide con el run protegido`);
     }
     if (expected.dips && !dipsEqual(dips, expected.dips)) errors.push("competitionIntegrity.dips no coincide con el run protegido");

@@ -230,7 +230,7 @@ function normalizeAutomaticCapture(value, errors) {
     errors.push("pack.json capture.automatic debe ser un objeto");
     return null;
   }
-  if (Object.keys(value).sort().join(",") !== "strategy,version") {
+  if (Object.keys(value).some((key) => !["intervalFrames", "strategy", "version"].includes(key))) {
     errors.push("pack.json capture.automatic contiene campos desconocidos");
   }
   if (value.version !== 1) {
@@ -245,7 +245,12 @@ function normalizeAutomaticCapture(value, errors) {
   if (strategy && !/^[a-z0-9][a-z0-9._-]*$/.test(strategy)) {
     errors.push("pack.json capture.automatic.strategy debe ser un identificador tecnico seguro");
   }
+  const intervalFrames = value.intervalFrames === undefined ? 1 : value.intervalFrames;
+  if (!Number.isSafeInteger(intervalFrames) || intervalFrames < 1 || intervalFrames > 600) {
+    errors.push("pack.json capture.automatic.intervalFrames debe ser un entero entre 1 y 600");
+  }
   return {
+    intervalFrames,
     strategy,
     version: value.version,
   };

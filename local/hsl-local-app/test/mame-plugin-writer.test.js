@@ -26,8 +26,9 @@ test("Lua writer publishes a closed temporary file by same-directory rename", as
 
 test("Lua writer gives same-second captures a monotonic collision-resistant suffix", async () => {
   const source = await fsp.readFile(writerPath, "utf8");
-  assert.match(source, /local capture_sequence = 0/);
-  assert.match(source, /capture_sequence = capture_sequence \+ 1/);
+  assert.match(source, /local capture_sequence = integrity and integrity\.candidate_count and integrity\.candidate_count\(\) or 0/);
+  assert.match(source, /local sequence = capture_sequence \+ 1/);
+  assert.match(source, /capture_sequence = sequence/);
   assert.match(source, /%s_%s_%s_%s_%06d/);
   assert.match(source, /basename \.\. "\.json"/);
   assert.match(source, /not file_exists\(filename\) and not file_exists\(temporary\)/);

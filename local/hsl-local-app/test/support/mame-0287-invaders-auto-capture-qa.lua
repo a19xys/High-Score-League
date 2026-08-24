@@ -161,4 +161,4 @@ emu.register_frame_done(function()
     qa("TIMEOUT")
     manager.machine:exit()
   end
-end, "frame")
+end, "hsl-auto-qa-frame")

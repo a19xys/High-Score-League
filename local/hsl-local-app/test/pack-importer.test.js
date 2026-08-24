@@ -162,6 +162,9 @@ test("importa ZIP valido con carpeta raiz sin doble carpeta", async () => {
 
     assert.equal(result.ok, true);
     assert.equal(result.packDir, path.join(libraryRoot, "Space Invaders"));
+    assert.equal(result.pack.packRoot, result.packDir);
+    assert.equal(result.pack.contract.capture.adapterPath, path.join(result.packDir, "scripts", "invaders.lua"));
+    assert.equal(result.pack.contract.mame.romDir, path.join(result.packDir, "roms"));
     assert.equal(await fsp.readFile(path.join(result.packDir, "pack.json"), "utf8").then(Boolean), true);
     await assert.rejects(fsp.stat(path.join(result.packDir, "Space Invaders", "pack.json")), /ENOENT/);
   });

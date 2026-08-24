@@ -3,6 +3,7 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { readEventFile } = require("./event-files");
 const { reconcileLegacyGeneric409Failures } = require("./file-queue");
+const { deriveCompetitionPlayerBinding } = require("./competition-player-binding");
 
 function hashPart(value, length = 16) {
   return crypto.createHash("sha256").update(String(value || "")).digest("hex").slice(0, length);
@@ -216,6 +217,7 @@ function buildScopedSubmitConfig(baseConfig, scopeRecord, options = {}) {
   const { meta, scope } = scopeRecord;
   return {
     ...baseConfig,
+    competitionPlayerBinding: meta.player.userId ? deriveCompetitionPlayerBinding(meta.player.userId) : null,
     defaultWeekId: meta.pack.weekId,
     eventsBaseDirAbs: scope.eventsRoot,
     eventsFailedDirAbs: scope.scopedFailedDir,
@@ -233,7 +235,7 @@ function buildScopedSubmitConfig(baseConfig, scopeRecord, options = {}) {
       webBaseUrl: meta.pack.webBaseUrl,
       weekId: meta.pack.weekId,
     },
-    scopedQueue: scope,
+    scopedQueue: { ...scope, meta },
     sessionFileAbs: options.sessionFileAbs || baseConfig.sessionFileAbs,
     webBaseUrl: meta.pack.webBaseUrl,
   };

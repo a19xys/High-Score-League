@@ -5,6 +5,7 @@ local MAX_KEYS = 32
 local MAX_ARRAY = 64
 local MAX_NODES = 256
 local MAX_STRING = 512
+local MAX_CANDIDATES = 128
 
 local function finite_number(value)
   return value == value and value ~= math.huge and value ~= -math.huge
@@ -20,7 +21,7 @@ local function sanitize_json(value, depth, budget)
     return value, nil
   end
   if value_type == "string" then
-    if #value > MAX_STRING then return nil, "metadata contiene un string demasiado largo" end
+    if #value > MAX_STRING or value:find("[%z\1-\31\127]") then return nil, "metadata contiene un string invalido" end
     return value, nil
   end
   if value_type ~= "table" then return nil, "metadata contiene un tipo no JSON: " .. value_type end
@@ -54,7 +55,8 @@ end
 
 function M.create(config, paths, json, helpers, tracker, game, plugin_version, integrity)
   local writer = {}
-  local capture_sequence = 0
+  local capture_sequence = integrity and integrity.candidate_count and integrity.candidate_count() or 0
+  local legacy_sequence = 0
 
   local function file_exists(filename)
     local file = io.open(filename, "r")
@@ -72,17 +74,31 @@ function M.create(config, paths, json, helpers, tracker, game, plugin_version, i
 
   local function reserve_path(output_dir, detected_at, rom, score, kind)
     for _ = 1, 1000 do
-      capture_sequence = capture_sequence + 1
+      legacy_sequence = legacy_sequence + 1
       local basename = string.format(
         "%s_%s_%s_%s_%06d",
         paths.filename_time_from_iso(detected_at),
-        paths.safe_filename_part(rom), tostring(score), kind, capture_sequence
+        paths.safe_filename_part(rom), tostring(score), kind, legacy_sequence
       )
       local filename = output_dir .. "/" .. basename .. ".json"
       local temporary = filename .. ".tmp"
       if not file_exists(filename) and not file_exists(temporary) then return filename, temporary, basename end
     end
     return nil, nil, nil
+  end
+
+  local function write_exact_json(filename, value)
+    local temporary = filename .. ".tmp"
+    if file_exists(filename) or file_exists(temporary) then return false, "el destino final ya existe" end
+    local file, open_error = io.open(temporary, "w")
+    if not file then return false, open_error end
+    local ok, write_error = file:write(json.encode(value), "\n")
+    if not ok then file:close(); os.remove(temporary); return false, write_error end
+    local close_ok, close_error = file:close()
+    if not close_ok then os.remove(temporary); return false, close_error end
+    local rename_ok, rename_error = os.rename(temporary, filename)
+    if not rename_ok then os.remove(temporary); return false, rename_error end
+    return true, nil
   end
 
   local function write_json(output_dir, detected_at, rom, score, kind, value)
@@ -119,11 +135,12 @@ function M.create(config, paths, json, helpers, tracker, game, plugin_version, i
     if not integrity or not integrity.enabled then return publication_error("candidate competitivo fuera de una run protegida") end
     local candidate, candidate_error = validate_candidate_request(request)
     if not candidate then return publication_error(candidate_error) end
+    if capture_sequence >= MAX_CANDIDATES then return publication_error("se supero el limite de 128 candidates") end
+    local sequence = capture_sequence + 1
     local detected_at = paths.now_iso()
     local rom = helpers.get_rom_name()
     local output_dir = paths.get_output_dir()
-    local next_sequence = capture_sequence + 1
-    local candidate_id = tostring(config.hslRunId) .. "_candidate_" .. string.format("%06d", next_sequence)
+    local candidate_id = tostring(config.hslRunId) .. "_candidate_" .. string.format("%06d", sequence)
     local envelope = {
       version = 1,
       candidateId = candidate_id,
@@ -137,9 +154,24 @@ function M.create(config, paths, json, helpers, tracker, game, plugin_version, i
       strategy = config.automaticCaptureStrategy,
       metadata = candidate.metadata
     }
-    local written, write_error = write_json(output_dir, detected_at, rom, candidate.score, "candidate", envelope)
-    if not written then return publication_error(write_error) end
-    helpers.print_info("[HSL] Candidate escrito: " .. written.filename)
+    local candidate_name = "candidate_" .. string.format("%06d", sequence) .. ".json"
+    local commitment_name = "commitment_" .. string.format("%06d", sequence) .. ".json"
+    local candidate_path = output_dir .. "/" .. candidate_name
+    local commitment_path = tostring(config.commitmentsDir) .. "/" .. commitment_name
+    local candidate_ok, candidate_error = write_exact_json(candidate_path, envelope)
+    if not candidate_ok then return publication_error(candidate_error) end
+    local commitment = {
+      version = 1,
+      sequence = sequence,
+      candidateId = candidate_id,
+      candidate = envelope
+    }
+    local commitment_ok, commitment_error = write_exact_json(commitment_path, commitment)
+    if not commitment_ok then return publication_error(commitment_error) end
+    local recorded, record_error = integrity.record_candidate(sequence, candidate_id, candidate_name, commitment_name)
+    if not recorded then return publication_error(record_error or "no se pudo comprometer el candidate") end
+    capture_sequence = sequence
+    helpers.print_info("[HSL] Candidate comprometido: " .. candidate_path)
     helpers.pop_message("HSL: intento detectado; se validará al cerrar MAME.")
     return true
   end

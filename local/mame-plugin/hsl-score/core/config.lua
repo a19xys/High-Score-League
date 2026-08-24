@@ -37,6 +37,8 @@ local function default_config()
     gameModule = "games/invaders.lua",
     hslRunId = nil,
     automaticCaptureStrategy = nil,
+    commitmentsDir = nil,
+    candidateLedgerPath = nil,
 
     -- Configurada exclusivamente por el launcher para runs protegidas.
     competitionIntegrity = nil,
@@ -71,11 +73,20 @@ local function apply_user_config(config, user_config)
     config.automaticCaptureStrategy = user_config.automaticCaptureStrategy
   end
 
+  if type(user_config.commitmentsDir) == "string" and user_config.commitmentsDir ~= "" then
+    config.commitmentsDir = user_config.commitmentsDir
+  end
+
+  if type(user_config.candidateLedgerPath) == "string" and user_config.candidateLedgerPath ~= "" then
+    config.candidateLedgerPath = user_config.candidateLedgerPath
+  end
+
   if type(user_config.enableFrameTracking) == "boolean" then
     config.enableFrameTracking = user_config.enableFrameTracking
   end
 
-  if type(user_config.trackingIntervalFrames) == "number" and user_config.trackingIntervalFrames >= 1 then
+  if type(user_config.trackingIntervalFrames) == "number" and user_config.trackingIntervalFrames >= 1
+      and user_config.trackingIntervalFrames <= 600 then
     config.trackingIntervalFrames = math.floor(user_config.trackingIntervalFrames)
   end
 

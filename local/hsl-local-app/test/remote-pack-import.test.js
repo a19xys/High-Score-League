@@ -4,15 +4,23 @@ const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const fs = require("node:fs");
+const yazl = require("yazl");
 const { createSessionResult } = require("../src/session-result");
 const {
   MAX_PACK_DESCRIPTOR_BYTES,
   cleanupDownloadedArtifact,
   downloadPackArtifact,
   executeRemotePackImport,
+  recoverAlreadyInstalledProvenance,
   requestPackDescriptor,
   validatePackDescriptor,
 } = require("../src/remote-pack-import");
+const { importPackFromZip } = require("../src/pack-importer");
+const { setPackDirectory } = require("../src/pack-directory");
+const { loadPackFromDir } = require("../src/pack");
+const { writeCompetitionManifest } = require("../src/competition-manifest");
+const { readPackProvenanceReceipt } = require("../src/pack-provenance");
 
 const PACK_ID = "space-invaders-week-1";
 const HSL_ORIGIN = "https://high-score-league.example";
@@ -76,6 +84,23 @@ async function withTempDir(fn) {
   } finally {
     await fsp.rm(dir, { recursive: true, force: true });
   }
+}
+
+async function zipDirectory(sourceDir, zipPath) {
+  const zip = new yazl.ZipFile();
+  async function add(current, relative = "") {
+    for (const entry of await fsp.readdir(current, { withFileTypes: true })) {
+      const sourcePath = path.join(current, entry.name);
+      const target = path.posix.join("Official Pack", relative, entry.name);
+      if (entry.isDirectory()) await add(sourcePath, path.posix.join(relative, entry.name));
+      else zip.addFile(sourcePath, target);
+    }
+  }
+  await add(sourceDir);
+  await new Promise((resolve, reject) => {
+    zip.outputStream.pipe(fs.createWriteStream(zipPath)).on("close", resolve).on("error", reject);
+    zip.end();
+  });
 }
 
 test("descriptor v1 válido conserva query HTTPS y aplica límites estrictos", () => {
@@ -392,7 +417,7 @@ test("product path traduce carreras, identidad y ZIP inválido sin excepciones c
   await withTempDir(async (tempBaseDir) => {
     const bytes = Buffer.from("fake zip");
     const expected = new Map([
-      ["duplicate_pack_id", "already-installed"],
+      ["duplicate_pack_id", "remote-error"],
       ["unexpected_pack_id", "unexpected-pack-id"],
       ["invalid_pack", "invalid-pack"],
     ]);
@@ -415,5 +440,83 @@ test("product path traduce carreras, identidad y ZIP inválido sin excepciones c
       assert.equal(result.status, status);
       assert.deepEqual(await fsp.readdir(tempBaseDir), []);
     }
+  });
+});
+
+test("real importer recovers install-to-receipt crash only after re-verifying the official artifact", async (t) => {
+  await withTempDir(async (root) => {
+    const packId = "space-invaders-recovery-r2";
+    const source = path.join(root, "source-pack");
+    await fsp.mkdir(path.join(source, "roms"), { recursive: true });
+    await fsp.mkdir(path.join(source, "scripts"), { recursive: true });
+    await fsp.writeFile(path.join(source, "roms", "invaders.zip"), "rom", "utf8");
+    await fsp.writeFile(path.join(source, "scripts", "invaders.lua"), "return { observe_capture = function() end }", "utf8");
+    await fsp.writeFile(path.join(source, "pack.json"), `${JSON.stringify({
+      packVersion: 2,
+      packId,
+      gameId: "space-invaders",
+      rom: "invaders",
+      seasonId: "season-1",
+      seasonSlug: "season-1",
+      seasonName: "Season 1",
+      weekId: "week-1",
+      weekNumber: 1,
+      webBaseUrl: HSL_ORIGIN,
+      runtime: { type: "mame", minVersion: "0.287", recommendedVersion: "0.287" },
+      mame: {
+        romPath: "roms",
+        launchArgs: [],
+        profiles: { practice: { launchArgs: [] }, competition: { launchArgs: [], integrity: { version: 1, mameVersion: "0.287", dips: [] } } },
+      },
+      capture: { mode: "plugin", pluginName: "hsl-score", adapter: "scripts/invaders.lua", automatic: { version: 1, strategy: "fixture-v1" } },
+    }, null, 2)}\n`, "utf8");
+    const loaded = loadPackFromDir(source);
+    assert.equal(loaded.loaded, true);
+    await writeCompetitionManifest(loaded.pack);
+    const artifactPath = path.join(root, "official.zip");
+    await zipDirectory(source, artifactPath);
+    const artifactBytes = await fsp.readFile(artifactPath);
+    const config = { userDataDir: path.join(root, "userData") };
+    const library = path.join(root, "library");
+    await fsp.mkdir(library, { recursive: true });
+    await setPackDirectory(config, library);
+    const descriptorValue = {
+      version: 1,
+      packId,
+      artifact: { downloadUrl: ARTIFACT_URL, sha256: sha256(artifactBytes), sizeBytes: artifactBytes.length },
+    };
+    const fetchForAttempt = () => {
+      let count = 0;
+      return async () => (++count === 1
+        ? new Response(JSON.stringify(descriptorValue), { status: 200 })
+        : streamResponse([artifactBytes]));
+    };
+    const common = {
+      config,
+      hslOrigin: HSL_ORIGIN,
+      importZip: (zipPath, importOptions) => importPackFromZip(zipPath, config, importOptions),
+      packId,
+      resolveSession: async () => session(),
+      tempBaseDir: path.join(root, "downloads"),
+    };
+    await fsp.mkdir(common.tempBaseDir, { recursive: true });
+    const crashed = await executeRemotePackImport({
+      ...common,
+      fetchImpl: fetchForAttempt(),
+      writePackProvenanceReceiptImpl: async () => { throw new Error("simulated-crash-after-install"); },
+    });
+    assert.equal(crashed.status, "remote-error");
+    assert.equal(readPackProvenanceReceipt(config, packId).ok, false);
+
+    await recoverAlreadyInstalledProvenance(common, descriptorValue, {
+      bytes: artifactBytes.length,
+      filePath: artifactPath,
+    });
+    await fsp.rm(readPackProvenanceReceipt(config, packId).receiptPath);
+
+    const recovered = await executeRemotePackImport({ ...common, fetchImpl: fetchForAttempt() });
+    assert.equal(recovered.status, "already-installed", JSON.stringify(recovered));
+    assert.equal(recovered.provenance.receipt.packId, packId);
+    assert.equal(readPackProvenanceReceipt(config, packId).ok, true);
   });
 });

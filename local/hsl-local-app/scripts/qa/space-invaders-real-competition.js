@@ -6,15 +6,20 @@ const assert = require("node:assert/strict");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { spawnSync } = require("node:child_process");
+const { spawn } = require("node:child_process");
 const { verifyCompetitionManifest } = require("../../src/competition-manifest");
-const { buildMameArgs } = require("../../src/mame-launcher");
+const { finalizeCompetitionRun } = require("../../src/competition-run-finalizer");
+const { launchMameDetailed } = require("../../src/mame-launcher");
 const { prepareV2CompetitionRun } = require("../../src/mame-plugin-run");
 const { loadPackFromDir } = require("../../src/pack");
 
 function argumentValue(args, option) {
   const index = args.lastIndexOf(option);
   return index >= 0 ? args[index + 1] : null;
+}
+
+function countArg(args, option) {
+  return args.filter((value) => value === option).length;
 }
 
 async function main() {
@@ -41,12 +46,25 @@ async function main() {
         version: "0.287",
       },
     };
-    const run = await prepareV2CompetitionRun(config, {
+    const scope = {
       packKey: "pack_real_qa",
       playerKey: "player_real_qa",
+      userId: "00000000-0000-4000-8000-000000000287",
       scopedQueueRoot: path.join(qaRoot, "queue"),
-    }, { developerOverride: true, runId: "run_real_qa" });
-    const launch = buildMameArgs(run.config, loaded.pack.rom, "competition");
+      scopedPendingDir: path.join(qaRoot, "queue", "events", "pending"),
+      scopedRejectedDir: path.join(qaRoot, "queue", "events", "rejected"),
+    };
+    await Promise.all([
+      fsp.mkdir(scope.scopedPendingDir, { recursive: true }),
+      fsp.mkdir(scope.scopedRejectedDir, { recursive: true }),
+    ]);
+    const diagnosticScript = path.resolve(__dirname, "..", "..", "test", "support", "mame-0287-diagnostic.lua");
+    const run = await prepareV2CompetitionRun(config, scope, {
+      developerOverride: true,
+      developerQa: { autobootScriptPath: diagnosticScript },
+      runId: "run_real_qa",
+    });
+    const launch = run.launchPlan;
     const mutable = ["cfg", "nvram", "input", "state", "snapshot", "diff", "comment", "share", "home", "ini"];
     for (const name of mutable) {
       const directory = argumentValue(launch.args, `-${name}_directory`) || argumentValue(launch.args, `-${name}path`);
@@ -58,33 +76,44 @@ async function main() {
     assert.equal(argumentValue(launch.args, "-cfg_directory"), run.cfgDir);
     assert.notEqual(argumentValue(launch.args, "-cfg_directory"), loaded.pack.contract.mame.cfgDir);
 
-    const diagnosticScript = path.resolve(__dirname, "..", "..", "test", "support", "mame-0287-diagnostic.lua");
-    const processResult = spawnSync(launch.command, [
-      ...launch.args,
-      "-video", "none",
-      "-sound", "none",
-      "-seconds_to_run", "2",
-      "-autoboot_delay", "0",
-      "-autoboot_script", diagnosticScript,
-    ], { cwd: launch.cwd, encoding: "utf8", timeout: 30000, windowsHide: true });
-    const output = `${processResult.stdout || ""}${processResult.stderr || ""}`;
-    assert.equal(processResult.status, 0, output);
-    assert.match(output, /Plugin v0\.3\.0 cargado/);
+    assert.equal(countArg(launch.args, "-video"), 1);
+    assert.equal(countArg(launch.args, "-bgfx_screen_chains"), 1);
+    let finalized = null;
+    let liveOutput = "";
+    const spawnObserved = (command, args, options) => {
+      const child = spawn(command, args, options);
+      child.stdout.on("data", (chunk) => { liveOutput += String(chunk); });
+      child.stderr.on("data", (chunk) => { liveOutput += String(chunk); });
+      return child;
+    };
+    const processResult = await launchMameDetailed(run.config, loaded.pack.rom, "competition", spawnObserved, {
+      async onClose(exitCode) {
+        finalized = await finalizeCompetitionRun(run, scope, { compact: false, exitCode });
+      },
+    });
+    const output = `${liveOutput}\n${processResult.stdoutLines.join("\n")}\n${processResult.stderrLines.join("\n")}`;
+    assert.equal(processResult.exitCode, 0, output);
+    assert.match(output, /Plugin v0\.4\.0 cargado/);
     assert.match(output, /Integridad competitiva ARMADA/);
-    assert.match(output, /TYPE token=UI_MENU .*empty=true/);
-    assert.match(output, /TYPE token=UI_CANCEL .*seq=KEYCODE_ESC empty=false/);
+    assert.match(output, /CONTROLS argv_authority/);
     assert.match(output, /DIP tag=:IN2 mask=3 name=Lives value=0 .*setting=3/);
     assert.match(output, /DIP tag=:IN2 mask=8 name=Bonus Life value=0 .*setting=1500/);
     assert.match(output, /RUNTIME paused=false speed_factor=1000 throttled=true throttle_rate=(?:1|1[,.]0) menu_active=false/);
     assert.match(output, /Integridad competitiva final: CLEAN/);
+    assert.equal(finalized.status, "developer_qa");
+    assert.deepEqual(await fsp.readdir(scope.scopedPendingDir), []);
 
     process.stdout.write(`${JSON.stringify({
       manifestSha256: manifest.manifestSha256,
       mameVersion: run.integrity.observedMameVersion,
-      pluginVersion: "0.3.0",
+      pluginVersion: "0.4.0",
       controller: "hsl-competition",
+      controlsVerifiedBy: "sealed argv + controller fixture",
       cfgIsPerRun: true,
       clean: true,
+      finalStatus: finalized.status,
+      productionPending: 0,
+      actualArgvEqualsSealedPlan: true,
     }, null, 2)}\n`);
   } finally {
     await fsp.rm(qaRoot, { recursive: true, force: true });

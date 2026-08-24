@@ -2,8 +2,9 @@ local M = {}
 
 local VIOLATION_ORDER = {
   "dip_changed", "pause", "state_save", "state_load", "machine_reset",
-  "menu_opened", "speed_changed", "throttle_changed", "integrity_unavailable"
+  "menu_opened", "speed_changed", "throttle_changed", "run_input_changed", "integrity_unavailable"
 }
+local MAX_CANDIDATES = 128
 
 local function shallow_copy_dips(dips)
   local result = {}
@@ -26,7 +27,13 @@ function M.create(config, helpers, json, emu_api, manager_api, plugin_version)
   local stopping = false
   local stop_observed = false
   local subscriptions = {}
+  local candidates = {}
   local write_sequence = 0
+  local prepare_attempts = 0
+  local arm_attempts = 0
+  local stable_frames = 0
+  local pending_pause = false
+  local pending_reset = false
   local api = { enabled = enabled }
 
   local function marker_path(name)
@@ -73,7 +80,7 @@ function M.create(config, helpers, json, emu_api, manager_api, plugin_version)
 
   local function state_document()
     return {
-      version = 1,
+      version = 2,
       runId = policy.runId,
       packId = policy.packId,
       phase = phase_name(),
@@ -102,10 +109,37 @@ function M.create(config, helpers, json, emu_api, manager_api, plugin_version)
     notified = next(violations) ~= nil
   end
 
+  local function load_candidate_ledger()
+    if type(config.candidateLedgerPath) ~= "string" or config.candidateLedgerPath == "" then
+      return false, "candidateLedgerPath ausente"
+    end
+    local file, open_error = io.open(config.candidateLedgerPath, "r")
+    if not file then return false, open_error end
+    for line in file:lines() do
+      local sequence_text, candidate_id, candidate_file, commitment_file = line:match("^(%d+)\t([^\t]+)\t([^\t]+)\t([^\t]+)$")
+      local sequence = tonumber(sequence_text)
+      if not sequence or sequence ~= #candidates + 1 or sequence > MAX_CANDIDATES
+          or candidate_id ~= tostring(policy.runId) .. "_candidate_" .. string.format("%06d", sequence)
+          or candidate_file ~= "candidate_" .. string.format("%06d", sequence) .. ".json"
+          or commitment_file ~= "commitment_" .. string.format("%06d", sequence) .. ".json" then
+        file:close()
+        return false, "candidate-set.log invalido"
+      end
+      candidates[#candidates + 1] = {
+        sequence = sequence,
+        candidateId = candidate_id,
+        candidateFile = candidate_file,
+        commitmentFile = commitment_file
+      }
+    end
+    file:close()
+    return true, nil
+  end
+
   local function violate(code, diagnostic)
     if not violations[code] then
       violations[code] = true
-      persist_marker("violation." .. code .. ".marker", { version = 1, runId = policy.runId, code = code })
+      persist_marker("violation." .. code .. ".marker", { version = 2, runId = policy.runId, code = code })
       helpers.print_error("[HSL] Integridad competitiva: " .. code .. (diagnostic and (" (" .. diagnostic .. ")") or ""))
     end
     if state ~= "disabled" then state = "violated" end
@@ -147,7 +181,7 @@ function M.create(config, helpers, json, emu_api, manager_api, plugin_version)
   end
 
   local function policy_is_valid()
-    if policy.version ~= 1 or policy.guardVersion ~= 1 then return false, "version de guard no soportada" end
+    if policy.version ~= 1 or policy.guardVersion ~= 2 then return false, "version de guard no soportada" end
     if type(policy.runId) ~= "string" or policy.runId == "" then return false, "runId ausente" end
     if type(policy.packId) ~= "string" or policy.packId == "" then return false, "packId ausente" end
     if type(policy.integrityDir) ~= "string" or policy.integrityDir == "" then return false, "integrityDir ausente" end
@@ -163,12 +197,14 @@ function M.create(config, helpers, json, emu_api, manager_api, plugin_version)
     if not enabled then return true end
     state = "waiting"
     load_durable_state()
+    local ledger_ok, ledger_error = load_candidate_ledger()
+    if not ledger_ok then violate("integrity_unavailable", ledger_error); return false end
     local valid, policy_error = policy_is_valid()
     if not valid then violate("integrity_unavailable", policy_error); return false end
     persist_state()
     subscriptions.pause = emu_api.add_machine_pause_notifier(function()
       local ok_exit, exit_pending = pcall(function() return manager_api.machine.exit_pending end)
-      if not stopping and not (ok_exit and exit_pending) and (state == "armed" or state == "violated") then violate("pause") end
+      if not stopping and not (ok_exit and exit_pending) and (state == "armed" or state == "violated") then pending_pause = true end
     end)
     subscriptions.pre_save = emu_api.add_machine_pre_save_notifier(function()
       if state == "armed" or state == "violated" then violate("state_save") end
@@ -177,16 +213,17 @@ function M.create(config, helpers, json, emu_api, manager_api, plugin_version)
       if state == "armed" or state == "violated" then violate("state_load") end
     end)
     subscriptions.reset = emu_api.add_machine_reset_notifier(function()
-      if state == "armed" or state == "violated" then violate("machine_reset") end
+      if state == "armed" or state == "violated" then pending_reset = true end
     end)
     subscriptions.stop = emu_api.add_machine_stop_notifier(function()
       local ok_exit, exit_pending = pcall(function() return manager_api.machine.exit_pending end)
       if ok_exit and exit_pending == true then
         stopping = true
         stop_observed = persist_marker("final.marker", {
-          version = 1, runId = policy.runId, packId = policy.packId,
+          version = 2, runId = policy.runId, packId = policy.packId,
           manifestSha256 = policy.manifestSha256, mameVersion = policy.mameVersion,
-          pluginVersion = plugin_version, exitPending = true
+          pluginVersion = plugin_version, exitPending = true,
+          candidateCount = #candidates, candidates = candidates
         })
         if not stop_observed then violate("integrity_unavailable", "no se pudo persistir final seal") end
         persist_state()
@@ -202,6 +239,10 @@ function M.create(config, helpers, json, emu_api, manager_api, plugin_version)
 
   function api.prepare()
     if not enabled or state ~= "waiting" then return state == "prepared" end
+    for _, dip in ipairs(policy.dips) do
+      local _, readiness_error = resolve_field(dip)
+      if readiness_error then return false, readiness_error end
+    end
     state = "preparing"
     for _, dip in ipairs(policy.dips) do
       local ok, dip_error = apply_dip(dip)
@@ -224,19 +265,53 @@ function M.create(config, helpers, json, emu_api, manager_api, plugin_version)
     end
   end
 
+  local function runtime_is_stable()
+    local ok_paused, paused = pcall(function() return manager_api.machine.paused end)
+    if not ok_paused or paused then return false, "machine.paused" end
+    local ok_menu, menu_active = pcall(function() return manager_api.ui.menu_active end)
+    if not ok_menu or menu_active then return false, "menu_active" end
+    local ok_speed, speed_factor = pcall(function() return manager_api.machine.video.speed_factor end)
+    if not ok_speed or speed_factor ~= 1000 then return false, "speed_factor" end
+    local ok_throttle, throttled = pcall(function() return manager_api.machine.video.throttled end)
+    if not ok_throttle or throttled ~= true then return false, "video.throttled" end
+    local ok_rate, throttle_rate = pcall(function() return manager_api.machine.video.throttle_rate end)
+    if not ok_rate or type(throttle_rate) ~= "number" or math.abs(throttle_rate - 1) > 0.000001 then
+      return false, "throttle_rate"
+    end
+    return true, nil
+  end
+
   function api.frame_tick()
     if not enabled or state == "disabled" or stopping then return end
+    if state == "waiting" then
+      prepare_attempts = prepare_attempts + 1
+      local prepared, prepare_error = api.prepare()
+      if not prepared then
+        if prepare_attempts >= 600 then violate("integrity_unavailable", prepare_error or "DIP policy no disponible") end
+        return
+      end
+    end
     if state == "prepared" then
       for _, dip in ipairs(policy.dips) do
         local actual, dip_error = read_dip(dip)
         if dip_error or actual ~= dip.value then violate("integrity_unavailable", dip_error or "DIP distinto antes de ARM"); return end
       end
-      persist_marker("armed.marker", { version = 1, runId = policy.runId })
+      arm_attempts = arm_attempts + 1
+      local stable, stable_error = runtime_is_stable()
+      stable_frames = stable and (stable_frames + 1) or 0
+      if stable_frames < 2 then
+        if arm_attempts >= 600 then violate("integrity_unavailable", stable_error or "runtime no estable antes de ARM") end
+        return
+      end
+      persist_marker("armed.marker", { version = 2, runId = policy.runId })
       state = next(violations) == nil and "armed" or "violated"
       persist_state()
       helpers.print_info("[HSL] Integridad competitiva ARMADA")
     end
     if state ~= "armed" and state ~= "violated" then return end
+
+    if pending_pause then pending_pause = false; violate("pause") end
+    if pending_reset then pending_reset = false; violate("machine_reset") end
 
     monitor_dips()
     local ok_paused, paused = pcall(function() return manager_api.machine.paused end)
@@ -255,7 +330,7 @@ function M.create(config, helpers, json, emu_api, manager_api, plugin_version)
   function api.snapshot()
     if not enabled then return nil end
     return {
-      version = 1, guardVersion = 1, runId = policy.runId,
+      version = 2, guardVersion = 2, runId = policy.runId,
       packId = policy.packId, manifestSha256 = policy.manifestSha256,
       mameVersion = policy.mameVersion, dips = shallow_copy_dips(policy.dips),
       violations = violation_list()
@@ -264,6 +339,38 @@ function M.create(config, helpers, json, emu_api, manager_api, plugin_version)
 
   api.get_state = function() return state end
   api.get_violations = violation_list
+  api.candidate_count = function() return #candidates end
+  api.record_candidate = function(sequence, candidate_id, candidate_file, commitment_file)
+    if state ~= "armed" and state ~= "violated" then return false, "integrity no armada" end
+    if sequence ~= #candidates + 1 or sequence > MAX_CANDIDATES then
+      violate("integrity_unavailable", "secuencia/cap de candidates invalida")
+      return false, "secuencia/cap de candidates invalida"
+    end
+    local expected = tostring(policy.runId) .. "_candidate_" .. string.format("%06d", sequence)
+    if candidate_id ~= expected then
+      violate("integrity_unavailable", "candidateId no canonico")
+      return false, "candidateId no canonico"
+    end
+    local file, open_error = io.open(config.candidateLedgerPath, "ab")
+    if not file then violate("integrity_unavailable", open_error); return false, open_error end
+    local ok, write_error = file:write(
+      tostring(sequence), "\t", tostring(candidate_id), "\t", tostring(candidate_file), "\t", tostring(commitment_file), "\n"
+    )
+    if ok then file:flush() end
+    local close_ok, close_error = file:close()
+    if not ok or not close_ok then
+      violate("integrity_unavailable", write_error or close_error)
+      return false, write_error or close_error
+    end
+    candidates[#candidates + 1] = {
+      sequence = sequence,
+      candidateId = candidate_id,
+      candidateFile = candidate_file,
+      commitmentFile = commitment_file
+    }
+    persist_state()
+    return true, nil
+  end
   api.unavailable = function(diagnostic) violate("integrity_unavailable", diagnostic) end
   return api
 end

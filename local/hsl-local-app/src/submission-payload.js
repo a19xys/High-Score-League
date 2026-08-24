@@ -6,6 +6,14 @@ function sha256Hex(value) {
 }
 
 function buildDuplicateKey(config, event, storedSession) {
+  const evidence = event.competitionIntegrity;
+  if (evidence?.version === 2) {
+    const stableParts = [
+      "hsl", "v2", evidence.weekId, evidence.playerBinding, evidence.packId,
+      evidence.manifestSha256, evidence.runId, event.candidateId,
+    ];
+    return `hsl:v2:${sha256Hex(stableParts.join("|"))}`;
+  }
   const userId = storedSession?.user?.id || "unknown-user";
 
   const stableParts = [
@@ -28,8 +36,12 @@ function buildSubmissionPayload(config, event, storedSession) {
   // Registry lookup is intentionally side-effect free in this phase.
   getGameByRom(event.rom);
 
+  const capturedWeekId = event.competitionIntegrity?.version === 2
+    ? event.competitionIntegrity.weekId
+    : config.defaultWeekId;
+
   return {
-    weekId: config.defaultWeekId,
+    weekId: capturedWeekId,
     score: event.score,
     detectedAt: event.detectedAt,
     source: event.source,

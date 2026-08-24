@@ -5,15 +5,15 @@ const path = require("node:path");
 
 const pluginRoot = path.join(__dirname, "..", "..", "mame-plugin", "hsl-score");
 
-test("hsl-score 0.3.0 wires durable integrity before automatic frame capture", async () => {
+test("hsl-score 0.4.0 wires durable integrity before automatic frame capture", async () => {
   const [init, metadata, monitor] = await Promise.all([
     fsp.readFile(path.join(pluginRoot, "init.lua"), "utf8"),
     fsp.readFile(path.join(pluginRoot, "plugin.json"), "utf8"),
     fsp.readFile(path.join(pluginRoot, "core", "competition_integrity.lua"), "utf8"),
   ]);
-  assert.equal(JSON.parse(metadata).plugin.version, "0.3.0");
-  assert.match(init, /version = "0\.3\.0"/);
-  assert.match(init, /PLUGIN_VERSION = "0\.3\.0"/);
+  assert.equal(JSON.parse(metadata).plugin.version, "0.4.0");
+  assert.match(init, /version = "0\.4\.0"/);
+  assert.match(init, /PLUGIN_VERSION = "0\.4\.0"/);
   const start = init.indexOf("integrity.start()");
   const prestart = init.indexOf("emu.register_prestart", start);
   const prepare = init.indexOf("integrity.prepare()", prestart);
@@ -26,6 +26,18 @@ test("hsl-score 0.3.0 wires durable integrity before automatic frame capture", a
   assert.match(monitor, /violation\." \.\. code \.\. "\.marker"/);
   assert.match(monitor, /exit_pending == true/);
   assert.doesNotMatch(monitor, /violate_for_test|qaAction|testButton/i);
+});
+
+test("automatic core is game-agnostic and accepts a fake observe_capture-only adapter", async () => {
+  const tracking = await fsp.readFile(path.join(pluginRoot, "core", "tracking.lua"), "utf8");
+  const init = await fsp.readFile(path.join(pluginRoot, "init.lua"), "utf8");
+  const fake = await fsp.readFile(path.join(__dirname, "fixtures", "mame-adapters", "fake-automatic.lua"), "utf8");
+  assert.match(fake, /function M\.observe_capture/);
+  assert.doesNotMatch(fake, /read_memory|build_event/);
+  assert.match(init, /Competicion protegida requiere observe_capture/);
+  assert.doesNotMatch(tracking, /20F8|20F9|20EF|20E7|21FF|BCD|rollover|invaders/i);
+  assert.match(tracking, /trackingIntervalFrames/);
+  assert.match(tracking, /game\.observe_capture, helpers/);
 });
 
 test("integrity monitor retains every notifier and declares sticky codes canonically", async () => {
@@ -41,7 +53,7 @@ test("integrity monitor retains every notifier and declares sticky codes canonic
   }
   const codes = [
     "dip_changed", "pause", "state_save", "state_load", "machine_reset",
-    "menu_opened", "speed_changed", "throttle_changed", "integrity_unavailable",
+    "menu_opened", "speed_changed", "throttle_changed", "run_input_changed", "integrity_unavailable",
   ];
   let previous = -1;
   for (const code of codes) {

@@ -1,5 +1,8 @@
 # LOCAL-COMPETITION-INTEGRITY-1 — estado endurecido
 
+> Documento histórico. El contrato vigente y sus schemas cerrados están en
+> [`local-competition-integrity-closure-1.md`](local-competition-integrity-closure-1.md).
+
 Esta es la capa local de integridad de Competición para packs v2. Se ejecuta
 después de la autorización competitiva existente y antes de preparar MAME. No
 añade requests, polling, timers, caches ni autoridad de Week, Membership o

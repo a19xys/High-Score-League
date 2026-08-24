@@ -1,5 +1,9 @@
 # SPACE-INVADERS-PACK-V2-REAL-1
 
+> Snapshot histórico de r1. La referencia vigente es
+> `space-invaders-s1-w1-r2`; véase
+> [`local-competition-integrity-closure-1.md`](local-competition-integrity-closure-1.md).
+
 Space Invaders es el pack `packVersion: 2` de referencia real de High Score
 League. Su identidad se conserva en:
 

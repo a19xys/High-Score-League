@@ -1,5 +1,9 @@
 # LOCAL-PACK-CONTRACT-2
 
+> La extensión cerrada de Competition automática (`intervalFrames`, evidence
+> v2 y Space Invaders r2) está en
+> [`local-competition-integrity-closure-1.md`](local-competition-integrity-closure-1.md).
+
 `packVersion: 2` es el contrato actual para packs ligeros. El pack no contiene
 MAME: declara recursos relativos y la app usa un runtime compartido. V1 sigue
 visible y practicable como legacy/deprecated, pero no recibe la autoridad de

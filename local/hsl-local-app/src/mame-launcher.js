@@ -10,6 +10,12 @@ const {
   resolveMameState,
 } = require("./mame-runtime-state");
 const { isMameVersionCompatible } = require("./mame-version");
+const {
+  createRunInputMonitor,
+  verifyRunInputs,
+  verifyRunInputsAfterClose,
+  writeMameExitRecord,
+} = require("./run-input-integrity");
 
 const DEFAULT_PLUGIN_NAME = "hsl-score";
 const DEFAULT_LAUNCH_ARGS = ["-skip_gameinfo"];
@@ -184,6 +190,23 @@ function buildPackV2MameArgs(config, rom, mode) {
   const command = config.sharedMameRuntime.mameExecutablePath.trim();
   const mameRoot = config.sharedMameRuntime.runtimeRoot || path.dirname(command);
   const run = mode === "competition" ? config.v2PluginRun : null;
+  if (mode === "competition" && run?.launchPlan) {
+    const sealed = run.launchPlan;
+    if (sealed.version !== 1 || sealed.mode !== "competition" || sealed.rom !== launch.rom
+        || !Array.isArray(sealed.args) || typeof sealed.command !== "string" || typeof sealed.cwd !== "string"
+        || !sealed.environmentOverrides || typeof sealed.environmentOverrides !== "object"
+        || Array.isArray(sealed.environmentOverrides)) {
+      throw new Error("El launch plan sellado es invalido.");
+    }
+    return {
+      ...sealed,
+      args: [...sealed.args],
+      game: launch.game,
+      mameRoot,
+      mutableDirectories: { ...sealed.mutableDirectories },
+      v2PluginRun: run,
+    };
+  }
   const mutableDirectories = resolveMameState(config, { runRoot: run?.runRoot || null });
   const mame = config.pack?.contract?.mame || {};
   const profile = getPackV2ModeProfile(config, mode);
@@ -199,8 +222,8 @@ function buildPackV2MameArgs(config, rom, mode) {
     }
 
     const guard = run.integrity;
-    if (!guard || guard.version !== 1 || guard.mameVersion !== guard.observedMameVersion) {
-      throw new Error("Competicion v2 requiere una verificacion local de integrity v1 y MAME exacto antes de lanzar.");
+    if (!guard || guard.version !== 2 || guard.guardVersion !== 2 || guard.mameVersion !== guard.observedMameVersion) {
+      throw new Error("Competicion v2 requiere una verificacion local de evidence/guard v2 y MAME exacto antes de lanzar.");
     }
 
     args.push(
@@ -394,19 +417,43 @@ function attachProcessLifecycle(child, lifecycle, resolve, reject, resultFactory
   });
 }
 
-function launchMame(config, rom, mode, spawnImpl = spawn, lifecycle = null) {
+function spawnOptionsForLaunch(launch, stdio) {
+  const options = { cwd: launch.cwd, stdio };
+  const overrides = launch.environmentOverrides || {};
+  if (Object.keys(overrides).length > 0) options.env = { ...process.env, ...overrides };
+  return options;
+}
+
+async function secureCompetitionLifecycle(config, mode, lifecycle, options = {}) {
+  if (mode !== "competition" || !config.v2PluginRun) return { lifecycle, monitor: null };
+  const run = config.v2PluginRun;
+  const verified = await (options.verifyRunInputsImpl || verifyRunInputs)(run, options);
+  const monitor = await (options.createRunInputMonitorImpl || createRunInputMonitor)(run, verified, options);
+  return {
+    monitor,
+    lifecycle: {
+      onSpawn: () => lifecycle?.onSpawn?.(),
+      async onClose(code) {
+        await monitor.close();
+        await (options.verifyRunInputsAfterCloseImpl || verifyRunInputsAfterClose)(run, options);
+        await (options.writeMameExitRecordImpl || writeMameExitRecord)(run, code, options);
+        await lifecycle?.onClose?.(code);
+      },
+    },
+  };
+}
+
+async function launchMame(config, rom, mode, spawnImpl = spawn, lifecycle = null) {
   const launch = buildMameArgs(config, rom, mode);
   assertLaunchResources(config, launch);
   ensureMameStateDirectories(launch.mutableDirectories);
+  const secured = await secureCompetitionLifecycle(config, mode, lifecycle);
   printLaunchSummary(launch);
 
   return new Promise((resolve, reject) => {
-    const child = spawnImpl(launch.command, launch.args, {
-      cwd: launch.cwd,
-      stdio: "inherit",
-    });
-
-    attachProcessLifecycle(child, lifecycle, resolve, reject, (code) => code);
+    const child = spawnImpl(launch.command, launch.args, spawnOptionsForLaunch(launch, "inherit"));
+    child.once?.("error", () => secured.monitor?.close().catch(() => null));
+    attachProcessLifecycle(child, secured.lifecycle, resolve, reject, (code) => code);
   });
 }
 
@@ -421,19 +468,18 @@ function trimOutputLines(lines) {
   ];
 }
 
-function launchMameDetailed(config, rom, mode, spawnImpl = spawn, lifecycle = null) {
+async function launchMameDetailed(config, rom, mode, spawnImpl = spawn, lifecycle = null) {
   const launch = buildMameArgs(config, rom, mode);
   assertLaunchResources(config, launch);
   ensureMameStateDirectories(launch.mutableDirectories);
+  const secured = await secureCompetitionLifecycle(config, mode, lifecycle);
   printLaunchSummary(launch);
 
   return new Promise((resolve, reject) => {
     const stdoutLines = [];
     const stderrLines = [];
-    const child = spawnImpl(launch.command, launch.args, {
-      cwd: launch.cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const child = spawnImpl(launch.command, launch.args, spawnOptionsForLaunch(launch, ["ignore", "pipe", "pipe"]));
+    child.once?.("error", () => secured.monitor?.close().catch(() => null));
 
     const collect = (target) => (chunk) => {
       const lines = String(chunk).split(/\r?\n/).filter((line) => line.trim() !== "");
@@ -448,7 +494,7 @@ function launchMameDetailed(config, rom, mode, spawnImpl = spawn, lifecycle = nu
       child.stderr.on("data", collect(stderrLines));
     }
 
-    attachProcessLifecycle(child, lifecycle, resolve, reject, (code) => ({
+    attachProcessLifecycle(child, secured.lifecycle, resolve, reject, (code) => ({
       exitCode: code ?? 1,
       launch,
       stderrLines: trimOutputLines(stderrLines),

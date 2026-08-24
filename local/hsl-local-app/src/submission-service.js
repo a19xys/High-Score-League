@@ -15,6 +15,7 @@ const {
 } = require("./file-queue");
 const { printHeader, printSubmitResult } = require("./output");
 const { buildSubmissionPayload } = require("./submission-payload");
+const { checkProtectedCompetitionEligibility } = require("./competition-submission-eligibility");
 const {
   assertSubmitConfig,
   getIngestUrl,
@@ -41,7 +42,9 @@ function buildSubmitSummary(config, event) {
     game: event.game || null,
     rom: event.rom || null,
     score: event.score,
-    weekId: config.defaultWeekId || null,
+    weekId: event.competitionIntegrity?.version === 2
+      ? event.competitionIntegrity.weekId
+      : config.defaultWeekId || null,
   };
 }
 
@@ -111,7 +114,6 @@ function buildSessionUnavailableResult(sessionResult, details) {
 
 async function submitPendingFile(config, filename, options = {}) {
   assertSubmitConfig(config);
-  assertAuthConfig(config);
 
   await assertDirExists(config.eventsPendingDirAbs, "pending");
   await assertDirExists(config.eventsSentDirAbs, "sent");
@@ -155,6 +157,37 @@ async function submitPendingFile(config, filename, options = {}) {
       recentWarning,
     }, baseOutcome({ outcome: "local-invalid", playerMessage: "El evento local no es valido y requiere atencion.", preservePending: false, technicalReason: "invalid-local-event", terminal: true }));
   }
+
+  const eligibility = await (options.checkCompetitionEligibilityImpl || checkProtectedCompetitionEligibility)(
+    config,
+    result.event,
+    sourcePath,
+  );
+  if (!eligibility.eligible) {
+    const finalPath = await movePendingToRejected(config, safeName, {
+      domainCode: eligibility.code,
+      httpStatus: 0,
+      reason: eligibility.reason,
+      rejectedAt: options.nowIso,
+    });
+    return withOutcome({
+      action: "rejected",
+      filename: safeName,
+      message: eligibility.reason,
+      movedTo: finalPath,
+      eligibilityCode: eligibility.code,
+      httpRequests: 0,
+    }, baseOutcome({
+      outcome: "rejected-local-eligibility",
+      playerMessage: "La captura no acredita una finalizacion competitiva elegible.",
+      preservePending: false,
+      retryable: false,
+      technicalReason: eligibility.code,
+      terminal: true,
+    }));
+  }
+
+  assertAuthConfig(config);
 
   const submission = buildSubmitSummary(config, result.event);
   let payload = null;

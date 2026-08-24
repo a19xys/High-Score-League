@@ -48,28 +48,42 @@ async function main() {
     assert.equal(launch.args.includes("-ctrlr"), false);
     assert.equal(launch.args.includes("-plugin"), false);
 
-    const diagnostic = spawnSync(launch.command, [
+    const diagnosticArgs = [
       ...launch.args,
-      "-video", "none",
-      "-sound", "none",
       "-autoboot_delay", "0",
       "-autoboot_script", path.resolve(__dirname, "..", "..", "test", "support", "mame-0287-diagnostic.lua"),
-    ], { cwd: launch.cwd, encoding: "utf8", timeout: 30_000, windowsHide: true });
+    ];
+    assert.equal(countArg(diagnosticArgs, "-video"), 1);
+    assert.equal(countArg(diagnosticArgs, "-bgfx_screen_chains"), 1);
+    const diagnostic = spawnSync(launch.command, diagnosticArgs, {
+      cwd: launch.cwd, encoding: "utf8", timeout: 30_000, windowsHide: true,
+    });
     const diagnosticOutput = `${diagnostic.stdout || ""}${diagnostic.stderr || ""}`;
     assert.equal(diagnostic.status, 0, diagnosticOutput);
-    assert.match(diagnosticOutput, /TYPE token=UI_MENU .*seq=KEYCODE_TAB .*empty=false/);
-    assert.doesNotMatch(diagnosticOutput, /Plugin v0\.3\.0 cargado|Integridad competitiva ARMADA/);
+    assert.match(diagnosticOutput, /CONTROLS argv_authority/);
+    assert.doesNotMatch(diagnosticOutput, /Plugin v0\.4\.0 cargado|Integridad competitiva ARMADA/);
 
-    const operations = spawnSync(launch.command, [
+    const practiceMarker = path.join(qaRoot, "practice-reset.marker");
+    const operationsArgs = [
       ...launch.args,
-      "-video", "none",
-      "-sound", "none",
       "-autoboot_delay", "0",
       "-autoboot_script", path.resolve(__dirname, "..", "..", "test", "support", "mame-0287-practice-qa.lua"),
-    ], { cwd: launch.cwd, encoding: "utf8", timeout: 30_000, windowsHide: true });
+    ];
+    assert.equal(countArg(operationsArgs, "-video"), 1);
+    assert.equal(countArg(operationsArgs, "-bgfx_screen_chains"), 1);
+    const operations = spawnSync(launch.command, operationsArgs, {
+      cwd: launch.cwd,
+      encoding: "utf8",
+      env: { ...process.env, HSL_PRACTICE_QA_MARKER: practiceMarker },
+      timeout: 45_000,
+      windowsHide: true,
+    });
     const operationsOutput = `${operations.stdout || ""}${operations.stderr || ""}`;
     assert.equal(operations.status, 0, operationsOutput);
-    for (const expected of ["DIP_CHANGED value=1", "NOTIFIER pause", "NOTIFIER resume", "NOTIFIER state_save", "NOTIFIER state_load"]) {
+    for (const expected of [
+      "DIP_CHANGED value=1", "NOTIFIER pause", "NOTIFIER resume",
+      "NOTIFIER state_save", "NOTIFIER state_load", "ACTION hard_reset", "RESET_REBUILT",
+    ]) {
       assert.match(operationsOutput, new RegExp(expected));
     }
     assert.doesNotMatch(operationsOutput, /Integridad competitiva|Candidate escrito/);
@@ -81,8 +95,10 @@ async function main() {
       pause: true,
       saveLoad: true,
       dipsFree: true,
+      reset: true,
       competitionController: false,
       integrityMonitor: false,
+      runInputWatcher: false,
       automaticCandidate: false,
       provenanceRequired: false,
       packCfgStillEmpty: true,

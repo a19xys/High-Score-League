@@ -1,0 +1,219 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fsp = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+const { deriveCompetitionPlayerBinding } = require("../src/competition-player-binding");
+const { checkProtectedCompetitionEligibility } = require("../src/competition-submission-eligibility");
+const { submitPendingFile } = require("../src/submission-service");
+const { canonicalJsonBytes, sha256Bytes } = require("../src/run-input-integrity");
+
+const RUN_ID = "run_submission_v2";
+const PACK_ID = "space-invaders-s1-w1-r2";
+const WEEK_ID = "week-1";
+const USER_ID = "user-one";
+const PLAYER_BINDING = deriveCompetitionPlayerBinding(USER_ID);
+
+function protectedEvent() {
+  const provenance = {
+    artifactSha256: "d".repeat(64),
+    artifactSizeBytes: 1234,
+    competitionManifestSha256: "a".repeat(64),
+    mode: "remote_verified",
+  };
+  return {
+    schemaVersion: 1,
+    candidateId: `${RUN_ID}_candidate_000001`,
+    runId: RUN_ID,
+    packId: PACK_ID,
+    game: "Space Invaders",
+    rom: "invaders",
+    score: 1230,
+    detectedAt: "2026-08-21T10:00:01.000Z",
+    source: "mame_memory",
+    mameVersion: "0.287",
+    pluginVersion: "0.4.0",
+    detection: { method: "automatic_adapter_candidate_v2", manualConfirm: false, gameOverDetected: true, strategy: "invaders-game-mode-final-v1" },
+    scoreData: { displayScore: 1230, trackedScore: 1230, rollovers: 0 },
+    captureMetadata: { gameOverDetected: true },
+    competitionIntegrity: {
+      version: 2,
+      guardVersion: 2,
+      runId: RUN_ID,
+      weekId: WEEK_ID,
+      playerBinding: PLAYER_BINDING,
+      packId: PACK_ID,
+      manifestSha256: "a".repeat(64),
+      mameVersion: "0.287",
+      pluginVersion: "0.4.0",
+      captureClientVersion: "0.3.0",
+      runInputManifestSha256: "b".repeat(64),
+      dips: [],
+      violations: [],
+      provenance,
+      event: {
+        candidateId: `${RUN_ID}_candidate_000001`,
+        rom: "invaders",
+        score: 1230,
+        detectedAt: "2026-08-21T10:00:01.000Z",
+        source: "mame_memory",
+      },
+    },
+  };
+}
+
+async function fixture(t, mutate = null) {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-submit-eligibility-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const scopedQueueRoot = path.join(root, "players", "user", "packs", "pack");
+  const eventsRoot = path.join(scopedQueueRoot, "events");
+  const config = {
+    userDataDir: root,
+    clientVersion: "0.3.0",
+    defaultWeekId: WEEK_ID,
+    eventsPendingDirAbs: path.join(eventsRoot, "pending"),
+    eventsSentDirAbs: path.join(eventsRoot, "sent"),
+    eventsFailedDirAbs: path.join(eventsRoot, "failed"),
+    eventsRejectedDirAbs: path.join(eventsRoot, "rejected"),
+    recentEventThresholdMs: 0,
+    supabaseAnonKey: "anon-key",
+    supabaseUrl: "https://example.supabase.co",
+    webBaseUrl: "https://high-score-league.example",
+    pack: { packId: PACK_ID, weekId: WEEK_ID, rom: "invaders" },
+    competitionPlayerBinding: PLAYER_BINDING,
+    scopedQueue: {
+      scopedQueueRoot,
+      meta: { player: { userId: USER_ID } },
+    },
+  };
+  await Promise.all([
+    fsp.mkdir(config.eventsPendingDirAbs, { recursive: true }),
+    fsp.mkdir(config.eventsSentDirAbs, { recursive: true }),
+    fsp.mkdir(config.eventsFailedDirAbs, { recursive: true }),
+    fsp.mkdir(config.eventsRejectedDirAbs, { recursive: true }),
+  ]);
+  const event = protectedEvent();
+  mutate?.(event, config);
+  const filename = "competition_test.json";
+  const sourcePath = path.join(config.eventsPendingDirAbs, filename);
+  const eventBytes = canonicalJsonBytes(event);
+  await fsp.writeFile(sourcePath, eventBytes);
+  const receipt = {
+    version: 1,
+    runId: RUN_ID,
+    weekId: WEEK_ID,
+    playerBinding: PLAYER_BINDING,
+    packId: PACK_ID,
+    manifestSha256: "a".repeat(64),
+    runInputManifestSha256: "b".repeat(64),
+    captureClientVersion: "0.3.0",
+    provenance: protectedEvent().competitionIntegrity.provenance,
+    status: "clean",
+    violations: [],
+    outputs: [{
+      candidateId: `${RUN_ID}_candidate_000001`,
+      filename,
+      sha256: sha256Bytes(canonicalJsonBytes(protectedEvent())),
+      destination: "pending",
+    }],
+    finalizedAt: "2026-08-21T10:30:00.000Z",
+  };
+  const receiptPath = path.join(scopedQueueRoot, "competition", "finalized", `${RUN_ID}.json`);
+  const receiptBytes = canonicalJsonBytes(receipt);
+  await fsp.mkdir(path.dirname(receiptPath), { recursive: true });
+  await fsp.writeFile(receiptPath, receiptBytes);
+  const integrityDir = path.join(root, "runtime", "runs", RUN_ID, "integrity");
+  const planBytes = canonicalJsonBytes({ version: 1, runId: RUN_ID, fixture: true });
+  await fsp.mkdir(integrityDir, { recursive: true });
+  await fsp.writeFile(path.join(integrityDir, "finalization-plan.json"), planBytes);
+  await fsp.writeFile(path.join(integrityDir, "finalization.json"), canonicalJsonBytes({
+    version: 1,
+    runId: RUN_ID,
+    status: "clean",
+    planSha256: sha256Bytes(planBytes),
+    receiptSha256: sha256Bytes(receiptBytes),
+    outputs: [{
+      kind: "event",
+      candidateId: `${RUN_ID}_candidate_000001`,
+      filename,
+      sha256: sha256Bytes(canonicalJsonBytes(protectedEvent())),
+      destination: "pending",
+    }],
+    finalizedAt: receipt.finalizedAt,
+    committedAt: receipt.finalizedAt,
+  }));
+  return { config, event, filename, sourcePath };
+}
+
+test("a CLEAN scoped receipt and finalization commit authorize exact bytes", async (t) => {
+  const value = await fixture(t);
+  const result = await checkProtectedCompetitionEligibility(value.config, value.event, value.sourcePath);
+  assert.equal(result.eligible, true);
+  assert.equal(result.kind, "protected_v2");
+});
+
+const pendingAttacks = {
+  "score + binding": (event) => { event.score = 9999; event.competitionIntegrity.event.score = 9999; },
+  "rom + binding": (event) => { event.rom = "pacman"; event.competitionIntegrity.event.rom = "pacman"; },
+  weekId: (event) => { event.competitionIntegrity.weekId = "week-2"; },
+  playerBinding: (event) => { event.competitionIntegrity.playerBinding = "e".repeat(64); },
+  packId: (event) => { event.packId = "other-pack"; event.competitionIntegrity.packId = "other-pack"; },
+  manifest: (event) => {
+    event.competitionIntegrity.manifestSha256 = "e".repeat(64);
+    event.competitionIntegrity.provenance.competitionManifestSha256 = "e".repeat(64);
+  },
+  runId: (event) => { event.runId = "other-run"; event.competitionIntegrity.runId = "other-run"; },
+  candidateId: (event) => { event.candidateId = "other-candidate"; event.competitionIntegrity.event.candidateId = "other-candidate"; },
+  provenance: (event) => { event.competitionIntegrity.provenance.artifactSha256 = "e".repeat(64); },
+  captureClientVersion: (event) => { event.competitionIntegrity.captureClientVersion = "9.9.9"; },
+  runInputManifestSha256: (event) => { event.competitionIntegrity.runInputManifestSha256 = "e".repeat(64); },
+};
+
+for (const [name, mutate] of Object.entries(pendingAttacks)) {
+  test(`pending attack ${name} is rejected with zero auth/HTTP`, async (t) => {
+    const value = await fixture(t, mutate);
+    let sessionResolutions = 0;
+    let requests = 0;
+    const result = await submitPendingFile(value.config, value.filename, {
+      getSessionResultImpl: async () => { sessionResolutions += 1; throw new Error("must-not-resolve"); },
+      fetchImpl: async () => { requests += 1; throw new Error("must-not-fetch"); },
+    });
+    assert.equal(result.action, "rejected");
+    assert.equal(result.httpRequests, 0);
+    assert.equal(sessionResolutions, 0);
+    assert.equal(requests, 0);
+  });
+}
+
+test("wrong account scope and developer_override are second-barrier local rejections", async (t) => {
+  const wrongAccount = await fixture(t, (_event, config) => {
+    config.competitionPlayerBinding = deriveCompetitionPlayerBinding("user-two");
+    config.scopedQueue.meta.player.userId = "user-two";
+  });
+  assert.equal((await checkProtectedCompetitionEligibility(wrongAccount.config, wrongAccount.event, wrongAccount.sourcePath)).eligible, false);
+
+  const developer = await fixture(t, (event) => {
+    event.competitionIntegrity.provenance = {
+      artifactSha256: null,
+      artifactSizeBytes: null,
+      competitionManifestSha256: "a".repeat(64),
+      mode: "developer_override",
+    };
+  });
+  const result = await submitPendingFile(developer.config, developer.filename, {
+    fetchImpl: async () => { throw new Error("must-not-fetch"); },
+  });
+  assert.equal(result.action, "rejected");
+  assert.equal(result.httpRequests, 0);
+});
+
+test("a rejected event copied back to pending without CLEAN receipt makes zero requests", async (t) => {
+  const value = await fixture(t);
+  await fsp.rm(path.join(value.config.scopedQueue.scopedQueueRoot, "competition", "finalized", `${RUN_ID}.json`));
+  let requests = 0;
+  const result = await submitPendingFile(value.config, value.filename, {
+    fetchImpl: async () => { requests += 1; throw new Error("must-not-fetch"); },
+  });
+  assert.equal(result.action, "rejected");
+  assert.equal(requests, 0);
+});

@@ -8,6 +8,10 @@ const { isRemotePackId } = require("./pack-deeplink");
 const { verifyCompetitionManifest } = require("./competition-manifest");
 const { writePackProvenanceReceipt } = require("./pack-provenance");
 const { loadPackFromDir } = require("./pack");
+const {
+  findInstalledPackByIdForConfig,
+  inspectPackZipForProvenance,
+} = require("./pack-importer");
 
 const MAX_PACK_DESCRIPTOR_BYTES = 32 * 1024;
 const MAX_REMOTE_PACK_BYTES = 1024 * 1024 * 1024;
@@ -330,6 +334,42 @@ async function persistRemoteImportProvenance(options, descriptor, download, impo
   });
 }
 
+async function recoverAlreadyInstalledProvenance(options, descriptor, download) {
+  const official = await (options.inspectPackZipForProvenanceImpl || inspectPackZipForProvenance)(
+    download.filePath,
+    options.config,
+    options.importOptions || {},
+  );
+  if (official.packId !== descriptor.packId) {
+    throw failure("unexpected_pack_id", "Official artifact packId does not match the requested pack.");
+  }
+  const existing = await (options.findInstalledPackByIdImpl || findInstalledPackByIdForConfig)(
+    options.config,
+    descriptor.packId,
+  );
+  if (!existing?.packDir) throw failure("remote_error", "The expected installed pack was not found.");
+  const loaded = (options.loadPackFromDirImpl || loadPackFromDir)(existing.packDir);
+  if (!loaded.loaded || loaded.errors?.length > 0 || loaded.pack?.packId !== descriptor.packId) {
+    throw failure("remote_error", "Installed pack identity could not be verified for recovery.");
+  }
+  let installedManifest = null;
+  try {
+    installedManifest = await Promise.resolve(
+      (options.verifyCompetitionManifestImpl || verifyCompetitionManifest)(loaded.pack),
+    );
+  } catch {}
+  if (!installedManifest || installedManifest.manifestSha256 !== official.competitionManifestSha256) {
+    throw failure("remote_error", "Installed pack does not match the verified official artifact.");
+  }
+  return (options.writePackProvenanceReceiptImpl || writePackProvenanceReceipt)(options.config, {
+    artifactSha256: descriptor.artifact.sha256,
+    artifactSizeBytes: download.bytes,
+    competitionManifestSha256: installedManifest.manifestSha256,
+    importedAt: options.importedAt,
+    packId: descriptor.packId,
+  });
+}
+
 async function executeRemotePackImport(options = {}) {
   options.onPhase?.("Preparando pack");
   const descriptorResult = await requestPackDescriptor(options);
@@ -347,20 +387,28 @@ async function executeRemotePackImport(options = {}) {
       timeoutMs: options.downloadTimeoutMs,
     });
     options.onPhase?.("Importando pack");
-    const importResult = await options.importZip(download.filePath, {
-      expectedPackId: options.packId,
-    });
+    let importResult;
+    try {
+      importResult = await options.importZip(download.filePath, {
+        expectedPackId: options.packId,
+      });
+    } catch (error) {
+      if (!new Set(["duplicate_pack_id", "destination_collision"]).has(error?.code)) throw error;
+      importResult = { code: "duplicate_pack_id", ok: false, collisionCode: error.code };
+    }
     const status = classifyImporterResult(importResult);
     const provenance = status === "imported"
       ? await persistRemoteImportProvenance(options, descriptorResult.descriptor, download, importResult)
-      : null;
+      : status === "already-installed"
+        ? await recoverAlreadyInstalledProvenance(options, descriptorResult.descriptor, download)
+        : null;
     return {
       importResult,
       provenance,
       status,
     };
   } catch (error) {
-    return { status: classifyDownloadFailure(error) };
+    return { status: classifyDownloadFailure(error), diagnosticCode: error?.code || error?.name || "Error" };
   } finally {
     await cleanupDownloadedArtifact(download);
   }
@@ -376,6 +424,7 @@ module.exports = {
   executeRemotePackImport,
   packDescriptorEndpoint,
   requestPackDescriptor,
+  recoverAlreadyInstalledProvenance,
   persistRemoteImportProvenance,
   validatePackDescriptor,
 };

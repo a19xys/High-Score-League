@@ -48,10 +48,12 @@ const { getRepoPluginDir } = require("../src/dev-sync-plugin");
 const { configureProductRuntime } = require("../src/product-runtime");
 const { createExitCoordinator } = require("../src/exit-coordinator");
 const { createWindowsUpdateService } = require("../src/windows-update-service");
+const { reconcileCompetitionRuns } = require("../src/competition-run-finalizer");
 
 app.setName("High Score League");
 if (process.env.HSL_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.HSL_USER_DATA_DIR));
 configureProductRuntime({
+  appPath: app.getAppPath(),
   isPackaged: app.isPackaged,
   productConfig: packageMetadata.hslProduct || null,
   productName: app.getName(),
@@ -1507,7 +1509,12 @@ if (!hasSingleInstanceLock) {
     initializeSecureSessionStorage();
     initializeRemoteServices();
     registerIpc();
-    localStartupPromise = Promise.all([service.migrateRememberedSessionsForGui(), weekAuthorityStartupPromise])
+    const competitionRecoveryPromise = reconcileCompetitionRuns(loadConfig()).catch(() => []);
+    localStartupPromise = Promise.all([
+      service.migrateRememberedSessionsForGui(),
+      weekAuthorityStartupPromise,
+      competitionRecoveryPromise,
+    ])
       .then(async () => {
         const startupSession = await service.getAuthStateForGui();
         presence?.setActiveUserId(startupSession.hasSession ? startupSession.userId : null).catch(() => {});

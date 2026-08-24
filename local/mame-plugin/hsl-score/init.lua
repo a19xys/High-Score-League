@@ -1,17 +1,17 @@
 -- license:MIT
 -- High Score League - MAME Lua score event writer
--- v0.3.0: candidates automaticos y finalizacion durable post-proceso
+-- v0.4.0: captura automatica generica y candidates comprometidos
 
 local exports = {
   name = "hsl-score",
-  version = "0.3.0",
+  version = "0.4.0",
   description = "High Score League score event writer",
   license = "MIT",
   author = { name = "High Score League" }
 }
 
 local hsl_score = exports
-local PLUGIN_VERSION = "0.3.0"
+local PLUGIN_VERSION = "0.4.0"
 
 -- MAME deberia llamar a set_folder(path) con la carpeta real del plugin.
 -- Dejamos este fallback para instalaciones sencillas.
@@ -60,17 +60,21 @@ function hsl_score.startplugin()
   local config = config_module.load(plugin_folder, emu)
   local game = load_module(config.gameModule or "games/invaders.lua")
 
-  if type(game) ~= "table" or type(game.read_memory) ~= "function" or type(game.build_event) ~= "function" then
-    error("[HSL] Adapter invalido: debe exponer read_memory y build_event")
+  if type(game) ~= "table" then
+    error("[HSL] Adapter invalido: debe exportar una tabla")
+  end
+  if config.competitionIntegrity ~= nil and type(game.observe_capture) ~= "function" then
+    error("[HSL] Adapter invalido: Competicion protegida requiere observe_capture")
+  end
+  if config.competitionIntegrity == nil
+      and (type(game.read_memory) ~= "function" or type(game.build_event) ~= "function") then
+    error("[HSL] Adapter legacy invalido: debe exponer read_memory y build_event")
   end
 
   local paths = paths_module.create(plugin_folder, config)
   local helpers = helpers_module.create(emu, manager)
   local tracker = tracking_module.create(config, game, helpers)
   local integrity = integrity_module.create(config, helpers, json, emu, manager, PLUGIN_VERSION)
-  if integrity.enabled and type(game.observe_capture) ~= "function" then
-    error("[HSL] Adapter invalido: Competicion protegida requiere observe_capture")
-  end
   integrity.start()
   if integrity.enabled then
     emu.register_prestart(function()
@@ -79,6 +83,7 @@ function hsl_score.startplugin()
   end
   local writer = writer_module.create(config, paths, json, helpers, tracker, game, PLUGIN_VERSION, integrity)
   local menu = menu_module.create(config, paths, helpers, tracker, writer, game, PLUGIN_VERSION)
+  local qa_first_frame = os.getenv("HSL_COMPETITION_QA") == "1"
 
   math.randomseed(os.time())
 
@@ -86,17 +91,20 @@ function hsl_score.startplugin()
 
   if config.enableFrameTracking or integrity.enabled then
     emu.register_frame_done(function()
+      if qa_first_frame then helpers.print_info("[HSL] QA frame: integrity begin") end
+      local integrity_was_active = integrity.get_state() == "armed" or integrity.get_state() == "violated"
       if integrity.enabled then integrity.frame_tick() end
-      local result = config.enableFrameTracking and tracker.frame_tick() or nil
-      if integrity.enabled and result and result.ok then
-        local observe_ok, candidate = pcall(game.observe_capture, tracker.state, result)
-        if not observe_ok then
-          integrity.unavailable("observe_capture fallo: " .. tostring(candidate))
-        elseif candidate and not writer.write_candidate(candidate) then
+      if qa_first_frame then helpers.print_info("[HSL] QA frame: integrity end; observe begin") end
+      local result = config.enableFrameTracking and (not integrity.enabled or integrity_was_active) and tracker.frame_tick() or nil
+      if qa_first_frame then helpers.print_info("[HSL] QA frame: observe end"); qa_first_frame = false end
+      if integrity.enabled and result then
+        if not result.ok then
+          integrity.unavailable("observe_capture fallo: " .. tostring(result.error))
+        elseif result.candidate and not writer.write_candidate(result.candidate) then
           integrity.unavailable("candidate automatico rechazado")
         end
       end
-    end, "frame")
+    end, "hsl-score-frame")
   end
 
   emu.print_info("[HSL] Plugin v" .. PLUGIN_VERSION .. " cargado")

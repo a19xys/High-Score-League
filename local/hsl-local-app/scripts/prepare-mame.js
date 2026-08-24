@@ -159,11 +159,14 @@ async function stageProductMame(options = {}) {
     await extractImpl(assetPath, tempDir, cacheDir);
     validateRuntimeTree(tempDir);
     const executable = await verifyExecutableImpl(tempDir, manifest.version);
-    await writeRuntimeIntegrityManifest(tempDir, manifest.version);
+    const integrity = await writeRuntimeIntegrityManifest(tempDir, manifest.version);
     await fsp.rm(runtimeDir, { recursive: true, force: true });
     await fsp.rename(tempDir, runtimeDir);
     process.stdout.write(`MAME de producto ${manifest.version} reconstruido: ${runtimeDir}\nSHA-256: ${digest}\n`);
-    return { assetPath, digest, executable, extracted: true, manifest, runtimeDir };
+    return { assetPath, digest, executable, extracted: true, integrity: {
+      ...integrity,
+      manifestPath: path.join(runtimeDir, path.basename(integrity.manifestPath)),
+    }, manifest, runtimeDir };
   } catch (error) {
     await fsp.rm(tempDir, { recursive: true, force: true });
     throw error;

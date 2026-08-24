@@ -30,11 +30,11 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
     const sourceDir = path.join(root, "app-plugin", "hsl-score");
     await Promise.all([
       writeFile(path.join(romDir, "invaders.zip"), "fixture-rom"),
-      writeFile(adapterPath, "return { read_memory = function() end, build_event = function() end }"),
+      writeFile(adapterPath, "return { observe_capture = function() end }"),
       writeFile(path.join(runtimeRoot, "mame.exe"), "fixture-executable"),
       writeFile(path.join(runtimeRoot, "plugins", "boot.lua"), "return {}"),
       writeFile(path.join(sourceDir, "init.lua"), "return {}"),
-      writeFile(path.join(sourceDir, "plugin.json"), JSON.stringify({ plugin: { version: "0.3.0" } })),
+      writeFile(path.join(sourceDir, "plugin.json"), JSON.stringify({ plugin: { version: "0.4.0" } })),
       writeFile(path.join(sourceDir, "core", "config.lua"), "return {}"),
       writeFile(path.join(sourceDir, "games", "invaders.lua"), "return {}"),
     ]);
@@ -181,6 +181,7 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
         const prepared = await prepareV2CompetitionRun(config, scope, {
           detectMameVersionImpl: async () => "0.286",
           developerOverride: true,
+          userId: "player-a",
           now: new Date("2026-08-01T00:00:00.000Z"),
           runId: "run_space_invaders",
           sourceDir,

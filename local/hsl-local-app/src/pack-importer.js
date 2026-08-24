@@ -8,6 +8,7 @@ const yauzl = require("yauzl");
 const { getDirectoryKey, readPackDirectory } = require("./pack-directory");
 const { loadPackFromDir } = require("./pack");
 const { isUnsafePackRelativePath } = require("./pack-contract");
+const { verifyCompetitionManifest } = require("./competition-manifest");
 
 const IMPORT_TEMP_PREFIX = ".hsl-import-";
 const DEFAULT_IMPORT_LIMITS = Object.freeze({
@@ -738,8 +739,14 @@ async function finalizeImport(tempDir, packDirectoryPath, pack, sourcePath) {
 
   await fsp.rename(tempDir, finalPackDir);
 
+  const fresh = loadPackFromDir(finalPackDir);
+  if (!fresh.loaded || fresh.errors?.length > 0 || fresh.pack?.packId !== pack.packId) {
+    throw importError("final_pack_invalid", "El pack instalado no pudo reabrirse desde su ruta final.", fresh.errors || []);
+  }
+
   return {
     finalPackDir,
+    pack: fresh.pack,
     installedFolderName: destinationName,
   };
 }
@@ -799,9 +806,9 @@ async function importPackFromZip(zipPath, config, options = {}) {
       kind: "zip",
       limits: inspection.limits,
       ok: true,
-      pack: validated.pack,
+      pack: finalized.pack,
       packDir: finalized.finalPackDir,
-      summary: `Pack importado: ${validated.pack.metadata?.title || validated.pack.packId || validated.pack.gameId}.`,
+      summary: `Pack importado: ${finalized.pack.metadata?.title || finalized.pack.packId || finalized.pack.gameId}.`,
       warnings: validated.warnings,
       ...finalized,
     };
@@ -854,9 +861,9 @@ async function importPackFromFolder(folderPath, config, options = {}) {
       imported: true,
       kind: "folder",
       ok: true,
-      pack: validated.pack,
+      pack: finalized.pack,
       packDir: finalized.finalPackDir,
-      summary: `Pack importado: ${validated.pack.metadata?.title || validated.pack.packId || validated.pack.gameId}.`,
+      summary: `Pack importado: ${finalized.pack.metadata?.title || finalized.pack.packId || finalized.pack.gameId}.`,
       warnings: validated.warnings,
       ...finalized,
     };
@@ -864,6 +871,31 @@ async function importPackFromFolder(folderPath, config, options = {}) {
     await cleanupFailedImport(tempDir);
     throw error;
   }
+}
+
+async function inspectPackZipForProvenance(zipPath, config, options = {}) {
+  const sourcePath = path.resolve(zipPath);
+  const packDirectoryPath = await resolveConfiguredPackDirectory(config);
+  const inspection = await readZipEntries(sourcePath, options);
+  const zipRoot = detectPackRootInZip(inspection.entries);
+  let tempDir = null;
+  try {
+    tempDir = await createTemporaryInstallDir(packDirectoryPath);
+    await extractZipRootToDirectory(sourcePath, tempDir, zipRoot, options);
+    const validated = await validateTemporaryPackInstall(tempDir, options);
+    const manifest = await verifyCompetitionManifest(validated.pack);
+    return {
+      competitionManifestSha256: manifest.manifestSha256,
+      packId: validated.pack.packId,
+    };
+  } finally {
+    await cleanupFailedImport(tempDir);
+  }
+}
+
+async function findInstalledPackByIdForConfig(config, packId) {
+  const packDirectoryPath = await resolveConfiguredPackDirectory(config);
+  return findInstalledPackById(packDirectoryPath, packId);
 }
 
 module.exports = {
@@ -875,9 +907,11 @@ module.exports = {
   createSafeInstallFolderName,
   detectPackRootInFolder,
   detectPackRootInZip,
+  findInstalledPackByIdForConfig,
   importPackFromFolder,
   importPackFromZip,
   inspectImportSource,
+  inspectPackZipForProvenance,
   normalizeZipEntryName,
   validateTemporaryPackInstall,
 };

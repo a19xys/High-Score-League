@@ -21,8 +21,10 @@ const { writeCompetitionManifest } = require("../src/competition-manifest");
 const { loadPackFromDir } = require("../src/pack");
 const { writePackProvenanceReceipt } = require("../src/pack-provenance");
 const {
+  REQUIRED_RUNTIME_FILES,
   verifyBundledMameRuntimeIntegrity,
   verifyBundledPluginIntegrity,
+  writeProductIntegrityRoot,
   writeRuntimeIntegrityManifest,
 } = require("../src/product-runtime-integrity");
 const { configureProductRuntime, resetProductRuntime } = require("../src/product-runtime");
@@ -34,12 +36,7 @@ async function withTempDir(fn) {
 
 async function createBundledRuntime(resourcesPath, options = {}) {
   const root = path.join(resourcesPath, "mame", "0.287");
-  const files = [
-    "mame.exe",
-    "plugins/boot.lua",
-    "bgfx/chains/crt-geom.json",
-    "COPYING",
-  ];
+  const files = [...REQUIRED_RUNTIME_FILES, "COPYING"];
   for (const relativePath of files) {
     if (relativePath === options.omit) continue;
     const target = path.join(root, ...relativePath.split("/"));
@@ -54,7 +51,7 @@ async function createBundledRuntime(resourcesPath, options = {}) {
 }
 
 async function createExtractedRuntime(runtimeRoot, marker = "fixture") {
-  for (const relativePath of ["mame.exe", "plugins/boot.lua", "bgfx/chains/crt-geom.json", "COPYING"]) {
+  for (const relativePath of [...REQUIRED_RUNTIME_FILES, "COPYING"]) {
     const target = path.join(runtimeRoot, ...relativePath.split("/"));
     await fsp.mkdir(path.dirname(target), { recursive: true });
     await fsp.writeFile(target, marker, "utf8");
@@ -308,13 +305,21 @@ test("packaged competition stages hsl-score from resources without checkout-rela
     const resourcesPath = path.join(root, "installed", "resources");
     const runtimeRoot = await createBundledRuntime(resourcesPath);
     const sourceDir = path.join(resourcesPath, "hsl", "mame-plugin", "hsl-score");
-    await stageProductPlugin({ targetDir: sourceDir });
+    const stagedPlugin = await stageProductPlugin({ targetDir: sourceDir });
+    const appPath = path.join(root, "installed", "app");
+    const productRootPath = path.join(appPath, "product", "product-integrity-root.json");
+    await writeProductIntegrityRoot(productRootPath, {
+      mameVersion: "0.287",
+      pluginVersion: stagedPlugin.pluginVersion,
+      runtimeManifestPath: path.join(runtimeRoot, "hsl-runtime-integrity.json"),
+      pluginManifestPath: stagedPlugin.integrity.manifestPath,
+    });
     const packRoot = path.join(root, "pack");
     const adapterPath = path.join(packRoot, "scripts", "capture.lua");
     const romDir = path.join(packRoot, "roms");
     await fsp.mkdir(path.dirname(adapterPath), { recursive: true });
     await fsp.mkdir(romDir, { recursive: true });
-    await fsp.writeFile(adapterPath, "return {}", "utf8");
+    await fsp.writeFile(adapterPath, "return { observe_capture = function() end }", "utf8");
     await fsp.writeFile(path.join(romDir, "invaders.zip"), "fixture-rom", "utf8");
     await fsp.writeFile(path.join(packRoot, "pack.json"), `${JSON.stringify({
       packVersion: 2,
@@ -370,16 +375,16 @@ test("packaged competition stages hsl-score from resources without checkout-rela
       importedAt: "2026-08-21T10:00:00.000Z",
       packId: config.pack.packId,
     });
-    configureProductRuntime({ isPackaged: true, resourcesPath });
+    configureProductRuntime({ appPath, isPackaged: true, resourcesPath, version: "0.3.0" });
     try {
       const run = await prepareV2CompetitionRun(config, {
         packKey: "pack_packaged",
         playerKey: "user_player",
         scopedQueueRoot: path.join(root, "queue"),
-      }, { runId: "run_packaged", detectMameVersionImpl: () => "0.287" });
+      }, { runId: "run_packaged", userId: "player", detectMameVersionImpl: () => "0.287" });
       assert.equal(run.copiedFiles.includes("init.lua"), true);
       assert.equal(run.config.v2PluginRun.pluginDir.startsWith(config.userDataDir), true);
-      assert.match(await fsp.readFile(path.join(run.pluginDir, "init.lua"), "utf8"), /PLUGIN_VERSION = "0\.3\.0"/);
+      assert.match(await fsp.readFile(path.join(run.pluginDir, "init.lua"), "utf8"), /PLUGIN_VERSION = "0\.4\.0"/);
       assert.equal(run.adapterSourcePath, path.join(run.snapshotRoot, "scripts", "capture.lua"));
       assert.equal(run.iniDir, path.join(run.runRoot, "ini"));
       assert.equal(await fsp.readFile(run.pluginBootstrapPath, "utf8"), "fixture");

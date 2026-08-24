@@ -5,12 +5,19 @@ const path = require("node:path");
 
 const PRODUCT_RUNTIME_INTEGRITY_FILENAME = "hsl-runtime-integrity.json";
 const PRODUCT_PLUGIN_INTEGRITY_FILENAME = "hsl-plugin-integrity.json";
+const PRODUCT_INTEGRITY_ROOT_FILENAME = "product-integrity-root.json";
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const REQUIRED_RUNTIME_FILES = Object.freeze([
+  "artwork/bgfx/chains/crt-geom/aperture_1_2_bgr.png",
   "bgfx/chains/crt-geom.json",
+  "bgfx/effects/crt-geom/crt-geom.json",
+  ...["dx11", "dx9", "essl", "glsl", "metal", "spirv"].flatMap((backend) => [
+    `bgfx/shaders/${backend}/chains/crt-geom/fs_crt-geom.bin`,
+    `bgfx/shaders/${backend}/chains/crt-geom/vs_crt-geom.bin`,
+  ]),
   "mame.exe",
   "plugins/boot.lua",
-]);
+].sort());
 const REQUIRED_PLUGIN_FILES = Object.freeze([
   "core/competition_integrity.lua",
   "core/config.lua",
@@ -87,6 +94,55 @@ async function writePluginIntegrityManifest(pluginRoot, pluginVersion, relativeP
   return { manifest, manifestPath };
 }
 
+async function writeProductIntegrityRoot(rootPath, values) {
+  const root = {
+    version: 1,
+    mameVersion: values.mameVersion,
+    pluginVersion: values.pluginVersion,
+    runtimeManifestSha256: await sha256File(values.runtimeManifestPath),
+    pluginManifestSha256: await sha256File(values.pluginManifestPath),
+  };
+  await fsp.mkdir(path.dirname(rootPath), { recursive: true });
+  await fsp.writeFile(rootPath, canonicalBytes(root));
+  return { root, rootPath, sha256: await sha256File(rootPath) };
+}
+
+async function readProductIntegrityRoot(rootPath) {
+  const bytes = await fsp.readFile(rootPath);
+  const root = JSON.parse(bytes.toString("utf8"));
+  if (!root || typeof root !== "object" || Array.isArray(root)
+      || Object.keys(root).sort().join(",") !== "mameVersion,pluginManifestSha256,pluginVersion,runtimeManifestSha256,version"
+      || root.version !== 1 || typeof root.mameVersion !== "string" || typeof root.pluginVersion !== "string"
+      || !SHA256_PATTERN.test(root.runtimeManifestSha256 || "")
+      || !SHA256_PATTERN.test(root.pluginManifestSha256 || "")
+      || !canonicalBytes(root).equals(bytes)) {
+    throw new Error("La raiz de integridad de producto es invalida.");
+  }
+  return { bytes, root, rootPath, sha256: sha256Buffer(bytes) };
+}
+
+function sha256Buffer(bytes) {
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
+async function verifyProductIntegrityRoot(options = {}) {
+  const rootResult = await readProductIntegrityRoot(options.rootPath);
+  const runtimeManifestPath = path.join(options.runtimeRoot, PRODUCT_RUNTIME_INTEGRITY_FILENAME);
+  const pluginManifestPath = path.join(options.pluginRoot, PRODUCT_PLUGIN_INTEGRITY_FILENAME);
+  if (await sha256File(runtimeManifestPath) !== rootResult.root.runtimeManifestSha256) {
+    throw new Error("El manifest vecino del runtime no coincide con la raiz app-controlled.");
+  }
+  if (await sha256File(pluginManifestPath) !== rootResult.root.pluginManifestSha256) {
+    throw new Error("El manifest vecino del plugin no coincide con la raiz app-controlled.");
+  }
+  const runtime = await verifyBundledMameRuntimeIntegrity(options.runtimeRoot, rootResult.root.mameVersion);
+  const plugin = await verifyBundledPluginIntegrity(options.pluginRoot);
+  if (readPluginVersion(options.pluginRoot) !== rootResult.root.pluginVersion) {
+    throw new Error("La version del plugin no coincide con la raiz app-controlled.");
+  }
+  return { ...rootResult, plugin, runtime };
+}
+
 async function readAndVerifyManifest(rootDir, filename, identityField, expectedIdentity) {
   const manifestPath = path.join(rootDir, filename);
   const bytes = await fsp.readFile(manifestPath);
@@ -140,15 +196,20 @@ async function verifyBundledPluginIntegrity(pluginRoot) {
 }
 
 module.exports = {
+  PRODUCT_INTEGRITY_ROOT_FILENAME,
   PRODUCT_PLUGIN_INTEGRITY_FILENAME,
   PRODUCT_RUNTIME_INTEGRITY_FILENAME,
   REQUIRED_PLUGIN_FILES,
   REQUIRED_RUNTIME_FILES,
   buildCriticalFiles,
+  canonicalBytes,
+  readProductIntegrityRoot,
   readPluginVersion,
   sha256File,
   verifyBundledMameRuntimeIntegrity,
   verifyBundledPluginIntegrity,
+  verifyProductIntegrityRoot,
   writePluginIntegrityManifest,
+  writeProductIntegrityRoot,
   writeRuntimeIntegrityManifest,
 };

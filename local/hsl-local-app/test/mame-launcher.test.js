@@ -101,8 +101,8 @@ function packV2Config(overrides = {}) {
       controllerName: "hsl-competition",
       ctrlrDir: path.join(overrides.v2PluginRun.runRoot, "ctrlr"),
       integrity: {
-        version: 1,
-        guardVersion: 1,
+        version: 2,
+        guardVersion: 2,
         mameVersion: "0.287",
         observedMameVersion: "0.287",
         manifestSha256: "a".repeat(64),
@@ -406,8 +406,8 @@ test("packVersion 2 practice requires shared runtime", () => {
 });
 
 test("packVersion 2 launch requires an existing romDir before spawn", async () => {
-  assert.throws(
-    () => launchMame(packV2Config(), "invaders", "practice", () => {
+  await assert.rejects(
+    launchMame(packV2Config(), "invaders", "practice", () => {
       throw new Error("spawn should not run");
     }),
     /directorio de ROMs/
@@ -559,8 +559,8 @@ test("packVersion 2 launch requires the concrete ROM zip before spawn", async ()
       },
     });
 
-    assert.throws(
-      () => launchMame(config, "invaders", "practice", () => {
+    await assert.rejects(
+      launchMame(config, "invaders", "practice", () => {
         throw new Error("spawn should not run");
       }),
       /Falta la ROM necesaria: roms\/invaders\.zip/

@@ -60,6 +60,28 @@ test("buildDuplicateKey changes when stable identity inputs change", () => {
   assert.notEqual(first, second);
 });
 
+test("protected evidence v2 uses stable run/candidate identity and captured week", () => {
+  const protectedEvent = {
+    ...event,
+    candidateId: "run-a_candidate_000001",
+    competitionIntegrity: {
+      version: 2,
+      weekId: "captured-week",
+      playerBinding: "a".repeat(64),
+      packId: "pack-r2",
+      manifestSha256: "b".repeat(64),
+      runId: "run-a",
+    },
+  };
+  const key = buildDuplicateKey({ defaultWeekId: "current-week" }, protectedEvent, storedSession);
+  assert.match(key, /^hsl:v2:[0-9a-f]{64}$/);
+  assert.equal(buildDuplicateKey({ defaultWeekId: "other-week" }, { ...protectedEvent, detectedAt: "2099-01-01T00:00:00Z" }, storedSession), key);
+  assert.notEqual(buildDuplicateKey({}, { ...protectedEvent, candidateId: "run-a_candidate_000002" }, storedSession), key);
+  const payload = buildSubmissionPayload({ defaultWeekId: "current-week", clientVersion: "9.0.0" }, protectedEvent, storedSession);
+  assert.equal(payload.weekId, "captured-week");
+  assert.equal(payload.clientVersion, "9.0.0");
+});
+
 test("buildSubmissionPayload preserves normalized fields and raw local event", () => {
   const payload = buildSubmissionPayload(config, event, storedSession);
 

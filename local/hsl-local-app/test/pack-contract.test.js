@@ -115,6 +115,7 @@ test("capture.automatic v1 is optional for Library but closed when declared", ()
   }));
   assert.deepEqual(valid.errors, []);
   assert.deepEqual(valid.normalized.contract.capture.automatic, {
+    intervalFrames: 1,
     strategy: "invaders-game-mode-final-v1",
     version: 1,
   });

@@ -1,6 +1,13 @@
 -- QA-only validation of unrestricted Practice controls in MAME 0.287.
 local frame = 0
 local lives = nil
+local marker = os.getenv("HSL_PRACTICE_QA_MARKER")
+local reset_done = false
+
+if marker then
+  local marker_file = io.open(marker, "r")
+  if marker_file then marker_file:close(); reset_done = true end
+end
 
 local function qa(message)
   emu.print_info("HSL_PRACTICE_QA " .. message)
@@ -28,6 +35,11 @@ emu.register_prestart(resolve_lives)
 emu.register_frame_done(function()
   local _keep_subscriptions_alive = subscriptions.pause
   frame = frame + 1
+  if reset_done then
+    if frame == 1 then qa("RESET_REBUILT") end
+    if frame == 60 then qa("ACTION exit_after_reset"); manager.machine:exit() end
+    return
+  end
   if frame == 1 and not lives then resolve_lives() end
   if frame == 60 then
     assert(lives, "Lives DIP missing")
@@ -43,8 +55,12 @@ emu.register_frame_done(function()
   elseif frame == 240 then
     qa("ACTION state_load")
     manager.machine:load("hsl-practice-qa")
-  elseif frame == 360 then
-    qa("ACTION exit")
-    manager.machine:exit()
+  elseif frame == 300 then
+    assert(marker, "practice reset marker missing")
+    local marker_file = assert(io.open(marker, "w"))
+    marker_file:write("practice-reset\n")
+    marker_file:close()
+    qa("ACTION hard_reset")
+    manager.machine:hard_reset()
   end
-end, "frame")
+end, "hsl-practice-qa-frame")

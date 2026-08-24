@@ -21,6 +21,10 @@ module.exports = {
     "app.js",
     "mame-runtime-manifest.json",
     "package.json",
+    {
+      from: ".cache/product/product-integrity-root.json",
+      to: "product/product-integrity-root.json",
+    },
     "!**/*.map",
     "!test{,/**/*}",
     "!test-support{,/**/*}",

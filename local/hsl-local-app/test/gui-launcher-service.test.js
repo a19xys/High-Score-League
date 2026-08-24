@@ -44,6 +44,7 @@ const { scanPackLibrary } = require("../src/pack-library");
 const { readLibrarySelection, writeLibrarySelection } = require("../src/library-selection");
 const { writeLastOpenedPack } = require("../src/recent-packs");
 const { writeCompetitionManifest } = require("../src/competition-manifest");
+const { writePackProvenanceReceipt } = require("../src/pack-provenance");
 const { loadPackFromDir } = require("../src/pack");
 const { createSessionResult } = require("../src/session-result");
 const { canonicalPath } = require("../test-support/canonical-path.cjs");
@@ -3407,6 +3408,12 @@ test("deep link ya instalado se resuelve por librarySnapshotAuthority y hace cer
     const config = { hslOrigin: "https://high-score-league.example", userDataDir: path.join(dir, "userData") };
     const libraryRoot = path.join(dir, "library");
     await writeValidV2PackDir(path.join(libraryRoot, "Installed"), { packId: "remote-pack" });
+    await writePackProvenanceReceipt(config, {
+      artifactSha256: "a".repeat(64),
+      artifactSizeBytes: 123,
+      competitionManifestSha256: "b".repeat(64),
+      packId: "remote-pack",
+    });
     await setPackDirectory(config, libraryRoot);
     const local = await inspectPackDeepLinkLocalState("remote-pack", { config });
     let fetches = 0;
