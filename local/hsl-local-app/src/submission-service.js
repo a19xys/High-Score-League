@@ -136,34 +136,10 @@ async function submitPendingFile(config, filename, options = {}) {
   const recentWarning = formatRecentWarning(freshness);
   const result = await readEventFile(config.eventsPendingDirAbs, safeName);
 
-  if (!result.ok) {
-    if (freshness.isRecent) {
-      return withOutcome({
-        action: "pending",
-        filename: safeName,
-        message: `Evento local invalido, pero demasiado reciente para moverlo a failed. Se deja en pending para reintentar o revisar: ${result.errors.join("; ")}`,
-        recentWarning,
-      }, baseOutcome({ outcome: "local-recent", retryable: true, technicalReason: "recent-local-event" }));
-    }
-
-    const reason = `Evento local inválido: ${result.errors.join("; ")}`;
-    const finalPath = await movePendingToFailed(config, safeName, reason);
-
-    return withOutcome({
-      action: "failed",
-      filename: safeName,
-      message: reason,
-      movedTo: finalPath,
-      recentWarning,
-    }, baseOutcome({ outcome: "local-invalid", playerMessage: "El evento local no es valido y requiere atencion.", preservePending: false, technicalReason: "invalid-local-event", terminal: true }));
-  }
-
-  const eligibility = await (options.checkCompetitionEligibilityImpl || checkProtectedCompetitionEligibility)(
-    config,
-    result.event,
-    sourcePath,
-  );
-  if (!eligibility.eligible) {
+  const eligibility = result.event === null ? null : await (
+    options.checkCompetitionEligibilityImpl || checkProtectedCompetitionEligibility
+  )(config, result.event, sourcePath);
+  if (eligibility && !eligibility.eligible) {
     const finalPath = await movePendingToRejected(config, safeName, {
       domainCode: eligibility.code,
       httpStatus: 0,
@@ -185,6 +161,28 @@ async function submitPendingFile(config, filename, options = {}) {
       technicalReason: eligibility.code,
       terminal: true,
     }));
+  }
+
+  if (!result.ok) {
+    if (freshness.isRecent) {
+      return withOutcome({
+        action: "pending",
+        filename: safeName,
+        message: `Evento local invalido, pero demasiado reciente para moverlo a failed. Se deja en pending para reintentar o revisar: ${result.errors.join("; ")}`,
+        recentWarning,
+      }, baseOutcome({ outcome: "local-recent", retryable: true, technicalReason: "recent-local-event" }));
+    }
+
+    const reason = `Evento local inválido: ${result.errors.join("; ")}`;
+    const finalPath = await movePendingToFailed(config, safeName, reason);
+
+    return withOutcome({
+      action: "failed",
+      filename: safeName,
+      message: reason,
+      movedTo: finalPath,
+      recentWarning,
+    }, baseOutcome({ outcome: "local-invalid", playerMessage: "El evento local no es valido y requiere atencion.", preservePending: false, technicalReason: "invalid-local-event", terminal: true }));
   }
 
   assertAuthConfig(config);

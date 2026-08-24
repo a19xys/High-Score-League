@@ -8,7 +8,14 @@ const {
   sanitizeMetadata,
 } = require("../src/competition-run-finalizer");
 const { validateEvent } = require("../src/event-validation");
-const { sha256Bytes } = require("../src/run-input-integrity");
+const {
+  armRunInputMonitor,
+  canonicalJsonBytes,
+  recordRunInputViolation,
+  sha256Bytes,
+} = require("../src/run-input-integrity");
+const { writeCompetitionAppCloseSeal } = require("../src/competition-close-seal");
+const { OUTPUT_MONITOR_ARMED_FILENAME } = require("../src/competition-output-monitor");
 
 const MANIFEST_SHA = "a".repeat(64);
 const INPUT_SHA = "b".repeat(64);
@@ -16,7 +23,7 @@ const PLAYER_BINDING = "c".repeat(64);
 
 async function writeJson(filePath, value) {
   await fsp.mkdir(path.dirname(filePath), { recursive: true });
-  await fsp.writeFile(filePath, `${JSON.stringify(value)}\n`, "utf8");
+  await fsp.writeFile(filePath, canonicalJsonBytes(value));
 }
 
 async function fixture(t, options = {}) {
@@ -128,7 +135,7 @@ async function addCandidate(run, score = 100) {
   return { record, value };
 }
 
-async function seal(run, violations = []) {
+async function seal(run, violations = [], appViolations = []) {
   for (const code of violations) {
     await writeJson(path.join(run.integrityDir, `violation.${code}.marker`), { version: 2, runId: run.runId, code });
   }
@@ -152,6 +159,32 @@ async function seal(run, violations = []) {
     stopObserved: true,
     violations,
   });
+  let runInputState = await armRunInputMonitor(run, { nowIso: "2026-08-21T10:29:00.000Z" });
+  for (const code of appViolations) {
+    runInputState = await recordRunInputViolation(run, code, { nowIso: "2026-08-21T10:29:30.000Z" });
+  }
+  await writeJson(path.join(run.integrityDir, "app", OUTPUT_MONITOR_ARMED_FILENAME), {
+    version: 1, runId: run.runId, armedAt: "2026-08-21T10:00:00.000Z",
+  });
+  const candidates = [];
+  const commitments = [];
+  for (const record of run.candidateRecords) {
+    const candidateBytes = await fsp.readFile(path.join(run.stagingCandidatesDir, record.candidateFile));
+    const commitmentBytes = await fsp.readFile(path.join(run.stagingCommitmentsDir, record.commitmentFile));
+    candidates.push({
+      sequence: record.sequence, candidateFile: record.candidateFile,
+      sha256: sha256Bytes(candidateBytes), sizeBytes: candidateBytes.length,
+    });
+    commitments.push({
+      sequence: record.sequence, commitmentFile: record.commitmentFile,
+      sha256: sha256Bytes(commitmentBytes), sizeBytes: commitmentBytes.length,
+    });
+  }
+  await writeCompetitionAppCloseSeal(run, {
+    exitCode: 0,
+    runInputState,
+    outputState: { version: 1, runId: run.runId, candidates, commitments, violations: [] },
+  }, { nowIso: "2026-08-21T10:30:00.000Z" });
 }
 
 async function jsonFiles(directory) {
@@ -212,10 +245,7 @@ for (const violation of [
 test("app-owned run_input_changed is sticky and rejects the run", async (t) => {
   const { run, scope } = await fixture(t);
   await addCandidate(run, 400);
-  await seal(run);
-  await writeJson(path.join(run.integrityDir, "app", "run-input-state.json"), {
-    version: 1, runId: run.runId, violations: ["run_input_changed"], updatedAt: "2026-08-21T10:29:00.000Z",
-  });
+  await seal(run, [], ["run_input_changed"]);
   const result = await finalizeCompetitionRun(run, scope, { compact: false });
   assert.equal(result.status, "violated");
   assert.deepEqual(result.violations, ["run_input_changed"]);
@@ -266,6 +296,19 @@ const attacks = {
   "commitment extra": async ({ run }) => writeJson(path.join(run.stagingCommitmentsDir, "commitment_000002.json"), {}),
 };
 
+attacks["candidate y commitment editados coherentemente"] = async ({ run, candidate }) => {
+  candidate.value.score = 99990;
+  candidate.value.metadata.displayScore = 99990;
+  candidate.value.metadata.trackedScore = 99990;
+  await writeJson(path.join(run.stagingCandidatesDir, candidate.record.candidateFile), candidate.value);
+  await writeJson(path.join(run.stagingCommitmentsDir, candidate.record.commitmentFile), {
+    version: 1,
+    sequence: candidate.record.sequence,
+    candidateId: candidate.record.candidateId,
+    candidate: candidate.value,
+  });
+};
+
 for (const [name, mutate] of Object.entries(attacks)) {
   test(`${name} despues del commitment nunca llega a pending`, async (t) => {
     const { run, scope } = await fixture(t, { runId: `run_attack_${name.replace(/\W+/g, "_")}` });
@@ -299,6 +342,37 @@ test("candidate cap above 128 fails closed before publishing", async (t) => {
   assert.equal(result.status, "fail_closed");
   assert.deepEqual(await jsonFiles(scope.scopedPendingDir), []);
   assert.ok(result.violations.includes("integrity_unavailable"));
+});
+
+test("missing or corrupt app close seal can never produce CLEAN", async (t) => {
+  const mutations = {
+    missing: async (run) => fsp.rm(path.join(run.integrityDir, "app", "app-close-seal.json")),
+    corrupt_json: async (run) => fsp.writeFile(path.join(run.integrityDir, "app", "app-close-seal.json"), "{bad"),
+    runId: async (run, value) => { value.runId = "other-run"; },
+    input_hash: async (_run, value) => { value.runInputManifestSha256 = "e".repeat(64); },
+    final_hash: async (_run, value) => { value.finalMarkerSha256 = "e".repeat(64); },
+    ledger_hash: async (_run, value) => { value.candidateLedgerSha256 = "e".repeat(64); },
+    candidate_hash: async (_run, value) => { value.candidates[0].candidateSha256 = "e".repeat(64); },
+    commitment_hash: async (_run, value) => { value.candidates[0].commitmentSha256 = "e".repeat(64); },
+    exit_code: async (_run, value) => { value.exitCode = 7; },
+  };
+  for (const [name, mutate] of Object.entries(mutations)) {
+    await t.test(name, async () => {
+      const { run, scope } = await fixture(t, { runId: `run_close_seal_${name}` });
+      await addCandidate(run, 650);
+      await seal(run);
+      const sealPath = path.join(run.integrityDir, "app", "app-close-seal.json");
+      if (["missing", "corrupt_json"].includes(name)) await mutate(run);
+      else {
+        const value = JSON.parse(await fsp.readFile(sealPath, "utf8"));
+        await mutate(run, value);
+        await fsp.writeFile(sealPath, canonicalJsonBytes(value));
+      }
+      const result = await finalizeCompetitionRun(run, scope, { compact: false });
+      assert.equal(result.status, "fail_closed");
+      assert.deepEqual(await jsonFiles(scope.scopedPendingDir), []);
+    });
+  }
 });
 
 const crashScenarios = {

@@ -17,8 +17,11 @@ const LAUNCH_PLAN_FILENAME = "launch-plan.json";
 const PREPARED_MARKER_FILENAME = "prepared.marker";
 const PREPARING_MARKER_FILENAME = "preparing.marker";
 const RUN_INPUT_STATE_FILENAME = "run-input-state.json";
+const RUN_INPUT_MONITOR_ARMED_FILENAME = "run-input-monitor-armed.marker";
+const RUN_INPUT_VIOLATION_PREFIX = "run-input-violation.";
 const MAME_EXIT_FILENAME = "mame-exit.json";
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+const APP_INPUT_VIOLATIONS = Object.freeze(["run_input_changed", "integrity_unavailable"]);
 
 class RunInputIntegrityError extends Error {
   constructor(code, message) {
@@ -39,6 +42,12 @@ function sha256Bytes(value) {
 function pathInside(childPath, rootPath) {
   const relative = path.relative(path.resolve(rootPath), path.resolve(childPath));
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function physicalWatchPath(filePath) {
+  const resolved = path.resolve(filePath);
+  const match = /^(.*?\.asar)(?:[\\/].*)$/i.exec(resolved);
+  return match ? match[1] : resolved;
 }
 
 function portableRelative(rootPath, filePath) {
@@ -251,30 +260,86 @@ async function verifyRunInputs(run, options = {}) {
     throw new RunInputIntegrityError("launch_plan_mismatch", "El launch plan verificado no es el que se usara para spawn.");
   }
   monitoredPaths.push(...await verifyProductAnchor(run, manifest.product, options));
-  return { launchPlan, manifest, manifestPath, monitoredPaths: [...new Set(monitoredPaths.map((item) => path.resolve(item)))], sha256: sha256Bytes(bytes) };
+  return {
+    launchPlan,
+    manifest,
+    manifestPath,
+    monitoredPaths: [...new Set(monitoredPaths.map(physicalWatchPath))],
+    sha256: sha256Bytes(bytes),
+  };
 }
 
 function runInputStatePath(run) {
   return path.join(run.integrityDir, "app", RUN_INPUT_STATE_FILENAME);
 }
 
-async function readRunInputState(run) {
+function runInputMonitorArmedPath(run) {
+  return path.join(run.integrityDir, "app", RUN_INPUT_MONITOR_ARMED_FILENAME);
+}
+
+function canonicalAppInputViolations(values) {
+  const present = new Set(values || []);
+  return APP_INPUT_VIOLATIONS.filter((code) => present.has(code));
+}
+
+async function readRunInputMonitorArmed(run) {
+  const value = JSON.parse(await fsp.readFile(runInputMonitorArmedPath(run), "utf8"));
+  if (!value || Object.keys(value).sort().join(",") !== "armedAt,runId,version"
+      || value.version !== 1 || value.runId !== run.runId
+      || typeof value.armedAt !== "string" || Number.isNaN(new Date(value.armedAt).getTime())) {
+    throw new RunInputIntegrityError("run_input_monitor_not_armed", "El marker armado del monitor de inputs es invalido.");
+  }
+  return value;
+}
+
+async function readRunInputState(run, options = {}) {
+  let armed = false;
+  try { await readRunInputMonitorArmed(run); armed = true; }
+  catch (error) {
+    if (options.required) throw error;
+    if (error?.code !== "ENOENT") throw error;
+  }
   try {
     const value = JSON.parse(await fsp.readFile(runInputStatePath(run), "utf8"));
-    if (value?.version !== 1 || value?.runId !== run.runId || !Array.isArray(value.violations)) throw new Error("invalid");
+    if (!value || Object.keys(value).sort().join(",") !== "runId,updatedAt,version,violations"
+        || value.version !== 1 || value.runId !== run.runId || !Array.isArray(value.violations)
+        || JSON.stringify(value.violations) !== JSON.stringify(canonicalAppInputViolations(value.violations))) throw new Error("invalid");
+    for (const code of value.violations) {
+      const marker = JSON.parse(await fsp.readFile(path.join(run.integrityDir, "app", `${RUN_INPUT_VIOLATION_PREFIX}${code}.marker`), "utf8"));
+      if (!marker || Object.keys(marker).sort().join(",") !== "code,runId,version"
+          || marker.version !== 1 || marker.runId !== run.runId || marker.code !== code) throw new Error("invalid-marker");
+    }
     return value;
   } catch (error) {
-    if (error?.code === "ENOENT") return { version: 1, runId: run.runId, violations: [], updatedAt: null };
+    if (error?.code === "ENOENT" && !armed && !options.required) {
+      return { version: 1, runId: run.runId, violations: [], updatedAt: null };
+    }
     throw new RunInputIntegrityError("run_input_state_invalid", "El estado app-owned de inputs es invalido.");
   }
 }
 
+async function armRunInputMonitor(run, options = {}) {
+  const armedAt = options.nowIso || new Date().toISOString();
+  await atomicWriteBytes(runInputMonitorArmedPath(run), canonicalJsonBytes({ version: 1, runId: run.runId, armedAt }));
+  const initial = { version: 1, runId: run.runId, violations: [], updatedAt: armedAt };
+  await atomicWriteJson(runInputStatePath(run), initial);
+  return initial;
+}
+
 async function recordRunInputViolation(run, code, options = {}) {
-  if (!new Set(["run_input_changed", "integrity_unavailable"]).has(code)) throw new Error("Violacion app-owned desconocida.");
+  if (!APP_INPUT_VIOLATIONS.includes(code)) throw new Error("Violacion app-owned desconocida.");
+  try { await readRunInputMonitorArmed(run); }
+  catch (error) { if (error?.code === "ENOENT") await armRunInputMonitor(run, options); else throw error; }
   let current;
   try { current = await readRunInputState(run); }
   catch { current = { version: 1, runId: run.runId, violations: ["integrity_unavailable"], updatedAt: null }; }
-  const violations = [...new Set([...current.violations, code])];
+  const violations = canonicalAppInputViolations([...current.violations, code]);
+  for (const violation of violations) {
+    await atomicWriteBytes(
+      path.join(run.integrityDir, "app", `${RUN_INPUT_VIOLATION_PREFIX}${violation}.marker`),
+      canonicalJsonBytes({ version: 1, runId: run.runId, code: violation }),
+    );
+  }
   const value = { version: 1, runId: run.runId, violations, updatedAt: options.nowIso || new Date().toISOString() };
   await atomicWriteJson(runInputStatePath(run), value);
   return value;
@@ -284,7 +349,10 @@ async function createRunInputMonitor(run, verified, options = {}) {
   const watchers = [];
   let closed = false;
   let writeChain = Promise.resolve();
+  const memoryViolations = new Set();
+  await armRunInputMonitor(run, options);
   const note = (code) => {
+    memoryViolations.add(code);
     writeChain = writeChain.then(() => recordRunInputViolation(run, code, options)).catch(() => null);
   };
   try {
@@ -299,12 +367,33 @@ async function createRunInputMonitor(run, verified, options = {}) {
     throw new RunInputIntegrityError("watcher_unavailable", `No se pudo vigilar un input sellado: ${error.message}`);
   }
   return {
-    async close() {
-      if (closed) return readRunInputState(run);
-      closed = true;
-      for (const watcher of watchers) watcher.close?.();
+    async record(code) {
+      note(code);
       await writeChain;
-      return readRunInputState(run);
+      return this.snapshot();
+    },
+    async snapshot() {
+      await writeChain;
+      let persisted;
+      try { persisted = await readRunInputState(run, { required: true }); }
+      catch {
+        memoryViolations.add("integrity_unavailable");
+        for (const code of memoryViolations) await recordRunInputViolation(run, code, options);
+        persisted = await readRunInputState(run, { required: true });
+      }
+      for (const code of persisted.violations) memoryViolations.add(code);
+      const violations = canonicalAppInputViolations([...memoryViolations]);
+      if (JSON.stringify(violations) !== JSON.stringify(persisted.violations)) {
+        for (const code of violations) await recordRunInputViolation(run, code, options);
+      }
+      return { version: 1, runId: run.runId, violations, updatedAt: options.nowIso || new Date().toISOString() };
+    },
+    async close() {
+      if (!closed) {
+        closed = true;
+        for (const watcher of watchers) watcher.close?.();
+      }
+      return this.snapshot();
     },
   };
 }
@@ -313,9 +402,61 @@ async function verifyRunInputsAfterClose(run, options = {}) {
   try {
     return await verifyRunInputs(run, options);
   } catch (error) {
-    await recordRunInputViolation(run, error?.code === "run_input_changed" ? "run_input_changed" : "integrity_unavailable", options);
+    const code = error?.code === "run_input_changed" ? "run_input_changed" : "integrity_unavailable";
+    if (options.monitor?.record) await options.monitor.record(code);
+    else await recordRunInputViolation(run, code, options);
     return null;
   }
+}
+
+async function listCfgSeedFiles(rootDir, relative = "") {
+  const entries = await fsp.readdir(path.join(rootDir, relative), { withFileTypes: true });
+  const files = [];
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    const childRelative = path.join(relative, entry.name);
+    const childPath = path.join(rootDir, childRelative);
+    const stat = await fsp.lstat(childPath);
+    if (stat.isSymbolicLink() || (!stat.isFile() && !stat.isDirectory())) {
+      throw new RunInputIntegrityError("invalid_cfg_seed", `Entrada no regular en cfg seed: ${childRelative}.`);
+    }
+    if (stat.isDirectory()) files.push(...await listCfgSeedFiles(rootDir, childRelative));
+    else files.push(childRelative);
+  }
+  return files;
+}
+
+async function materializeCompetitionCfgSeed(run) {
+  if (!run.cfgSeedDir || !run.cfgDir) throw new RunInputIntegrityError("cfg_paths_missing", "Faltan rutas cfg de la run protegida.");
+  const runtimeEntries = await fsp.readdir(run.cfgDir);
+  if (runtimeEntries.length > 0) throw new RunInputIntegrityError("runtime_cfg_not_empty", "El cfg runtime ya contiene bytes antes de materializar el seed.");
+  const seedFiles = await listCfgSeedFiles(run.cfgSeedDir);
+  for (const relative of seedFiles) {
+    const sourcePath = path.join(run.cfgSeedDir, relative);
+    const targetPath = path.join(run.cfgDir, relative);
+    await fsp.mkdir(path.dirname(targetPath), { recursive: true });
+    await fsp.copyFile(sourcePath, targetPath, fs.constants.COPYFILE_EXCL);
+  }
+  await verifyCompetitionCfgMaterialization(run);
+  return seedFiles;
+}
+
+async function verifyCompetitionCfgMaterialization(run) {
+  const seedFiles = await listCfgSeedFiles(run.cfgSeedDir);
+  const runtimeFiles = await listCfgSeedFiles(run.cfgDir);
+  if (JSON.stringify(seedFiles) !== JSON.stringify(runtimeFiles)) {
+    throw new RunInputIntegrityError("runtime_cfg_mismatch", "El cfg runtime inicial no coincide con el seed sellado.");
+  }
+  for (const relative of seedFiles) {
+    const [seedStat, runtimeStat] = await Promise.all([
+      fsp.lstat(path.join(run.cfgSeedDir, relative)),
+      fsp.lstat(path.join(run.cfgDir, relative)),
+    ]);
+    if (seedStat.size !== runtimeStat.size
+        || await sha256File(path.join(run.cfgSeedDir, relative)) !== await sha256File(path.join(run.cfgDir, relative))) {
+      throw new RunInputIntegrityError("runtime_cfg_mismatch", `El cfg runtime inicial difiere en ${relative}.`);
+    }
+  }
+  return true;
 }
 
 async function writePreparingMarker(run, options = {}) {
@@ -351,18 +492,23 @@ module.exports = {
   MAME_EXIT_FILENAME,
   PREPARED_MARKER_FILENAME,
   PREPARING_MARKER_FILENAME,
+  RUN_INPUT_MONITOR_ARMED_FILENAME,
   RUN_INPUT_MANIFEST_FILENAME,
   RUN_INPUT_STATE_FILENAME,
   RunInputIntegrityError,
   atomicWriteBytes,
+  armRunInputMonitor,
   buildRunInputManifest,
   canonicalJsonBytes,
   createRunInputMonitor,
+  materializeCompetitionCfgSeed,
+  physicalWatchPath,
   readRunInputState,
   recordRunInputViolation,
   sha256Bytes,
   verifyRunInputs,
   verifyRunInputsAfterClose,
+  verifyCompetitionCfgMaterialization,
   writeMameExitRecord,
   writePreparedMarker,
   writePreparingMarker,

@@ -10,7 +10,7 @@ const {
   COMPETITION_CONTROLLER_NAME,
   buildCompetitionControllerProfile,
 } = require("./mame-controller-profile");
-const { validatePackMameArguments } = require("./mame-arguments");
+const { normalizeMameOptionToken, validatePackMameArguments } = require("./mame-arguments");
 const { compareMameVersions, detectMameVersion } = require("./mame-version");
 const {
   developerOverrideProvenance,
@@ -200,7 +200,7 @@ function getV2CompetitionReadiness(config = {}, options = {}) {
     }
     for (const mode of ["practice", "competition"]) {
       const profileArgs = config.pack?.contract?.mame?.profiles?.[mode]?.launchArgs || [];
-      if (profileArgs.some((token) => ["-video", "-bgfx_screen_chains"].includes(token))) {
+      if (profileArgs.some((token) => ["video", "bgfxscreenchains"].includes(normalizeMameOptionToken(token)))) {
         errors.push("Los ajustes visuales compartidos deben declararse en mame.launchArgs para que Práctica y Competición usen la misma presentación.");
       }
     }
@@ -213,12 +213,21 @@ function getV2CompetitionReadiness(config = {}, options = {}) {
         errors.push("No se pudo interpretar la version MAME requerida o configurada para Competicion protegida.");
       }
     }
+    let commonArgs = [];
     for (const [args, label] of [
       [config.pack?.contract?.mame?.launchArgs, "mame.launchArgs"],
       [config.pack?.contract?.mame?.profiles?.competition?.launchArgs, "mame.profiles.competition.launchArgs"],
     ]) {
-      try { validatePackMameArguments(args, label, { mode: "competition" }); }
+      try {
+        const validated = validatePackMameArguments(args, label, { mode: "competition" });
+        if (label === "mame.launchArgs") commonArgs = validated;
+      }
       catch (error) { errors.push(error.message); }
+    }
+    const visualCounts = { "-video": 0, "-bgfx_screen_chains": 0 };
+    for (const token of commonArgs) if (Object.hasOwn(visualCounts, token)) visualCounts[token] += 1;
+    if (visualCounts["-video"] !== 1 || visualCounts["-bgfx_screen_chains"] !== 1) {
+      errors.push("Competicion protegida requiere exactamente un -video bgfx y un -bgfx_screen_chains seguro en mame.launchArgs.");
     }
 
     const mame = config.pack?.contract?.mame || {};
@@ -488,6 +497,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
   const stagingCandidatesDir = path.join(stagingRoot, "candidates");
   const stagingCommitmentsDir = path.join(stagingRoot, "commitments");
   const cfgDir = path.join(runRoot, "cfg");
+  const cfgSeedDir = path.join(runRoot, "seeds", "cfg");
   const ctrlrDir = path.join(runRoot, "ctrlr");
   const adapterSourcePath = snapshot.snapshotPack.contract.capture.adapterPath;
   const run = {
@@ -499,6 +509,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
     captureClientVersion,
     createdAt,
     cfgDir,
+    cfgSeedDir,
     controllerName: COMPETITION_CONTROLLER_NAME,
     controllerPath: path.join(ctrlrDir, `${COMPETITION_CONTROLLER_NAME}.cfg`),
     ctrlrDir,
@@ -542,6 +553,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
 
   await Promise.all([
     fsp.mkdir(run.cfgDir, { recursive: true }),
+    fsp.mkdir(run.cfgSeedDir, { recursive: true }),
     fsp.mkdir(run.ctrlrDir, { recursive: true }),
     fsp.mkdir(run.integrityDir, { recursive: true }),
     fsp.mkdir(path.join(run.runRoot, "nvram"), { recursive: true }),
@@ -569,7 +581,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
   await fsp.mkdir(path.dirname(run.adapterPreparedPath), { recursive: true });
   await fsp.copyFile(run.adapterSourcePath, run.adapterPreparedPath);
   const cfgSeed = snapshot.snapshotPack.contract.mame.profiles.competition.cfgDir;
-  if (cfgSeed) await copyCfgSeed(cfgSeed, run.cfgDir);
+  if (cfgSeed) await copyCfgSeed(cfgSeed, run.cfgSeedDir);
   await fsp.writeFile(run.controllerPath, buildCompetitionControllerProfile(), "utf8");
   await fsp.writeFile(path.join(pluginDir, "config.lua"), buildRunConfigLua(run), "utf8");
   await fsp.writeFile(run.candidateLedgerPath, "", { encoding: "utf8", flag: "wx" });
@@ -613,6 +625,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
     candidateLedgerPath: run.candidateLedgerPath,
     captureClientVersion: run.captureClientVersion,
     cfgDir: run.cfgDir,
+    cfgSeedDir: run.cfgSeedDir,
     controllerName: run.controllerName,
     controllerPath: run.controllerPath,
     ctrlrDir: run.ctrlrDir,
@@ -656,7 +669,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
     { filePath: run.recoveryRecordPath, role: "recovery_record" },
     ...(developerQa ? [{ filePath: developerQa.preparedPath, role: "developer_qa_harness" }] : []),
   ];
-  for (const filePath of await listRegularFiles(run.cfgDir)) inputs.push({ filePath, role: "cfg_seed" });
+  for (const filePath of await listRegularFiles(run.cfgSeedDir)) inputs.push({ filePath, role: "cfg_seed" });
   const runInputs = await buildRunInputManifest(run, inputs, run.launchPlan, {
     ...options,
     productRootPath: options.productRootPath,
@@ -679,6 +692,7 @@ async function prepareV2CompetitionRun(config = {}, scope = {}, options = {}) {
     createdAt: run.createdAt,
     controllerName: run.controllerName,
     controllerPath: run.controllerPath,
+    cfgSeedDir: run.cfgSeedDir,
     expectedMameVersion,
     integrityDir,
     manifestSha256: run.integrity.manifestSha256,

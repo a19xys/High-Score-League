@@ -4,7 +4,9 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { reconcileCompetitionRuns } = require("../src/competition-run-finalizer");
-const { canonicalJsonBytes, sha256Bytes } = require("../src/run-input-integrity");
+const { armRunInputMonitor, canonicalJsonBytes, sha256Bytes } = require("../src/run-input-integrity");
+const { writeCompetitionAppCloseSeal } = require("../src/competition-close-seal");
+const { OUTPUT_MONITOR_ARMED_FILENAME } = require("../src/competition-output-monitor");
 
 async function workspace(t) {
   const userDataDir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-run-recovery-"));
@@ -40,7 +42,39 @@ async function preparedRun(userDataDir, runId) {
     automaticCaptureStrategy: "invaders-game-mode-final-v1",
     scopedQueueRoot,
   }));
-  return { integrityDir, runId, runRoot, scopedQueueRoot };
+  return {
+    integrityDir,
+    runId,
+    runRoot,
+    scopedQueueRoot,
+    candidateLedgerPath: path.join(integrityDir, "candidate-set.log"),
+    stagingCandidatesDir: path.join(runRoot, "events", "candidates"),
+    stagingCommitmentsDir: path.join(runRoot, "events", "commitments"),
+    runInputManifestSha256: sha256Bytes(manifestBytes),
+  };
+}
+
+async function installCloseSeal(run, options = {}) {
+  await Promise.all([
+    fsp.mkdir(path.join(run.integrityDir, "app"), { recursive: true }),
+    fsp.mkdir(run.stagingCandidatesDir, { recursive: true }),
+    fsp.mkdir(run.stagingCommitmentsDir, { recursive: true }),
+  ]);
+  await fsp.writeFile(path.join(run.integrityDir, "final.marker"), canonicalJsonBytes({ fixture: true }));
+  await fsp.writeFile(run.candidateLedgerPath, "", "utf8");
+  await fsp.writeFile(path.join(run.integrityDir, "mame-exit.json"), canonicalJsonBytes({
+    version: 1, runId: run.runId, exitCode: 0, observedAt: "2026-08-21T10:29:00.000Z",
+  }));
+  const runInputState = await armRunInputMonitor(run, { nowIso: "2026-08-21T10:00:00.000Z" });
+  await fsp.writeFile(path.join(run.integrityDir, "app", OUTPUT_MONITOR_ARMED_FILENAME), canonicalJsonBytes({
+    version: 1, runId: run.runId, armedAt: "2026-08-21T10:00:00.000Z",
+  }));
+  await writeCompetitionAppCloseSeal(run, {
+    exitCode: 0,
+    runInputState,
+    outputState: { version: 1, runId: run.runId, candidates: [], commitments: [], violations: [] },
+  }, { nowIso: "2026-08-21T10:30:00.000Z" });
+  if (options.corrupt) await fsp.writeFile(path.join(run.integrityDir, "app", "app-close-seal.json"), "{bad", "utf8");
 }
 
 async function installEmptyPlan(run, options = {}) {
@@ -101,11 +135,20 @@ test("prepared runs without final seal or exit record are classified fail-closed
   ]);
 });
 
+test("final marker plus mame exit without app close seal is fail-closed", async (t) => {
+  const userDataDir = await workspace(t);
+  const run = await preparedRun(userDataDir, "run_missing_close_seal");
+  await fsp.writeFile(path.join(run.integrityDir, "final.marker"), "{}\n");
+  await fsp.writeFile(path.join(run.integrityDir, "mame-exit.json"), "{}\n");
+  const results = await reconcileCompetitionRuns({ userDataDir });
+  assert.equal(results[0].status, "fail_closed");
+  assert.equal(results[0].reason, "missing_app_close_seal");
+});
+
 test("startup resumes a sealed journal and commits exactly once", async (t) => {
   const userDataDir = await workspace(t);
   const run = await preparedRun(userDataDir, "run_resume");
-  await fsp.writeFile(path.join(run.integrityDir, "final.marker"), "{}\n");
-  await fsp.writeFile(path.join(run.integrityDir, "mame-exit.json"), "{}\n");
+  await installCloseSeal(run);
   await installEmptyPlan(run);
   const first = await reconcileCompetitionRuns({ userDataDir }, { compact: false });
   assert.equal(first[0].status, "clean");
@@ -113,6 +156,16 @@ test("startup resumes a sealed journal and commits exactly once", async (t) => {
   const second = await reconcileCompetitionRuns({ userDataDir }, { compact: false });
   assert.equal(second[0].status, "clean");
   assert.equal(second[0].recovered, false);
+});
+
+test("corrupt app close seal never promotes a partial journal", async (t) => {
+  const userDataDir = await workspace(t);
+  const run = await preparedRun(userDataDir, "run_corrupt_close_seal");
+  await installCloseSeal(run, { corrupt: true });
+  await installEmptyPlan(run);
+  const results = await reconcileCompetitionRuns({ userDataDir }, { compact: false });
+  assert.equal(results[0].status, "fail_closed");
+  assert.match(results[0].reason, /JSON|app-close-seal|Unexpected|SyntaxError/i);
 });
 
 test("corrupt receipt after commit is classified deterministically fail-closed", async (t) => {

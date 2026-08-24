@@ -1,7 +1,9 @@
 # LOCAL-COMPETITION-INTEGRITY-1 — estado endurecido
 
 > Documento histórico. El contrato vigente y sus schemas cerrados están en
-> [`local-competition-integrity-closure-1.md`](local-competition-integrity-closure-1.md).
+> [`local-competition-integrity-closure-1.md`](local-competition-integrity-closure-1.md),
+> con los últimos fixes auditados en
+> [`local-competition-integrity-closure-fix-1.md`](local-competition-integrity-closure-fix-1.md).
 
 Esta es la capa local de integridad de Competición para packs v2. Se ejecuta
 después de la autorización competitiva existente y antes de preparar MAME. No
@@ -95,8 +97,10 @@ comunes como los del perfil pasan una allowlist con aridad:
 
 - `-video` requiere un valor y sólo acepta `bgfx`;
 - `-bgfx_screen_chains` requiere un nombre de chain acotado y seguro;
-- no se aceptan tokens posicionales, duplicados, opciones desconocidas,
-  aliases ni formas concatenadas.
+- no se aceptan tokens posicionales, duplicados ni opciones nuevas/desconocidas.
+  Los aliases y formas inline equivalentes de estas dos
+  opciones visuales se normalizan a los tokens canónicos antes de aplicar la
+  regla common-only.
 
 Por tanto `-script`, `-autoboot_script`, `-pb`, `-playback`, `-rec`, `-record`,
 `-c`, `-cheat`, `-rs`, `-refreshspeed`, state/rewind/debug/console/http/plugin,

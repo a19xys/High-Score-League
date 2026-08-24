@@ -335,7 +335,7 @@ test("packaged competition stages hsl-score from resources without checkout-rela
       runtime: { type: "mame", minVersion: "0.287", recommendedVersion: "0.287" },
       mame: {
         romPath: "roms",
-        launchArgs: [],
+        launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
         profiles: {
           practice: { launchArgs: [] },
           competition: {

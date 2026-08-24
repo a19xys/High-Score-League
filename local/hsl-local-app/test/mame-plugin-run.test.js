@@ -6,6 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   getV2CaptureReadiness,
+  getV2CompetitionReadiness,
   prepareV2CompetitionRun,
 } = require("../src/mame-plugin-run");
 const { buildMameArgs } = require("../src/mame-launcher");
@@ -14,7 +15,10 @@ const { writeCompetitionManifest } = require("../src/competition-manifest");
 const { loadPackFromDir } = require("../src/pack");
 const {
   createRunInputMonitor,
+  materializeCompetitionCfgSeed,
+  physicalWatchPath,
   readRunInputState,
+  verifyCompetitionCfgMaterialization,
   verifyRunInputs,
   verifyRunInputsAfterClose,
 } = require("../src/run-input-integrity");
@@ -62,7 +66,7 @@ async function createV2Config(root, overrides = {}) {
     mame: {
       romPath: "roms",
       artworkPath: "artwork",
-      launchArgs: [],
+      launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
       profiles: {
         practice: { launchArgs: [] },
         competition: {
@@ -97,7 +101,7 @@ async function createV2Config(root, overrides = {}) {
       contract: {
         version: 2,
         mame: {
-          launchArgs: [],
+          launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
           romDir: path.join(packRoot, "roms"),
           romPath: "roms",
           profiles: {
@@ -153,6 +157,48 @@ test("getV2CaptureReadiness rejects unsafe adapter paths", async () => {
     assert.equal(readiness.ok, false);
     assert.ok(readiness.errors.some((item) => /ruta relativa segura/.test(item)));
     assert.ok(readiness.errors.some((item) => /fuera de la carpeta/.test(item)));
+  });
+});
+
+test("protected visual options are common-only for every normalized alias", async () => {
+  await withTempDir(async (dir) => {
+    const sourceDir = await createPluginSource(dir);
+    const config = await createV2Config(dir);
+    const aliases = [
+      ["--video=bgfx"], ["/video", "bgfx"], ["-video:bgfx"],
+      ["--bgfx_screen_chains=crt-geom"], ["-bgfx-screen-chains", "crt-geom"],
+      ["/bgfx_screen_chains:crt-geom"],
+    ];
+    for (const args of aliases) {
+      for (const mode of ["practice", "competition"]) {
+        config.pack.contract.mame.profiles[mode].launchArgs = args;
+        const readiness = getV2CompetitionReadiness(config, { developerOverride: true, sourceDir });
+        assert.equal(readiness.ok, false, `${mode}: ${args.join(" ")}`);
+        assert.ok(readiness.errors.some((item) => /ajustes visuales compartidos/.test(item)));
+        config.pack.contract.mame.profiles[mode].launchArgs = [];
+      }
+    }
+  });
+});
+
+test("protected common visual aliases become one canonical pair in both effective modes", async () => {
+  await withTempDir(async (dir) => {
+    const sourceDir = await createPluginSource(dir);
+    const config = await createV2Config(dir);
+    config.pack.contract.mame.launchArgs = ["--video=bgfx", "/bgfx-screen-chains:crt-geom"];
+    const readiness = getV2CompetitionReadiness(config, { developerOverride: true, sourceDir });
+    assert.equal(readiness.ok, true, readiness.errors.join(" "));
+    const run = await prepareV2CompetitionRun(config, {
+      packKey: "pack_visual", playerKey: "user_visual", scopedQueueRoot: path.join(config.userDataDir, "queue"),
+    }, { developerOverride: true, userId: "visual", runId: "run_visual_alias", sourceDir, detectMameVersionImpl: () => "0.287" });
+    const practice = buildMameArgs(run.config, "invaders", "practice").args;
+    const competition = buildMameArgs(run.config, "invaders", "competition").args;
+    for (const args of [practice, competition]) {
+      assert.equal(args.filter((token) => token === "-video").length, 1);
+      assert.equal(args[args.indexOf("-video") + 1], "bgfx");
+      assert.equal(args.filter((token) => token === "-bgfx_screen_chains").length, 1);
+      assert.equal(args[args.indexOf("-bgfx_screen_chains") + 1], "crt-geom");
+    }
   });
 });
 
@@ -359,7 +405,7 @@ test("prepareV2CompetitionRun rejects an exact MAME mismatch before creating the
   });
 });
 
-test("competitive cfg seed is manifest-covered, copied per run and never reused as mutable state", async () => {
+test("competitive cfg seed is sealed separately and materialized exactly before spawn", async () => {
   await withTempDir(async (dir) => {
     const sourceDir = await createPluginSource(dir);
     const config = await createV2Config(dir);
@@ -384,17 +430,72 @@ test("competitive cfg seed is manifest-covered, copied per run and never reused 
     const first = await prepareV2CompetitionRun(config, scope, {
       developerOverride: true, userId: "user-1", runId: "run_seed_1", sourceDir, detectMameVersionImpl: () => "0.287",
     });
+    assert.equal(await fsp.readFile(path.join(first.cfgSeedDir, "nested", "invaders.cfg"), "utf8"), "seed-v1\n");
+    assert.deepEqual(await fsp.readdir(first.cfgDir), []);
+    await materializeCompetitionCfgSeed(first);
     assert.equal(await fsp.readFile(path.join(first.cfgDir, "nested", "invaders.cfg"), "utf8"), "seed-v1\n");
+    assert.equal(await verifyCompetitionCfgMaterialization(first), true);
     await fsp.writeFile(path.join(first.cfgDir, "nested", "invaders.cfg"), "mutated-run\n", "utf8");
     assert.equal(await fsp.readFile(seedPath, "utf8"), "seed-v1\n");
+    assert.ok(await verifyRunInputsAfterClose(first));
 
     const second = await prepareV2CompetitionRun(config, scope, {
       developerOverride: true, userId: "user-1", runId: "run_seed_2", sourceDir, detectMameVersionImpl: () => "0.287",
     });
-    assert.equal(await fsp.readFile(path.join(second.cfgDir, "nested", "invaders.cfg"), "utf8"), "seed-v1\n");
-    for (const name of ["cfg", "ctrlr", "nvram", "inp", "sta", "snap", "diff", "comments", "share", "home", "ini", "plugins", "events"]) {
+    assert.equal(await fsp.readFile(path.join(second.cfgSeedDir, "nested", "invaders.cfg"), "utf8"), "seed-v1\n");
+    assert.deepEqual(await fsp.readdir(second.cfgDir), []);
+    const manifest = JSON.parse(await fsp.readFile(second.runInputManifestPath, "utf8"));
+    assert.ok(manifest.files.some((entry) => entry.role === "cfg_seed" && entry.path === "seeds/cfg/nested/invaders.cfg"));
+    for (const name of ["cfg", "seeds", "ctrlr", "nvram", "inp", "sta", "snap", "diff", "comments", "share", "home", "ini", "plugins", "events"]) {
       await fsp.access(path.join(second.runRoot, name));
     }
+  });
+});
+
+test("cfg seed tampering blocks spawn while runtime cfg changes remain mutable", async () => {
+  await withTempDir(async (dir) => {
+    const sourceDir = await createPluginSource(dir);
+    const config = await createV2Config(dir);
+    const seedDir = path.join(config.pack.packRoot, "cfg-competition");
+    await fsp.mkdir(seedDir, { recursive: true });
+    await fsp.writeFile(path.join(seedDir, "invaders.cfg"), "seed-v1\n", "utf8");
+    const packJsonPath = path.join(config.pack.packRoot, "pack.json");
+    const packJson = JSON.parse(await fsp.readFile(packJsonPath, "utf8"));
+    packJson.mame.profiles.competition.cfgPath = "cfg-competition";
+    await fsp.writeFile(packJsonPath, `${JSON.stringify(packJson, null, 2)}\n`, "utf8");
+    config.pack = loadPackFromDir(config.pack.packRoot).pack;
+    await writeCompetitionManifest(config.pack);
+    const prepare = (runId) => prepareV2CompetitionRun(config, {
+      packKey: "pack_cfg", playerKey: "user_cfg", scopedQueueRoot: path.join(config.userDataDir, "queue"),
+    }, { developerOverride: true, userId: "cfg-user", runId, sourceDir, detectMameVersionImpl: () => "0.287" });
+
+    const before = await prepare("run_cfg_before");
+    await fsp.writeFile(path.join(before.cfgSeedDir, "invaders.cfg"), "tampered\n", "utf8");
+    let spawns = 0;
+    await assert.rejects(() => launchMame(before.config, "invaders", "competition", () => {
+      spawns += 1;
+      return new EventEmitter();
+    }), /Input sellado modificado/);
+    assert.equal(spawns, 0);
+
+    const during = await prepare("run_cfg_during");
+    const verified = await verifyRunInputs(during);
+    const callbacks = new Map();
+    const monitor = await createRunInputMonitor(during, verified, {
+      watchImpl(filePath, _options, callback) {
+        const watcher = new EventEmitter();
+        watcher.close = () => {};
+        callbacks.set(path.resolve(filePath), callback);
+        return watcher;
+      },
+    });
+    await materializeCompetitionCfgSeed(during);
+    await fsp.writeFile(path.join(during.cfgDir, "invaders.cfg"), "legitimate-runtime-change\n", "utf8");
+    assert.equal(callbacks.has(path.resolve(path.join(during.cfgDir, "invaders.cfg"))), false);
+    await fsp.writeFile(path.join(during.cfgSeedDir, "invaders.cfg"), "tampered-during\n", "utf8");
+    callbacks.get(path.resolve(path.join(during.cfgSeedDir, "invaders.cfg")))("change", null);
+    assert.equal(await verifyRunInputsAfterClose(during, { monitor }), null);
+    assert.deepEqual((await monitor.close()).violations, ["run_input_changed"]);
   });
 });
 
@@ -483,4 +584,69 @@ test("post-run verification and observed restore attacks cover every protected i
       assert.deepEqual((await readRunInputState(restored)).violations, ["run_input_changed"], label);
     }
   });
+});
+
+test("run input violation survives restored bytes and deleted persisted state", async () => {
+  await withTempDir(async (dir) => {
+    const sourceDir = await createPluginSource(dir);
+    const config = await createV2Config(dir);
+    const run = await prepareV2CompetitionRun(config, {
+      packKey: "pack_sticky", playerKey: "user_sticky", scopedQueueRoot: path.join(config.userDataDir, "queue"),
+    }, { developerOverride: true, userId: "sticky", runId: "run_sticky_delete", sourceDir, detectMameVersionImpl: () => "0.287" });
+    const verified = await verifyRunInputs(run);
+    const callbacks = new Map();
+    const monitor = await createRunInputMonitor(run, verified, {
+      watchImpl(filePath, _options, callback) {
+        const watcher = new EventEmitter();
+        watcher.close = () => {};
+        callbacks.set(path.resolve(filePath), callback);
+        return watcher;
+      },
+    });
+    const targetPath = path.resolve(run.adapterPreparedPath);
+    const original = await fsp.readFile(targetPath);
+    await fsp.appendFile(targetPath, "temporary-tamper");
+    callbacks.get(targetPath)("change", null);
+    await fsp.writeFile(targetPath, original);
+    await fsp.rm(path.join(run.integrityDir, "app", "run-input-state.json"));
+    assert.ok(await verifyRunInputsAfterClose(run, { monitor }));
+    assert.ok((await monitor.close()).violations.includes("run_input_changed"));
+    assert.ok((await readRunInputState(run, { required: true })).violations.includes("run_input_changed"));
+  });
+});
+
+test("missing or corrupt dynamic state after monitor armed becomes integrity_unavailable", async (t) => {
+  await withTempDir(async (dir) => {
+    const sourceDir = await createPluginSource(dir);
+    const config = await createV2Config(dir);
+    for (const state of ["missing", "empty", "corrupt", "wrong-run"]) {
+      const run = await prepareV2CompetitionRun(config, {
+        packKey: "pack_state", playerKey: "user_state", scopedQueueRoot: path.join(config.userDataDir, "queue"),
+      }, { developerOverride: true, userId: "state", runId: `run_state_${state}`, sourceDir, detectMameVersionImpl: () => "0.287" });
+      const monitor = await createRunInputMonitor(run, await verifyRunInputs(run), {
+        watchImpl() {
+          const watcher = new EventEmitter();
+          watcher.close = () => {};
+          return watcher;
+        },
+      });
+      const statePath = path.join(run.integrityDir, "app", "run-input-state.json");
+      if (state === "missing") await fsp.rm(statePath);
+      if (state === "empty") await fsp.writeFile(statePath, "", "utf8");
+      if (state === "corrupt") await fsp.writeFile(statePath, "{bad", "utf8");
+      if (state === "wrong-run") await fsp.writeFile(statePath, JSON.stringify({
+        version: 1, runId: "other-run", violations: [], updatedAt: "2026-08-21T10:00:00.000Z",
+      }), "utf8");
+      assert.deepEqual((await monitor.close()).violations, ["integrity_unavailable"], state);
+      assert.deepEqual((await readRunInputState(run, { required: true })).violations, ["integrity_unavailable"], state);
+    }
+  });
+});
+
+test("ASAR virtual entries verify normally but monitor only receives the physical container", () => {
+  const root = path.join("C:\\Program Files", "High Score League", "resources", "app.asar");
+  assert.equal(physicalWatchPath(path.join(root, "product", "product-integrity-root.json")), path.resolve(root));
+  assert.equal(physicalWatchPath(path.join(root, "product", "hsl-runtime-integrity.json")), path.resolve(root));
+  const regular = path.join("C:\\fixture", "runtime", "mame.exe");
+  assert.equal(physicalWatchPath(regular), path.resolve(regular));
 });

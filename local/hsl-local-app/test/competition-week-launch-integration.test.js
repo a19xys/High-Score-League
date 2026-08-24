@@ -52,7 +52,7 @@ test("Space Invaders visible ACTIVE confirma endpoint, prepara v2 y alcanza Chil
       runtime: { type: "mame", minVersion: "0.286", recommendedVersion: "0.286" },
       mame: {
         romPath: "roms",
-        launchArgs: [],
+        launchArgs: ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"],
         profiles: {
           practice: { launchArgs: [] },
           competition: {

@@ -32,7 +32,7 @@ async function main() {
   const mameExecutablePath = path.resolve(process.argv[3]
     || path.join(appDir, ".cache", "product", "mame", "0.287", "runtime", "mame.exe"));
   const mode = process.argv[4] || "clean";
-  assert.ok(["clean", "pause", "dip_changed", "save_load", "reset", "crash"].includes(mode), `QA mode invalido: ${mode}`);
+  assert.ok(["clean", "pause", "dip_changed", "save_load", "reset", "crash", "output_tamper", "input_restore_delete"].includes(mode), `QA mode invalido: ${mode}`);
   const qaRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-space-auto-final-"));
   configureProductRuntime({ appPath: path.join(appDir, ".cache"), isPackaged: false, version: packageMetadata.version });
   try {
@@ -77,7 +77,7 @@ async function main() {
       developerQa: {
         autobootScriptPath: path.resolve(appDir, "test", "support", "mame-0287-invaders-auto-capture-qa.lua"),
         remoteVerifiedFixture: true,
-        violation: mode === "crash" ? "clean" : mode,
+        violation: ["crash", "output_tamper", "input_restore_delete"].includes(mode) ? "clean" : mode,
       },
       productRootPath: path.join(appDir, ".cache", "product", "product-integrity-root.json"),
       runId: `run_real_automatic_qa_${mode}`,
@@ -89,6 +89,10 @@ async function main() {
     let pendingWhileOpen = null;
     let finalized = null;
     let actualArgs = null;
+    let candidateObservedByLauncher = false;
+    let commitmentObservedByLauncher = false;
+    let outputTamperPromise = null;
+    let inputTamperPromise = null;
     const spawnObserved = (command, args, options) => {
       actualArgs = [...args];
       assert.deepEqual(actualArgs, run.launchPlan.args);
@@ -117,10 +121,47 @@ async function main() {
       return child;
     };
     const result = await launchMameDetailed(run.config, loaded.pack.rom, "competition", spawnObserved, {
+      onSpawn() {
+        if (mode === "input_restore_delete") {
+          inputTamperPromise = (async () => {
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            const original = await fsp.readFile(run.adapterPreparedPath);
+            await fsp.appendFile(run.adapterPreparedPath, "\n-- observed temporary QA tamper\n", "utf8");
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            await fsp.writeFile(run.adapterPreparedPath, original);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            await fsp.rm(path.join(run.integrityDir, "app", "run-input-state.json"));
+          })();
+        }
+      },
       async onClose(exitCode) {
         finalized = await finalizeCompetitionRun(run, scope, { compact: false, exitCode });
       },
+    }, {
+      onOutputObservation(observation) {
+        if (observation.kind === "candidate") candidateObservedByLauncher = true;
+        if (observation.kind === "commitment") commitmentObservedByLauncher = true;
+        if (mode === "output_tamper" && candidateObservedByLauncher && commitmentObservedByLauncher && !outputTamperPromise) {
+          outputTamperPromise = (async () => {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            const candidatePath = path.join(run.stagingCandidatesDir, "candidate_000001.json");
+            const commitmentPath = path.join(run.stagingCommitmentsDir, "commitment_000001.json");
+            const candidate = JSON.parse(await fsp.readFile(candidatePath, "utf8"));
+            candidate.score = 99990;
+            if (candidate.metadata) {
+              candidate.metadata.displayScore = 99990;
+              candidate.metadata.trackedScore = 99990;
+            }
+            const commitment = JSON.parse(await fsp.readFile(commitmentPath, "utf8"));
+            commitment.candidate = candidate;
+            await fsp.writeFile(candidatePath, `${JSON.stringify(candidate)}\n`, "utf8");
+            await fsp.writeFile(commitmentPath, `${JSON.stringify(commitment)}\n`, "utf8");
+          })();
+        }
+      },
     });
+    await outputTamperPromise;
+    await inputTamperPromise;
     const output = `${liveOutput}\n${result.stdoutLines.join("\n")}\n${result.stderrLines.join("\n")}`;
     if (mode === "crash") assert.notEqual(result.exitCode, 0, output);
     else assert.equal(result.exitCode, 0, output);
@@ -129,10 +170,19 @@ async function main() {
     assert.match(output, /AUTOMATIC_FINAL/);
     assert.ok(finalized);
 
-    const expectedStatus = mode === "clean" ? "clean" : mode === "crash" ? "fail_closed" : "violated";
+    const expectedStatus = mode === "clean" ? "clean" : ["crash", "output_tamper"].includes(mode) ? "fail_closed" : "violated";
     assert.equal(finalized.status, expectedStatus, JSON.stringify(finalized, null, 2));
     assert.equal(finalized.adopted.length, mode === "clean" ? 1 : 0);
     assert.deepEqual(await listJson(scope.scopedPendingDir), mode === "clean" ? [finalized.adopted[0].filename] : []);
+    assert.equal(candidateObservedByLauncher, true);
+    assert.equal(commitmentObservedByLauncher, true);
+    const closeSeal = JSON.parse(await fsp.readFile(path.join(run.integrityDir, "app", "app-close-seal.json"), "utf8"));
+    assert.equal(closeSeal.candidates.length, 1);
+    if (mode === "output_tamper") assert.ok(finalized.violations.includes("integrity_unavailable"));
+    if (mode === "input_restore_delete") {
+      assert.ok(finalized.violations.includes("run_input_changed"));
+      assert.ok(closeSeal.runInputViolations.includes("run_input_changed"));
+    }
     let eligibility = null;
     let score = null;
     if (mode === "clean") {
@@ -154,6 +204,9 @@ async function main() {
     process.stdout.write(`${JSON.stringify({
       actualArgvEqualsSealedPlan: JSON.stringify(actualArgs) === JSON.stringify(run.launchPlan.args),
       candidateObservedBeforeClose,
+      candidateObservedByLauncher,
+      commitmentObservedByLauncher,
+      closeSealCandidates: closeSeal.candidates.length,
       mode,
       pendingWhileOpen,
       finalStatus: finalized.status,

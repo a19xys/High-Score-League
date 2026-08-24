@@ -50,6 +50,39 @@ function normalizeMameOptionToken(value) {
   return name.toLowerCase().replace(/[_-]/g, "");
 }
 
+function parseMameOptionToken(value) {
+  const option = normalizeMameOptionToken(value);
+  if (!option) return null;
+  const token = value.trim();
+  const withoutPrefix = token.replace(/^(?:--?|\/)/, "");
+  const separator = withoutPrefix.search(/[=:]/);
+  return {
+    inlineValue: separator === -1 ? null : withoutPrefix.slice(separator + 1),
+    option,
+  };
+}
+
+const COMPETITION_PACK_ARGUMENT_BY_NORMALIZED_OPTION = Object.freeze({
+  bgfxscreenchains: "-bgfx_screen_chains",
+  video: "-video",
+});
+
+function normalizeVisualMameArguments(values) {
+  const result = [];
+  for (let index = 0; index < values.length; index += 1) {
+    const parsed = parseMameOptionToken(values[index]);
+    const canonical = parsed && COMPETITION_PACK_ARGUMENT_BY_NORMALIZED_OPTION[parsed.option];
+    if (!canonical) {
+      result.push(values[index]);
+      continue;
+    }
+    result.push(canonical);
+    if (parsed.inlineValue !== null) result.push(parsed.inlineValue);
+    else if (index + 1 < values.length) result.push(values[++index]);
+  }
+  return result;
+}
+
 function findReservedMameArgument(args) {
   if (!Array.isArray(args)) return null;
   for (const token of args) {
@@ -74,23 +107,27 @@ function validateCompetitionPackMameArguments(args, label = "mame.launchArgs") {
 
   for (let index = 0; index < args.length;) {
     const token = args[index];
-    const spec = COMPETITION_PACK_ARGUMENT_SPECS[token];
+    const parsed = parseMameOptionToken(token);
+    const canonical = parsed && COMPETITION_PACK_ARGUMENT_BY_NORMALIZED_OPTION[parsed.option];
+    const spec = canonical && COMPETITION_PACK_ARGUMENT_SPECS[canonical];
     if (!spec) {
       throw new Error(`pack.json ${label} usa una opcion MAME no permitida en Competicion: ${token}. Muevela al perfil de Practica.`);
     }
-    if (seen.has(token)) {
-      throw new Error(`pack.json ${label} repite la opcion ${token} en Competicion.`);
+    if (seen.has(canonical)) {
+      throw new Error(`pack.json ${label} repite la opcion ${canonical} en Competicion.`);
     }
-    seen.add(token);
-    const values = args.slice(index + 1, index + 1 + spec.arity);
+    seen.add(canonical);
+    const values = parsed.inlineValue === null
+      ? args.slice(index + 1, index + 1 + spec.arity)
+      : [parsed.inlineValue];
     if (values.length !== spec.arity || values.some((value) => normalizeMameOptionToken(value))) {
-      throw new Error(`pack.json ${label} debe aportar ${spec.arity} valor(es) para ${token}.`);
+      throw new Error(`pack.json ${label} debe aportar ${spec.arity} valor(es) para ${canonical}.`);
     }
     if (!spec.validate(...values)) {
-      throw new Error(`pack.json ${label} contiene un valor no permitido para ${token}; se esperaba ${spec.expected}.`);
+      throw new Error(`pack.json ${label} contiene un valor no permitido para ${canonical}; se esperaba ${spec.expected}.`);
     }
-    result.push(token, ...values);
-    index += 1 + spec.arity;
+    result.push(canonical, ...values);
+    index += parsed.inlineValue === null ? 1 + spec.arity : 1;
   }
 
   return result;
@@ -112,7 +149,7 @@ function validatePackMameArguments(args, label = "mame.launchArgs", options = {}
   if (options.mode === "competition") {
     return validateCompetitionPackMameArguments(values, label);
   }
-  return values;
+  return normalizeVisualMameArguments(values);
 }
 
 module.exports = {
@@ -122,6 +159,8 @@ module.exports = {
   findCompetitionReservedMameArgument,
   findReservedMameArgument,
   normalizeMameOptionToken,
+  normalizeVisualMameArguments,
+  parseMameOptionToken,
   validateCompetitionPackMameArguments,
   validatePackMameArguments,
 };

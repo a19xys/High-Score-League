@@ -27,9 +27,24 @@ function expectedPlayerBinding(config) {
   return userId ? deriveCompetitionPlayerBinding(userId) : null;
 }
 
+function requiresProtectedCompetitionEvidence(config = {}) {
+  const pack = config.pack;
+  const contract = pack?.contract;
+  return (pack?.packVersion === 2 || contract?.version === 2)
+    && contract?.mame?.profiles?.competition?.integrity?.version === 1
+    && contract?.capture?.automatic?.version === 1
+    && typeof contract.capture.automatic.strategy === "string"
+    && contract.capture.automatic.strategy.length > 0;
+}
+
 async function checkProtectedCompetitionEligibility(config, event, sourcePath) {
   const evidence = event?.competitionIntegrity;
-  if (evidence === undefined) return { eligible: true, kind: "legacy" };
+  const protectedRequired = requiresProtectedCompetitionEvidence(config);
+  if (evidence === undefined) {
+    return protectedRequired
+      ? ineligible("COMPETITION_EVIDENCE_REQUIRED", "Este scope exige evidence competitiva v2 app-owned.")
+      : { eligible: true, kind: "legacy" };
+  }
   if (evidence?.version !== 2 || evidence.guardVersion !== 2) {
     return ineligible("COMPETITION_EVIDENCE_NOT_ELIGIBLE", "Evidence competitiva distinta de v2 no es elegible para envio productivo.");
   }
@@ -102,4 +117,5 @@ async function checkProtectedCompetitionEligibility(config, event, sourcePath) {
 module.exports = {
   checkProtectedCompetitionEligibility,
   expectedPlayerBinding,
+  requiresProtectedCompetitionEvidence,
 };

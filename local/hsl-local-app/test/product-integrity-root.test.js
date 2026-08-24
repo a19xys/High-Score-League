@@ -37,7 +37,8 @@ async function fixture(t) {
 }
 
 test("product root lives in ASAR files while mutable runtime remains an extraResource", () => {
-  assert.ok(builder.files.some((entry) => entry?.to === "product/product-integrity-root.json"));
+  assert.ok(builder.files.some((entry) => entry?.from === ".cache/product"
+    && entry?.to === "product" && entry?.filter?.includes("product-integrity-root.json")));
   assert.equal(builder.extraResources.some((entry) => entry?.to === "product/product-integrity-root.json"), false);
 });
 

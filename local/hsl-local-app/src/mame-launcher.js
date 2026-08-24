@@ -12,10 +12,14 @@ const {
 const { isMameVersionCompatible } = require("./mame-version");
 const {
   createRunInputMonitor,
+  materializeCompetitionCfgSeed,
   verifyRunInputs,
   verifyRunInputsAfterClose,
+  verifyCompetitionCfgMaterialization,
   writeMameExitRecord,
 } = require("./run-input-integrity");
+const { createCompetitionOutputMonitor } = require("./competition-output-monitor");
+const { writeCompetitionAppCloseSeal } = require("./competition-close-seal");
 
 const DEFAULT_PLUGIN_NAME = "hsl-score";
 const DEFAULT_LAUNCH_ARGS = ["-skip_gameinfo"];
@@ -425,34 +429,67 @@ function spawnOptionsForLaunch(launch, stdio) {
 }
 
 async function secureCompetitionLifecycle(config, mode, lifecycle, options = {}) {
-  if (mode !== "competition" || !config.v2PluginRun) return { lifecycle, monitor: null };
+  if (mode !== "competition" || !config.v2PluginRun) return { lifecycle, monitors: null, beforeSpawn: async () => {} };
   const run = config.v2PluginRun;
   const verified = await (options.verifyRunInputsImpl || verifyRunInputs)(run, options);
-  const monitor = await (options.createRunInputMonitorImpl || createRunInputMonitor)(run, verified, options);
+  const inputMonitor = await (options.createRunInputMonitorImpl || createRunInputMonitor)(run, verified, options);
+  let outputMonitor;
+  try {
+    await (options.materializeCompetitionCfgSeedImpl || materializeCompetitionCfgSeed)(run, options);
+    outputMonitor = await (options.createCompetitionOutputMonitorImpl || createCompetitionOutputMonitor)(run, options);
+  } catch (error) {
+    await inputMonitor.record("integrity_unavailable").catch(() => null);
+    await inputMonitor.close().catch(() => null);
+    throw error;
+  }
   return {
-    monitor,
+    async beforeSpawn() {
+      try {
+        await (options.verifyRunInputsImpl || verifyRunInputs)(run, options);
+        await (options.verifyCompetitionCfgMaterializationImpl || verifyCompetitionCfgMaterialization)(run, options);
+      } catch (error) {
+        await inputMonitor.record(error?.code === "run_input_changed" ? "run_input_changed" : "integrity_unavailable").catch(() => null);
+        await inputMonitor.close().catch(() => null);
+        await outputMonitor.close().catch(() => null);
+        throw error;
+      }
+    },
+    monitors: { inputMonitor, outputMonitor },
     lifecycle: {
       onSpawn: () => lifecycle?.onSpawn?.(),
       async onClose(code) {
-        await monitor.close();
-        await (options.verifyRunInputsAfterCloseImpl || verifyRunInputsAfterClose)(run, options);
+        const outputState = await outputMonitor.close().catch(() => ({
+          version: 1, runId: run.runId, candidates: [], commitments: [], violations: ["integrity_unavailable"],
+        }));
+        await inputMonitor.close();
+        await (options.verifyRunInputsAfterCloseImpl || verifyRunInputsAfterClose)(run, { ...options, monitor: inputMonitor });
+        const runInputState = await inputMonitor.snapshot();
         await (options.writeMameExitRecordImpl || writeMameExitRecord)(run, code, options);
+        await (options.writeCompetitionAppCloseSealImpl || writeCompetitionAppCloseSeal)(run, {
+          exitCode: code,
+          outputState,
+          runInputState,
+        }, options).catch(() => null);
         await lifecycle?.onClose?.(code);
       },
     },
   };
 }
 
-async function launchMame(config, rom, mode, spawnImpl = spawn, lifecycle = null) {
+async function launchMame(config, rom, mode, spawnImpl = spawn, lifecycle = null, integrityOptions = {}) {
   const launch = buildMameArgs(config, rom, mode);
   assertLaunchResources(config, launch);
   ensureMameStateDirectories(launch.mutableDirectories);
-  const secured = await secureCompetitionLifecycle(config, mode, lifecycle);
+  const secured = await secureCompetitionLifecycle(config, mode, lifecycle, integrityOptions);
   printLaunchSummary(launch);
+  await secured.beforeSpawn();
 
   return new Promise((resolve, reject) => {
     const child = spawnImpl(launch.command, launch.args, spawnOptionsForLaunch(launch, "inherit"));
-    child.once?.("error", () => secured.monitor?.close().catch(() => null));
+    child.once?.("error", () => {
+      secured.monitors?.inputMonitor?.close().catch(() => null);
+      secured.monitors?.outputMonitor?.close().catch(() => null);
+    });
     attachProcessLifecycle(child, secured.lifecycle, resolve, reject, (code) => code);
   });
 }
@@ -468,18 +505,22 @@ function trimOutputLines(lines) {
   ];
 }
 
-async function launchMameDetailed(config, rom, mode, spawnImpl = spawn, lifecycle = null) {
+async function launchMameDetailed(config, rom, mode, spawnImpl = spawn, lifecycle = null, integrityOptions = {}) {
   const launch = buildMameArgs(config, rom, mode);
   assertLaunchResources(config, launch);
   ensureMameStateDirectories(launch.mutableDirectories);
-  const secured = await secureCompetitionLifecycle(config, mode, lifecycle);
+  const secured = await secureCompetitionLifecycle(config, mode, lifecycle, integrityOptions);
   printLaunchSummary(launch);
+  await secured.beforeSpawn();
 
   return new Promise((resolve, reject) => {
     const stdoutLines = [];
     const stderrLines = [];
     const child = spawnImpl(launch.command, launch.args, spawnOptionsForLaunch(launch, ["ignore", "pipe", "pipe"]));
-    child.once?.("error", () => secured.monitor?.close().catch(() => null));
+    child.once?.("error", () => {
+      secured.monitors?.inputMonitor?.close().catch(() => null);
+      secured.monitors?.outputMonitor?.close().catch(() => null);
+    });
 
     const collect = (target) => (chunk) => {
       const lines = String(chunk).split(/\r?\n/).filter((line) => line.trim() !== "");

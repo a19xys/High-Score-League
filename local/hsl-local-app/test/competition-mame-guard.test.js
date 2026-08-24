@@ -13,13 +13,24 @@ test("opciones peligrosas se rechazan solo en Competition y con variantes de par
   for (const token of [
     "-rewind", "--state=foo", "/cheat", "-speed:2", "--autoboot_script=x.lua",
     "-ctrlr", "-bench=10", "-nohttp", "-script", "-pb",
-    "-unknown", "--video=bgfx", "/video:bgfx",
+    "-unknown",
   ]) {
     assert.throws(() => validatePackMameArguments([token], "mame.launchArgs", { mode: "competition" }), /no permitida en Competicion/);
     assert.deepEqual(validatePackMameArguments([token], "mame.launchArgs", { mode: "practice" }), [token]);
   }
   for (const token of ["--plugin=x", "/plugins", "-ctrlr_path"]) {
     assert.throws(() => validatePackMameArguments([token], "mame.launchArgs", { mode: "competition" }), /reservada|no permitida/);
+  }
+});
+
+test("visual aliases normalize through the same Competition parser", () => {
+  for (const [args, expected] of [
+    [["--video=bgfx", "/bgfx_screen_chains:crt-geom"], ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"]],
+    [["/video", "bgfx", "--bgfx-screen-chains", "crt-geom"], ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"]],
+    [["-video:bgfx", "-bgfx_screen_chains=crt-geom"], ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"]],
+  ]) {
+    assert.deepEqual(validatePackMameArguments(args, "mame.launchArgs", { mode: "competition" }), expected);
+    assert.deepEqual(validatePackMameArguments(args, "mame.launchArgs", { mode: "practice" }), expected);
   }
 });
 

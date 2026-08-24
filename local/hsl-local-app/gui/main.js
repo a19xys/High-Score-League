@@ -49,6 +49,7 @@ const { configureProductRuntime } = require("../src/product-runtime");
 const { createExitCoordinator } = require("../src/exit-coordinator");
 const { createWindowsUpdateService } = require("../src/windows-update-service");
 const { reconcileCompetitionRuns } = require("../src/competition-run-finalizer");
+const { runPackagedIntegrityQa } = require("../src/packaged-integrity-qa");
 
 app.setName("High Score League");
 if (process.env.HSL_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.HSL_USER_DATA_DIR));
@@ -85,6 +86,7 @@ let weekAuthorityStartupPromise = Promise.resolve();
 let previousReachability = "unknown";
 let lastCommittedAt = null;
 let forceWeekRefreshOnNextContext = false;
+let packagedIntegrityQa = null;
 
 const NATIVE_TITLE_BAR_HEIGHT = 32;
 const NATIVE_TITLE_BAR_OVERLAY_COLOR = "#00000000";
@@ -315,6 +317,7 @@ function writePackagedSmokeReport(phase) {
         version: config.sharedMameRuntime?.version || null,
       },
       phase,
+      packagedIntegrityQa,
       pluginAvailable: fs.existsSync(path.join(pluginSource, "init.lua")),
       productConfigAvailable: Boolean(config.hslOrigin && config.supabaseUrl && config.supabasePublishableKey),
       productConfigSource: config.productConfigSource || "none",
@@ -1497,6 +1500,13 @@ if (!hasSingleInstanceLock) {
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
     initializeWindowsUpdateService();
+    if (process.env.HSL_PACKAGED_SMOKE_FILE && app.isPackaged) {
+      try {
+        packagedIntegrityQa = await runPackagedIntegrityQa(loadConfig());
+      } catch (error) {
+        packagedIntegrityQa = { error: error.message, ok: false };
+      }
+    }
     writePackagedSmokeReport("main-ready");
     if (process.platform === "win32") app.setAppUserModelId("com.highscoreleague.launcher");
     themeAuthority = createThemeAuthority({

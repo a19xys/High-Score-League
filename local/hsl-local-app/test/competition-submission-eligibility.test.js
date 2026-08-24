@@ -4,7 +4,10 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { deriveCompetitionPlayerBinding } = require("../src/competition-player-binding");
-const { checkProtectedCompetitionEligibility } = require("../src/competition-submission-eligibility");
+const {
+  checkProtectedCompetitionEligibility,
+  requiresProtectedCompetitionEvidence,
+} = require("../src/competition-submission-eligibility");
 const { submitPendingFile } = require("../src/submission-service");
 const { canonicalJsonBytes, sha256Bytes } = require("../src/run-input-integrity");
 
@@ -79,7 +82,17 @@ async function fixture(t, mutate = null) {
     supabaseAnonKey: "anon-key",
     supabaseUrl: "https://example.supabase.co",
     webBaseUrl: "https://high-score-league.example",
-    pack: { packId: PACK_ID, weekId: WEEK_ID, rom: "invaders" },
+    pack: {
+      packVersion: 2,
+      packId: PACK_ID,
+      weekId: WEEK_ID,
+      rom: "invaders",
+      contract: {
+        version: 2,
+        mame: { profiles: { competition: { integrity: { version: 1 } } } },
+        capture: { automatic: { version: 1, strategy: "invaders-game-mode-final-v1" } },
+      },
+    },
     competitionPlayerBinding: PLAYER_BINDING,
     scopedQueue: {
       scopedQueueRoot,
@@ -150,6 +163,51 @@ test("a CLEAN scoped receipt and finalization commit authorize exact bytes", asy
   const result = await checkProtectedCompetitionEligibility(value.config, value.event, value.sourcePath);
   assert.equal(result.eligible, true);
   assert.equal(result.kind, "protected_v2");
+});
+
+test("protected-required comes only from the app-owned pack contract", async (t) => {
+  const value = await fixture(t);
+  assert.equal(requiresProtectedCompetitionEvidence(value.config), true);
+  const rewritten = { ...value.event };
+  delete rewritten.competitionIntegrity;
+  rewritten.packId = "attacker-legacy-pack";
+  const result = await checkProtectedCompetitionEligibility(value.config, rewritten, value.sourcePath);
+  assert.equal(result.eligible, false);
+  assert.equal(result.code, "COMPETITION_EVIDENCE_REQUIRED");
+
+  const legacyConfig = { ...value.config, pack: { packId: "legacy-pack", weekId: WEEK_ID, rom: "invaders" } };
+  assert.equal(requiresProtectedCompetitionEvidence(legacyConfig), false);
+  assert.deepEqual(
+    await checkProtectedCompetitionEligibility(legacyConfig, rewritten, value.sourcePath),
+    { eligible: true, kind: "legacy" },
+  );
+});
+
+test("deleted, v1 and corrupt evidence in protected scope are rejected before auth and HTTP", async (t) => {
+  for (const [name, mutate] of [
+    ["deleted", (event) => { delete event.competitionIntegrity; }],
+    ["v1", (event) => { event.competitionIntegrity = { version: 1 }; }],
+    ["corrupt-v2", (event) => { event.competitionIntegrity.guardVersion = 1; }],
+    ["rewritten-legacy", (event) => {
+      delete event.competitionIntegrity;
+      event.packId = "legacy-forged";
+      event.runId = "legacy-forged";
+    }],
+  ]) {
+    await t.test(name, async () => {
+      const value = await fixture(t, mutate);
+      let sessionResolutions = 0;
+      let requests = 0;
+      const result = await submitPendingFile(value.config, value.filename, {
+        getSessionResultImpl: async () => { sessionResolutions += 1; throw new Error("must-not-resolve"); },
+        fetchImpl: async () => { requests += 1; throw new Error("must-not-fetch"); },
+      });
+      assert.equal(result.action, "rejected");
+      assert.equal(result.httpRequests, 0);
+      assert.equal(sessionResolutions, 0);
+      assert.equal(requests, 0);
+    });
+  }
 });
 
 const pendingAttacks = {

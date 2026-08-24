@@ -10,9 +10,12 @@ const {
   RUN_INPUT_MANIFEST_FILENAME,
   atomicWriteBytes,
   canonicalJsonBytes,
-  readRunInputState,
   sha256Bytes,
 } = require("./run-input-integrity");
+const {
+  APP_CLOSE_SEAL_FILENAME,
+  readCompetitionAppCloseSeal,
+} = require("./competition-close-seal");
 
 const MAX_LEDGER_BYTES = 64 * 1024;
 const MAX_CANDIDATE_BYTES = 256 * 1024;
@@ -288,14 +291,28 @@ async function readCandidates(run, sealedSet) {
 async function readRunLedger(run, options = {}) {
   const identity = validateIdentity(await readSmallJson(path.join(run.integrityDir, "identity.json")), run.integrity);
   validateArmedMarker(await readSmallJson(path.join(run.integrityDir, "armed.marker")), identity);
-  await readMameExit(run, options.exitCode);
+  const mameExit = await readMameExit(run, options.exitCode);
   const pluginViolations = await readViolationMarkers(run, identity);
-  const appState = await readRunInputState(run).catch(() => ({ violations: ["integrity_unavailable"] }));
-  const violations = canonicalViolations([...pluginViolations, ...(appState.violations || [])]);
   const sealedSet = validateCandidateSet(await readSmallJson(path.join(run.integrityDir, "final.marker")), identity);
+  const closeSeal = await readCompetitionAppCloseSeal(run, { exitCode: mameExit.exitCode });
+  if (closeSeal.value.candidates.length !== sealedSet.length
+      || sealedSet.some((expected, index) => {
+        const observed = closeSeal.value.candidates[index];
+        return observed?.sequence !== expected.sequence
+          || observed?.candidateFile !== expected.candidateFile
+          || observed?.commitmentFile !== expected.commitmentFile;
+      })) {
+    throw new CompetitionFinalizationError("app_close_seal_set_mismatch", "Las observaciones app-owned no coinciden con el conjunto final de candidates.");
+  }
+  const appState = { violations: closeSeal.value.runInputViolations };
+  const violations = canonicalViolations([
+    ...pluginViolations,
+    ...closeSeal.value.runInputViolations,
+    ...closeSeal.value.outputViolations,
+  ]);
   validateState(await readSmallJson(path.join(run.integrityDir, "state.json")), identity, pluginViolations);
   const candidates = await readCandidates(run, sealedSet);
-  return { appState, candidates, identity, sealedSet, violations };
+  return { appState, candidates, closeSeal, identity, sealedSet, violations };
 }
 
 function buildCompetitionIntegrity(run, candidate, violations) {
@@ -589,7 +606,7 @@ async function publishPlan(run, scope, plan, options = {}) {
 
 async function compactCompetitionRun(run, result, options = {}) {
   if (options.compact === false) return null;
-  const heavy = ["pack", "plugins", "cfg", "ctrlr", "ini", "nvram", "inp", "sta", "snap", "diff", "comments", "share", "home"];
+  const heavy = ["pack", "plugins", "cfg", "seeds", "ctrlr", "ini", "nvram", "inp", "sta", "snap", "diff", "comments", "share", "home"];
   for (const name of heavy) await fsp.rm(path.join(run.runRoot, name), { recursive: true, force: true });
   const audit = {
     version: 1,
@@ -614,13 +631,17 @@ async function finalizeCompetitionRun(run, scope, options = {}) {
     throw new CompetitionFinalizationError("invalid_scope", "No se recibio una cola scoped completa.");
   }
   const existing = await readExistingFinalization(run, scope);
-  if (existing) return existing;
+  if (existing) {
+    await readCompetitionAppCloseSeal(run, { exitCode: options.exitCode });
+    return existing;
+  }
   let plan;
   try {
     plan = await readPlan(run);
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
   }
+  if (plan) await readCompetitionAppCloseSeal(run, { exitCode: options.exitCode });
   if (!plan) {
     let ledger = { candidates: [], violations: [] };
     let failClosedReason = null;
@@ -731,9 +752,10 @@ async function reconcileCompetitionRuns(config = {}, options = {}) {
       const run = await loadCompetitionRunForRecovery(runRoot, config.userDataDir);
       const hasFinal = await fsp.access(path.join(run.integrityDir, "final.marker")).then(() => true, () => false);
       const hasExit = await fsp.access(path.join(run.integrityDir, MAME_EXIT_FILENAME)).then(() => true, () => false);
+      const hasCloseSeal = await fsp.access(path.join(run.integrityDir, "app", APP_CLOSE_SEAL_FILENAME)).then(() => true, () => false);
       const hasCommit = await fsp.access(path.join(run.integrityDir, COMMIT_FILENAME)).then(() => true, () => false);
-      if (!hasCommit && (!hasFinal || !hasExit)) {
-        const reason = !hasFinal ? "missing_final_seal" : "missing_mame_exit";
+      if (!hasCommit && (!hasFinal || !hasExit || !hasCloseSeal)) {
+        const reason = !hasFinal ? "missing_final_seal" : !hasExit ? "missing_mame_exit" : "missing_app_close_seal";
         await writeRecoveryStatus(runRoot, "fail_closed", reason, options);
         results.push({ runId: run.runId, status: "fail_closed", reason });
         continue;

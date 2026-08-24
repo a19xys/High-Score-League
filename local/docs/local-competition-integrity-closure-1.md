@@ -32,7 +32,7 @@ artifact oficial + descriptor
   -> launch plan + inputs sellados + prepared.marker
   -> MAME exacto + plugin 0.4.0 + adapter aislado
   -> candidates + commitments + ledger + final seal
-  -> verificación post-run + mame-exit
+  -> observación app-owned + verificación post-run + mame-exit + app close seal
   -> finalization plan + receipt + outputs + commit
   -> segunda barrera de elegibilidad
   -> HTTP (sólo si todo coincide)
@@ -79,10 +79,13 @@ El manifest canónico cubre:
 - la raíz de producto o, sólo en QA de desarrollo, el hash de MAME externo.
 
 El launcher verifica esos bytes inmediatamente antes de `spawn`, arranca un
-watcher best-effort y repite el hash después del cierre. El watcher no es una
-garantía absoluta: complementa los hashes pre/post. Una mutación observada deja
-`run_input_changed` sticky aunque los bytes originales se restauren. Si la
-vigilancia queda indisponible se registra `integrity_unavailable`.
+watcher best-effort y repite el hash después del cierre. El cfg de Competition
+se separa en `seeds/cfg/` inmutable y `cfg/` vivo: el seed entra en el manifest,
+se materializa y compara justo antes del spawn; el cfg vivo puede cambiar por
+MAME sin convertirse en input inmutable. Una mutación observada deja
+`run_input_changed` sticky en memoria y en markers monotónicos aunque se
+restauren los bytes o se borre `run-input-state.json`. Tras el marker de monitor
+armado, estado ausente o corrupto equivale a `integrity_unavailable`.
 
 ## Raíz de integridad del producto y CRT
 
@@ -103,6 +106,12 @@ Se protege esa closure acotada, no miles de recursos BGFX ajenos. Regenerar un
 manifest vecino junto a bytes modificados no basta porque cambia el digest
 anclado en la raíz del ASAR.
 
+Dentro de Electron, la root virtual `app.asar/product/...` sigue pasando los
+hashes pre/post con las APIs ASAR-aware. `fs.watch` nunca recibe esa entry
+virtual: recibe el contenedor físico `app.asar`; los manifests y recursos de
+`extraResources` continúan vigilándose como paths físicos. El smoke packaged
+ejecuta esta frontera en el `appPath` real y exige monitor limpio.
+
 ## Candidates, commitments y cierre
 
 El core acepta un máximo de 128 candidates. Cada publicación genera, en orden
@@ -115,6 +124,16 @@ commitment y final seal. Detecta edición de score/metadata, alta, baja,
 renombrado, duplicado, commitment extra/ausente y alteraciones de orden. La
 sanitización Node usa objetos sin prototipo y rechaza `__proto__`, `prototype` y
 `constructor` en cualquier profundidad relevante.
+
+Además, mientras MAME vive el launcher observa las publicaciones atómicas en
+`events/candidates/` y `events/commitments/` y conserva en memoria la primera
+identidad SHA-256 de sus bytes exactos. Cambiar, borrar/recrear o restaurar un
+output ya observado es sticky; un output final nunca observado o un watcher
+fallido impide CLEAN. Tras drenar watchers, el launcher escribe atómicamente
+`integrity/app/app-close-seal.json`, que liga run/input manifest, exit code,
+violaciones app-owned, hashes de `final.marker` y ledger, y el par exacto de
+candidate/commitment observado. El finalizer no construye un plan CLEAN sin
+validar ese sello. Recovery no reconstruye un close seal ausente.
 
 La publicación es transaccional e idempotente:
 
@@ -167,6 +186,12 @@ Para evidence v2, `submission-service` valida antes de auth/session/network:
 - SHA-256 exacto de los bytes del evento;
 - plan y commit de finalización compatibles con receipt y output.
 
+La obligación de evidence no procede del JSON del evento. El contrato
+app-owned del pack/scope exige v2 cuando combina Pack Contract v2, integrity v1
+y captura automática protegida. Borrar `competitionIntegrity`, sustituirla por
+v1 o rehacer el evento como legacy produce rejected local con cero auth y cero
+HTTP. Un scope legacy/unprotected conserva el camino histórico.
+
 Un fallo mueve el fichero a rejected con diagnóstico local y produce cero
 resoluciones de auth y cero HTTP. Copiar rejected a pending, mover entre cuentas
 o editar score, bindings, identidades o provenance no concede elegibilidad.
@@ -189,7 +214,10 @@ ya movidos.
 
 Los ajustes compartidos `-video bgfx` y `-bgfx_screen_chains crt-geom` sólo se
 declaran en `mame.launchArgs`; se rechazan en perfiles protegidos. Practice y
-Competition reciben ambos argumentos exactamente una vez.
+Competition reciben ambos argumentos exactamente una vez. La decisión
+common-only reutiliza el normalizador MAME, por lo que `--video=...`,
+`/video:...`, guiones/underscores y aliases equivalentes no pueden ocultarse en
+un perfil; la salida efectiva queda canonizada.
 
 Practice conserva TAB, pausa, save/load, DIPs y reset; usa `-noplugins`, no crea
 controller competitivo, snapshot, provenance, candidate protegido ni watcher de
@@ -199,8 +227,9 @@ pluginpath, cfg y todos los directorios mutables por run.
 ## Recovery de startup
 
 Startup elimina únicamente PREPARING huérfanos cuyo proceso propietario ya no
-existe. Una run preparada sin final seal o sin `mame-exit.json` se clasifica
-`fail_closed`. Journals parciales se reanudan; receipt/output corruptos se
+existe. Una run preparada sin final seal, sin `mame-exit.json` o sin app close
+seal se clasifica `fail_closed`. Journals parciales con close seal válido se
+reanudan; receipt/output corruptos se
 clasifican de forma determinista y nunca se convierten en CLEAN por ausencia de
 datos.
 
@@ -227,6 +256,8 @@ node scripts/qa/space-invaders-automatic-finalization.js --% "D:/High Score Leag
 node scripts/qa/space-invaders-automatic-finalization.js --% "D:/High Score League/Space Invaders" "<mame.exe staged>" dip_changed
 node scripts/qa/space-invaders-automatic-finalization.js --% "D:/High Score League/Space Invaders" "<mame.exe staged>" save_load
 node scripts/qa/space-invaders-automatic-finalization.js --% "D:/High Score League/Space Invaders" "<mame.exe staged>" reset
+node scripts/qa/space-invaders-automatic-finalization.js --% "D:/High Score League/Space Invaders" "<mame.exe staged>" output_tamper
+node scripts/qa/space-invaders-automatic-finalization.js --% "D:/High Score League/Space Invaders" "<mame.exe staged>" input_restore_delete
 node scripts/qa/space-invaders-practice.js
 ```
 

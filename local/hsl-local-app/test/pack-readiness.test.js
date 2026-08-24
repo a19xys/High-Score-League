@@ -531,6 +531,7 @@ test("packVersion 2 con adapter valido distingue loader de Competition protegida
         },
       },
     };
+    context.config.pack.contract.mame.launchArgs = ["-video", "bgfx", "-bgfx_screen_chains", "crt-geom"];
     context.config.sharedMameRuntime.version = "0.287";
     context.config.sharedMameRuntime.source = "external/dev";
     await fsp.writeFile(path.join(context.config.packRoot, "competition-manifest.json"), "{}\n", "utf8");
