@@ -340,6 +340,7 @@ test("full live chain reaches sent before simulated MAME close and handles A/B/C
     clientVersion: "0.2.0",
     supabaseAnonKey: "anon-key",
     supabaseUrl: "https://example.supabase.co",
+    webBaseUrl: "https://hsl.example",
   }, {
     meta: {
       pack: {

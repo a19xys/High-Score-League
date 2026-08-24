@@ -47,3 +47,12 @@ corrupto o contradice cualquier byte final.
 El límite aceptado permanece: una reescritura coherente de launcher/ASAR y de
 toda la autoridad app-owned, un SO hostil o instrumentación del proceso quedan
 fuera de LOCAL y corresponden a la futura autoridad WEB.
+
+## Cierre posterior de scope
+
+`LOCAL-COMPETITION-INTEGRITY-SCOPE-FIX-1` añade la persistencia monotónica de
+la condición Protected en cada scoped queue. Tras restart, eligibility ya no
+necesita reconstruir el Pack Contract ni volver a abrir la Biblioteca. También
+separa definitivamente `meta.pack.webBaseUrl` —metadata histórica— de la
+autoridad remota resuelta por el launcher y hace atómica la actualización de
+`meta.json`. Véase `local-competition-integrity-scope-fix-1.md`.

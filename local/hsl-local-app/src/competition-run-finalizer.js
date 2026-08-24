@@ -16,6 +16,7 @@ const {
   APP_CLOSE_SEAL_FILENAME,
   readCompetitionAppCloseSeal,
 } = require("./competition-close-seal");
+const { assertProtectedScopeAuthority } = require("./competition-scope-authority");
 
 const MAX_LEDGER_BYTES = 64 * 1024;
 const MAX_CANDIDATE_BYTES = 256 * 1024;
@@ -630,6 +631,7 @@ async function finalizeCompetitionRun(run, scope, options = {}) {
   if (!scope?.scopedQueueRoot || !scope?.scopedPendingDir || !scope?.scopedRejectedDir) {
     throw new CompetitionFinalizationError("invalid_scope", "No se recibio una cola scoped completa.");
   }
+  await assertProtectedScopeAuthority(run, scope);
   const existing = await readExistingFinalization(run, scope);
   if (existing) {
     await readCompetitionAppCloseSeal(run, { exitCode: options.exitCode });
@@ -650,6 +652,7 @@ async function finalizeCompetitionRun(run, scope, options = {}) {
     plan = await stageFinalizationPlan(run, ledger, failClosedReason, options);
     options.afterPlan?.(plan);
   }
+  await assertProtectedScopeAuthority(run, scope);
   const result = await publishPlan(run, scope, plan, options);
   await compactCompetitionRun(run, result, options);
   return result;

@@ -12,6 +12,7 @@ const { finalizeCompetitionRun } = require("../../src/competition-run-finalizer"
 const { launchMameDetailed } = require("../../src/mame-launcher");
 const { prepareV2CompetitionRun } = require("../../src/mame-plugin-run");
 const { loadPackFromDir } = require("../../src/pack");
+const { establishProtectedScopeAuthority } = require("../../src/competition-scope-authority");
 
 function argumentValue(args, option) {
   const index = args.lastIndexOf(option);
@@ -58,6 +59,12 @@ async function main() {
       fsp.mkdir(scope.scopedPendingDir, { recursive: true }),
       fsp.mkdir(scope.scopedRejectedDir, { recursive: true }),
     ]);
+    await establishProtectedScopeAuthority(scope, {
+      playerKey: scope.playerKey,
+      packKey: scope.packKey,
+      packId: loaded.pack.packId,
+      weekId: loaded.pack.weekId,
+    });
     const diagnosticScript = path.resolve(__dirname, "..", "..", "test", "support", "mame-0287-diagnostic.lua");
     const run = await prepareV2CompetitionRun(config, scope, {
       developerOverride: true,

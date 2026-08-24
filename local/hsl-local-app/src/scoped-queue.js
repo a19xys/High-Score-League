@@ -4,6 +4,12 @@ const path = require("node:path");
 const { readEventFile } = require("./event-files");
 const { reconcileLegacyGeneric409Failures } = require("./file-queue");
 const { deriveCompetitionPlayerBinding } = require("./competition-player-binding");
+const {
+  INVALID_PROTECTED_COMPETITION_MODE,
+  PROTECTED_COMPETITION_MODE,
+  ensureScopeCompetitionAuthority,
+  resolveScopeCompetitionAuthority,
+} = require("./competition-scope-authority");
 
 function hashPart(value, length = 16) {
   return crypto.createHash("sha256").update(String(value || "")).digest("hex").slice(0, length);
@@ -116,10 +122,44 @@ function buildScopedMeta(config = {}, session = {}, scope, options = {}) {
 
 async function readExistingMeta(metaPath) {
   try {
+    const stat = await fsp.lstat(metaPath);
+    if (!stat.isFile() || stat.isSymbolicLink()) return { status: "unsafe", value: null };
+    if (stat.size <= 0 || stat.size > 64 * 1024) return { status: "corrupt", value: null };
     const raw = await fsp.readFile(metaPath, "utf8");
-    return JSON.parse(raw);
-  } catch {
-    return null;
+    return { status: "parsed", value: JSON.parse(raw) };
+  } catch (error) {
+    return error?.code === "ENOENT"
+      ? { status: "missing", value: null }
+      : { status: "corrupt", value: null };
+  }
+}
+
+async function atomicWriteScopedMeta(metaPath, meta, options = {}) {
+  await fsp.mkdir(path.dirname(metaPath), { recursive: true });
+  const bytes = Buffer.from(JSON.stringify(meta, null, 2), "utf8");
+  const current = await fsp.readFile(metaPath).catch((error) => (error?.code === "ENOENT" ? null : Promise.reject(error)));
+  if (current?.equals(bytes)) return { alreadyCurrent: true, metaPath };
+  const temporaryPath = path.join(
+    path.dirname(metaPath),
+    `.${path.basename(metaPath)}.tmp-${process.pid}-${crypto.randomBytes(6).toString("hex")}`,
+  );
+  let handle;
+  try {
+    handle = await fsp.open(temporaryPath, "wx", 0o600);
+    await handle.writeFile(bytes);
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    await options.beforeMetaRename?.(temporaryPath, metaPath);
+    await (options.renameMetaImpl || fsp.rename)(temporaryPath, metaPath);
+    const directory = await fsp.open(path.dirname(metaPath), "r").catch(() => null);
+    await directory?.sync().catch(() => null);
+    await directory?.close().catch(() => null);
+    return { alreadyCurrent: false, metaPath };
+  } catch (error) {
+    await handle?.close().catch(() => null);
+    await fsp.rm(temporaryPath, { force: true }).catch(() => null);
+    throw error;
   }
 }
 
@@ -137,24 +177,35 @@ async function ensureScopedQueue(config = {}, session = {}, options = {}) {
     fsp.mkdir(scope.scopedSentDir, { recursive: true }),
   ]);
 
+  const metaPath = path.join(scope.scopedQueueRoot, "meta.json");
+  const existing = await readExistingMeta(metaPath);
+  if (existing.status === "unsafe") throw new Error("La metadata scoped existente no es un fichero regular seguro.");
+  if (existing.status === "parsed") {
+    const validation = validateScopedMeta(existing.value, {
+      packKey: scope.packKey,
+      playerKey: scope.playerKey,
+      userId: session.userId,
+    });
+    if (!validation.ok) throw new Error(`La metadata scoped existente contradice el scope: ${validation.reason}.`);
+  }
+  const meta = buildScopedMeta(config, session, scope, {
+    createdAt: existing.value?.createdAt,
+    now: options.now,
+  });
+  const competitionAuthority = await ensureScopeCompetitionAuthority(config, scope, meta, options);
+  await (options.atomicWriteMetaImpl || atomicWriteScopedMeta)(metaPath, meta, options);
+
   await reconcileLegacyGeneric409Failures({
     eventsFailedDirAbs: scope.scopedFailedDir,
     eventsPendingDirAbs: scope.scopedPendingDir,
   });
 
-  const metaPath = path.join(scope.scopedQueueRoot, "meta.json");
-  const existing = await readExistingMeta(metaPath);
-  const meta = buildScopedMeta(config, session, scope, {
-    createdAt: existing?.createdAt,
-    now: options.now,
-  });
-
-  await fsp.writeFile(metaPath, JSON.stringify(meta, null, 2), "utf8");
-
   return {
     ...scope,
+    competitionMode: competitionAuthority.competitionMode,
     meta,
     metaPath,
+    scopeAuthority: competitionAuthority.authority,
   };
 }
 
@@ -215,8 +266,16 @@ function validateScopedMeta(meta, expected = {}) {
 
 function buildScopedSubmitConfig(baseConfig, scopeRecord, options = {}) {
   const { meta, scope } = scopeRecord;
+  const declaredModes = [scopeRecord.competitionMode, scope.competitionMode, scopeRecord.scopeAuthority?.mode, scope.scopeAuthority?.mode];
+  if (declaredModes.includes(INVALID_PROTECTED_COMPETITION_MODE)) {
+    throw new Error("La autoridad competitiva del scope es invalida y no puede usarse para submit.");
+  }
+  const competitionMode = declaredModes.includes(PROTECTED_COMPETITION_MODE)
+    ? PROTECTED_COMPETITION_MODE
+    : "legacy";
   return {
     ...baseConfig,
+    competitionMode,
     competitionPlayerBinding: meta.player.userId ? deriveCompetitionPlayerBinding(meta.player.userId) : null,
     defaultWeekId: meta.pack.weekId,
     eventsBaseDirAbs: scope.eventsRoot,
@@ -232,12 +291,22 @@ function buildScopedSubmitConfig(baseConfig, scopeRecord, options = {}) {
       packId: meta.pack.packId || null,
       packRoot: meta.pack.packDir || null,
       rom: meta.pack.rom || null,
+      // Metadata historica/de presentacion. Nunca es autoridad de networking.
       webBaseUrl: meta.pack.webBaseUrl,
       weekId: meta.pack.weekId,
     },
-    scopedQueue: { ...scope, meta },
+    protectedCompetitionEvidenceRequired: competitionMode === PROTECTED_COMPETITION_MODE,
+    scopedQueue: {
+      ...scope,
+      competitionMode,
+      meta,
+      scopeAuthority: scopeRecord.scopeAuthority || scope.scopeAuthority || null,
+    },
     sessionFileAbs: options.sessionFileAbs || baseConfig.sessionFileAbs,
-    webBaseUrl: meta.pack.webBaseUrl,
+    // La autoridad remota resuelta por el launcher sobrevive a discovery.
+    hslOrigin: baseConfig.hslOrigin,
+    remoteConfiguration: baseConfig.remoteConfiguration,
+    webBaseUrl: baseConfig.webBaseUrl,
   };
 }
 
@@ -320,6 +389,17 @@ async function buildPlayerPendingIndex(config = {}, session = {}) {
       revisionParts.push([entry.name, validation.reason]);
       continue;
     }
+    const competitionAuthority = await resolveScopeCompetitionAuthority(scope, meta);
+    if (competitionAuthority.competitionMode === INVALID_PROTECTED_COMPETITION_MODE) {
+      const pending = await listPendingDescriptors(scope.scopedPendingDir);
+      skipped.push({
+        count: pending.descriptors.length,
+        packKey: entry.name,
+        reason: competitionAuthority.reason || "invalid-scope-authority",
+      });
+      revisionParts.push([entry.name, "protected-invalid", competitionAuthority.reason, pending.descriptors]);
+      continue;
+    }
     await reconcileLegacyGeneric409Failures({
       eventsFailedDirAbs: scope.scopedFailedDir,
       eventsPendingDirAbs: scope.scopedPendingDir,
@@ -334,10 +414,12 @@ async function buildPlayerPendingIndex(config = {}, session = {}) {
     const record = {
       accepted: true,
       invalidPendingCount: pendingCount - validPendingCount,
+      competitionMode: competitionAuthority.competitionMode,
       meta,
       metaStatus: "valid",
       pendingCount,
       scope,
+      scopeAuthority: competitionAuthority.authority,
       validPendingCount,
     };
     scopes.push(record);
@@ -347,6 +429,8 @@ async function buildPlayerPendingIndex(config = {}, session = {}) {
       meta.schemaVersion,
       meta.player,
       meta.pack,
+      competitionAuthority.competitionMode,
+      competitionAuthority.authority,
       pending.descriptors.map((item) => [item.filename, item.size, item.mtimeMs, item.valid]),
     ]);
   }
@@ -378,6 +462,7 @@ async function discoverPlayerPendingScopes(config = {}, session = {}) {
 
 module.exports = {
   applyScopedQueue,
+  atomicWriteScopedMeta,
   buildScopedSubmitConfig,
   buildScopedMeta,
   buildPlayerPendingIndex,

@@ -16,6 +16,10 @@ const {
 } = require("../src/run-input-integrity");
 const { writeCompetitionAppCloseSeal } = require("../src/competition-close-seal");
 const { OUTPUT_MONITOR_ARMED_FILENAME } = require("../src/competition-output-monitor");
+const {
+  authorityPathFor,
+  establishProtectedScopeAuthority,
+} = require("../src/competition-scope-authority");
 
 const MANIFEST_SHA = "a".repeat(64);
 const INPUT_SHA = "b".repeat(64);
@@ -83,6 +87,12 @@ async function fixture(t, options = {}) {
     fsp.mkdir(scope.scopedPendingDir, { recursive: true }),
     fsp.mkdir(scope.scopedRejectedDir, { recursive: true }),
   ]);
+  await establishProtectedScopeAuthority(scope, {
+    playerKey: "user",
+    packKey: "pack",
+    packId: integrity.packId,
+    weekId: integrity.weekId,
+  }, { establishedAt: "2026-08-21T09:59:00.000Z" });
   await fsp.writeFile(run.candidateLedgerPath, "", "utf8");
   await writeJson(path.join(integrityDir, "identity.json"), {
     version: 2,
@@ -190,6 +200,18 @@ async function seal(run, violations = [], appViolations = []) {
 async function jsonFiles(directory) {
   return (await fsp.readdir(directory)).filter((name) => name.endsWith(".json")).sort();
 }
+
+test("Protected finalizer refuses missing scope authority before publishing", async (t) => {
+  const { run, scope } = await fixture(t);
+  await addCandidate(run, 120);
+  await seal(run);
+  await fsp.rm(authorityPathFor(scope));
+  await assert.rejects(
+    () => finalizeCompetitionRun(run, scope, { exitCode: 0, compact: false }),
+    (error) => error?.code === "missing_scope_authority",
+  );
+  assert.deepEqual(await jsonFiles(scope.scopedPendingDir), []);
+});
 
 test("remote_verified CLEAN commits receipt and exact pending outputs idempotently", async (t) => {
   const { run, scope } = await fixture(t);

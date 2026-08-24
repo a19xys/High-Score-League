@@ -15,6 +15,7 @@ const { prepareV2CompetitionRun } = require("../../src/mame-plugin-run");
 const { writePackProvenanceReceipt } = require("../../src/pack-provenance");
 const { loadPackFromDir } = require("../../src/pack");
 const { configureProductRuntime, resetProductRuntime } = require("../../src/product-runtime");
+const { establishProtectedScopeAuthority } = require("../../src/competition-scope-authority");
 const packageMetadata = require("../../package.json");
 
 async function listJson(directory) {
@@ -73,6 +74,12 @@ async function main() {
       fsp.mkdir(scope.scopedPendingDir, { recursive: true }),
       fsp.mkdir(scope.scopedRejectedDir, { recursive: true }),
     ]);
+    await establishProtectedScopeAuthority(scope, {
+      playerKey: scope.playerKey,
+      packKey: scope.packKey,
+      packId: loaded.pack.packId,
+      weekId: loaded.pack.weekId,
+    });
     const run = await prepareV2CompetitionRun(config, scope, {
       developerQa: {
         autobootScriptPath: path.resolve(appDir, "test", "support", "mame-0287-invaders-auto-capture-qa.lua"),

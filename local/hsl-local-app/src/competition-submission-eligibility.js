@@ -2,6 +2,11 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const { deriveCompetitionPlayerBinding } = require("./competition-player-binding");
 const { sha256Bytes } = require("./run-input-integrity");
+const {
+  INVALID_PROTECTED_COMPETITION_MODE,
+  PROTECTED_COMPETITION_MODE,
+  requiresProtectedCompetitionFromPack,
+} = require("./competition-scope-authority");
 
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
@@ -28,18 +33,19 @@ function expectedPlayerBinding(config) {
 }
 
 function requiresProtectedCompetitionEvidence(config = {}) {
-  const pack = config.pack;
-  const contract = pack?.contract;
-  return (pack?.packVersion === 2 || contract?.version === 2)
-    && contract?.mame?.profiles?.competition?.integrity?.version === 1
-    && contract?.capture?.automatic?.version === 1
-    && typeof contract.capture.automatic.strategy === "string"
-    && contract.capture.automatic.strategy.length > 0;
+  const durableModes = [config.competitionMode, config.scopedQueue?.competitionMode];
+  return config.protectedCompetitionEvidenceRequired === true
+    || durableModes.includes(PROTECTED_COMPETITION_MODE)
+    || durableModes.includes(INVALID_PROTECTED_COMPETITION_MODE)
+    || requiresProtectedCompetitionFromPack(config);
 }
 
 async function checkProtectedCompetitionEligibility(config, event, sourcePath) {
   const evidence = event?.competitionIntegrity;
   const protectedRequired = requiresProtectedCompetitionEvidence(config);
+  if ([config.competitionMode, config.scopedQueue?.competitionMode].includes(INVALID_PROTECTED_COMPETITION_MODE)) {
+    return ineligible("COMPETITION_SCOPE_AUTHORITY_INVALID", "La autoridad competitiva durable del scope es invalida.");
+  }
   if (evidence === undefined) {
     return protectedRequired
       ? ineligible("COMPETITION_EVIDENCE_REQUIRED", "Este scope exige evidence competitiva v2 app-owned.")

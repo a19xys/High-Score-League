@@ -5,11 +5,25 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   applyScopedQueue,
+  atomicWriteScopedMeta,
+  buildPlayerPendingIndex,
+  buildScopedSubmitConfig,
   derivePackKey,
   derivePlayerKey,
   ensureScopedQueue,
   resolveScopedQueue,
 } = require("../src/scoped-queue");
+const {
+  PROTECTED_COMPETITION_MODE,
+  authorityPathFor,
+  readScopeAuthority,
+} = require("../src/competition-scope-authority");
+const {
+  checkProtectedCompetitionEligibility,
+  requiresProtectedCompetitionEvidence,
+} = require("../src/competition-submission-eligibility");
+const { deriveCompetitionPlayerBinding } = require("../src/competition-player-binding");
+const { canonicalJsonBytes } = require("../src/run-input-integrity");
 
 async function withTempDir(fn) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-scoped-queue-test-"));
@@ -34,6 +48,35 @@ function baseConfig(root, overrides = {}) {
     ...overrides,
   };
 }
+
+function protectedConfig(root, overrides = {}) {
+  return baseConfig(root, {
+    hslOrigin: "https://highscoreleague.com",
+    remoteConfiguration: { source: "fixture" },
+    webBaseUrl: "https://highscoreleague.com",
+    pack: {
+      packVersion: 2,
+      gameId: "space-invaders",
+      packId: "space-invaders-s1-w1-r2",
+      packRoot: path.join(root, "pack"),
+      rom: "invaders",
+      webBaseUrl: "https://high-score-league.vercel.app",
+      weekId: "week-1",
+      contract: {
+        version: 2,
+        mame: { profiles: { competition: { integrity: { version: 1 } } } },
+        capture: { automatic: { version: 1, strategy: "invaders-game-mode-final-v1" } },
+      },
+    },
+    ...overrides,
+  });
+}
+
+const session = {
+  email: "player@example.com",
+  hasSession: true,
+  userId: "user-1",
+};
 
 test("derivePlayerKey uses user id before email", () => {
   const key = derivePlayerKey({
@@ -168,4 +211,219 @@ test("applyScopedQueue keeps legacy global queue out of v2 staging", () => {
   assert.equal(scoped.stagingEventsPendingDirAbs, null);
   assert.equal(scoped.legacyEventsPendingDirAbs, config.eventsPendingDirAbs);
   assert.equal(scoped.eventsSource, "scoped-user-pack");
+});
+
+test("protected scope authority survives restart and cannot downgrade with a changed pack", async () => {
+  await withTempDir(async (dir) => {
+    const config = protectedConfig(dir);
+    const created = await ensureScopedQueue(config, session, { now: "2026-08-24T10:00:00.000Z" });
+    const firstBytes = await fsp.readFile(authorityPathFor(created));
+    assert.equal(created.competitionMode, PROTECTED_COMPETITION_MODE);
+
+    const changedPack = protectedConfig(dir, {
+      pack: {
+        gameId: "space-invaders",
+        packId: "space-invaders-s1-w1-r2",
+        packRoot: path.join(dir, "moved-or-missing-pack"),
+        rom: "invaders",
+        webBaseUrl: "https://attacker.example",
+        weekId: "week-1",
+      },
+    });
+    const reopened = await ensureScopedQueue(changedPack, session, { now: "2026-08-24T11:00:00.000Z" });
+    assert.equal(reopened.competitionMode, PROTECTED_COMPETITION_MODE);
+    assert.deepEqual(await fsp.readFile(authorityPathFor(reopened)), firstBytes);
+
+    const index = await buildPlayerPendingIndex({ userDataDir: config.userDataDir }, session);
+    assert.equal(index.scopes[0].competitionMode, PROTECTED_COMPETITION_MODE);
+    const reconstructed = buildScopedSubmitConfig({
+      hslOrigin: "https://highscoreleague.com",
+      remoteConfiguration: { source: "launcher" },
+      userDataDir: config.userDataDir,
+      webBaseUrl: "https://highscoreleague.com",
+    }, index.scopes[0]);
+    assert.equal(reconstructed.pack.contract, undefined);
+    assert.equal(reconstructed.protectedCompetitionEvidenceRequired, true);
+    assert.equal(requiresProtectedCompetitionEvidence(reconstructed), true);
+    assert.equal(requiresProtectedCompetitionEvidence({ ...reconstructed, competitionMode: "legacy" }), true);
+    assert.equal(reconstructed.webBaseUrl, "https://highscoreleague.com");
+    assert.equal(reconstructed.pack.webBaseUrl, "https://attacker.example");
+    assert.deepEqual(reconstructed.remoteConfiguration, { source: "launcher" });
+    const contradictoryRecord = buildScopedSubmitConfig({
+      userDataDir: config.userDataDir,
+      webBaseUrl: "https://highscoreleague.com",
+    }, { ...index.scopes[0], competitionMode: "legacy" });
+    assert.equal(contradictoryRecord.competitionMode, PROTECTED_COMPETITION_MODE);
+  });
+});
+
+test("scope authority mismatch is fail closed and never overwritten", async () => {
+  await withTempDir(async (dir) => {
+    const scope = await ensureScopedQueue(protectedConfig(dir), session, { now: "2026-08-24T10:00:00.000Z" });
+    const filePath = authorityPathFor(scope);
+    const value = JSON.parse(await fsp.readFile(filePath, "utf8"));
+    value.weekId = "week-other";
+    const contradictory = canonicalJsonBytes(value);
+    await fsp.writeFile(filePath, contradictory);
+    await assert.rejects(
+      () => ensureScopedQueue(protectedConfig(dir), session, { now: "2026-08-24T11:00:00.000Z" }),
+      /contradice|invalida/i,
+    );
+    assert.deepEqual(await fsp.readFile(filePath), contradictory);
+  });
+});
+
+test("pre-fix scope backfills authority only from conclusive finalized receipts", async () => {
+  await withTempDir(async (dir) => {
+    const config = protectedConfig(dir);
+    const scope = resolveScopedQueue(config, session);
+    const meta = {
+      schemaVersion: 1,
+      createdAt: "2026-08-23T10:00:00.000Z",
+      updatedAt: "2026-08-23T10:00:00.000Z",
+      player: { email: session.email, playerKey: scope.playerKey, userId: session.userId },
+      pack: {
+        gameId: "space-invaders",
+        packDir: path.join(dir, "removed-pack"),
+        packId: "space-invaders-s1-w1-r2",
+        packKey: scope.packKey,
+        rom: "invaders",
+        webBaseUrl: "https://high-score-league.vercel.app",
+        weekId: "week-1",
+      },
+    };
+    const receipt = {
+      version: 1,
+      runId: "run_prefixed_scope",
+      weekId: "week-1",
+      playerBinding: deriveCompetitionPlayerBinding(session.userId),
+      packId: "space-invaders-s1-w1-r2",
+      manifestSha256: "a".repeat(64),
+      runInputManifestSha256: "b".repeat(64),
+      captureClientVersion: "0.3.0",
+      provenance: { artifactSha256: "c".repeat(64), artifactSizeBytes: 1, competitionManifestSha256: "a".repeat(64), mode: "remote_verified" },
+      status: "clean",
+      violations: [],
+      outputs: [],
+      finalizedAt: "2026-08-23T10:30:00.000Z",
+    };
+    await Promise.all([
+      fsp.mkdir(scope.scopedPendingDir, { recursive: true }),
+      fsp.mkdir(path.join(scope.scopedQueueRoot, "competition", "finalized"), { recursive: true }),
+    ]);
+    await fsp.writeFile(path.join(scope.scopedQueueRoot, "meta.json"), JSON.stringify(meta));
+    await fsp.writeFile(
+      path.join(scope.scopedQueueRoot, "competition", "finalized", `${receipt.runId}.json`),
+      canonicalJsonBytes(receipt),
+    );
+    const index = await buildPlayerPendingIndex({ userDataDir: config.userDataDir }, session);
+    assert.equal(index.scopes[0].competitionMode, PROTECTED_COMPETITION_MODE);
+    assert.equal(index.scopes[0].scopeAuthority.mode, PROTECTED_COMPETITION_MODE);
+    assert.equal((await readScopeAuthority(scope, {
+      playerKey: scope.playerKey,
+      packKey: scope.packKey,
+      packId: meta.pack.packId,
+      weekId: meta.pack.weekId,
+    })).status, "valid");
+  });
+});
+
+test("ambiguous competition subtree is skipped as protected-invalid and preserves pending", async () => {
+  await withTempDir(async (dir) => {
+    const config = protectedConfig(dir);
+    const legacyLike = { ...config, pack: { ...config.pack, contract: undefined, packVersion: undefined } };
+    const scope = resolveScopedQueue(legacyLike, session);
+    const meta = {
+      schemaVersion: 1,
+      player: { playerKey: scope.playerKey, userId: session.userId },
+      pack: {
+        gameId: "space-invaders", packId: config.pack.packId, packKey: scope.packKey,
+        rom: "invaders", webBaseUrl: "https://attacker.example", weekId: "week-1",
+      },
+    };
+    const pendingPath = path.join(scope.scopedPendingDir, "preserved.json");
+    await Promise.all([
+      fsp.mkdir(scope.scopedPendingDir, { recursive: true }),
+      fsp.mkdir(path.join(scope.scopedQueueRoot, "competition"), { recursive: true }),
+    ]);
+    await fsp.writeFile(path.join(scope.scopedQueueRoot, "meta.json"), JSON.stringify(meta));
+    await fsp.writeFile(pendingPath, "{}");
+    const index = await buildPlayerPendingIndex({ userDataDir: config.userDataDir }, session);
+    assert.equal(index.records.length, 0);
+    assert.ok(index.skipped.some((item) => item.reason === "missing-finalized-receipt" && item.count === 1));
+    await fsp.access(pendingPath);
+  });
+});
+
+test("corrupt scope authority is never treated as legacy and preserves pending", async () => {
+  await withTempDir(async (dir) => {
+    const config = protectedConfig(dir);
+    const scope = await ensureScopedQueue(config, session, { now: "2026-08-24T10:00:00.000Z" });
+    const pendingPath = path.join(scope.scopedPendingDir, "preserved.json");
+    await fsp.writeFile(pendingPath, "{}");
+    await fsp.writeFile(authorityPathFor(scope), "{corrupt");
+    const index = await buildPlayerPendingIndex({ userDataDir: config.userDataDir }, session);
+    assert.equal(index.records.length, 0);
+    assert.ok(index.skipped.some((item) => item.reason === "invalid-scope-authority" && item.count === 1));
+    await fsp.access(pendingPath);
+  });
+});
+
+test("meta update is atomic across a crash before rename", async () => {
+  await withTempDir(async (dir) => {
+    const config = baseConfig(dir);
+    const scope = await ensureScopedQueue(config, session, { now: "2026-08-24T10:00:00.000Z" });
+    const original = await fsp.readFile(scope.metaPath);
+    await assert.rejects(
+      () => ensureScopedQueue(config, session, {
+        now: "2026-08-24T11:00:00.000Z",
+        beforeMetaRename: async () => { throw new Error("simulated-meta-crash"); },
+      }),
+      /simulated-meta-crash/,
+    );
+    assert.deepEqual(await fsp.readFile(scope.metaPath), original);
+    assert.doesNotThrow(() => JSON.parse(original.toString("utf8")));
+
+    const freshPath = path.join(dir, "fresh", "meta.json");
+    await assert.rejects(
+      () => atomicWriteScopedMeta(freshPath, { schemaVersion: 1 }, {
+        beforeMetaRename: async () => { throw new Error("simulated-create-crash"); },
+      }),
+      /simulated-create-crash/,
+    );
+    await assert.rejects(() => fsp.access(freshPath));
+    assert.deepEqual((await fsp.readdir(path.dirname(freshPath))).filter((name) => name.includes(".tmp-")), []);
+  });
+});
+
+test("corrupt meta is skipped without deleting pending and repaired atomically by full context", async () => {
+  await withTempDir(async (dir) => {
+    const config = baseConfig(dir);
+    const scope = await ensureScopedQueue(config, session, { now: "2026-08-24T10:00:00.000Z" });
+    const pendingPath = path.join(scope.scopedPendingDir, "preserved.json");
+    await fsp.writeFile(pendingPath, "{}");
+    await fsp.writeFile(scope.metaPath, "{corrupt");
+    const skipped = await buildPlayerPendingIndex({ userDataDir: config.userDataDir }, session);
+    assert.ok(skipped.skipped.some((item) => item.reason === "invalid-meta"));
+    await fsp.access(pendingPath);
+
+    const repaired = await ensureScopedQueue(config, session, { now: "2026-08-24T11:00:00.000Z" });
+    assert.equal(JSON.parse(await fsp.readFile(repaired.metaPath, "utf8")).schemaVersion, 1);
+    await fsp.access(pendingPath);
+  });
+});
+
+test("legacy queue remains legacy after restart", async () => {
+  await withTempDir(async (dir) => {
+    const config = baseConfig(dir);
+    await ensureScopedQueue(config, session, { now: "2026-08-24T10:00:00.000Z" });
+    const index = await buildPlayerPendingIndex({ userDataDir: config.userDataDir }, session);
+    assert.equal(index.scopes[0].competitionMode, "legacy");
+    const reconstructed = buildScopedSubmitConfig({ userDataDir: config.userDataDir, webBaseUrl: "https://highscoreleague.com" }, index.scopes[0]);
+    assert.equal(requiresProtectedCompetitionEvidence(reconstructed), false);
+    assert.deepEqual(
+      await checkProtectedCompetitionEligibility(reconstructed, { schemaVersion: 1 }, path.join(dir, "unused.json")),
+      { eligible: true, kind: "legacy" },
+    );
+  });
 });

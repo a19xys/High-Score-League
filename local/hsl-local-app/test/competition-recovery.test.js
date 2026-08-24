@@ -7,6 +7,10 @@ const { reconcileCompetitionRuns } = require("../src/competition-run-finalizer")
 const { armRunInputMonitor, canonicalJsonBytes, sha256Bytes } = require("../src/run-input-integrity");
 const { writeCompetitionAppCloseSeal } = require("../src/competition-close-seal");
 const { OUTPUT_MONITOR_ARMED_FILENAME } = require("../src/competition-output-monitor");
+const {
+  authorityPathFor,
+  establishProtectedScopeAuthority,
+} = require("../src/competition-scope-authority");
 
 async function workspace(t) {
   const userDataDir = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-run-recovery-"));
@@ -42,6 +46,12 @@ async function preparedRun(userDataDir, runId) {
     automaticCaptureStrategy: "invaders-game-mode-final-v1",
     scopedQueueRoot,
   }));
+  await establishProtectedScopeAuthority({ scopedQueueRoot }, {
+    playerKey: "user",
+    packKey: "pack",
+    packId: "space-invaders-s1-w1-r2",
+    weekId: "week-1",
+  }, { establishedAt: "2026-08-21T09:59:00.000Z" });
   return {
     integrityDir,
     runId,
@@ -143,6 +153,18 @@ test("final marker plus mame exit without app close seal is fail-closed", async 
   const results = await reconcileCompetitionRuns({ userDataDir });
   assert.equal(results[0].status, "fail_closed");
   assert.equal(results[0].reason, "missing_app_close_seal");
+});
+
+test("recovery refuses a sealed Protected run when scope authority disappeared", async (t) => {
+  const userDataDir = await workspace(t);
+  const run = await preparedRun(userDataDir, "run_missing_scope_authority");
+  await installCloseSeal(run);
+  await installEmptyPlan(run);
+  await fsp.rm(authorityPathFor({ scopedQueueRoot: run.scopedQueueRoot }));
+  const results = await reconcileCompetitionRuns({ userDataDir }, { compact: false });
+  assert.equal(results[0].status, "fail_closed");
+  assert.equal(results[0].reason, "missing_scope_authority");
+  await assert.rejects(() => fsp.access(path.join(run.scopedQueueRoot, "competition", "finalized", `${run.runId}.json`)));
 });
 
 test("startup resumes a sealed journal and commits exactly once", async (t) => {

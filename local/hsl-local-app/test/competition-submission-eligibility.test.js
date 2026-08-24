@@ -10,12 +10,21 @@ const {
 } = require("../src/competition-submission-eligibility");
 const { submitPendingFile } = require("../src/submission-service");
 const { canonicalJsonBytes, sha256Bytes } = require("../src/run-input-integrity");
+const {
+  buildPlayerPendingIndex,
+  buildScopedSubmitConfig,
+  derivePackKey,
+  derivePlayerKey,
+  ensureScopedQueue,
+} = require("../src/scoped-queue");
+const { createSessionResult } = require("../src/session-result");
 
 const RUN_ID = "run_submission_v2";
 const PACK_ID = "space-invaders-s1-w1-r2";
 const WEEK_ID = "week-1";
 const USER_ID = "user-one";
 const PLAYER_BINDING = deriveCompetitionPlayerBinding(USER_ID);
+const SESSION = { email: "player@example.com", hasSession: true, userId: USER_ID };
 
 function protectedEvent() {
   const provenance = {
@@ -68,7 +77,9 @@ function protectedEvent() {
 async function fixture(t, mutate = null) {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "hsl-submit-eligibility-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
-  const scopedQueueRoot = path.join(root, "players", "user", "packs", "pack");
+  const playerKey = derivePlayerKey(SESSION);
+  const packKey = derivePackKey({ pack: { packId: PACK_ID } });
+  const scopedQueueRoot = path.join(root, "players", playerKey, "packs", packKey);
   const eventsRoot = path.join(scopedQueueRoot, "events");
   const config = {
     userDataDir: root,
@@ -84,9 +95,11 @@ async function fixture(t, mutate = null) {
     webBaseUrl: "https://high-score-league.example",
     pack: {
       packVersion: 2,
+      gameId: "space-invaders",
       packId: PACK_ID,
       weekId: WEEK_ID,
       rom: "invaders",
+      webBaseUrl: "https://high-score-league.vercel.app",
       contract: {
         version: 2,
         mame: { profiles: { competition: { integrity: { version: 1 } } } },
@@ -95,6 +108,8 @@ async function fixture(t, mutate = null) {
     },
     competitionPlayerBinding: PLAYER_BINDING,
     scopedQueue: {
+      packKey,
+      playerKey,
       scopedQueueRoot,
       meta: { player: { userId: USER_ID } },
     },
@@ -275,3 +290,90 @@ test("a rejected event copied back to pending without CLEAN receipt makes zero r
   assert.equal(result.action, "rejected");
   assert.equal(requests, 0);
 });
+
+test("restart keeps protected scope and rejects a fully rewritten legacy event before auth or HTTP", async (t) => {
+  const value = await fixture(t);
+  await ensureScopedQueue(value.config, SESSION, { now: "2026-08-24T10:00:00.000Z" });
+
+  const index = await buildPlayerPendingIndex({ userDataDir: value.config.userDataDir }, SESSION);
+  assert.equal(index.records.length, 1);
+  assert.equal(index.records[0].competitionMode, "protected_v2");
+  const reconstructed = buildScopedSubmitConfig({
+    clientVersion: "0.3.0",
+    hslOrigin: "https://highscoreleague.com",
+    remoteConfiguration: { source: "launcher" },
+    supabaseAnonKey: "anon-key",
+    supabaseUrl: "https://example.supabase.co",
+    userDataDir: value.config.userDataDir,
+    webBaseUrl: "https://highscoreleague.com",
+  }, index.records[0]);
+  assert.equal(reconstructed.pack.contract, undefined);
+  assert.equal(requiresProtectedCompetitionEvidence(reconstructed), true);
+
+  const rewritten = { ...value.event };
+  delete rewritten.competitionIntegrity;
+  delete rewritten.candidateId;
+  rewritten.runId = "legacy-rewritten";
+  rewritten.packId = "legacy-rewritten";
+  await fsp.writeFile(value.sourcePath, canonicalJsonBytes(rewritten));
+  let sessionResolutions = 0;
+  let requests = 0;
+  const result = await submitPendingFile(reconstructed, value.filename, {
+    getSessionResultImpl: async () => { sessionResolutions += 1; throw new Error("must-not-resolve"); },
+    fetchImpl: async () => { requests += 1; throw new Error("must-not-fetch"); },
+  });
+  assert.equal(result.action, "rejected");
+  assert.equal(result.eligibilityCode, "COMPETITION_EVIDENCE_REQUIRED");
+  assert.equal(sessionResolutions, 0);
+  assert.equal(requests, 0);
+});
+
+for (const declaredOrigin of ["https://high-score-league.vercel.app", "https://attacker.example"]) {
+  test(`offline protected pending survives restart without pack and sends only to launcher origin (${declaredOrigin})`, async (t) => {
+    const value = await fixture(t, (_event, config) => { config.pack.webBaseUrl = declaredOrigin; });
+    await ensureScopedQueue(value.config, SESSION, { now: "2026-08-24T10:00:00.000Z" });
+
+    const index = await buildPlayerPendingIndex({ userDataDir: value.config.userDataDir }, SESSION);
+    const reconstructed = buildScopedSubmitConfig({
+      clientVersion: "0.3.0",
+      hslOrigin: "https://highscoreleague.com",
+      remoteConfiguration: { source: "launcher" },
+      supabaseAnonKey: "anon-key",
+      supabaseUrl: "https://example.supabase.co",
+      userDataDir: value.config.userDataDir,
+      webBaseUrl: "https://highscoreleague.com",
+    }, index.records[0]);
+    assert.equal(reconstructed.pack.contract, undefined);
+    assert.equal(reconstructed.pack.webBaseUrl, declaredOrigin);
+    assert.equal(reconstructed.webBaseUrl, "https://highscoreleague.com");
+
+    const requested = [];
+    const nowMs = Date.now();
+    const sessionResult = createSessionResult({
+      status: "valid",
+      storedSession: {
+        supabaseUrl: "https://example.supabase.co",
+        session: {
+          access_token: "scope-secret-token",
+          expires_at: Math.floor(nowMs / 1000) + 3600,
+          refresh_token: "scope-secret-refresh",
+        },
+        user: { id: USER_ID },
+      },
+    });
+    const result = await submitPendingFile(reconstructed, value.filename, {
+      fetchImpl: async (url, options) => {
+        requested.push({ authorization: options.headers.Authorization, url: String(url) });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      },
+      nowMs,
+      sessionResult,
+    });
+    assert.equal(result.action, "sent", JSON.stringify(result));
+    assert.deepEqual(requested, [{
+      authorization: "Bearer scope-secret-token",
+      url: "https://highscoreleague.com/api/submissions/ingest",
+    }]);
+    assert.equal(requested.some((item) => item.url.startsWith(declaredOrigin)), declaredOrigin === "https://highscoreleague.com");
+  });
+}
