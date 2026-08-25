@@ -184,6 +184,11 @@ async function smokePackaged(options = {}) {
     if (report.windowsUpdate?.enabled !== false || report.windowsUpdate?.enableReason !== "packaged-smoke") {
       throw new Error(`El updater no quedo aislado durante smoke: ${JSON.stringify(report.windowsUpdate)}`);
     }
+    if (!report.userDataIsolation?.overrideActive || !report.userDataIsolation.electronProfileIsolated
+        || !report.userDataIsolation.rootsDiffer || !report.userDataIsolation.hslRootMatchesOverride
+        || !report.userDataIsolation.configUsesHslRoot) {
+      throw new Error(`El root HSL no quedo aislado del perfil Electron: ${JSON.stringify(report.userDataIsolation)}`);
+    }
     const integrityQa = report.packagedIntegrityQa;
     if (!integrityQa?.ok || !integrityQa.appPathContainsAsar || !integrityQa.productRootResolved
         || !integrityQa.verifyRunInputsPassed || !integrityQa.monitorStarted || !integrityQa.postRunVerified

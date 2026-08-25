@@ -51,16 +51,18 @@ const { createExitCoordinator } = require("../src/exit-coordinator");
 const { createWindowsUpdateService } = require("../src/windows-update-service");
 const { reconcileCompetitionRuns } = require("../src/competition-run-finalizer");
 const { runPackagedIntegrityQa } = require("../src/packaged-integrity-qa");
+const { describeHslUserDataIsolation, resolveHslUserDataDir } = require("../src/hsl-user-data-root");
 
 app.setName("High Score League");
-if (process.env.HSL_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.HSL_USER_DATA_DIR));
+const electronUserDataDir = path.resolve(app.getPath("userData"));
+const hslUserDataDir = resolveHslUserDataDir(electronUserDataDir);
 configureProductRuntime({
   appPath: app.getAppPath(),
   isPackaged: app.isPackaged,
   productConfig: packageMetadata.hslProduct || null,
   productName: app.getName(),
   resourcesPath: process.resourcesPath,
-  userDataDir: app.getPath("userData"),
+  userDataDir: hslUserDataDir,
   version: app.getVersion(),
 });
 
@@ -326,6 +328,10 @@ function writePackagedSmokeReport(phase) {
       remoteConfigurationSource: config.remoteConfiguration?.source || "none",
       rendererReady: phase === "renderer-ready",
       resourcesPath: process.resourcesPath,
+      userDataIsolation: {
+        ...describeHslUserDataIsolation(electronUserDataDir, hslUserDataDir),
+        configUsesHslRoot: path.resolve(config.userDataDir) === hslUserDataDir,
+      },
       windowsUpdate: windowsUpdate?.getState() || null,
       version: app.getVersion(),
     };
@@ -608,7 +614,7 @@ function initializeRemoteServices() {
   presence = createPresenceService({
     configProvider: () => ({
       hslOrigin: trustedHslOrigin,
-      userDataDir: app.getPath("userData"),
+      userDataDir: hslUserDataDir,
       webBaseUrl: trustedHslOrigin,
     }),
     fetchImpl: (url, init) => net.fetch(url, init),
@@ -631,7 +637,7 @@ function initializeRemoteServices() {
     fetchImpl: (url, init) => net.fetch(url, init),
     getConnectivityState: () => connectivity.getState(),
     onTransportFailure: () => requestConnectivityConfirmation("week-capabilities-product-signal"),
-    userDataDir: app.getPath("userData"),
+    userDataDir: hslUserDataDir,
   });
   weekAuthorityStartupPromise = weekCapabilities.initialize();
   service.setCompetitionAuthorityProvider({
@@ -1541,9 +1547,9 @@ if (!hasSingleInstanceLock) {
     if (process.platform === "win32") app.setAppUserModelId("com.highscoreleague.launcher");
     themeAuthority = createThemeAuthority({
       readSystemTheme,
-      userDataDir: app.getPath("userData"),
+      userDataDir: hslUserDataDir,
     });
-    const startupPreferenceScope = await resolvePlayerPreferenceScope({ userDataDir: app.getPath("userData") });
+    const startupPreferenceScope = await resolvePlayerPreferenceScope({ userDataDir: hslUserDataDir });
     await themeAuthority.initialize(startupPreferenceScope);
     recordStartupMilestone("theme-resolved");
     initializeSecureSessionStorage();

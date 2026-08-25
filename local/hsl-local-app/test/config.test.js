@@ -27,7 +27,7 @@ test("resolveFromAppDir keeps absolute paths and resolves relative paths", async
   });
 });
 
-test("HSL_USER_DATA_DIR isolates GUI and CLI test profiles", async () => {
+test("HSL_USER_DATA_DIR isolates the HSL-owned data root", async () => {
   await withTempDir(async (dir) => {
     const profile = path.join(dir, "isolated-profile");
     const config = loadConfig(path.join(dir, "missing.json"), dir, {
