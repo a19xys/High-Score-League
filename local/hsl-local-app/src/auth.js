@@ -16,6 +16,7 @@ const {
   requiresSessionLogin,
 } = require("./session-result");
 const { normalizeProviderUrl } = require("./session-refresh-policy");
+const { getSessionStorageDiagnostics } = require("./secure-session-storage");
 const { parseResponseText } = require("./submission-http");
 const { parseRetryAfter } = require("./submission-outcome");
 
@@ -346,7 +347,46 @@ async function requireRemoteUsableSession(config, options = {}) {
 function redactValues(text, values = []) {
   let safeText = String(text || "");
   for (const value of values) if (value && typeof value === "string") safeText = safeText.split(value).join("[redactado]");
-  return safeText;
+  return safeText
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redactado]")
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[jwt-redactado]")
+    .replace(/\b(access_token|refresh_token|password|authorization|anon(?:ymous)?_?key|service_role)\s*[:=]\s*[^\s,;]+/gi, "$1=[redactado]")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 280);
+}
+
+function safeErrorCode(error) {
+  const code = typeof error?.code === "string" ? error.code.trim() : "";
+  return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$/.test(code) ? code : "SESSION_PERSISTENCE_FAILED";
+}
+
+function safeStorageDiagnostics() {
+  let diagnostics;
+  try {
+    diagnostics = getSessionStorageDiagnostics();
+  } catch {
+    diagnostics = { encryptionAvailable: false, provider: "unknown", warning: "storage-diagnostics-unavailable" };
+  }
+  return {
+    encryptionAvailable: diagnostics.encryptionAvailable === true,
+    provider: typeof diagnostics.provider === "string" ? diagnostics.provider.slice(0, 80) : "unknown",
+    warning: typeof diagnostics.warning === "string" ? diagnostics.warning.slice(0, 160) : null,
+  };
+}
+
+function sessionPersistenceFailure(error, sensitiveValues) {
+  const technicalMessage = redactValues(error?.message || "Fallo local sin mensaje técnico.", sensitiveValues);
+  return {
+    errorCode: safeErrorCode(error),
+    message: "La cuenta se ha autenticado, pero High Score League no ha podido guardar la sesión en este dispositivo. Inténtalo de nuevo; si continúa, abre Diagnóstico.",
+    ok: false,
+    reason: "local-session-persistence",
+    status: "session_persistence_failed",
+    storage: safeStorageDiagnostics(),
+    technicalMessage: technicalMessage || "Fallo local sin mensaje técnico.",
+  };
 }
 
 function toSafeSessionState(storedSession, overrides = {}) {
@@ -407,17 +447,27 @@ async function signInWithPassword(config, credentials = {}, options = {}) {
   }
   const supabase = options.supabaseClient || createSupabaseClient(config);
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { message: "El email o la contraseña no son correctos. Inténtalo de nuevo.", ok: false, status: "auth_failed", technicalMessage: redactValues(error.message, [password]) };
+  if (error) return { message: "El email o la contraseña no son correctos. Inténtalo de nuevo.", ok: false, status: "auth_failed", technicalMessage: redactValues(error.message, [email, password, config.supabaseAnonKey]) };
   if (!data?.session || !data?.user?.id) return { message: "Login realizado, pero Supabase no devolvio sesion valida.", ok: false, status: "missing_session" };
-  const repository = getAccountSessionRepository(config, options);
-  await ensureMigration(repository);
-  const saved = await repository.saveLogin({ schemaVersion: 1, session: data.session, supabaseUrl: config.supabaseUrl, user: data.user });
-  return {
-    message: "Login correcto.",
-    ok: true,
-    session: toSafeSessionState(saved.storedSession, { sessionRevision: saved.sessionRevision, status: "ok" }),
-    status: "ok",
-  };
+  try {
+    const repository = getAccountSessionRepository(config, options);
+    await ensureMigration(repository);
+    const saved = await repository.saveLogin({ schemaVersion: 1, session: data.session, supabaseUrl: config.supabaseUrl, user: data.user });
+    return {
+      message: "Login correcto.",
+      ok: true,
+      session: toSafeSessionState(saved.storedSession, { sessionRevision: saved.sessionRevision, status: "ok" }),
+      status: "ok",
+    };
+  } catch (persistenceError) {
+    return sessionPersistenceFailure(persistenceError, [
+      email,
+      password,
+      config.supabaseAnonKey,
+      data.session.access_token,
+      data.session.refresh_token,
+    ]);
+  }
 }
 
 async function logoutLocal(config, options = {}) {

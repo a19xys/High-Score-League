@@ -2887,6 +2887,33 @@ async function syncPlugin() {
   });
 }
 
+function toLoginLauncherResponse(result, state) {
+  const technicalDetails = result.status === "session_persistence_failed"
+    ? [
+        `status=${result.status}`,
+        `reason=${result.reason || "local-session-persistence"}`,
+        `code=${result.errorCode || "SESSION_PERSISTENCE_FAILED"}`,
+        ...(result.technicalMessage ? [`message=${result.technicalMessage}`] : []),
+        ...(result.storage ? [
+          `storageProvider=${result.storage.provider || "unknown"}; encryptionAvailable=${result.storage.encryptionAvailable === true}; warning=${result.storage.warning || "none"}`,
+        ] : []),
+      ]
+    : [];
+
+  return {
+    action: "login",
+    errorCode: result.errorCode,
+    lines: [result.message],
+    ok: result.ok,
+    reason: result.reason,
+    status: result.status,
+    storage: result.storage,
+    summary: result.message,
+    technicalDetails,
+    state,
+  };
+}
+
 async function loginWithPassword(credentials = {}) {
   await ensureRememberedPackLoaded();
   const config = getEffectiveConfig();
@@ -2895,13 +2922,7 @@ async function loginWithPassword(credentials = {}) {
     password: credentials.password,
   });
 
-  return {
-    action: "login",
-    lines: [result.message],
-    ok: result.ok,
-    summary: result.message,
-    state: await getLauncherState(),
-  };
+  return toLoginLauncherResponse(result, await getLauncherState());
 }
 
 async function logoutSession() {
@@ -3895,4 +3916,5 @@ module.exports = {
   switchKnownAccountFromGui,
   syncPlugin,
   toggleLibraryFavoriteFromGui,
+  toLoginLauncherResponse,
 };

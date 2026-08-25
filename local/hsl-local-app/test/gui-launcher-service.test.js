@@ -37,6 +37,7 @@ const {
   setCompetitionAuthorityProvider,
   summarizeDiagnoseReport,
   toggleLibraryFavoriteFromGui,
+  toLoginLauncherResponse,
 } = require("../gui/launcher-service");
 const { setPackDirectory, writePackDirectory } = require("../src/pack-directory");
 const { createAccountSessionRepository } = require("../src/account-session-repository");
@@ -59,6 +60,33 @@ async function withTempDir(fn) {
     await fsp.rm(dir, { recursive: true, force: true });
   }
 }
+
+test("login service preserves a safe persistence classification and the real state", () => {
+  const state = { auth: { hasSession: false, status: "missing" }, revision: 12 };
+  const response = toLoginLauncherResponse({
+    errorCode: "SESSION_STORAGE_UNAVAILABLE",
+    message: "No se pudo guardar la sesión local.",
+    ok: false,
+    reason: "local-session-persistence",
+    status: "session_persistence_failed",
+    storage: { encryptionAvailable: true, provider: "electron-win32", warning: null },
+    technicalMessage: "El proveedor seguro no está disponible.",
+  }, state);
+
+  assert.equal(response.ok, false);
+  assert.equal(response.status, "session_persistence_failed");
+  assert.equal(response.reason, "local-session-persistence");
+  assert.equal(response.errorCode, "SESSION_STORAGE_UNAVAILABLE");
+  assert.equal(response.state, state);
+  assert.deepEqual(response.storage, { encryptionAvailable: true, provider: "electron-win32", warning: null });
+  assert.deepEqual(response.technicalDetails, [
+    "status=session_persistence_failed",
+    "reason=local-session-persistence",
+    "code=SESSION_STORAGE_UNAVAILABLE",
+    "message=El proveedor seguro no está disponible.",
+    "storageProvider=electron-win32; encryptionAvailable=true; warning=none",
+  ]);
+});
 
 async function writeValidPack(root) {
   const packDir = path.join(root, "hsl-invaders");

@@ -54,6 +54,7 @@ import {
   shouldSurfaceAccountSwitchResult,
 } from "./product-presentation.js";
 import { createEphemeralLoginDraft } from "./login-draft.js";
+import { presentLoginResult, presentUnexpectedLoginFailure } from "./login-presentation.js";
 import { prepareAndAcceptWindowsUpdate, windowsUpdateDialogPatch } from "./windows-update-ui.js";
 import {
   isPackImportUiStable,
@@ -1777,9 +1778,7 @@ function resultToLog(title, response) {
   const ok = response.ok !== false && response.exitCode !== 1;
   const details = [...lines, ...(response.technicalDetails || []), ...extra];
   const friendly = {
-    login: ok
-      ? "Login correcto."
-      : "El email o la contraseña no son correctos. Inténtalo de nuevo.",
+    login: presentLoginResult(response).summary,
     diagnose: ok
       ? "Diagnóstico completado. El launcher puede seguir usándose."
       : "El diagnóstico encontró algo que conviene revisar.",
@@ -1965,9 +1964,10 @@ async function submitLogin(form) {
         return window.hslLauncher.login(email, password);
       },
     });
+    const presentation = presentLoginResult(response);
 
     store.setState({
-      authError: response.ok ? null : response.summary || "El email o la contraseña no son correctos. Inténtalo de nuevo.",
+      authError: presentation.authError,
       authEmail: response.ok ? "" : email,
       authFormOpen: !response.ok,
       accountMenuOpen: !response.ok,
@@ -1977,8 +1977,9 @@ async function submitLogin(form) {
       logs: appendLog(store.getState().logs, resultToLog("Iniciar sesión", response)),
     });
   } catch {
+    const presentation = presentUnexpectedLoginFailure();
     store.setState({
-      authError: "El email o la contraseña no son correctos. Inténtalo de nuevo.",
+      authError: presentation.authError,
       accountMenuOpen: true,
       authFormOpen: true,
       busy: false,
@@ -1986,7 +1987,7 @@ async function submitLogin(form) {
       logs: appendLog(store.getState().logs, {
         details: [],
         ok: false,
-        summary: "El email o la contraseña no son correctos. Inténtalo de nuevo.",
+        summary: presentation.summary,
         title: "Iniciar sesión",
       }),
     });

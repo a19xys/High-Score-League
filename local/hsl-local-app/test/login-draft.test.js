@@ -84,6 +84,12 @@ test("credentials leave the draft only through explicit take", async () => {
   form.fields.email.value = " player@example.com ";
   form.fields.password.value = "temporary-secret";
   assert.deepEqual(draft.take(form), { email: "player@example.com", password: "temporary-secret" });
+  assert.equal(form.fields.password.value, "");
+
+  const replacement = fakeForm();
+  draft.restore(replacement);
+  assert.equal(replacement.fields.email.value, " player@example.com ");
+  assert.equal(replacement.fields.password.value, "");
 });
 
 test("renderer keeps password outside store, persistence, snapshots and logs", async () => {
@@ -98,6 +104,7 @@ test("renderer keeps password outside store, persistence, snapshots and logs", a
   assert.match(app, /loginDraft\.take\(form\)/);
   assert.match(app, /window\.hslLauncher\.login\(email, password\)/);
   assert.match(app, /function cleanupRendererLifecycle\(\) \{\s*loginDraft\.clear\(\)/);
-  assert.match(app, /response\.ok \? null[\s\S]*authFormOpen: !response\.ok/);
+  assert.match(app, /authError: presentation\.authError[\s\S]*authFormOpen: !response\.ok/);
+  assert.match(app, /presentUnexpectedLoginFailure\(\)[\s\S]*authError: presentation\.authError/);
   assert.doesNotMatch(app, /appendLog\([^)]*password|details:\s*\[[^\]]*password/);
 });

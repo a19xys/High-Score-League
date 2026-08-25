@@ -52,7 +52,12 @@ export function createEphemeralLoginDraft() {
 
   function take(form) {
     capture(form);
-    return { email: email.trim(), password };
+    const credentials = { email: email.trim(), password };
+    const passwordField = formField(form, "password");
+    if (passwordField) passwordField.value = "";
+    password = "";
+    focus = null;
+    return credentials;
   }
 
   return { capture, clear, restore, seed, take };

@@ -82,21 +82,94 @@ test("signInWithPassword saves a valid Supabase session", async () => {
 test("signInWithPassword returns an error without saving when Supabase rejects login", async () => {
   await withTempDir(async (dir) => {
     const config = createConfig(dir);
+    let persistenceCalls = 0;
     const result = await signInWithPassword(
       config,
       { email: "player@example.com", password: "secret-password" },
       {
+        repository: {
+          migrateLegacy: async () => { persistenceCalls += 1; },
+          saveLogin: async () => { persistenceCalls += 1; },
+        },
         supabaseClient: stubSupabase({
           data: {},
-          error: { message: "Invalid login for secret-password" },
+          error: { message: "Invalid login for player@example.com with secret-password and anon-key" },
         }),
       }
     );
 
     assert.equal(result.ok, false);
     assert.equal(result.status, "auth_failed");
+    assert.equal(result.message, "El email o la contraseña no son correctos. Inténtalo de nuevo.");
+    assert.equal(persistenceCalls, 0);
     assert.equal(JSON.stringify(result).includes("secret-password"), false);
+    assert.equal(JSON.stringify(result).includes("player@example.com"), false);
+    assert.equal(JSON.stringify(result).includes("anon-key"), false);
     await assert.rejects(() => fsp.readFile(config.sessionFileAbs, "utf8"));
+  });
+});
+
+test("signInWithPassword classifies and sanitizes a coded local persistence failure", async () => {
+  await withTempDir(async (dir) => {
+    const config = createConfig(dir);
+    const session = validSession();
+    const persistenceError = Object.assign(new Error(
+      `storage rejected player@example.com correct-password ${session.access_token} ${session.refresh_token} anon-key Authorization=Bearer eyJhbGciOiJIUzI1NiJ9.c2VjcmV0.c2lnbmF0dXJl`
+    ), { code: "SESSION_STORAGE_UNAVAILABLE" });
+    persistenceError.stack = "stack-must-not-cross-boundary";
+    const result = await signInWithPassword(
+      config,
+      { email: "player@example.com", password: "correct-password" },
+      {
+        repository: {
+          migrateLegacy: async () => ({ status: "completed" }),
+          saveLogin: async () => { throw persistenceError; },
+        },
+        supabaseClient: stubSupabase({
+          data: { session, user: { id: "user-1", email: "player@example.com" } },
+          error: null,
+        }),
+      }
+    );
+    const serialized = JSON.stringify(result);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.status, "session_persistence_failed");
+    assert.equal(result.reason, "local-session-persistence");
+    assert.equal(result.errorCode, "SESSION_STORAGE_UNAVAILABLE");
+    assert.doesNotMatch(result.message, /email o la contraseña no son correctos/i);
+    assert.deepEqual(Object.keys(result.storage).sort(), ["encryptionAvailable", "provider", "warning"]);
+    assert.doesNotMatch(serialized, /player@example\.com|correct-password|access-token-secret|refresh-token-secret|anon-key|eyJhbGci|stack-must-not-cross-boundary/);
+    assert.equal(Object.hasOwn(result, "session"), false);
+  });
+});
+
+test("signInWithPassword uses a stable fallback for an uncoded persistence failure", async () => {
+  await withTempDir(async (dir) => {
+    const config = createConfig(dir);
+    const session = validSession();
+    const persistenceError = new Error(`cannot persist ${session.refresh_token}\u0000 correct-password`);
+    persistenceError.stack = "raw-stack-secret";
+    const result = await signInWithPassword(
+      config,
+      { email: "player@example.com", password: "correct-password" },
+      {
+        repository: {
+          migrateLegacy: async () => ({ status: "completed" }),
+          saveLogin: async () => { throw persistenceError; },
+        },
+        supabaseClient: stubSupabase({
+          data: { session, user: { id: "user-1", email: "player@example.com" } },
+          error: null,
+        }),
+      }
+    );
+    const serialized = JSON.stringify(result);
+
+    assert.equal(result.status, "session_persistence_failed");
+    assert.equal(result.errorCode, "SESSION_PERSISTENCE_FAILED");
+    assert.ok(result.technicalMessage.length <= 280);
+    assert.doesNotMatch(serialized, /refresh-token-secret|correct-password|raw-stack-secret|\\u0000/);
   });
 });
 
